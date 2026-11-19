@@ -4,12 +4,14 @@
  * fields: By Day / Calendar Week / Month / Quarter / Year), Criteria (ANDed). Hover shows the value; click a bar or slice for the records behind it.
  * Nothing is deleted: dashboards and components are RETIRED (hidden, restorable). Function only (no styling work). */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText } from '../ui.js?v=202611161500';
-import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, calendarBucket, NUMERIC, isDateType, DATE_PRESETS, presetKey, presetLabel } from '../data/crm-analytics.js?v=202611243900';
-import { tabs, head } from './crm-kit.js?v=202611247100';
+import { DASH_MODULES, moduleName, moduleFields, COMPONENT_TYPES, CHART_TYPES, VISIBILITY, BUCKETS, calendarBucket, NUMERIC, isDateType, DATE_PRESETS, presetKey, presetLabel } from '../data/crm-analytics.js?v=202611247700';
+import { tabs, head } from './crm-kit.js?v=202611247700';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611161500';
-import { criteriaEditor } from './crm-criteria.js?v=202611243900';
+import { criteriaEditor } from './crm-criteria.js?v=202611247700';
+import { readProbe, writeProbe, homeChartsDown, homeChartMessage, pageSession } from '../data/crm-home-charts.js?v=202611247000';
 
 const H = { s: 180, m: 260, l: 380 };
+const dashboardCopyName = (name) => { const suffix = ' (copy)'; const base = String(name || '').replace(/[\u0000-\u001f\u007f]/g, '').trim(); return base.slice(0, 100 - suffix.length) + suffix; };
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);
 
 function componentBody(c) {
@@ -30,13 +32,25 @@ function downloadComponent(c) {
 }
 const widthStyle = (w) => `calc(${(w || 1) * 33.3}% - 12px)`;
 const heightStyle = (h) => `${H[h] || 260}px`;
-const compCard = (c, canEdit, canExport = false) => html`<div class="card dash-comp" data-component="${c.id}" data-comp-type="${c.type}" data-width="${c.width || 1}" data-height="${c.height || 'm'}" style="width:${widthStyle(c.width)};min-height:${heightStyle(c.height)}">
+const compCard = (c, canEdit, canExport = false, homeOn = false) => html`<div class="card dash-comp" data-component="${c.id}" data-comp-type="${c.type}" data-width="${c.width || 1}" data-height="${c.height || 'm'}" style="width:${widthStyle(c.width)};min-height:${heightStyle(c.height)}">
   ${canEdit ? html`<span class="dash-edge dash-edge-e" data-resize="e" role="separator" aria-label="Resize ${c.name} wider or narrower"></span><span class="dash-edge dash-edge-s" data-resize="s" role="separator" aria-label="Resize ${c.name} taller or shorter"></span>` : ''}
-  <h3 style="display:flex;justify-content:space-between;gap:8px"><span class="dash-drag" data-drag-handle>${c.name}</span>${compMenu(c, canEdit, canExport)}</h3>
+  <h3 style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span class="dash-drag" data-drag-handle>${c.name}</span><span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${homeOn ? html`<button type="button" class="ghost" data-add-home="${c.id}">Add to Home</button>` : ''}${compMenu(c, canEdit, canExport)}</span></h3>
   ${c.data && c.data.criteriaText ? html`<p class="muted small" data-comp-criteria>${c.data.criteriaText}</p>` : ''}<div data-comp-body>${componentBody(c)}</div></div>`;
 
+async function homeChartsOn(api, userId) {
+  if (homeChartsDown()) return false;
+  const probe = readProbe(pageSession(), userId);
+  if (probe === 'on' || probe === 'empty') return true;
+  if (!api || typeof api.listCrmHomeCharts !== 'function') return false;
+  try {
+    const pack = await api.listCrmHomeCharts({ countsOnly: true });
+    if (!pack || pack.available === false) { writeProbe(pageSession(), 'off', userId); return false; }
+    writeProbe(pageSession(), pack.charts && pack.charts.length ? 'on' : 'empty', userId);
+    return true;
+  } catch { return false; }
+}
 export async function dashboardsPage(c) {
-  const { api, params, me, refresh, owners } = c; const list = await api.listCrmDashboards({ includeRetired: true }); const active = list.filter((d) => !d.retired);
+  const { api, params, me, refresh, owners } = c; const [list, homeOn] = await Promise.all([api.listCrmDashboards({ includeRetired: true }), homeChartsOn(api, me && me.id)]); const active = list.filter((d) => !d.retired);
   const id = params.id || (active[0] || {}).id; const dash = id ? await api.getCrmDashboard(id) : null;
   const canCreate = me.canEdit; const others = active.filter((d) => d.canEdit && d.id !== (dash || {}).id);
   const kebab = dash ? html`<details class="dash-kebab" data-dash-kebab><summary aria-label="Dashboard actions">&#8942;</summary><div role="menu">
@@ -52,7 +66,7 @@ export async function dashboardsPage(c) {
     <div style="flex:1" data-dash="${(dash || {}).id || ''}">${dash ? html`<div class="dash-title-row"><h3 data-dash-title>${dash.name}${dash.retired ? html` <span class="pill">Retired</span>` : ''} ${kebab}</h3><span data-dash-tools>${dash.canEdit && !dash.retired ? html`<button class="m-btn" data-add-comp>Add Component</button>` : ''}</span></div>
       <p class="muted small" data-dash-meta>${dash.description || ''} ${dash.builtin ? 'Built in; shared with everyone with the CRM.' : `Owner ${dash.ownerName} · ${(VISIBILITY.find(([k]) => k === dash.visibility) || [, ''])[1]}${dash.locked ? ' · locked for shared users' : ''}`}
         ${dash.filters && (dash.filters.ownerId || dash.filters.period) ? html` · <strong data-dash-filters>Filtered: ${[dash.filters.ownerId ? `owner ${(owners.find((o) => o.id === dash.filters.ownerId) || { name: dash.filters.ownerId }).name}` : '', dash.filters.period ? `created ${presetLabel(dash.filters.period)}` : ''].filter(Boolean).join(', ')}</strong>` : ''}</p>
-      <div class="dash-canvas" data-components data-dash-canvas>${dash.list.length ? dash.list.map((x) => compCard(x, dash.canEdit && !dash.retired, !!me.canConfigure)) : html`<p class="muted" data-no-components>No components yet.${dash.canEdit ? ' Use Add Component.' : ''}</p>`}</div>
+      <div class="dash-canvas" data-components data-dash-canvas>${dash.list.length ? dash.list.map((x) => compCard(x, dash.canEdit && !dash.retired, !!me.canConfigure, homeOn)) : html`<p class="muted" data-no-components>No components yet.${dash.canEdit ? ' Use Add Component.' : ''}</p>`}</div>
       ${dash.retiredComponents.length ? html`<details data-retired-comps><summary class="small">Retired components (${dash.retiredComponents.length})</summary><ul>${dash.retiredComponents.map((x) => html`<li>${x.name} <button class="linkish" data-restore-comp="${x.id}">Restore</button></li>`)}</ul></details>` : ''}`
       : html`<p class="muted">No dashboards yet.</p>`}</div></div>`;
   function mount(root) {
@@ -61,7 +75,7 @@ export async function dashboardsPage(c) {
     const ac = $('[data-add-comp]', root); if (ac) ac.addEventListener('click', () => pickType(c, dash));
     $$('[data-dash-action]', root).forEach((b) => b.addEventListener('click', guard(async () => { const v = b.dataset.dashAction; const kb = $('[data-dash-kebab]', root); if (kb) kb.open = false;
       if (v === 'filters') return filterDialog(c, dash);
-      if (v === 'clone') { const n = prompt('Name of the copy', `Copy of ${dash.name}`); if (n == null) return; const r = await api.cloneCrmDashboard(dash.id, { name: n }); toast('Dashboard cloned'); location.hash = `#/crm/dashboards/${r.id}`; return; }
+      if (v === 'clone') { const n = prompt('Name of the copy', dashboardCopyName(dash.name)); if (n == null) return; const r = await api.cloneCrmDashboard(dash.id, { name: n }); toast('Dashboard cloned'); location.hash = `#/crm/dashboards/${r.id}`; return; }
       if (v === 'details') return dashDialog(c, dash);
       if (v === 'notes') return notesDialog(c, dash);
       if (v === 'retire') { if (!confirm('Delete this dashboard? It is hidden, never deleted; you can restore it.')) return; await api.retireCrmDashboard(dash.id, true); toast('Dashboard deleted'); location.hash = '#/crm/dashboards'; refresh(); return; }
@@ -76,6 +90,10 @@ export async function dashboardsPage(c) {
         const m = modal('Move to another dashboard', html`<form data-move-form><label>Dashboard<select name="to">${others.map((d) => html`<option value="${d.id}">${d.name}</option>`)}</select></label><p><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn">Move</button></p></form>`);
         $('[data-move-form]', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.moveCrmComponent(comp.id, e.target.to.value); closeModal(); toast('Component moved'); refresh(); })); } })));
     $$('[data-restore-comp]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.retireCrmComponent(b.dataset.restoreComp, false); toast('Component restored'); refresh(); })));
+    $$('[data-add-home]', root).forEach((b) => b.addEventListener('click', guard(async () => {
+      try { await api.addCrmHomeChart(b.dataset.addHome); writeProbe(pageSession(), 'on', me && me.id); toast('Added to Home. Open CRM Home to see it.'); }
+      catch (err) { toast(homeChartMessage(err), 'err'); }
+    })));
     // drill-down: click a bar / slice / point / row / KPI
     $$('[data-component]', root).forEach((card) => $('[data-comp-body]', card).addEventListener('click', guard(async (e) => { const t = e.target.closest('[data-key]'); if (!t) return;
       const r = await api.crmDrillDown(card.dataset.component, t.dataset.key, t.dataset.key2 != null ? t.dataset.key2 : null); drillDialog(r); })));

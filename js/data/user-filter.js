@@ -1,7 +1,7 @@
 // User List filter/search (Admin users page, John Nov 2). Pure functions so they are unit-tested (test/test-mock-admin-nov2.js).
 // Input rows come from adminListUsers(): { firstName, lastName, email, phone, role, isAdmin, status, files: [{ role, fileNumber }],
 // salesReps: [{ name }], clients: [{ name }], teams: [name], isClient }.
-import { STAFF_ACCOUNT_ROLES, OUTSIDE, OUTSIDE_FILE_ROLES, outsideTypeLabel, AGENT_TC_TYPE_LABEL } from './constants.js?v=202611245800';
+import { STAFF_ACCOUNT_ROLES, OUTSIDE, OUTSIDE_FILE_ROLES, outsideTypeLabel, AGENT_TC_TYPE_LABEL, AGENT_TC_TYPE_LABEL_SAVED } from './constants.js?v=202611247700';
 
 // [value, label] for the Role filter: staff account roles, any outside user, each per-file role, clients, Admin access
 export const USER_ROLE_FILTERS = [
@@ -25,7 +25,14 @@ export function matchesRole(u, role) {
   if (role === 'admin') return !!u.isAdmin;
   if (role === 'client') return !!u.isClient;
   if (role === 'linked') return (u.salesReps || []).length > 0;
-  if (role.startsWith('type:')) return u.role === OUTSIDE && outsideTypeLabel(u) === role.slice(5);
+  if (role.startsWith('type:')) {
+    if (u.role !== OUTSIDE) return false;
+    const want = role.slice(5);
+    const label = outsideTypeLabel(u);
+    if (label === want) return true;
+    /* A User List filter saved while the choice still had the longer words. */
+    return label === AGENT_TC_TYPE_LABEL && want === AGENT_TC_TYPE_LABEL_SAVED;
+  }
   if (role.startsWith('file:')) { const r = role.slice(5); return u.role === OUTSIDE && (u.files || []).some((f) => f.role === r); }
   return u.role === role;
 }

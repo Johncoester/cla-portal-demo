@@ -103,9 +103,12 @@ export const refiRoleMsg = (role) => `A refinance has no ${role === 'Client-Sell
 // TC-4 (John, Nov 18 2026): agent_tc is an outside assistant who works for one or more real estate agents.
 // It is not the CLA Title staff role "Transaction Coordinator". Existing rows are not rewritten.
 export const AGENT_TC_TYPE = 'agent_tc';
-export const AGENT_TC_TYPE_LABEL = 'Transaction coordinator (outside, works for agents)';
+/* TC-5b (John, Nov 18 2026, ~1:51 PM ET): the words on screen are exactly "Transaction coordinator".
+ * The longer label is only so a User List filter saved before this change still matches. */
+export const AGENT_TC_TYPE_LABEL = 'Transaction coordinator';
+export const AGENT_TC_TYPE_LABEL_SAVED = 'Transaction coordinator (outside, works for agents)';
 export const AGENT_TC_TYPE_NOTE = 'An outside assistant who works for one or more real estate agents. Not a CLA Title staff role.';
-export const CONTACT_TYPE_ERROR = 'Pick a contact type from the list (Realtor, Lender, Buyer/Seller, or Transaction coordinator). A transaction coordinator is an outside assistant who works for real estate agents, not a CLA Title staff role.';
+export const CONTACT_TYPE_ERROR = 'Pick a contact type from the list (Realtor, Lender, Buyer/Seller, or Transaction coordinator).';
 export const CONTACT_TYPES = [['realtor', 'Realtor'], ['lender', 'Lender'], ['buyer_seller', 'Buyer/Seller'], [AGENT_TC_TYPE, AGENT_TC_TYPE_LABEL]];
 export const CONTACT_TYPE_CODES = CONTACT_TYPES.map(([c]) => c);
 export const contactTypeLabel = (code) => (CONTACT_TYPES.find(([c]) => c === code) || [null, ''])[1];
