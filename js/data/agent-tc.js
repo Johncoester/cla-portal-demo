@@ -15,8 +15,8 @@ export const STAFF_TC_MESSAGE = 'Only an active staff login can be the Transacti
 /* The one choice in a role list. It is not stored on the file. */
 export const AGENT_TC_PICK = 'Transaction coordinator';
 export const AGENT_TC_LABEL = 'Transaction coordinator';
-export const TC_WHICH_AGENT = 'Which agent do they work for?';
-export const TC_CHOOSE_AGENT = 'Choose which agent this transaction coordinator works for.';
+export const TC_WHICH_AGENT = 'Which agent are they linked to?';
+export const TC_CHOOSE_AGENT = 'Choose which agent they are linked to.';
 export const TC_NEED_AGENT = "Add the buyer's agent or the listing agent on this file first. Then you can add the transaction coordinator.";
 
 export function isAgentTcRole(role) {

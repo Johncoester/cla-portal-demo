@@ -1318,7 +1318,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Transaction coordinator, one choice (TC-5)
 
-**How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent do they work for?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
+**How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent are they linked to?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
 
 **Status: In progress.** Tracker row 370, item TC-5. John Coester, voice call Nov 18 2026, about 1:51 PM ET. Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350). Not Live. No database file.
 
@@ -1350,7 +1350,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Transaction coordinator contact type label (TC-5b)
 
-**How it should work.** The contact type for an outside transaction coordinator reads exactly Transaction coordinator. The dropdown, the outside-user type, and the User List filter use those words and no description. A contact type that is not on the list says to pick Realtor, Lender, Buyer/Seller, or Transaction coordinator. A User List filter saved with the older longer label still finds the same people.
+**How it should work.** The contact type for an outside transaction coordinator reads exactly Transaction coordinator. The dropdown, the outside-user type, and the User List filter use those words and no description. A contact type that is not on the list says to pick Realtor, Lender, Buyer/Seller, or Transaction coordinator. A User List filter saved with the older longer label still finds the same people. When the side cannot be told from a link, the form asks "Which agent are they linked to?" Leaving it blank says "Choose which agent they are linked to."
 
 **Status: In progress.** Tracker row 370, item TC-5b. John Coester, voice call Nov 18 2026, about 1:51 PM ET, the same wording as TC-5. Pull request: [PR 362](https://github.com/Johncoester/cla-portal-demo/pull/362). Not Live. No database file.
 
@@ -1359,6 +1359,7 @@ This file lists the portal's major features: how each one should work, how far a
 - The contact type label is Transaction coordinator on the contact type lists, on an outside user's type, and on the User List filter.
 - A bad contact type says: Pick a contact type from the list (Realtor, Lender, Buyer/Seller, or Transaction coordinator).
 - A saved User List filter that still says "Transaction coordinator (outside, works for agents)" matches the same outside coordinators. The shell cache stamp is 202611247700.
+- Add contact, Place Order, and Parties ask "Which agent are they linked to?" when the side is not known. Leaving it blank says "Choose which agent they are linked to."
 
 **What's still missing**
 

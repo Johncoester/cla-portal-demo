@@ -76,7 +76,7 @@ const agentCard = (role, label) => html`<div class="agent-card party-dir" data-a
 const agentTcCard = () => html`<div class="agent-card party-dir" data-agent-tc="${AGENT_TC_PICK}" data-dir="p:${AGENT_TC_PICK}">${dirSelect('Transaction coordinator — existing contact')}
   ${dirFields('Transaction coordinator')}
   <input type="hidden" name="p:${AGENT_TC_PICK}" value="">
-  <label data-tc-which hidden>Which agent do they work for?<select data-tc-agent aria-label="Which agent do they work for?"><option value="">Choose…</option></select></label>
+  <label data-tc-which hidden>Which agent are they linked to?<select data-tc-agent aria-label="Which agent are they linked to?"><option value="">Choose…</option></select></label>
   <p class="muted small">Choose someone already saved, or type the person. No portal login is created, and no invite is sent.</p></div>`;
 const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s</legend>
   <div class="multi-rows" data-rows>${Array.from({ length: MIN_ROWS }, (_, i) => partyRow(role, label, i + 1))}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;

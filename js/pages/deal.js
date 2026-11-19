@@ -356,7 +356,7 @@ async function addPartyModal(api, d, role, refresh, replaceId = '') {
     <label>Phone<input name="phone" type="tel" inputmode="tel" maxlength="40" placeholder="xxx-xxx-xxxx" data-phone autocomplete="off" aria-label="Phone"></label>
     <label class="span2">${role === 'Lender' ? 'Lender company' : directory ? 'Company / brokerage' : 'Company or entity name'}<input name="company" maxlength="120" autocomplete="off" aria-label="Company"></label>
     ${role === 'Lender' ? html`<label class="span2">This person is<select name="lenderRole" aria-label="Lender contact type"><option value="">Company only</option><option value="loan_officer">Loan Officer</option><option value="lender_tc">Lender TC</option></select></label>` : ''}
-    ${agentTc ? html`<label class="span2" data-tc-which hidden>Which agent do they work for?<select data-tc-agent aria-label="Which agent do they work for?"><option value="">Choose…</option></select></label>` : ''}
+    ${agentTc ? html`<label class="span2" data-tc-which hidden>Which agent are they linked to?<select data-tc-agent aria-label="Which agent are they linked to?"><option value="">Choose…</option></select></label>` : ''}
     <div class="span2"><button class="m-btn" type="submit">Add ${label}</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const pk = directory ? null : mountPicker($('[data-picker=contactId]', m), () => choices);
   const dir = $('[data-dir-select]', m);

@@ -2,6 +2,8 @@
 
 The contact type for an outside transaction coordinator is still stored as `agent_tc`. The words on screen are exactly **Transaction coordinator**. There is no "outside" or "works for" description in that label.
 
+When the side cannot be told from a link, Add contact, Place Order, and Parties ask **Which agent are they linked to?** Leaving that question blank says: Choose which agent they are linked to.
+
 ## What the user sees
 
 The contact type list on a contact, on Place Order, on the file's Contacts tab, in the CRM, and on User List says Transaction coordinator.

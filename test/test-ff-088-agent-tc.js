@@ -74,7 +74,7 @@ const contacts = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta
 const parties = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 const mig = readFileSync(new URL('../supabase/migrations/20261124160000_agent_side_tc.sql', import.meta.url), 'utf8');
 const rb = readFileSync(new URL('../supabase/rollbacks/20261124160000_agent_side_tc.sql', import.meta.url), 'utf8');
-ok(page.includes('data-agent-tc') && page.includes('Which agent do they work for?') && page.includes('AGENT_TC_PICK') && !page.includes("works for the buyer's agent") && !page.includes('needs a Transaction Coordinator login') && !page.includes('CLA Title Transaction Coordinator'), 'Place Order has one Transaction coordinator and no works-for sentence');
+ok(page.includes('data-agent-tc') && page.includes('Which agent are they linked to?') && page.includes('AGENT_TC_PICK') && !page.includes("works for the buyer's agent") && !page.includes('needs a Transaction Coordinator login') && !page.includes('CLA Title Transaction Coordinator'), 'Place Order has one Transaction coordinator and no works-for sentence');
 ok(page.includes('uniqueProblems(problems)') && page.includes('partyProblemLine'), 'Place Order shows each failed person once');
 ok(contacts.includes('data-tc-which') && contacts.includes('rolesForNewContact') && contacts.includes('agentTcChoiceLabel') && !contacts.includes('Any active staff login can be the Transaction Coordinator') && !contacts.includes('data-tc-note'), 'Add contact offers the outside coordinator and not the old staff role');
 const purchaseRoles = rolesForNewContact(PARTICIPANT_ROLES);
@@ -82,7 +82,7 @@ ok(purchaseRoles.includes(AGENT_TC_PICK) && purchaseRoles.filter((r) => r === AG
 ok(agentTcChoiceLabel(AGENT_TC_PICK) === AGENT_TC_LABEL && agentTcChoiceLabel('Buyer Agent TC') === AGENT_TC_LABEL && !/works for/i.test(agentTcChoiceLabel(AGENT_TC_PICK)), 'the choice is exactly Transaction coordinator');
 const refiRoles = rolesForNewContact(PARTICIPANT_ROLES, { refinance: true, blocked: REFI_BLOCKED_ROLES });
 ok(!refiRoles.includes(AGENT_TC_PICK) && !refiRoles.includes('Buyer Agent TC') && !refiRoles.includes(STAFF_TC_ROLE) && refiRoles.includes('Client-Buyer'), 'a refinance still has no coordinator choice');
-ok(parties.includes('data-add-party="${AGENT_TC_PICK}"') && parties.includes('Which agent do they work for?') && !parties.includes("Works for the buyer's agent") && !parties.includes('Works for the listing agent'), 'Parties adds one transaction coordinator and does not say works for');
+ok(parties.includes('data-add-party="${AGENT_TC_PICK}"') && parties.includes('Which agent are they linked to?') && !parties.includes("Works for the buyer's agent") && !parties.includes('Works for the listing agent'), 'Parties adds one transaction coordinator and does not say works for');
 ok(mig.includes("new.role in ('Buyer Agent TC', 'Listing Agent TC')") && mig.includes("new.role = 'Transaction Coordinator'") && mig.includes(STAFF_TC_MESSAGE), 'the database lets the agent roles through and still checks the staff role');
 ok(mig.includes("'Buyer Agent TC', 'Listing Agent TC'") && rb.includes("select r in ('Client-Seller', 'Buyer Agent', 'Listing Agent', 'Transaction Coordinator')") && !rb.includes('Buyer Agent TC'), 'rollback puts the refinance list back without the agent roles');
 ok(rb.includes(STAFF_TC_MESSAGE), 'rollback keeps the staff Transaction Coordinator sentence');
