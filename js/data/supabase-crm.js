@@ -7,7 +7,7 @@ import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS
 import { localDate, runsOrders as runsOrdersCI, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611245800';
 import { uploadBytes, uploadFileName } from './upload-bytes.js?v=202611141400';
 import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611245800';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611246500';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { dealStageOf } from './crm-analytics.js?v=202611243900';

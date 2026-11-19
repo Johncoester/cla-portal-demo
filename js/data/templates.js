@@ -144,7 +144,7 @@ const PROCEEDS_V1 = [F('method', 'How do you want to receive your proceeds?', 's
 const PROCEEDS_V2 = [...PROCEEDS_V1, F('proceeds_wire_note', 'Wire transfers', 'info', false, { text: PROCEEDS_WIRE_NOTE }),
   F('proceeds_statement', 'Seller proceeds acknowledgment', 'info', false, { text: PROCEEDS_STATEMENT }),
   F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true), F('notes', 'Anything else we should know?', 'textarea')];
-export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box on the file overview. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
+export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box under your agent task section on Tasks. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
 export const TEMPLATE_DEFS = [
   { code: 'id_upload', version: 1, title: 'Upload photo ID', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'A clear photo or scan of a government ID.',
     fields: [F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }), F('id_expires', 'Expiration date', 'date', true), F('id_document', 'ID document', 'doc', true)] },
@@ -209,7 +209,7 @@ export const TEMPLATE_DEFS = [
   // AF-8 (John, Nov 14; migration 124 = SQL 20261123010000): the commission is no longer asked here. It is an Agent fee (one place);
   // the amount and Paid by are replaced by a note pointing to the Agent fees box. Brokerage, License ID and Notes stay.
   { code: 'commissions', version: 2, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], migration: 124,
-    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box on the file overview.',
+    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box under your agent task section on Tasks.',
     fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
       F('agent_fees_note', 'Your commission', 'info', false, { text: AGENT_FEES_NOTE }), F('notes', 'Notes', 'textarea')] },
   // ---- Matt, Oct 31 (migration 14): seller forwarding address + how the seller gets their proceeds ----

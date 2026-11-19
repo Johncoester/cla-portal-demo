@@ -284,7 +284,7 @@ const chain = [
   ['js/data/mock-part-crm.js', '202611245800'],
   ['js/data/mock-adapter.js', '202611246600', '202611246700'],
   ['js/data/supabase-crm.js', '202611245800'],
-  ['js/data/supabase-adapter.js', '202611245900'],
+  ['js/data/supabase-adapter.js', '202611246600'],
   ['js/data/adapter.js', '202611246600', '202611246700'],
   ['js/app.js', '202611246600', '202611246700'],
 ];

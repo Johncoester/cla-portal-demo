@@ -1,11 +1,16 @@
-/* AGENT FEES box on a file's overview (AF-2; John, Nov 12 2026; spec docs/specs/agent-fees-flow.md).
+/* AGENT FEES under each agent task section (AF-2; FF-101c; John, Nov 12 2026; Francis Nov 18; spec docs/specs/agent-fees-flow.md).
  * CLA staff who run the file see and edit both agent sides; other staff read them. An agent sees and edits only their own side.
  * Buyers and sellers never get this box (they have their own overview, and the database gives them nothing).
+ * FF-101c: each side sits under that side's task section on Tasks (buyer agent under Buyer's Agent tasks, listing under Listing Agent tasks),
+ * not on File Overview. Accounting still shows a read-only summary. Commission fields are unchanged (broker fee / payout is FF-101b).
  * Commission: type a % or a $ and the other one fills in from the sales price (they are always in step). Admin fee with who pays it.
  * Up to 5 other fees (description, amount, paid to). Staff changing a fee the agent confirmed must give a reason. Nothing is sent. */
 import { html, raw, $, $$, modal, closeModal, toast, fmtMoney, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { isRefi } from '../data/constants.js?v=202611245800';
-import { AGENT_FEE_SIDES, SIDE_LABEL, PANEL_TITLE, AGENT_ROLE_SIDE, PAYERS, COMMISSION_PAYERS, ADMIN_PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges, adminHalves, feeNumber } from '../data/agent-fees.js?v=202611243061';
+import { AGENT_FEE_SIDES, SIDE_LABEL, PANEL_TITLE, AGENT_ROLE_SIDE, PAYERS, COMMISSION_PAYERS, ADMIN_PAYERS, PAYER_LABEL, MAX_OTHER_FEES, defaultPayer, readAgentFees, syncCommission, sideStatus, agentFeeError, feeChanges, adminHalves, feeNumber } from '../data/agent-fees.js?v=202611246500';
+
+/** Maps Agent fees side → Tasks side-box key (js/data/task-board.js FILE_TASK_BOXES). */
+export const FEE_SIDE_TASK_BOX = { buyer: 'buyer-agent', listing: 'listing-agent' };
 
 const pct = (n) => (n == null ? '' : `${Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`);
 const payerText = (p, f) => (f && f.payer === 'split' ? ` (split: buyer ${fmtMoney(f.splitBuyer)}, seller ${fmtMoney(f.splitSeller)})` : (p ? ` (paid by ${PAYER_LABEL[p] || p})` : ''));
@@ -37,12 +42,24 @@ export function sideHtml(side, s, access) {
   </div>`;
 }
 
+const sideIntro = (viewer) => (viewer.kind === 'agent' ? 'Your commission and fees on this file. Check them and click Edit to change or confirm them.'
+  : viewer.kind === 'tc' ? 'Commission and fees for this agent. You can confirm or change them for the agent; the agent is told.'
+    : 'This agent\'s commission, admin fee and other fees. Agents see only their own side. Buyers and sellers never see these.');
+
+/** One side's Agent fees card (reusable under that side's task section). Keeps data-agent-fees for Accounting / walkthrough selectors. */
+export function embedSideHtml(side, s, access, viewer) {
+  return html`<section class="card agent-fees" data-agent-fees data-agent-fees-side="${side}" aria-label="${PANEL_TITLE[side]}">
+    <h3>Agent fees</h3><p class="muted small">${sideIntro(viewer)}</p>
+    <div class="af-sides">${sideHtml(side, s, access)}</div>
+    <p class="af-foot"><button type="button" class="ghost" data-af-history-btn aria-expanded="false">Change history</button></p>
+    <div data-af-history hidden></div></section>`;
+}
+
+/** Combined box (tests and Accounting-style layouts). Prefer embedSideHtml under task sections (FF-101c). */
 export function boxHtml(data, viewer) {
   const sides = AGENT_FEE_SIDES.map(([k]) => k).filter((k) => data.sides[k]);
   if (!sides.length) return '';
-  const intro = viewer.kind === 'agent' ? 'Your commission and fees on this file. Check them and click Edit to change or confirm them.'
-    : viewer.kind === 'tc' ? 'The commission and fees of the agents you work for. You can confirm or change them for the agent; the agent is told.' : 'Each agent\'s commission, admin fee and other fees. Agents see only their own side. Buyers and sellers never see these.';
-  return html`<section class="card agent-fees" data-agent-fees aria-label="Agent fees"><h3>Agent fees</h3><p class="muted small">${intro}</p>
+  return html`<section class="card agent-fees" data-agent-fees aria-label="Agent fees"><h3>Agent fees</h3><p class="muted small">${sideIntro(viewer)}</p>
     <div class="af-sides">${sides.map((k) => sideHtml(k, data.fees[k], data.sides[k]))}</div>
     <p class="af-foot"><button type="button" class="ghost" data-af-history-btn aria-expanded="false">Change history</button></p>
     <div data-af-history hidden></div></section>`;
@@ -169,33 +186,47 @@ export function historyHtml(rows) {
   </tbody></table></div>`;
 }
 
-/* The box for this viewer, or nothing. Returns { html, mount }. */
+/* Per-side embeds for this viewer (FF-101c: under agent task sections), or nothing. Returns { bySide, mount }. */
 export async function agentFeesPanel(ctx, deal) {
-  const none = { html: '', mount() {} };
+  const none = { bySide: {}, mount() {} };
   const { api } = ctx; const viewer = viewerOf(ctx.user);
   if (!viewer || !api || !api.getAgentFees || isRefi(deal)) return none;
   let data;
   try { data = await api.getAgentFees(deal.id); } catch (e) { return none; }   // not switched on, or no access: show nothing (AGENTS.md rule 13)
   if (!data || !data.sides || !Object.keys(data.sides).length) return none;
   const price = deal.purchasePrice;
-  const paint = (root) => {
-    const box = $('[data-agent-fees]', root); if (!box) return;
+  const sides = AGENT_FEE_SIDES.map(([k]) => k).filter((k) => data.sides[k]);
+  const bySide = Object.fromEntries(sides.map((k) => [k, embedSideHtml(k, data.fees[k], data.sides[k], viewer)]));
+  const paintBox = (box) => {
+    if (!box) return;
     box.addEventListener('click', async (e) => {
       const ed = e.target.closest('[data-af-edit]');
       if (ed) { openEdit(ed.getAttribute('data-af-edit')); return; }
       const hb = e.target.closest('[data-af-history-btn]');
       if (hb) {
         const slot = $('[data-af-history]', box); const open = slot.hidden;
+        const side = box.getAttribute('data-agent-fees-side') || '';
         hb.setAttribute('aria-expanded', open ? 'true' : 'false'); slot.hidden = !open;
-        if (open) { slot.innerHTML = '<p class="muted small">Loading&hellip;</p>'; try { slot.innerHTML = String(historyHtml(await api.getAgentFeeHistory(deal.id))); } catch (x) { slot.innerHTML = String(html`<p class="err-text small">${agentFeeError(x)}</p>`); } }
+        if (open) {
+          slot.innerHTML = '<p class="muted small">Loading&hellip;</p>';
+          try {
+            const rows = await api.getAgentFeeHistory(deal.id);
+            const shown = side ? rows.filter((r) => r.side === side) : rows;
+            slot.innerHTML = String(historyHtml(shown));
+          } catch (x) { slot.innerHTML = String(html`<p class="err-text small">${agentFeeError(x)}</p>`); }
+        }
       }
     });
   };
-  const repaint = async () => {
-    const box = $('[data-agent-fees]'); if (!box) return;
+  const paint = (root) => { $$('[data-agent-fees]', root).forEach(paintBox); };
+  const repaint = async (side) => {
     data = await api.getAgentFees(deal.id);
-    const tmp = document.createElement('div'); tmp.innerHTML = String(boxHtml(data, viewer));
-    const next = tmp.firstElementChild; if (next) { box.replaceWith(next); paint(next.parentNode); }
+    const box = $(`[data-agent-fees][data-agent-fees-side="${side}"]`);
+    if (!box) return;
+    const access = data.sides[side];
+    if (!access) { box.remove(); return; }
+    const tmp = document.createElement('div'); tmp.innerHTML = String(embedSideHtml(side, data.fees[side], access, viewer));
+    const next = tmp.firstElementChild; if (next) { box.replaceWith(next); paintBox(next); }
   };
   const openEdit = (side) => {
     const s = data.fees[side];
@@ -217,7 +248,7 @@ export async function agentFeesPanel(ctx, deal) {
           await api.saveAgentFees(deal.id, side, fees, input.reason || '');
           closeModal();
           toast(viewer.kind === 'agent' ? 'Your fees are saved and confirmed.' : viewer.kind === 'tc' ? 'Fees saved and confirmed for the agent.' : 'Agent fees saved.');
-          await repaint();
+          await repaint(side);
         };
         if (!confirmer) { await doSave(); return; }
         // AF-3: show what changes first; the form stays underneath with everything typed
@@ -233,13 +264,18 @@ export async function agentFeesPanel(ctx, deal) {
       } catch (x) { err.textContent = agentFeeError(x); btn.disabled = false; }   // the form stays open with what was typed (rule 15)
     });
   };
-  return { html: boxHtml(data, viewer), mount: paint };
+  return { bySide, mount: paint };
 }
 
-/* One place for commissions (John, Nov 13 2026): the other forms that used to take a commission now point here. */
+/* One place for commissions (John, Nov 13 2026; location FF-101c Nov 18): the other forms that used to take a commission now point here. */
 export function agentFeesPointer(where = 'modal', dealId = '') {
-  const box = where === 'link' && dealId ? html`<a href="#/deals/${dealId}" data-agent-fees-link>Agent fees</a>` : html`<strong>Agent fees</strong>`;
-  return html`<p class="muted small span2" data-agent-fees-pointer>Commissions, admin fees and other agent fees are entered in the ${box} box on the file overview${where === 'modal' ? ' (close this window to get to it)' : ''}. That is the only place they are kept, so they always match Accounting, the CD and the ALTA statement.</p>`;
+  const box = where === 'link' && dealId
+    ? html`<a href="#/deals/${dealId}/tasks" data-agent-fees-link>Agent fees</a>`
+    : html`<strong>Agent fees</strong>`;
+  const whereText = where === 'modal'
+    ? ' under the Buyer\'s Agent and Listing Agent task sections on Tasks (close this window to get to Tasks)'
+    : ' under the Buyer\'s Agent and Listing Agent task sections on Tasks';
+  return html`<p class="muted small span2" data-agent-fees-pointer>Commissions, admin fees and other agent fees are entered in ${box}${whereText}. That is the only place they are kept, so they always match Accounting, the CD and the ALTA statement.</p>`;
 }
 
 /* Read-only summary of both sides, for Accounting > Basic Info. data = api.getAgentFees(). */

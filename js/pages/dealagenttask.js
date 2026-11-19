@@ -2,8 +2,8 @@
 // Edit -> Submit -> "Task Complete". A completed task opens as View Submission (read-only) with Modify, which turns the button into Submit Revision.
 // "About This Task" sidebar with Send Message (a conversation with the processor tied to this task). Leaving with unsaved edits asks first.
 import { html, raw, toText, $, $$, guard, toast, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611161500';
-import { MARITAL } from '../data/agent-portal.js?v=202611245800';
-import { CLS, LABEL } from './dealtasks.js?v=202611245900';
+import { MARITAL } from '../data/agent-portal.js?v=202611246600';
+import { CLS, LABEL } from './dealtasks.js?v=202611246600';
 import { SCHEDULE_CODE, SCHEDULE_TIMES, scheduleTimeLabel, defaultSchedule, sideOfRole, askLabel, OTHER_LABEL, RON_LABEL, PLACE_OFFICE, PLACE_OTHER, PLACE_RON, placeSummary } from '../data/scheduling-details.js?v=202611246600';
 
 const yn = (name, val, label) => html`<fieldset class="span2 yn" data-k="${name}"><legend>${label}</legend>${['Yes', 'No'].map((o) => html`<label class="check"><input type="radio" name="${name}" value="${o}" ${val === o ? raw('checked') : ''}> ${o}</label>`)}<span class="ferr"></span></fieldset>`;
@@ -20,7 +20,7 @@ function editForm(t, a, dealId = '') {
     ${(a.added || []).map((c, i) => html`<div class="span2 form-grid card" data-added="${i}"><h4 class="span2">Added client contact ${i + 1} <button type="button" class="ghost" data-del-row="added.${i}">Remove</button></h4>${personFields(`added.${i}`, c)}</div>`)}
     <div class="span2"><button type="button" class="ghost" data-add-row="added">+ Add Client Contact</button></div>`;
   if (t.code === 'agent_transaction_info') return html`${inp('closingDate', 'Estimated Closing Date', a.closingDate, 'date')}${inp('purchasePrice', 'Purchase Price ($)', a.purchasePrice, 'text', 'inputmode="decimal"')}
-    <p class="span2 notice info" data-agent-task-fees>Your commission and fees are not on this task. Check and confirm them in the <a href="#/deals/${dealId}">Agent fees</a> box on the file overview; that is the one place CLA Title keeps them.</p>
+    <p class="span2 notice info" data-agent-task-fees>Your commission and fees are not on this task. Check and confirm them in the <a href="#/deals/${dealId}/tasks" data-agent-fees-link>Agent fees</a> under your agent task section on Tasks; that is the one place CLA Title keeps them.</p>
     ${inp('emdAmount', 'Earnest deposit amount ($)', a.emdAmount, 'text', 'inputmode="decimal"')}${inp('licenseId', 'Your Agency License ID', a.licenseId)}
     ${yn('holdingEmd', a.holdingEmd, 'Are you holding earnest money given to you by the buyer?')}
     <h4 class="span2">${t.assignedRole === 'Listing Agent' ? 'Listing' : 'Selling'} team members</h4>
