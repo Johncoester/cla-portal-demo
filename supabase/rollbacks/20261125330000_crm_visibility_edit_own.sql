@@ -201,6 +201,7 @@ create policy crm_acts_update on public.crm_activities for update to authenticat
 
 drop policy if exists crm_clients_read on public.contacts;
 drop policy if exists crm_clients_change on public.contacts;
+drop function if exists private.crm_staff_profile_ids();
 
 drop index if exists public.crm_accounts_owner_idx;
 drop index if exists public.crm_opportunities_owner_idx;
@@ -227,6 +228,8 @@ begin
     raise exception 'rollback readback: crm_opps_insert %', c; end if;
   if exists (select 1 from pg_policies where schemaname='public' and tablename='contacts' and policyname in ('crm_clients_read','crm_clients_change')) then
     raise exception 'rollback readback: client policies remain'; end if;
+  if to_regprocedure('private.crm_staff_profile_ids()') is not null then
+    raise exception 'rollback readback: crm_staff_profile_ids remains'; end if;
   if to_regclass('public.crm_accounts_owner_idx') is not null or to_regclass('public.crm_opportunities_owner_idx') is not null then
     raise exception 'rollback readback: owner index remains'; end if;
   got := md5(pg_get_functiondef('public.crm_mass_update(text, jsonb, text, text, uuid[])'::regprocedure));

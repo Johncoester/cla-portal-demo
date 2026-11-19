@@ -7,9 +7,10 @@
 -- read and are guarded below so this file aborts if they have drifted. This file
 -- does not drop, create, or alter any policy on public.deals.
 -- public.contacts keeps its portal policies (contacts_select, contacts_insert,
--- contacts_update, demo_scope). Two extra CRM policies are added. A processor can
--- still edit a person on a file. CRM columns on a client still go through
--- private.contacts_crm_guard, which now allows the owner or an admin.
+-- contacts_update, demo_scope). Two extra CRM policies match only a contact
+-- with a CRM stage (a CRM client). A person on a file is not included.
+-- Staff profile ids are read once per query. CRM columns on a client still go
+-- through private.contacts_crm_guard, which allows the owner or an admin.
 --
 -- Rollback: supabase/rollbacks/20261125330000_crm_visibility_edit_own.sql
 -- Before text: supabase/review/20261125330000_crm_visibility_before.sql
@@ -116,6 +117,8 @@ begin
     raise exception 'drift: contacts demo_scope qual=% check=%', q, c; end if;
   if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'contacts' and policyname in ('crm_clients_read', 'crm_clients_change')) then
     raise exception 'drift: CRM client policies already exist'; end if;
+  if to_regprocedure('private.crm_staff_profile_ids()') is not null then
+    raise exception 'drift: private.crm_staff_profile_ids() already exists'; end if;
 
   -- Shared portal orders. Guard only. Not modified.
   select qual, with_check into q, c from pg_policies
@@ -243,40 +246,48 @@ create policy crm_acts_update on public.crm_activities
   )
   with check ((select private.crm_user()));
 
--- Clients live on public.contacts. These policies are permissive, so they add
--- CRM access. They do not replace the portal policies guarded above.
--- A CRM user can read a client who is not a staff login. Staff contacts stay out.
+-- A CRM client is a contact with a CRM stage. Migration 20261105222920 says
+-- "only rows that are CRM clients: they have a CRM stage", and creating a
+-- client sets crm_stage (default 'prospect'). relationship_status null means
+-- "not a CRM client yet" in that same file. File parties leave crm_stage null,
+-- so these policies do not open them.
+-- Staff logins are excluded by one initplan: the id list is built once per
+-- query, not once per contact. Same people private.crm_in_pool leaves out
+-- (role other than Outside user, and not removed).
+create or replace function private.crm_staff_profile_ids()
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(array_agg(p.id), '{}'::uuid[])
+  from public.profiles p
+  where p.role <> 'Outside user'
+    and p.status <> 'removed';
+$$;
+revoke all on function private.crm_staff_profile_ids() from public, anon;
+grant execute on function private.crm_staff_profile_ids() to authenticated;
+
 create policy crm_clients_read on public.contacts
   for select to authenticated
   using (
     (select private.crm_user())
-    and not exists (
-      select 1 from public.profiles p
-      where p.id = profile_id
-        and p.role <> 'Outside user'
-        and p.status <> 'removed'
-    )
+    and crm_stage is not null
+    and (profile_id is null or not (profile_id = any (((select private.crm_staff_profile_ids()))::uuid[])))
   );
 create policy crm_clients_change on public.contacts
   for update to authenticated
   using (
     (select private.crm_user())
+    and crm_stage is not null
+    and (profile_id is null or not (profile_id = any (((select private.crm_staff_profile_ids()))::uuid[])))
     and ((select private.is_admin()) or crm_owner_id = (select auth.uid()))
-    and not exists (
-      select 1 from public.profiles p
-      where p.id = profile_id
-        and p.role <> 'Outside user'
-        and p.status <> 'removed'
-    )
   )
   with check (
     (select private.crm_user())
-    and not exists (
-      select 1 from public.profiles p
-      where p.id = profile_id
-        and p.role <> 'Outside user'
-        and p.status <> 'removed'
-    )
+    and crm_stage is not null
+    and (profile_id is null or not (profile_id = any (((select private.crm_staff_profile_ids()))::uuid[])))
   );
 
 -- ---------------------------------------------------------------------------
@@ -515,6 +526,17 @@ begin
   end if;
   if to_regclass('public.crm_accounts_owner_idx') is null or to_regclass('public.crm_opportunities_owner_idx') is null then
     raise exception 'readback: owner index missing';
+  end if;
+  select qual, with_check into q, src from pg_policies
+   where schemaname = 'public' and tablename = 'contacts' and policyname = 'crm_clients_read';
+  if position('crm_stage IS NOT NULL' in q) = 0 and position('crm_stage is not null' in q) = 0 then
+    raise exception 'readback: client read is not limited to a CRM stage: %', q;
+  end if;
+  if position('crm_staff_profile_ids' in q) = 0 or q ~ 'not exists' then
+    raise exception 'readback: client read still looks up profiles per row: %', q;
+  end if;
+  if to_regprocedure('private.crm_staff_profile_ids()') is null then
+    raise exception 'readback: crm_staff_profile_ids is missing';
   end if;
 end
 $readback$;

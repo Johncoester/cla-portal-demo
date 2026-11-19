@@ -27,6 +27,13 @@
 --   crm_acts_select  using private.crm_entity_visible(entity, entity_id)
 --   crm_acts_insert  check (private.crm_editor() AND (NOT system) AND private.crm_entity_visible(entity, entity_id))
 --   crm_acts_update  using (private.crm_editor() AND private.crm_entity_visible(entity, entity_id)) check private.crm_editor()
+-- CRM client rows are contacts with crm_stage set. See
+-- supabase/migrations/20261105222920_crm_zoho.sql:
+--   "only rows that are CRM clients: they have a CRM stage"
+--   and "relationship_status ... null = not a CRM client yet".
+-- private.crm_in_pool(uuid) excludes staff the same way (role other than
+-- Outside user, and not removed). The new helper returns those profile ids
+-- once per query. It did not exist on TEST.
 -- contacts portal policies left in place:
 --   contacts_select using private.contact_visible(id)
 --   contacts_insert check ((NOT private.is_preprocessor()) AND private.is_processor())

@@ -1603,7 +1603,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Row security on leads, companies, pipeline opportunities, and activities: every CRM user can read them. An update is allowed for an admin, or when the owner column is the signed-in person.
 - The same check inside the database functions that write those records, including archive, convert, close task, and client save. Mass update skips rows the person does not own and returns the count.
-- Two extra policies on clients so a CRM user can read a non-staff client and the owner or an admin can change that client. The portal's own contact policies are unchanged.
+- Two extra policies on clients. They match only a contact that has a CRM stage, which is how a CRM client is marked. A person on a file is not included. Staff profile ids are looked up once per query. The portal's own contact policies are unchanged.
 - The screen greys Edit and Archive and shows the plain note. Bulk actions skip records the person does not own.
 
 **What's still missing**

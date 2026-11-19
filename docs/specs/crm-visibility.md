@@ -22,6 +22,8 @@ The owner is the column already on the record: `owner_id` on leads, companies, p
 
 Row security lets every CRM user read the CRM tables. An update is allowed only when the signed-in person is an admin, or the owner column is their login. The same check runs inside the database functions that write these records, because those functions do not use row security.
 
+On clients, the extra policies apply only when `crm_stage` is set. That is the mark the CRM already uses: creating a client sets a stage, and the database comment says a row with a CRM stage is a CRM client. A person on a file has no stage, so these policies do not open that row. Staff logins are left out by one list of profile ids for the whole query.
+
 Portal orders stay on `public.deals`. Those policies are not changed. The CRM Deals tab is that shared order list.
 
 ## What this does not change
