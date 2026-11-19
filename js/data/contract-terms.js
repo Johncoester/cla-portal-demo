@@ -1,6 +1,6 @@
 /* contract-terms.js : TEST contract figures for one order. PURE. No storage and no network.
  * These figures are estimates. They are not a fee-ledger line, not funds received, not a payoff, and not a Closing Disclosure.
- * Commissions are not here: they are Agent fees on the file overview (one place, John Nov 13 2026).
+ * Commissions are not here: they are Agent fees under the agent task sections on Tasks (one place, John Nov 13 2026; moved FF-101c).
  * A blank amount stays null. Zero is stored only when someone typed zero. A percent never fills a dollar field. */
 const fail = (m) => { throw new Error(m); };
 const roundTo = (n, places) => { const p = 10 ** places; return Math.round((Number(n) + Number.EPSILON) * p) / p; };

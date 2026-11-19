@@ -7,7 +7,7 @@
 //  * Request Update topics, Share Access permissions (invites are RECORDED only, nothing is sent), invite email preview ("Complete Requests Now").
 //  * Rich-text message HTML sanitizer (Bold, Italic, Underline, bullet / numbered lists, links; nothing else survives).
 import { STAGES, phoneOk, fmtPhone, isRealDate } from './constants.js?v=202611245800';
-import { SCHEDULE_CODE, cleanScheduleAnswers, scheduleTaskTitle } from './scheduling-details.js?v=202611245800';
+import { SCHEDULE_CODE, cleanScheduleAnswers, scheduleTaskTitle } from './scheduling-details.js?v=202611246600';
 
 export const PHASES = ['Title Processing', 'Closing Prep', 'Scheduled Closing Date', 'Closed'];
 // stage indexes (constants.js STAGES): 0-2 Opened / EMD Receipt / Buyer Info Received -> Title Processing; 3-6 Schedule Closing .. Buyer Final Doc
@@ -31,7 +31,7 @@ export const AGENT_TASKS = [
   { code: 'agent_client_contacts', title: 'Confirm Client Contact Information', dueDays: 3,
     about: 'Tell us which of the clients on this order you represent and confirm how to reach them (and their spouse, if married). Add anyone we are missing.' },
   { code: 'agent_transaction_info', title: 'Confirm Your Transaction Information', dueDays: 3,
-    about: 'Check the closing date and price we have, the earnest money, and the people on your team. Your commission and fees are confirmed in the Agent fees box on the file overview.' },
+    about: 'Check the closing date and price we have, the earnest money, and the people on your team. Your commission and fees are confirmed in the Agent fees box under your agent task section on Tasks.' },
   { code: 'agent_home_warranty', title: 'Confirm Home Warranty Information', dueDays: 5,
     about: 'Let us know whether you or someone else will be purchasing a home warranty for this property.' },
   { code: SCHEDULE_CODE, title: 'Schedule the Settlement for [property address]', dueDays: 3,

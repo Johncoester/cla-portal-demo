@@ -33,8 +33,9 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - AF-1 (database only, nothing on screen yet): each file keeps, per agent side, a commission (% and $ always in step with the sales price), an admin fee with who pays it, and up to 5 other fees. Each fee records whether staff, the agent or a TC set it, and who confirmed it and when. A history keeps who, when, old value, new value, reason and source. Staff can't change a fee the agent or TC confirmed without a reason. When the sales price changes, each commission is worked out again and the change goes in the history.
-- AF-2: an **Agent fees** box on the file overview. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
-- AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC's own overview now has the Agent fees box. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
+- AF-2: an **Agent fees** box. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
+- FF-101c (Francis Nov 18 11 AM meeting notes, confirmed by John Nov 18 2:13 PM ET): the Agent fees box is no longer on File Overview. The listing agent's commission sits under **Listing (Seller's) Agent tasks**, and the buyer's agent commission sits under **Buyer's Agent tasks**, for every role that used to see them on the overview (staff, agents, TCs). Accounting still shows a read-only summary. Commission fields are unchanged (broker fee / payout is FF-101b).
+- AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC sees Agent fees under the agent task sections on Tasks. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
 - AF-4: when CLA staff change fees the agent (or TC) confirmed, the side's agent gets a portal notice and a queued email: who changed it (marked "CLA Title"), old and new values, and the reason. It says no re-approval is needed. Nobody else is told, and nothing is sent when staff change fees nobody has confirmed yet.
 - AF-5: every agent fee posts to the file's Accounting fee ledger by itself. Each fee is one line under ALTA "Commission" and CD section H, paid by the fee's payer. The payee is the agent's company (or "Buyer's Agent" / "Listing Agent" when it has none), or the other fee's "paid to". A line is kept in step when the fee or the sales price changes, and retired (never deleted) when the fee is removed. If a processor changes the line by hand on the Accounting tab, automatic posting leaves it alone from then on.
 - AF-6: Accounting's Closing Disclosure and Settlement Statement tabs stay, and each has a **Generate CD** / **Generate ALTA** button. It opens the print window with the file's document name filled in (for example "MD-26-97262 - Closing Disclosure - TEST") so it can be saved as a PDF. The agent fees appear in CD section H and the ALTA "Commission" section.
@@ -75,6 +76,40 @@ This file lists the portal's major features: how each one should work, how far a
 - Follow-ups (John, Nov 13): one place for commissions (the older commission boxes point to Agent fees instead of keeping a second copy), remove the fee questions from the agent's task, add a walkthrough test, AF-1 choices approved as written. Assigned to Claude; John waived rule 9 for this build (the walkthrough on main was failing for unrelated buyer/seller tests).
 - AF-1 choices (approved as written by John, Nov 13): a commission can't be saved until the file has a sales price, so % and $ can always be checked against it. The commission and other fees also record who pays them, with the same defaults as the admin fee (buyer for the buyer's agent, seller for the listing agent). When staff change a confirmed fee, the record of who confirmed it stays, so every later staff change still needs a reason. A fixed-$ commission bigger than a new, lower sales price switches to keeping its %. A TC can confirm the side of an agent on their team; the file's own TC can confirm either side. A refinance has no agent fees.
 - Nov 14: the list of old commission keys stays the same. A signed-in user can save an order that does not write those keys. Writing an old commission still shows the plain Agent fees message, not a permission error. AF-7 stays not Live until that permission fix is applied on TEST and Place Order is checked there.
+- FF-101c (Nov 18): move the existing Agent fees block under the agent task sections; do not change the commission fields in this item (FF-101b adds broker fee / total / payout).
+
+---
+
+## Commission under agent task sections (FF-101c)
+
+**How it should work.** On Tasks, the listing agent's commission and fees sit under the Listing Agent task section, and the buyer's agent commission and fees sit under the Buyer's Agent task section. File Overview no longer shows the Agent fees box. Staff, agents and TCs who already saw Agent fees still see the same fields in the new place. Accounting still shows commissions read only. Buyers and sellers never see them. Broker fee, total and payout methods are a separate item (FF-101b).
+
+**Status: In progress.** Tracker row FF-101c. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026 2:13 PM ET. Pull request: [PR 351](https://github.com/Johncoester/cla-portal-demo/pull/351). Not Live until checked on TEST and migration `20261125260000_ff101c_agent_fees_tasks_location.sql` is applied on TEST (message wording only).
+
+**What's built**
+
+- Agent fees removed from File Overview (staff and TC).
+- Each side's reusable Agent fees card sits under that side's task section on Tasks (`buyer-agent` / `listing-agent`).
+- Edit order details, Accounting pointers and the commission task note point to Tasks.
+- Accounting > Contract figures / Basic Info still shows the read-only commissions summary.
+- Walkthrough and unit tests look for Agent fees under the task sections.
+- Cache stamp `202611246500`.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Database file for refusal / note wording not applied on TEST yet.
+- FF-101b (broker fee, total, payout methods) is separate.
+
+**Links**
+
+- Spec: [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md)
+- Source: Francis, Portal review Nov 18 2026 11 AM (Gmail 1a1ef9d3d862da08); John confirmed Nov 18 2:13 PM ET via Francis Feedback.
+
+**Decisions**
+
+- Move the existing block only; do not edit commission fields in this PR (avoid conflict with FF-101b).
+- Keep `data-agent-fees` / `data-agent-fee-side` so Accounting and the walkthrough keep working.
 
 ---
 
@@ -414,6 +449,68 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove. On Nov 16, MF-056 renamed the Closing Date button to Scheduling Details. The date, time and days remaining stay on that button.
+
+---
+
+## Settlement office locations (FF-101d)
+
+**How it should work.** When an agent or processor picks a CLA office for the settlement (Schedule the Settlement task, Scheduling Details, or the party scheduling link), the list is only the offices marked for settlements. That starts as Towson, Rockville and Bethesda. Rockville is the main office. Other offices stay in the offices table and on Admin > Offices, but are not offered for new settlement picks. A retired office never appears. A pending proposal that already uses another office still shows that office on the file.
+
+**Status: In progress.** Tracker FF-101d. Francis Santos, Portal review Nov 18 2026 11 AM; John confirmed Nov 18 2026, 2:13 PM ET. Pull request: [PR 353](https://github.com/Johncoester/cla-portal-demo/pull/353). Database file `supabase/migrations/20261125300000_settlement_office_flag.sql` is not applied. Not Live.
+
+**What's built**
+
+- `public.offices.used_for_settlements` flag. Towson, Rockville and Bethesda are on; other offices stay off. Rows are not deleted.
+- Settlement pickers and nearest-office default read only active offices with that flag. Existing file/proposal office names still show.
+- Mock and hosted adapters follow the same rule. Cache stamp 202611246600.
+
+**What's still missing**
+
+- Not applied on TEST. Not checked on TEST yet.
+- Admin UI to tick the flag is FF-102 (separate PR).
+
+**Links**
+
+- Spec: [docs/specs/settlement-office-locations.md](docs/specs/settlement-office-locations.md). Source: Francis's Nov 18 Gemini notes (Gmail 1a1ef9d3d862da08). Tracker FF-101d.
+- Related: MF-010 (nearest office), MF-056 (Scheduling Details), FF-102 (Admin Offices flag UI).
+
+**Decisions**
+
+- Drive the picker from the offices table flag, not hard-coded names in the page (John, Nov 18).
+- Notes' "Talson" / "Rockwell" mean Towson / Rockville.
+- Do not apply the database file in this pull request.
+
+---
+
+
+## Admin Offices — Used for settlements (FF-102)
+
+**How it should work.** On Admin > Offices, an Admin or Super admin can tick **Used for settlements** on an office. That is the only way staff turn the flag on or off after FF-101d seeds Towson, Rockville and Bethesda. The settlement pickers (Schedule the Settlement, Scheduling Details, party link) keep using FF-101d's filtered list; this change does not duplicate that picker.
+
+**Status: In progress.** Tracker FF-102. John Coester via Francis Feedback, Nov 18 2026, 2:14 PM ET. Pull request: [PR 354](https://github.com/Johncoester/cla-portal-demo/pull/354). Rebased onto FF-101d (`cursor/ff-101d-settlement-offices-906a` / PR 353). Database file `supabase/migrations/20261125310000_office_used_for_settlements.sql` is not applied. Not Live.
+
+**What's built**
+
+- Admin > Offices checkbox and list chip for Used for settlements.
+- `save_office` takes `p_used_for_settlements` (Admin / Super admin only). Direct insert/update/delete on `public.offices` revoked for portal roles; select stays.
+- Reuses FF-101d picker code. No second column add or seed.
+- Cache stamp 202611246700.
+
+**What's still missing**
+
+- Apply `20261125310000` on TEST after `20261125300000` (FF-101d).
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/admin-offices.md](docs/specs/admin-offices.md). Tracker FF-102.
+- Related: FF-101d (settlement office flag + picker), MF-010 (nearest office).
+
+**Decisions**
+
+- Extend the existing Admin > Offices page; do not add a second offices screen (John / AGENTS.md).
+- Column and seed stay in FF-101d; this PR only owns the Admin save path and write protection.
+- Do not apply the database file in this pull request.
 
 ---
 
@@ -1252,7 +1349,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. The choice says who they work for.
+- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. TC-1 said that on the choice. TC-5 (tracker row 370) replaces the two choices with one label, Transaction coordinator.
 - The old role stays on files that already have it. New people are not given that role from Add contact.
 
 ## Transaction coordinator contact type (TC-4)
@@ -1323,7 +1420,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
 
-**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back, so nothing from this file is on TEST. The database file is corrected in place. Not applied on TEST. Not Live.
 
 **What's built**
 
@@ -1332,7 +1429,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Removing the agent leaves the coordinator on the file, including a coordinator someone added by hand.
 - The coordinator's login is treated as their agent on that file: they see the file, finish the agent's tasks, schedule the settlement, and upload. The task says the coordinator completed it on behalf of the agent.
 - The same coordinator is the buyer side on a file where their agent represents the buyer, and the listing side where that agent represents the seller.
-- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The shell cache stamp is 202611246000.
+- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The first copy used `private.outside_roles(pid, d)[1]`, which Postgres rejects. The corrected copy uses `(private.outside_roles(pid, d))[1]`. The rollback already used a column, not that call, so it did not need the same change. No page file changed, so the shell cache stamp stays 202611246000.
 
 **What's still missing**
 
@@ -1350,6 +1447,54 @@ This file lists the portal's major features: how each one should work, how far a
 - The coordinator stays when the agent is removed. Staff remove the coordinator from Order Contacts when that person should leave. That way a coordinator added by hand is never dropped because the agent left, and a coordinator added from the link is not dropped either.
 - Permission follows the link: the coordinator acts as the agent only while that agent is the buyer's agent or the listing agent on the file.
 - The file role list an outside user is added as stays Buyer Agent, Listing Agent, Client-Buyer, and Client-Seller. The coordinator is not added as a second agent. Their login is given the agent's role for that file so the existing checks (tasks, scheduling, upload) apply. Both coordinator sides stay allowed, which the two-role rule would block if those roles were added to that list.
+
+---
+
+## Agents see only their own tasks (FF-101a)
+## Transaction coordinator, one choice (TC-5)
+
+**How it should work.** On a file, the buyer's agent, the listing agent, and a transaction coordinator acting for them see only the tasks assigned to them. The general **Tasks** button and tab are removed for those people so they cannot open every task on the file. They keep **My Tasks**. Staff keep Tasks and My Tasks as they are today. A coordinator linked to the agent (TC-3) can still see and finish that agent's tasks.
+**How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent do they work for?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
+
+**Status: In progress.** Tracker row FF-101a. Francis Santos, Nov 18 2026 11 AM meeting notes, confirmed by John Nov 18 2:13 PM ET. Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row 370, item TC-5. John Coester, voice call Nov 18 2026, about 1:51 PM ET. Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350). Not Live. No database file.
+
+**What's built**
+
+- The file menu and agent pill tabs drop the general Tasks entry for a buyer agent, listing agent, or coordinator acting as them. My Tasks stays.
+- Opening the old Tasks address as an agent still shows only My Tasks.
+- The agent overview "outstanding" button opens My Tasks.
+- The fake portal and the database file refuse agent reads of other parties' tasks. A coordinator still sees the agent's own tasks and can finish them on the agent's behalf.
+- The database file is `supabase/migrations/20261125280000_agent_own_tasks.sql` (with rollback). The shell cache stamp is 202611246300.
+- Add contact, Place Order, and Parties offer one role, Transaction coordinator.
+- The side is taken from the coordinator's links to the agents on that file. Linked to both agents saves both sides.
+- If there is no linked agent on the file, a required question lists the file's buyer's agent and listing agent. If the file has neither agent, saving says to add one first. What was typed stays.
+- Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. A refinance still has no transaction coordinator. The shell cache stamp is 202611246200.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks.
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Not Live.
+
+**Links**
+
+- Spec: [docs/specs/agent-own-tasks.md](docs/specs/agent-own-tasks.md)
+- PR: [#355](https://github.com/Johncoester/cla-portal-demo/pull/355)
+- Source: Francis Santos, Nov 18 2026 11 AM meeting notes (Gmail 1a1ef9d3d862da08), confirmed by John Nov 18 2:13 PM ET. Tracker row FF-101a.
+- Spec: [docs/specs/tc-5-one-choice.md](docs/specs/tc-5-one-choice.md)
+- Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350)
+- Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5.
+
+**Decisions**
+
+- Enforce in the UI first, and tighten the database so an agent cannot read other parties' tasks even outside the menu.
+- Staff views are unchanged.
+- A TC acting for an agent must still see and complete that agent's tasks (TC-3).
+- The words on the choice are exactly Transaction coordinator. The side is not part of the label.
+- The side comes from the existing agent links (TC-2) and the same buyer or listing side those links already use (TC-3). Nothing new is stored.
+- The follow-up is only the question and the agents on this file. It is required when the side cannot be told from a link.
 
 ---
 

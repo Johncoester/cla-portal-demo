@@ -36,8 +36,8 @@ ok(viewTasksHref('deal-1', { role: 'Listing Agent' }) === '#/deals/deal-1/tasks?
 ok(myTasksHref('deal-1') === '#/deals/deal-1/tasks?mine=1', 'My Tasks is a filter on the same page');
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-ok(app.includes("${link('tasks', 'Tasks', 'task')}${myTasksLink}"), 'My Tasks is directly under Tasks');
-ok(app.includes("${link('tasks', 'To-do list', 'task')}${myTasksLink}"), 'My Tasks is directly under the client to-do list');
+ok(app.includes("link('tasks', 'Tasks', 'task')") && app.includes('myTasksLink') && app.includes('fileAgent ? myTasksLink'), 'My Tasks stays for staff; agents get My Tasks only (FF-101a)');
+ok(app.includes("link('tasks', 'To-do list', 'task')") && app.includes('myTasksLink'), 'My Tasks is directly under the client to-do list');
 
 const api = createMockAdapter({ storage: mapStore(), sessionStorage: mapStore() });
 function mapStore() { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; }
@@ -57,15 +57,19 @@ async function open(id, query) {
   return { calls, html: document.body.innerHTML, user };
 }
 
+// FF-101a: an agent opening the old section URL still gets My Tasks only (no other sides).
 const listing = await open('u-lagent', '?section=listing-agent');
-ok(listing.calls === 1, 'View Tasks does not load the task list again');
-ok(listing.html.includes('data-sidebox="listing-agent"') && listing.html.includes('data-sidebox="buyer"'), 'View Tasks keeps every section on the page');
-ok(document.querySelector('[data-sidebox="listing-agent"] summary').getAttribute('tabindex') === '-1', 'View Tasks focuses the listing agent section');
-ok(document.querySelector('[data-sidebox="listing-agent"]').hasAttribute('data-focused-section'), 'the listing agent section is marked focused');
+ok(listing.calls === 1, 'agent tasks still load once');
+ok(listing.html.includes('data-file-tasks="mine"') && listing.html.includes('data-sidebox="listing-agent"'), 'listing agent section URL becomes My Tasks');
+ok(!listing.html.includes('data-sidebox="buyer"') && !listing.html.includes('data-sidebox="seller"'), 'listing agent no longer sees other sides');
 
 const mine = await open('u-lagent', '?mine=1');
 ok(mine.calls === 1 && mine.html.includes('data-file-tasks="mine"') && mine.html.includes('data-sidebox="listing-agent"'), 'listing agent My Tasks shows that role');
 ok(!mine.html.includes('data-sidebox="buyer"') && !mine.html.includes('data-sidebox="seller"'), 'listing agent My Tasks hides the other sides');
+
+const staffSection = await open('u-proc', '?section=listing-agent');
+ok(staffSection.html.includes('data-sidebox="listing-agent"') && staffSection.html.includes('data-sidebox="buyer"'), 'staff View Tasks still keeps every section');
+ok(document.querySelector('[data-sidebox="listing-agent"] summary').getAttribute('tabindex') === '-1', 'staff View Tasks focuses the listing agent section');
 
 const buyer = await open('u-buyer', '?mine=1');
 ok(buyer.calls === 1 && buyer.html.includes('data-file-tasks="mine"') && buyer.html.includes('data-sidebox="buyer"'), 'a buyer My Tasks is the buyer side');

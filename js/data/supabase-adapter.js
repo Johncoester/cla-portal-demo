@@ -4,7 +4,7 @@
 import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611245800';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611245800';
 import { textToHtml } from './gmail-email.js?v=202611191000';
-import { agentTcAlreadyMessage, isAgentTcRole } from './agent-tc.js?v=202611245300';
+import { agentTcAlreadyMessage, isAgentTcRole } from './agent-tc.js?v=202611246200';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
@@ -29,7 +29,7 @@ import { runsOrders as runsOrdersCI } from './constants.js?v=202611245800';
 import { crmSupabase } from './supabase-crm.js?v=202611245800';
 import { hrSupabase } from './supabase-hr.js?v=202611100130';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611245800';
-import { officesSupabase } from './supabase-offices.js?v=202611245800';
+import { officesSupabase } from './supabase-offices.js?v=202611246700';
 import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611245800';
 import { tcSupabase } from './supabase-tc.js?v=202611245800';
@@ -54,7 +54,7 @@ import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty }
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611245800';
 import { fileTitleOf } from './party-name.js?v=202611102000';
 import { parcelInput } from './parcels.js?v=202611245800';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611223000';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611246500';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';

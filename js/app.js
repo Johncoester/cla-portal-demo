@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611246000';
+import { getAdapter } from './data/adapter.js?v=202611246700';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611247600';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
@@ -11,8 +11,8 @@ import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
 import { acctCanRead } from './data/accounting.js?v=202611243300';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611245800';
-import { phaseOf } from './data/agent-portal.js?v=202611245800';
-import { scheduleNavLines } from './data/scheduling-details.js?v=202611245800';
+import { phaseOf } from './data/agent-portal.js?v=202611246600';
+import { scheduleNavLines } from './data/scheduling-details.js?v=202611246600';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611245800';
 import { canInviteAgents } from './data/agent-profile.js?v=202611245800';
@@ -45,23 +45,23 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611245800')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611245900')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611246600')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611245800')),
-  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611245800')),
+  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611246500')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611247600')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611245900')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611245900')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
-  templates: () => loadRoute(() => import('./pages/templates.js?v=202611245800')),
-  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611245800')),
+  templates: () => loadRoute(() => import('./pages/templates.js?v=202611246600')),
+  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611246600')),
   library: () => loadRoute(() => import('./pages/library.js?v=202611245800')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611245800')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611245900')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611246600')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611245800')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
-  schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611245800')),   // public closing-time link (no sign-in needed)
-  'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611245800')),   // MF-056 buyer / seller scheduling link (no sign-in)
+  schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611246600')),   // public closing-time link (no sign-in needed)
+  'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611246600')),   // MF-056 buyer / seller scheduling link (no sign-in)
   crm: () => loadRoute(() => import('./pages/crm.js?v=202611245800')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611245800')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
@@ -71,8 +71,8 @@ const pages = {
   'tax-rates': () => loadRoute(() => import('./pages/tax-rates.js?v=202611245800')),
   hr: () => loadRoute(() => import('./pages/hr.js?v=202611245800')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
-  offices: () => loadRoute(() => import('./pages/offices.js?v=202611245800')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611245800')),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  offices: () => loadRoute(() => import('./pages/offices.js?v=202611246700')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
+  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611246500')),   // John, Nov 9: Admin > Email Templates (file Email tab)
   'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611243802')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => loadRoute(() => import('./pages/demo-view.js?v=202611161500')),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => loadRoute(() => import('./pages/voice-demo.js?v=202611161500')),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
@@ -187,15 +187,18 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
   const t = route.params.tab;
   const mineNav = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
+  // FF-101a: buyer / listing agents (and a TC acting as them) get My Tasks only — no general Tasks tab.
+  const fileAgent = !!deal && (deal.myRoles || [deal.myRole]).some((r) => isAgent(r));
   const showClosingMeta = true;   // the file button shows the closing date and each side's scheduling choice
-  const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') && !(tab === 'tasks' && mineNav) ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'closing' ? closingNavMeta(deal, showClosingMeta) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
-  const myTasksLink = deal ? html`<li class="nav-item"><a class="nav-link task ${t === 'tasks' && mineNav ? 'active' : ''}" href="#/deals/${dealId}/tasks?mine=1" data-nav-my-tasks${tip('My Tasks')}>${lbl('tasks', 'My Tasks')}</a></li>` : '';
+  const link = (tab, label, cls, beta) => html`<li class="nav-item"><a class="nav-link ${cls} ${t === tab && !(tab === 'accounting' && route.params.v === 'payoffs') && !(tab === 'tasks' && (mineNav || fileAgent)) ? 'active' : ''}" href="#/deals/${dealId}/${tab === 'overview' ? '' : tab}"${tip(label, beta)}${beta ? raw(' data-beta-nav') : ''}>${lbl(tab, label)}${beta ? betaTag(tab) : ''}${tab === 'closing' ? closingNavMeta(deal, showClosingMeta) : ''}${tab === 'inbox' && deal && deal.unread ? html`<span class="nav-badge">${deal.unread}</span>` : cnt(tab)}</a></li>`;
+  const myTasksLink = deal ? html`<li class="nav-item"><a class="nav-link task ${t === 'tasks' && (mineNav || fileAgent) ? 'active' : ''}" href="#/deals/${dealId}/tasks?mine=1" data-nav-my-tasks${tip('My Tasks')}>${lbl('tasks', 'My Tasks')}</a></li>` : '';
   // BUYER (Nov 4 call): plain tab names; no Contacts tab (the Overview lists the closing team) and no Agreements tab (they are to-dos now)
   const pureBuyer = deal && ['Client-Buyer', 'Client-Seller'].some((c) => (deal.myRoles || [deal.myRole]).includes(c)) && !(deal.myRoles || [deal.myRole]).some((r) => /Agent$/.test(r));   // seller mirror (Nov 4): a pure seller gets the same plain tabs
+  const tasksNav = pureBuyer ? html`${link('tasks', 'To-do list', 'task')}${myTasksLink}` : fileAgent ? myTasksLink : html`${link('tasks', 'Tasks', 'task')}${myTasksLink}`;
   const acctOn = !!deal && !!((api.features || {}).accounting && acctCanRead(u) && modOn('accounting'));
   const fundingOn = !!deal && !!((api.features || {}).funding && fwpCanRead(u) && modOn('funding'));
   const fileQuery = new URLSearchParams((typeof location !== 'undefined' ? location.hash : '').split('?')[1] || '');
-  const fileHead = html`${link('overview', 'File Overview', 'orders')}${link('tasks', 'Tasks', 'task')}${myTasksLink}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}`;
+  const fileHead = html`${link('overview', 'File Overview', 'orders')}${tasksNav}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}`;
   const legacyFile = html`${link('closing', 'Scheduling Details', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${fundingOn && !acctOn ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}`;
   const orderNav = acctOn ? staffDealNav({
     dealId, tab: t, view: route.params.v || '', section: fileQuery.get('s') || '', focus: fileQuery.get('focus') || '',
@@ -208,7 +211,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
     acctBeta: modBeta('accounting'), titleBeta: modBeta('title'), payoffsBeta: modBeta('payoffs'),
     fundingBeta: modBeta('funding'), wiresBeta: modBeta('wires'), policyBeta: modBeta('policy'),
   }) : '';
-  const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${link('tasks', 'To-do list', 'task')}${myTasksLink}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
+  const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${tasksNav}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
     : deal ? html`<li class="nav-sep">This file</li>${fileHead}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? orderNav : legacyFile}` : '';   // FF-103: Accounting readers get the rearranged file menu. Everyone else keeps the shorter menu.
   // Inside a file the portal menu starts closed for every role. The file name and file tabs stay. The button only shows or hides that menu.
   const fileNav = !!deal;

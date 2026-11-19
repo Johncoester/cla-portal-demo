@@ -55,7 +55,7 @@ const fail = (m) => { throw new Error(m); };
 const s = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611070139';
 import { waterEscrowFeeInput, WATER_ESCROW_KEY } from './prorate-defaults.js?v=202611223100';
-import { excessDepositOf } from './earnest-commission.js?v=202611223000';
+import { excessDepositOf } from './earnest-commission.js?v=202611246500';
 const flag0 = (x) => !!x && x !== 'false' && x !== '0';
 // QUALIA layout (John, Nov 4 2026): per-line payments + section settings (meta), the CD text of a line, E.01 recording fees as one line
 import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611243300';

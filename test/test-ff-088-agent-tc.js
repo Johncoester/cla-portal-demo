@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { manualPartyEntry } from '../js/data/file-party.js';
-import { BUYER_TC_CHOICE, LISTING_TC_CHOICE, STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcChoiceLabel, agentTcHelp, agentTcLabel, partyProblemLine, roleForPartyField, rolesForNewContact, uniqueProblems } from '../js/data/agent-tc.js';
+import { AGENT_TC_LABEL, AGENT_TC_PICK, STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcChoiceLabel, agentTcLabel, partyProblemLine, roleForPartyField, rolesForNewContact, uniqueProblems } from '../js/data/agent-tc.js';
 import { PARTICIPANT_ROLES, REFI_BLOCKED_ROLES } from '../js/data/constants.js';
 
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
@@ -15,11 +15,11 @@ const rejects = async (p, name, re) => { try { await p(); ok(false, name + ' (sh
 
 const buyerLine = partyProblemLine('p:Transaction Coordinator', STAFF_TC_MESSAGE);
 const listingLine = partyProblemLine('p:Transaction Coordinator:2', STAFF_TC_MESSAGE);
-ok(buyerLine !== listingLine, 'the two Place Order boxes are not the same bullet');
-ok(buyerLine.startsWith(agentTcLabel('Buyer Agent TC')) && listingLine.startsWith(agentTcLabel('Listing Agent TC')), 'each box names its side');
+ok(buyerLine === listingLine && buyerLine.startsWith(AGENT_TC_LABEL), 'both stored roles are shown as Transaction coordinator');
+ok(agentTcLabel('Buyer Agent TC') === AGENT_TC_LABEL && agentTcLabel('Listing Agent TC') === AGENT_TC_LABEL, 'the file list uses the same words');
 ok(!buyerLine.startsWith('Transaction Coordinator:') && !listingLine.startsWith('Transaction Coordinator:'), 'the old staff role name is not the label on an agent coordinator');
 ok(uniqueProblems([STAFF_TC_MESSAGE, STAFF_TC_MESSAGE]).length === 1, 'the same sentence is not listed twice');
-ok(uniqueProblems([buyerLine, listingLine]).length === 2, 'two different sides both stay on the list');
+ok(uniqueProblems([buyerLine, listingLine]).length === 1, 'the same displayed sentence is listed once');
 ok(roleForPartyField('p:Transaction Coordinator') === 'Buyer Agent TC' && roleForPartyField('p:Transaction Coordinator:2') === 'Listing Agent TC', 'the old field names map to the agent roles, not the staff role');
 ok(roleForPartyField('p:Buyer Agent TC') === 'Buyer Agent TC' && roleForPartyField('p:Client-Buyer:2') === 'Client-Buyer', 'current field names and extra buyer rows keep their roles');
 
@@ -74,16 +74,15 @@ const contacts = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta
 const parties = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 const mig = readFileSync(new URL('../supabase/migrations/20261124160000_agent_side_tc.sql', import.meta.url), 'utf8');
 const rb = readFileSync(new URL('../supabase/rollbacks/20261124160000_agent_side_tc.sql', import.meta.url), 'utf8');
-ok(page.includes('data-agent-tc') && page.includes('data-add-tc') && page.includes('agentTcChoiceLabel(BUYER_AGENT_TC)') && page.includes('agentTcChoiceLabel(LISTING_AGENT_TC)') && page.includes('agentTcHelp(role)') && !page.includes('needs a Transaction Coordinator login') && !page.includes('CLA Title Transaction Coordinator'), 'Place Order types an outside coordinator and says who that person works for');
+ok(page.includes('data-agent-tc') && page.includes('Which agent do they work for?') && page.includes('AGENT_TC_PICK') && !page.includes("works for the buyer's agent") && !page.includes('needs a Transaction Coordinator login') && !page.includes('CLA Title Transaction Coordinator'), 'Place Order has one Transaction coordinator and no works-for sentence');
 ok(page.includes('uniqueProblems(problems)') && page.includes('partyProblemLine'), 'Place Order shows each failed person once');
-ok(contacts.includes('data-agent-tc-note') && contacts.includes('rolesForNewContact') && contacts.includes('agentTcChoiceLabel') && !contacts.includes('Any active staff login can be the Transaction Coordinator') && !contacts.includes('data-tc-note'), 'Add contact offers the outside coordinators and not the old staff role');
+ok(contacts.includes('data-tc-which') && contacts.includes('rolesForNewContact') && contacts.includes('agentTcChoiceLabel') && !contacts.includes('Any active staff login can be the Transaction Coordinator') && !contacts.includes('data-tc-note'), 'Add contact offers the outside coordinator and not the old staff role');
 const purchaseRoles = rolesForNewContact(PARTICIPANT_ROLES);
-ok(purchaseRoles.includes('Buyer Agent TC') && purchaseRoles.includes('Listing Agent TC') && !purchaseRoles.includes(STAFF_TC_ROLE), 'the add-contact list has both outside coordinators and not the old role');
-ok(agentTcChoiceLabel('Buyer Agent TC') === BUYER_TC_CHOICE && agentTcChoiceLabel('Listing Agent TC') === LISTING_TC_CHOICE, 'the choice names which agent the coordinator works for');
-ok(agentTcHelp('Buyer Agent TC').includes("works for the buyer's agent") && agentTcHelp('Listing Agent TC').includes('works for the listing agent') && !/CLA Title/.test(agentTcHelp('Buyer Agent TC') + agentTcHelp('Listing Agent TC')), 'the help text describes an outside assistant');
+ok(purchaseRoles.includes(AGENT_TC_PICK) && purchaseRoles.filter((r) => r === AGENT_TC_PICK).length === 1 && !purchaseRoles.includes('Buyer Agent TC') && !purchaseRoles.includes('Listing Agent TC') && !purchaseRoles.includes(STAFF_TC_ROLE), 'the add-contact list has one Transaction coordinator and not the old role');
+ok(agentTcChoiceLabel(AGENT_TC_PICK) === AGENT_TC_LABEL && agentTcChoiceLabel('Buyer Agent TC') === AGENT_TC_LABEL && !/works for/i.test(agentTcChoiceLabel(AGENT_TC_PICK)), 'the choice is exactly Transaction coordinator');
 const refiRoles = rolesForNewContact(PARTICIPANT_ROLES, { refinance: true, blocked: REFI_BLOCKED_ROLES });
-ok(!refiRoles.includes('Buyer Agent TC') && !refiRoles.includes(STAFF_TC_ROLE) && refiRoles.includes('Client-Buyer'), 'a refinance still has no coordinator choice');
-ok(parties.includes('data-add-party="${BUYER_AGENT_TC}"') && parties.includes('data-add-party="${LISTING_AGENT_TC}"') && parties.includes("Works for the buyer's agent") && parties.includes('Works for the listing agent') && parties.includes('agentTcHelp(role)'), 'Parties can add or change either coordinator and says who they work for');
+ok(!refiRoles.includes(AGENT_TC_PICK) && !refiRoles.includes('Buyer Agent TC') && !refiRoles.includes(STAFF_TC_ROLE) && refiRoles.includes('Client-Buyer'), 'a refinance still has no coordinator choice');
+ok(parties.includes('data-add-party="${AGENT_TC_PICK}"') && parties.includes('Which agent do they work for?') && !parties.includes("Works for the buyer's agent") && !parties.includes('Works for the listing agent'), 'Parties adds one transaction coordinator and does not say works for');
 ok(mig.includes("new.role in ('Buyer Agent TC', 'Listing Agent TC')") && mig.includes("new.role = 'Transaction Coordinator'") && mig.includes(STAFF_TC_MESSAGE), 'the database lets the agent roles through and still checks the staff role');
 ok(mig.includes("'Buyer Agent TC', 'Listing Agent TC'") && rb.includes("select r in ('Client-Seller', 'Buyer Agent', 'Listing Agent', 'Transaction Coordinator')") && !rb.includes('Buyer Agent TC'), 'rollback puts the refinance list back without the agent roles');
 ok(rb.includes(STAFF_TC_MESSAGE), 'rollback keeps the staff Transaction Coordinator sentence');

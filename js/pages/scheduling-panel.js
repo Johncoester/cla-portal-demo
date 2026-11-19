@@ -2,7 +2,7 @@
  * Buyer details sit in a larger lower block. Seller details sit in the seller section.
  * Fields save on their own. A reminder emails that side's parties after the processor confirms. */
 import { html, raw, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611161500';
-import { scheduleTimeLabel, schedulingFromDeal, placeSummary, askLabel } from '../data/scheduling-details.js?v=202611245800';
+import { scheduleTimeLabel, schedulingFromDeal, placeSummary, askLabel } from '../data/scheduling-details.js?v=202611246600';
 import { AUTOSAVE_MS, AGENT_LABEL, cleanSideAgent, reminderEmptyMessage, sameAgent, sideAgentFromDeal, sideAgentPatch } from '../data/scheduling-agent.js?v=202611245800';
 
 const line = (k, v) => html`<div class="settlement-row" data-sched-row="${k}"><span class="settlement-k">${k}</span><span>${v || html`<span class="muted">Not set</span>`}</span></div>`;

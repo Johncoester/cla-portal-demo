@@ -15,7 +15,7 @@ export const ADMIN_PAYERS = [['buyer', 'Buyer'], ['seller', 'Seller'], ['split',
 export const PAYER_LABEL = Object.fromEntries(COMMISSION_PAYERS);
 export const MAX_OTHER_FEES = 5;
 // AF-8: the old Commission information task no longer takes an amount (same message as the database guard)
-export const COMMISSION_TASK_REFUSED = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved.';
+export const COMMISSION_TASK_REFUSED = 'Commissions are now kept in the Agent fees box under the agent task sections on Tasks. Reload the page and enter it there. Nothing was saved.';
 export const defaultPayer = (side) => (side === 'buyer' ? 'buyer' : 'seller');
 
 const blank = (v) => v == null || String(v).trim() === '';
@@ -205,7 +205,7 @@ export function agentFeeLedgerInput(f, { company = '' } = {}) {
   const amount = Number(f.amount);
   const split = payer === 'split' ? { buyer: Number(f.splitBuyer) || 0, seller: Number(f.splitSeller) || 0, lender: 0, other: 0 } : undefined;
   return { kind: 'charge', description, altaSection: 'commission', cdSection: 'H', cdLine: '', payee, amount: amount.toFixed(2), paidBy: payer, ...(split ? { split } : {}), timing: 'at',
-    note: 'From Agent fees on the file overview. Change it there; a change made here stops the automatic updates for this line.', presetKey: ledgerKey(f.side, f.kind, f.slot) };
+    note: 'From Agent fees under the agent task sections on Tasks. Change it there; a change made here stops the automatic updates for this line.', presetKey: ledgerKey(f.side, f.kind, f.slot) };
 }
 // what was posted, to tell a line a processor changed by hand (left alone) from one still in step
 export const ledgerShape = (e) => JSON.stringify({ d: e.description, p: e.payee, a: Number(e.amount), b: e.paidBy, s: e.split || null });

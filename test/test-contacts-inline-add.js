@@ -85,7 +85,7 @@ ok(!!root.querySelector('li[data-create]') && /new person/.test(root.querySelect
 ok(matchPeople([{ id: '1', firstName: 'Ann', lastName: 'Buyer', email: '', company: '' }], 'Zzz').length === 0, 'unknown name has no match');
 
 ok(!src.includes("tcIds.add('staff:' + t.profileId)") && !src.includes('isTcPick') && src.includes('rolesForNewContact'), 'Add contact does not build a staff-only Transaction Coordinator list');
-ok(!src.includes('Any active staff login can be the Transaction Coordinator') && src.includes('agentTcChoiceLabel') && src.includes('agentTcHelp'), 'Add contact names the outside coordinator, not a staff login');
+ok(!src.includes('Any active staff login can be the Transaction Coordinator') && src.includes('agentTcChoiceLabel') && src.includes('Which agent do they work for?'), 'Add contact names the outside coordinator, not a staff login');
 
 // John, 3:11 PM ET Nov 13 video: two John Coesters, one staff login and one realtor contact
 const staffJohn = { id: 'staff:u-john', profileId: 'u-john', firstName: 'John', lastName: 'Coester', email: 'jcoester@clatitle.com', accountRole: 'Super admin' };
