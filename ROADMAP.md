@@ -2661,7 +2661,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On an order, Documents keeps All files, Received, and Sent. A fourth tab, Folders, lists that order's folders and how many files are in each one. CLA staff can add a folder and move a document into a folder. Buyers, sellers, and agents do not see the tab. A new closing order gets eight folders (100 Processing through 700 Recorded Documents and Policies) instead of the five older names. Orders that already exist keep the folders and files they have.
 
-**Status: In progress.** FF-104a (the Folders tab) is in this pull request. FF-104b (the eight folders on new orders only) is the next pull request. Not on TEST. Not Live.
+**Status: In progress.** FF-104a (the Folders tab) is [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376). FF-104b (the eight folders on new orders only) is the next pull request. Not on TEST. Not Live.
 
 **What's built**
 
@@ -2676,6 +2676,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/document-folders.md](docs/specs/document-folders.md)
+- Pull request: [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376) (FF-104a)
 - Source: Francis Santos, Nov 19 2026, 1:15 PM ET, confirmed Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Tracker FF-104a and FF-104b.
 
 **Decisions**
