@@ -2450,7 +2450,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On the staff File Overview, under the status tracker, four boxes show Transaction Type, Open Date, Close Date, and Purchase Price from the file. A Closing Team row shows Processor, CLA Transaction Coordinator, Licensed Settlement Agent, and Sales Person. The person's name is blank when nobody is assigned, and the role title stays. Each salesperson gets their own card. Parties stay as they are today, including Processor, Title Company, the sales rep, Preprocessor, Notes, Automation, Call, Email, copy, Source of business, All contacts, and the add-party buttons. The buyer agent's row reads Selling Agent and lines up with Listing Agent. Selling Agency and Listing Agency show the company already saved on that agent. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
 
-**Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). No database file. Not Live until someone checks it on TEST.
+**Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375). No database file. Not Live until someone checks it on TEST.
 
 **What's built**
 
@@ -2467,6 +2467,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/file-overview-layout.md](docs/specs/file-overview-layout.md)
+- Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375)
 
 **Decisions**
 
