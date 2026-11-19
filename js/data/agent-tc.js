@@ -5,7 +5,7 @@
  * "Transaction coordinator". Buyer Agent TC and Listing Agent TC stay the stored roles.
  * The old role name Transaction Coordinator is not offered when adding someone.
  * A file that already has that role still keeps the row. */
-import { AGENT_TC_TYPE } from './constants.js?v=202611245800';
+import { AGENT_TC_TYPE } from './constants.js?v=202611247700';
 
 export const BUYER_AGENT_TC = 'Buyer Agent TC';
 export const LISTING_AGENT_TC = 'Listing Agent TC';

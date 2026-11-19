@@ -1,11 +1,11 @@
 /* Admin > Email Templates (John, Nov 9): Admins build shared file-email templates.
  * Processors and other staff SELECT them on a file's Email tab (they do not author). Not CRM templates. */
 import { html, raw, $, $$, guard, toast, fmtDateTime, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
-import { editorHtml, mountEditor } from './compose.js?v=202611245800';
+import { editorHtml, mountEditor } from './compose.js?v=202611247700';
 import {
   FILE_TEMPLATE_FIELDS, DEFAULT_RECIPIENT_ROLES, ATTACH_DOC_MATCH_OPTIONS,
   canManageFileTemplates, cleanTemplateInput,
-} from '../data/file-email-templates.js?v=202611140400';
+} from '../data/file-email-templates.js?v=202611247700';
 
 export async function render(ctx) {
   const { api, user, refresh } = ctx;

@@ -11,28 +11,28 @@
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611161500';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
+import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611245800';
+import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611247700';
 import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611243801';
-import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611245800';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611245800';
-import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611245800';
-import { closerChoices, resolveCloser } from '../data/closer.js?v=202611245800';
-import { duplicateNotice } from '../data/order-duplicates.js?v=202611245800';
+import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611247700';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611247700';
+import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611247700';
+import { closerChoices, resolveCloser } from '../data/closer.js?v=202611247700';
+import { duplicateNotice } from '../data/order-duplicates.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611242810';
-import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611245800';
-import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
+import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611247700';
+import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611243300';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245800';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611247700';
 import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611245800';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611247700';
 import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611243061';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, partyProblemLine, placeOrderTcChoices, roleForPartyField, tcRolesFromLinks, tcRolesToSave, tcSideProblem, uniqueProblems } from '../data/agent-tc.js?v=202611246200';
-import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611245800';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611245800';
+import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, partyProblemLine, placeOrderTcChoices, roleForPartyField, tcRolesFromLinks, tcRolesToSave, tcSideProblem, uniqueProblems } from '../data/agent-tc.js?v=202611247700';
+import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611247700';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).

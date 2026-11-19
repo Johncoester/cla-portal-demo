@@ -3,19 +3,19 @@
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import { themeOn } from '../theme.js?v=202611070139';
-import { modOn } from '../data/modules.js?v=202611245800';
+import { modOn } from '../data/modules.js?v=202611247700';
 import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611243300';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611241500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611245800'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
-import { brokerageOnFile } from '../data/lender-file.js?v=202611245800';
+import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611247700'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { brokerageOnFile } from '../data/lender-file.js?v=202611247700';
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611243300';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611243300';
-import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611245800';
+import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611247700';
 import { fwpCanRead } from '../data/funding-wire-policy.js?v=202611070139';
-import { qcNav, chargesView, paymentSummaryView, aggregateAdjustmentPatch } from './dealaccounting-charges.js?v=202611245800';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { qcNav, chargesView, paymentSummaryView, aggregateAdjustmentPatch } from './dealaccounting-charges.js?v=202611247700';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { booksHtml } from './dealaccounting-books.js?v=202611242700';
-import { contractView } from './dealaccounting-contract.js?v=202611245800';
+import { contractView } from './dealaccounting-contract.js?v=202611247700';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
 const VIEWS = [['contract', 'Basic Info'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];

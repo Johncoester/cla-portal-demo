@@ -1,18 +1,18 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill, toText } from '../ui.js?v=202611161500';
-import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611245800';
-import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611245800';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611245800';
-import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611245800';
-import { copyPlainText } from './deal.js?v=202611246200';
+import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611247700';
+import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611247700';
+import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611247700';
+import { copyPlainText } from './deal.js?v=202611247700';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
-import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611245800';
-import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611245800';
+import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
+import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611246200';
-import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611245900';
-import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611245900';
+import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611247700';
+import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611247700';
+import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611247700';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {

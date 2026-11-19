@@ -1226,7 +1226,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's built**
 
-- Contact type lists offer "Transaction coordinator (outside, works for agents)", with the note that this is an outside assistant who works for real estate agents and is not a CLA Title staff role. The choice is on a contact, on Place Order, on the file's Contacts tab, and in the CRM.
+- Contact type lists offer Transaction coordinator. TC-5b takes the "outside, works for agents" words off that label. The note under the list still says this is an outside assistant and not a CLA Title staff role. The choice is on a contact, on Place Order, on the file's Contacts tab, and in the CRM.
 - A new person typed as the buyer's or listing transaction coordinator is saved as that type, not as a Realtor. Someone already saved keeps their current type.
 - The file's contact list, the user list, and the CRM lists can filter or group by the new type. The coordinator directory lists transaction coordinators separately from agents. Buyers and CLA staff are not in that list.
 - The database file adds the type to the contact and lead checks and does not change existing rows. It is not applied on TEST.
@@ -1345,6 +1345,36 @@ This file lists the portal's major features: how each one should work, how far a
 - The words on the choice are exactly Transaction coordinator. The side is not part of the label.
 - The side comes from the existing agent links (TC-2) and the same buyer or listing side those links already use (TC-3). Nothing new is stored.
 - The follow-up is only the question and the agents on this file. It is required when the side cannot be told from a link.
+
+---
+
+## Transaction coordinator contact type label (TC-5b)
+
+**How it should work.** The contact type for an outside transaction coordinator reads exactly Transaction coordinator. The dropdown, the outside-user type, and the User List filter use those words and no description. A contact type that is not on the list says to pick Realtor, Lender, Buyer/Seller, or Transaction coordinator. A User List filter saved with the older longer label still finds the same people.
+
+**Status: In progress.** Tracker row 370, item TC-5b. John Coester, voice call Nov 18 2026, about 1:51 PM ET, the same wording as TC-5. Not Live. No database file.
+
+**What's built**
+
+- The contact type label is Transaction coordinator on the contact type lists, on an outside user's type, and on the User List filter.
+- A bad contact type says: Pick a contact type from the list (Realtor, Lender, Buyer/Seller, or Transaction coordinator).
+- A saved User List filter that still says "Transaction coordinator (outside, works for agents)" matches the same outside coordinators. The shell cache stamp is 202611247700.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Not Live.
+
+**Links**
+
+- Spec: [docs/specs/tc-5b-type-label.md](docs/specs/tc-5b-type-label.md)
+- Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5b.
+
+**Decisions**
+
+- The stored code stays `agent_tc`. Only the words on screen change.
+- The note under the list, that this is an outside assistant and not a CLA Title staff role, stays. John asked for the label itself to have no description.
+- The older filter words are still accepted so a saved filter does not go blank.
 
 ---
 
