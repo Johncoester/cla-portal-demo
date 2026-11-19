@@ -2477,17 +2477,25 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Add dashboard charts to CRM Home (Feedback 31 item 1)
 ## Clone a CRM dashboard copies its charts
 ## CRM Calls menu link (Feedback 32 item 3)
 
+**How it should work.** Each chart on a CRM dashboard has Add to Home. The chart then shows on that person's CRM Home, with Refresh, Rename, and Remove. Dragging changes the order on Home. Rename and Remove do not change the chart on the dashboard. Remove only takes it off Home. There is no resize. Each person has their own Home charts.
 **How it should work.** Clone on a CRM dashboard makes a new dashboard named like "Lead dashboard (copy)". Every chart comes with it: the same settings, filters, order, and size. The original dashboard stays as it was. A hidden chart is not copied. The copy is Only me.
 **How it should work.** Calls in the CRM menu opens a list of calls already saved on a lead, client, or company. The subject opens that call. If there are no calls, the page says so. It is not the full Calls module.
 
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 1. Pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359). A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks Home there. Not merged.
 **Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 2. Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357). No database file. Not Live until someone checks Clone on TEST.
 **Status: In progress.** Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. Pull request: [PR 356](https://github.com/Johncoester/cla-portal-demo/pull/356). No database file. Not Live until someone checks Calls on TEST.
 
 **What's built**
 
+- Add to Home on every chart of a dashboard the person can open.
+- Home shows those charts after the rest of the page, with Refresh, Rename, Remove, and drag to reorder.
+- The Home name and the Home order are stored for that person only. The dashboard chart is unchanged.
+- If the person has no Home charts, Home does not ask again during that browser tab, and it does not load chart numbers.
+- If the database file is not applied yet, Add to Home is hidden.
 - Clone suggests "<name> (copy)" and saves that name, shortened so it still ends with " (copy)" when the original name is already at the 100-character limit.
 - Every visible chart is copied in one save: name, type, module, measure, grouping, filters, width, height, and order.
 - The dashboard's own owner and period filters are copied, so the charts match.
@@ -2500,11 +2508,15 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
+- The database file is not applied on TEST. Do not mark Live before that, and not before someone checks it there.
+- Resizing was asked not to be built.
 - Not checked on TEST yet. Do not mark Live before that.
 - Scheduling, logging, and completing calls from this list are later, with the Calls, Meetings, and Tasks modules.
 
 **Links**
 
+- Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
+- Pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359)
 - Spec: [docs/specs/crm-dashboard-clone.md](docs/specs/crm-dashboard-clone.md)
 - Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357)
 - Spec: [docs/specs/crm-calls-menu.md](docs/specs/crm-calls-menu.md)
@@ -2512,6 +2524,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
+- List column preferences cannot hold this. Those rows are only the lead, client, company, and deal lists. A new table stores the chart id, the Home name, and the order.
+- The file is not applied by this change.
 - No database change. Charts already store their settings on the dashboard. The copy writes those rows in one batch.
 - The copy is Only me. Sharing on the original is not copied.
 - A hidden chart is not copied. Restore it on the original first if it should be included.

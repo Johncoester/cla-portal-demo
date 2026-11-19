@@ -8,6 +8,7 @@ import {
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
   calendarBucket, groupingWithCalendar, presetKey, withPresetKeys,
 } from './crm-analytics.js?v=202611247700';
+import { cleanHomeTitle, homeChartsMissing, homeChartMessage } from './crm-home-charts.js?v=202611247000';
 
 const RECENT = new Map();
 const row = (o) => o || {};
@@ -307,5 +308,109 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       return { ...out, filterText: '', groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k) };
     },
     async exportCrmReport(id) { const u = await who(); if (!u.isAdmin) throw new Error('Only an Admin or Super admin can export a report.'); const rep = await this.getCrmReport(id); const out = await this.runCrmReport(id); return { name: `${rep.name}.csv`, csv: reportCsv(out, out.groupFields || []) }; },
+    // Home copies. An empty pin list returns before any chart or module row is read.
+    async listCrmHomeCharts({ countsOnly = false } = {}) {
+      const u = await who();
+      const res = await sb.from('crm_home_charts').select('component_id,title,position').eq('user_id', u.id).order('position');
+      if (res.error) { if (homeChartsMissing(res.error)) return { available: false, charts: [] }; throw new Error(homeChartMessage(res.error)); }
+      const pins = res.data || [];
+      if (!pins.length) return { available: true, charts: [] };
+      if (countsOnly) return { available: true, charts: pins.map((p) => ({ id: p.component_id })) };
+      return { available: true, charts: await homeChartViews(u, pins) };
+    },
+    async addCrmHomeChart(componentId) {
+      const u = await who(); const id = String(componentId || '').trim();
+      if (!id) throw new Error('That chart is not on a dashboard you can open.');
+      const compRes = await sb.from('crm_dash_components').select('id,name,retired_at').eq('id', id).maybeSingle();
+      if (compRes.error) throw new Error(homeChartsMissing(compRes.error) ? 'Add to Home is not ready on this portal yet.' : 'That chart is not on a dashboard you can open.');
+      if (!compRes.data || compRes.data.retired_at) throw new Error('That chart is not on a dashboard you can open.');
+      const have = await sb.from('crm_home_charts').select('component_id,position').eq('user_id', u.id);
+      if (have.error) throw new Error(homeChartsMissing(have.error) ? 'Add to Home is not ready on this portal yet.' : homeChartMessage(have.error));
+      const rows = have.data || [];
+      if (rows.some((r) => r.component_id === id)) throw new Error('That chart is already on your Home.');
+      const position = rows.reduce((n, r) => Math.max(n, Number(r.position) || 0), -1) + 1;
+      const ins = await sb.from('crm_home_charts').insert({ user_id: u.id, component_id: id, title: '', position });
+      if (ins.error) throw new Error(homeChartMessage(ins.error));
+      return { id, name: compRes.data.name, homeTitle: '', position };
+    },
+    async renameCrmHomeChart(componentId, title) {
+      const u = await who(); const id = String(componentId || '').trim(); const name = cleanHomeTitle(title);
+      const res = await sb.from('crm_home_charts').update({ title: name }).eq('user_id', u.id).eq('component_id', id).select('component_id,title').maybeSingle();
+      if (res.error) throw new Error(homeChartMessage(res.error));
+      if (!res.data) throw new Error('That chart is not on your Home.');
+      return { id, homeTitle: res.data.title || '' };
+    },
+    async removeCrmHomeChart(componentId) {
+      const u = await who(); const id = String(componentId || '').trim();
+      const res = await sb.from('crm_home_charts').delete().eq('user_id', u.id).eq('component_id', id);
+      if (res.error) throw new Error(homeChartMessage(res.error));
+      return { ok: true, id };
+    },
+    async reorderCrmHomeCharts(ids = []) {
+      const u = await who();
+      const list = [...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || '').trim()).filter(Boolean))];
+      if (!list.length) return { ok: true };
+      const cur = await sb.from('crm_home_charts').select('component_id,title').eq('user_id', u.id);
+      if (cur.error) throw new Error(homeChartMessage(cur.error));
+      const known = new Map((cur.data || []).map((r) => [r.component_id, r.title || '']));
+      const payload = [];
+      list.forEach((id, i) => { if (!known.has(id)) throw new Error('Those charts are not on your Home.'); payload.push({ user_id: u.id, component_id: id, title: known.get(id), position: i }); });
+      const up = await sb.from('crm_home_charts').upsert(payload, { onConflict: 'user_id,component_id' });
+      if (up.error) throw new Error(homeChartMessage(up.error));
+      return { ok: true };
+    },
+    async refreshCrmHomeChart(componentId) {
+      const u = await who(); const id = String(componentId || '').trim();
+      const res = await sb.from('crm_home_charts').select('component_id,title,position').eq('user_id', u.id).eq('component_id', id).maybeSingle();
+      if (res.error) throw new Error(homeChartMessage(res.error));
+      if (!res.data) throw new Error('That chart is not on your Home.');
+      const charts = await homeChartViews(u, [res.data]);
+      return charts[0];
+    },
   };
+  async function homeChartViews(u, pins) {
+    const ids = pins.map((p) => p.component_id);
+    const compRes = await sb.from('crm_dash_components').select('*').in('id', ids);
+    if (compRes.error) throw new Error(homeChartMessage(compRes.error));
+    const comps = compRes.data || [];
+    const byId = new Map(comps.map((c) => [c.id, c]));
+    const dashIds = [...new Set(comps.map((c) => c.dashboard_id).filter(Boolean))];
+    let dashes = [];
+    if (dashIds.length) {
+      const dashRes = await sb.from('crm_dashboards').select('*').in('id', dashIds);
+      if (dashRes.error) throw new Error(homeChartMessage(dashRes.error));
+      dashes = dashRes.data || [];
+    }
+    const dashById = new Map(dashes.map((d) => [d.id, d]));
+    const cfg = await self.getCrmSettings();
+    const modules = [...new Set(comps.filter((c) => !c.retired_at).map((c) => c.module))];
+    const rows = new Map();
+    for (const m of modules) { try { rows.set(m, await rowsOf(m)); } catch (e) { rows.set(m, e); } }
+    const missing = (id, title) => ({ id, name: title || 'Chart', sourceName: '', homeTitle: title || '', missing: true, type: 'chart', height: 'm', data: {}, config: { chartType: 'column' }, error: 'This chart is no longer on a dashboard you can open. Remove it from Home.' });
+    return pins.map((p) => {
+      const title = String(p.title || '').trim();
+      const c = byId.get(p.component_id);
+      if (!c || c.retired_at) return missing(p.component_id, title);
+      const rawDash = dashById.get(c.dashboard_id);
+      const view = rawDash ? dashOut(u, rawDash) : null;
+      if (!view || !dashboardVisible(u, view)) return missing(c.id, title || c.name);
+      let data = { groups: [], value: 0, measureLabel: 'Record Count' };
+      const bag = rows.get(c.module);
+      if (bag instanceof Error) data = { error: 'This chart could not be loaded. Use Refresh to try again.' };
+      else {
+        try {
+          const parts = storedParts(c); const fields = moduleFields(c.module, cfg);
+          const narrowed = narrowRows(bag || [], fields, parts.criteria, view.filters);
+          data = chartData(narrowed, { grouping: parts.grouping || {}, grouping2: parts.grouping2 || {}, measure: parts.measure }, fields, cfg) || data;
+          if (c.type === 'kpi' || c.type === 'target') {
+            const value = measureOf(narrowed, parts.measure, fields) || 0;
+            data = { ...data, value, count: narrowed.length };
+            if (c.type === 'target') { const target = Number(parts.config.target) || 0; data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; }
+          }
+        } catch { data = { error: 'This chart could not be loaded. Use Refresh to try again.' }; }
+      }
+      const out = compOut(c, data.error ? { error: data.error } : data);
+      return { ...out, id: c.id, name: title || c.name, sourceName: c.name, homeTitle: title, missing: false, dashboardName: view.name || '' };
+    });
+  }
 }

@@ -12,11 +12,11 @@ import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, c
 import { settingsPage } from './crm-settings.js?v=202611247700';
 import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611246800';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611247700';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611246800';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611247000';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611247700';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
 import { searchPage } from './crm-search.js?v=202611247700';
-import { dashboardsPage } from './crm-dashboards.js?v=202611246900';
+import { dashboardsPage } from './crm-dashboards.js?v=202611247000';
 import { reportsHome } from './crm-reports.js?v=202611247700';
 import { dealsPage } from './crm-deals.js?v=202611247700';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611244500';
