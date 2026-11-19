@@ -5,7 +5,7 @@ import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611245800';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611245800';
-import { CLS, LABEL } from './dealtasks.js?v=202611246500';
+import { CLS, LABEL } from './dealtasks.js?v=202611246600';
 import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 

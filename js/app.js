@@ -2,7 +2,7 @@
 import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611246600';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611246500';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611246600';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611245800';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611245800';
@@ -11,7 +11,7 @@ import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
 import { acctCanRead } from './data/accounting.js?v=202611243300';
 import { setModuleMap, modOn, modBeta, moduleById, canManageModules, BETA_LABEL } from './data/modules.js?v=202611245800';
-import { phaseOf } from './data/agent-portal.js?v=202611246500';
+import { phaseOf } from './data/agent-portal.js?v=202611246600';
 import { scheduleNavLines } from './data/scheduling-details.js?v=202611246600';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611245800';
@@ -44,20 +44,20 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611245800')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611246500')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611246600')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611245800')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611246500')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611246500')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611246600')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611245900')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611245900')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
-  templates: () => loadRoute(() => import('./pages/templates.js?v=202611246500')),
-  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611246500')),
+  templates: () => loadRoute(() => import('./pages/templates.js?v=202611246600')),
+  'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611246600')),
   library: () => loadRoute(() => import('./pages/library.js?v=202611245800')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611245800')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611246500')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611246600')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611245800')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611246600')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611246600')),   // MF-056 buyer / seller scheduling link (no sign-in)
