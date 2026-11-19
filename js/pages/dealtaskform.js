@@ -1,11 +1,11 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611245800';
+import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611246500';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611245800';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611245800';
-import { CLS, LABEL } from './dealtasks.js?v=202611245900';
+import { CLS, LABEL } from './dealtasks.js?v=202611246500';
 import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 

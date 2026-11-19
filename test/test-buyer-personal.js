@@ -54,10 +54,11 @@ const seller = (await api.listTasks(md.id)).find((t) => t.templateCode === 'pers
 const sellerOpen = await api.getTask(seller.id);
 ok(sellerOpen.fields.some((f) => f.k === 'citizenship') && !sellerOpen.fields.some((f) => f.k === 'md_first_time' || f.k === 'survey'), 'the seller copy gets citizenship and not the buyer-only Maryland or survey questions');
 
+// FF-101a: agents no longer read other parties' tasks at all (was formHidden with empty answers).
 await api.signInDev('u-bagent');
 let agent = null; let agentErr = '';
 try { agent = await api.getTask(buyerTask.id); } catch (e) { agentErr = e.message; }
-ok(agent && agent.formHidden && !agent.formData.citizenship, `the buyer agent cannot see the answers${agentErr ? ` (${agentErr})` : ''}`);
+ok(!agent && /Task not found/i.test(agentErr), `the buyer agent cannot open the buyer's personal task (FF-101a)${agentErr ? ` (${agentErr})` : ''}`);
 
 await api.signInDev('u-proc');
 const staff = await api.getTask(buyerTask.id);

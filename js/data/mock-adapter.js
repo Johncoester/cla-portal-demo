@@ -10,10 +10,10 @@ import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611245800';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611245800';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611246500';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611245800';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611246000';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611246500';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611246000';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
@@ -27,7 +27,7 @@ import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611130900';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611130900';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
-import { ensureAgentPortal } from './agent-portal.js?v=202611245800';
+import { ensureAgentPortal } from './agent-portal.js?v=202611246500';
 import { agentPortal } from './mock-part-agent.js?v=202611246600';
 import { mattNov3b } from './mock-part-nov3b.js?v=202611245800';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
@@ -45,7 +45,7 @@ import { underwriterPart } from './mock-part-underwriter.js?v=202611243300';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611245800';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611245800';
 import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611246000';
-import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611245800';
+import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611246500';
 import { automationPart } from './automation.js?v=202611245800';
 import { gmailMock } from './supabase-gmail.js?v=202611140900';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611245800';
@@ -245,7 +245,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const d = load();
     if (!(d.agentTcLinks || []).some((l) => l.tcContactId === tc.id && l.agentContactId === agent.id)) return null;
     if (!d.participants.some((p) => p.dealId === dealId && p.contactId === agent.id && p.role === role)) return null;
-    return { agentProfileId, role, roleLabel: role === 'Listing Agent' ? 'Listing transaction coordinator' : "Buyer's transaction coordinator" };
+    return { agentProfileId, role, roleLabel: 'Transaction coordinator' };
   }
   // When an agent is added, or a link is saved, put each linked coordinator on that side.
   // dealId set: that file only (any status except a refinance). dealId empty: open files only.
@@ -401,8 +401,14 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     // CLIENT TASK PRIVACY (Matt, Nov 5, live40: "it should not show tasks belonging to other parties to buyer and seller users"): a pure Client-Buyer / Client-Seller
     // only ever gets tasks assigned to THEM: their own participant copy, or an unowned task for the client role they hold. Never another party's, never a fallback list.
     if (pureClientSide(u)) return t.participantId ? ownerOf(t) === u.id : isClient(t.assignedRole) && holds(u, t.assignedRole);
-    if (t.participantId) return ownerOf(t) === u.id || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
-    return holds(u, t.assignedRole) || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
+    // FF-101a: a buyer / listing agent (and a TC acting for them) sees only their own tasks — not every task on their side.
+    if (t.participantId) {
+      const owner = ownerOf(t);
+      if (owner === u.id) return true;
+      if (isAgent(t.assignedRole) && tcForAgent(u.id, owner, t.dealId, t.assignedRole)) return true;
+      return false;
+    }
+    return holds(u, t.assignedRole);
   };
   // DELEGATION: an agent may fill a CLIENT's intake copy for them when the template allows that agent role, the template is not a
   // personal (client-only) item, the client is on the agent's own side, and the agent is on that order in that role. Mirrored by private.agent_can_fill (SQL).
