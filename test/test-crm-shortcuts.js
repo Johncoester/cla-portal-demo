@@ -191,7 +191,7 @@ for (const [target, stamp] of chain) {
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 const appFrom = [...(hits.get('js/app.js') || [])];
-ok(read('index.html').includes('js/app.js?v=202611249400') && appFrom.length === 1 && appFrom[0] === '202611249300', 'index.html loads the shell at 202611249300');
+ok(read('index.html').includes('js/app.js?v=202611249400') && appFrom.length === 1 && appFrom[0] === '202611249400', 'index.html loads the shell at 202611249400');
 ok(!read('js/data/adapter.js').includes('202611247100') && !read('js/app.js').includes('adapter.js?v=202611247200'), 'the shortcut stamp does not move the shared adapter');
 
 console.log('cache-stamp issues', issues.length);
