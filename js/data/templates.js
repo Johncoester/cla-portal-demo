@@ -144,14 +144,14 @@ const PROCEEDS_V1 = [F('method', 'How do you want to receive your proceeds?', 's
 const PROCEEDS_V2 = [...PROCEEDS_V1, F('proceeds_wire_note', 'Wire transfers', 'info', false, { text: PROCEEDS_WIRE_NOTE }),
   F('proceeds_statement', 'Seller proceeds acknowledgment', 'info', false, { text: PROCEEDS_STATEMENT }),
   F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true), F('notes', 'Anything else we should know?', 'textarea')];
-export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box on the file overview. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
+export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box under your agent task section on Tasks. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
 /* FF-101b (Francis Nov 18 11 AM notes; John confirmed 2:13 PM ET): broker fee + total on Commission information, and how the commission is paid.
  * Commission $ still comes from Agent fees (amount already includes any additional amount on that side). Total = that commission + broker fee.
  * Field keys (payout_method, mail_*, bank_*, account) are stable so a future agent-profile default can prefill them (Matt has not answered John's 11:19 AM email yet). */
 export const COMMISSION_PAYOUT_OPTS = ['At settlement', 'FedEx overnight', 'Wire'];
 export const COMMISSION_FEDEX = ['payout_method', 'FedEx overnight'];
 export const COMMISSION_WIRE = ['payout_method', 'Wire'];
-export const COMMISSION_BROKER_NOTE = 'Your commission amount is kept in the Agent fees box on the file overview (percent and dollars stay in step there, including any additional amount). Enter a broker fee here if you have one. Total commission is your commission plus the broker fee. How you want to be paid can later be saved on your agent profile as a default; that profile default is not built yet.';
+export const COMMISSION_BROKER_NOTE = 'Your commission amount is kept in the Agent fees box under your agent task section on Tasks (percent and dollars stay in step there, including any additional amount). Enter a broker fee here if you have one. Total commission is your commission plus the broker fee. How you want to be paid can later be saved on your agent profile as a default; that profile default is not built yet.';
 const COMMISSIONS_V3_FIELDS = [
   F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
   F('agent_fees_note', 'Your commission', 'info', false, { text: COMMISSION_BROKER_NOTE }),
@@ -234,7 +234,7 @@ export const TEMPLATE_DEFS = [
   // AF-8 (John, Nov 14; migration 124 = SQL 20261123010000): the commission is no longer asked here. It is an Agent fee (one place);
   // the amount and Paid by are replaced by a note pointing to the Agent fees box. Brokerage, License ID and Notes stay.
   { code: 'commissions', version: 2, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], migration: 124,
-    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box on the file overview.',
+    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box under your agent task section on Tasks.',
     fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
       F('agent_fees_note', 'Your commission', 'info', false, { text: AGENT_FEES_NOTE }), F('notes', 'Notes', 'textarea')] },
   // FF-101b (Francis Nov 18; migration 125 = SQL 20261125290000): broker fee, total commission, payout method (At settlement / FedEx overnight / Wire).

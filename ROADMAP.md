@@ -33,8 +33,9 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - AF-1 (database only, nothing on screen yet): each file keeps, per agent side, a commission (% and $ always in step with the sales price), an admin fee with who pays it, and up to 5 other fees. Each fee records whether staff, the agent or a TC set it, and who confirmed it and when. A history keeps who, when, old value, new value, reason and source. Staff can't change a fee the agent or TC confirmed without a reason. When the sales price changes, each commission is worked out again and the change goes in the history.
-- AF-2: an **Agent fees** box on the file overview. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
-- AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC's own overview now has the Agent fees box. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
+- AF-2: an **Agent fees** box. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
+- FF-101c (Francis Nov 18 11 AM meeting notes, confirmed by John Nov 18 2:13 PM ET): the Agent fees box is no longer on File Overview. The listing agent's commission sits under **Listing (Seller's) Agent tasks**, and the buyer's agent commission sits under **Buyer's Agent tasks**, for every role that used to see them on the overview (staff, agents, TCs). Accounting still shows a read-only summary. Commission fields are unchanged (broker fee / payout is FF-101b).
+- AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC sees Agent fees under the agent task sections on Tasks. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
 - AF-4: when CLA staff change fees the agent (or TC) confirmed, the side's agent gets a portal notice and a queued email: who changed it (marked "CLA Title"), old and new values, and the reason. It says no re-approval is needed. Nobody else is told, and nothing is sent when staff change fees nobody has confirmed yet.
 - AF-5: every agent fee posts to the file's Accounting fee ledger by itself. Each fee is one line under ALTA "Commission" and CD section H, paid by the fee's payer. The payee is the agent's company (or "Buyer's Agent" / "Listing Agent" when it has none), or the other fee's "paid to". A line is kept in step when the fee or the sales price changes, and retired (never deleted) when the fee is removed. If a processor changes the line by hand on the Accounting tab, automatic posting leaves it alone from then on.
 - AF-6: Accounting's Closing Disclosure and Settlement Statement tabs stay, and each has a **Generate CD** / **Generate ALTA** button. It opens the print window with the file's document name filled in (for example "MD-26-97262 - Closing Disclosure - TEST") so it can be saved as a PDF. The agent fees appear in CD section H and the ALTA "Commission" section.
@@ -75,6 +76,40 @@ This file lists the portal's major features: how each one should work, how far a
 - Follow-ups (John, Nov 13): one place for commissions (the older commission boxes point to Agent fees instead of keeping a second copy), remove the fee questions from the agent's task, add a walkthrough test, AF-1 choices approved as written. Assigned to Claude; John waived rule 9 for this build (the walkthrough on main was failing for unrelated buyer/seller tests).
 - AF-1 choices (approved as written by John, Nov 13): a commission can't be saved until the file has a sales price, so % and $ can always be checked against it. The commission and other fees also record who pays them, with the same defaults as the admin fee (buyer for the buyer's agent, seller for the listing agent). When staff change a confirmed fee, the record of who confirmed it stays, so every later staff change still needs a reason. A fixed-$ commission bigger than a new, lower sales price switches to keeping its %. A TC can confirm the side of an agent on their team; the file's own TC can confirm either side. A refinance has no agent fees.
 - Nov 14: the list of old commission keys stays the same. A signed-in user can save an order that does not write those keys. Writing an old commission still shows the plain Agent fees message, not a permission error. AF-7 stays not Live until that permission fix is applied on TEST and Place Order is checked there.
+- FF-101c (Nov 18): move the existing Agent fees block under the agent task sections; do not change the commission fields in this item (FF-101b adds broker fee / total / payout).
+
+---
+
+## Commission under agent task sections (FF-101c)
+
+**How it should work.** On Tasks, the listing agent's commission and fees sit under the Listing Agent task section, and the buyer's agent commission and fees sit under the Buyer's Agent task section. File Overview no longer shows the Agent fees box. Staff, agents and TCs who already saw Agent fees still see the same fields in the new place. Accounting still shows commissions read only. Buyers and sellers never see them. Broker fee, total and payout methods are a separate item (FF-101b).
+
+**Status: In progress.** Tracker row FF-101c. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026 2:13 PM ET. Pull request: [PR 351](https://github.com/Johncoester/cla-portal-demo/pull/351). Not Live until checked on TEST and migration `20261125260000_ff101c_agent_fees_tasks_location.sql` is applied on TEST (message wording only).
+
+**What's built**
+
+- Agent fees removed from File Overview (staff and TC).
+- Each side's reusable Agent fees card sits under that side's task section on Tasks (`buyer-agent` / `listing-agent`).
+- Edit order details, Accounting pointers and the commission task note point to Tasks.
+- Accounting > Contract figures / Basic Info still shows the read-only commissions summary.
+- Walkthrough and unit tests look for Agent fees under the task sections.
+- Cache stamp `202611246500`.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Database file for refusal / note wording not applied on TEST yet.
+- FF-101b (broker fee, total, payout methods) is separate.
+
+**Links**
+
+- Spec: [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md)
+- Source: Francis, Portal review Nov 18 2026 11 AM (Gmail 1a1ef9d3d862da08); John confirmed Nov 18 2:13 PM ET via Francis Feedback.
+
+**Decisions**
+
+- Move the existing block only; do not edit commission fields in this PR (avoid conflict with FF-101b).
+- Keep `data-agent-fees` / `data-agent-fee-side` so Accounting and the walkthrough keep working.
 
 ---
 
@@ -1577,7 +1612,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Total commission uses the existing Agent fees math: the side's commission amount already includes any additional amount; Total = that amount + broker fee.
 - An old page still cannot put a commission amount on this task (AF-8). Open copies move to v3; finished copies keep their version.
 - Wire account numbers use the same mask path as seller proceeds (owner and processor full; others last 4).
-- Demo adapter and unit tests cover save, total, FedEx/Wire validation, and masking. Cache stamp `202611246400`.
+- Demo adapter and unit tests cover save, total, FedEx/Wire validation, and masking. Cache stamp `202611247800` (above main’s FF-101c `6500`). Notes and `commission_task_guard` keep FF-101c Tasks wording.
 
 **What's still missing**
 

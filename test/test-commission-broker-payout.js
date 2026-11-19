@@ -99,13 +99,24 @@ const proc = await api.getTask(buyerOpen.id);
 ok(!proc.maskedAnswers && proc.formData.account === '9876543210', 'processor sees the full account number');
 
 const sqlPath = new URL('../supabase/migrations/20261125290000_commission_broker_payout.sql', import.meta.url);
+const rbPath = new URL('../supabase/rollbacks/20261125290000_commission_broker_payout.sql', import.meta.url);
 const sql = readFileSync(sqlPath, 'utf8');
+const rb = readFileSync(rbPath, 'utf8');
 const md5 = createHash('md5').update(sql).digest('hex');
+const rbMd5 = createHash('md5').update(rb).digest('hex');
 ok(sql.includes('20261125290000') && sql.includes('broker_fee') && sql.includes('FedEx overnight')
   && sql.includes('total_commission') && sql.includes('commission_task_guard') && sql.includes('mask'),
   'database file covers broker fee, total, payout and masking');
+ok(sql.includes("raise exception 'Commissions are now kept in the Agent fees box under the agent task sections on Tasks. Reload the page and enter it there. Nothing was saved.'")
+  && sql.includes('agent task section on Tasks')
+  && !sql.includes("raise exception 'Commissions are now kept in the Agent fees box on the file overview"),
+  'migration keeps FF-101c Tasks wording (does not put File Overview back)');
+ok(rb.includes("raise exception 'Commissions are now kept in the Agent fees box under the agent task sections on Tasks. Reload the page and enter it there. Nothing was saved.'")
+  && !rb.includes("raise exception 'Commissions are now kept in the Agent fees box on the file overview"),
+  'rollback restores the Tasks refusal, not File Overview');
 ok(sql.includes('Do NOT apply') || sql.includes('Do NOT apply this file'), 'migration says not to apply from this commit');
 console.log('migration md5', md5);
+console.log('rollback md5', rbMd5);
 
 console.log(fail ? fail + ' failed' : 'commission broker payout passed');
 if (fail) process.exit(1);

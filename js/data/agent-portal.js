@@ -31,7 +31,7 @@ export const AGENT_TASKS = [
   { code: 'agent_client_contacts', title: 'Confirm Client Contact Information', dueDays: 3,
     about: 'Tell us which of the clients on this order you represent and confirm how to reach them (and their spouse, if married). Add anyone we are missing.' },
   { code: 'agent_transaction_info', title: 'Confirm Your Transaction Information', dueDays: 3,
-    about: 'Check the closing date and price we have, the earnest money, and the people on your team. Your commission and fees are confirmed in the Agent fees box on the file overview.' },
+    about: 'Check the closing date and price we have, the earnest money, and the people on your team. Your commission and fees are confirmed in the Agent fees box under your agent task section on Tasks.' },
   { code: 'agent_home_warranty', title: 'Confirm Home Warranty Information', dueDays: 5,
     about: 'Let us know whether you or someone else will be purchasing a home warranty for this property.' },
   { code: SCHEDULE_CODE, title: 'Schedule the Settlement for [property address]', dueDays: 3,

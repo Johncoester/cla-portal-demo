@@ -16,7 +16,7 @@ import { officeDate } from '../data/office-date.js?v=202611102100';
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611245800';
 import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611243801';
 import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611245800';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611246400';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611247800';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611245800';
 import { closerChoices, resolveCloser } from '../data/closer.js?v=202611245800';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611245800';
@@ -26,9 +26,9 @@ import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyCont
 import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
 import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611243300';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245800';
-import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611245800';
-import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611243061';
+import { readEarnest } from '../data/earnest-commission.js?v=202611246500';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611246500';
+import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611246500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, partyProblemLine, placeOrderTcChoices, roleForPartyField, tcRolesFromLinks, tcRolesToSave, tcSideProblem, uniqueProblems } from '../data/agent-tc.js?v=202611246200';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611245800';
@@ -888,7 +888,7 @@ export async function render({ api, user, go }) {
       }
       // Agent fees (Nov 13): saved after the agents are on the file, so Accounting names their company
       for (const [side, fees] of Object.entries(agentFees)) { if (!fees || !api.saveAgentFees) continue;
-        try { await api.saveAgentFees(deal.id, side, fees, ''); } catch (err) { problems.push(`${AF_SIDE_LABEL[side]} fees were not saved (${err.message}). Enter them in the Agent fees box on the file`); } }
+        try { await api.saveAgentFees(deal.id, side, fees, ''); } catch (err) { problems.push(`${AF_SIDE_LABEL[side]} fees were not saved (${err.message}). Enter them in the Agent fees box under the agent task sections on Tasks`); } }
       if (referral) { try { await api.updateDeal(deal.id, { sourceOfBusiness: referral }); } catch (err) { problems.push(`Source of business was not saved: ${err.message}`); } }
       let saved = 0;
       const uploadIds = new WeakMap();

@@ -8,7 +8,7 @@
 // commission keys older pages kept in deals.financial (always removed now)
 export const OLD_COMMISSION_KEYS = ['commissionBase', 'commissionPercent', 'commissionAdditional', 'commissionTotal', 'commissionPaidBy',
   'listingCommissionPercent', 'listingCommissionAmount', 'buyerCommissionPercent', 'buyerCommissionAmount'];
-export const OLD_COMMISSION_REFUSED = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.';
+export const OLD_COMMISSION_REFUSED = 'Commissions are now kept in the Agent fees box under the agent task sections on Tasks. Reload the page and enter them there. Nothing was saved.';
 export function withoutOldCommission(financial) {
   const out = { ...(financial && typeof financial === 'object' ? financial : {}) };
   OLD_COMMISSION_KEYS.forEach((k) => { delete out[k]; });

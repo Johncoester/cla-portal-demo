@@ -282,11 +282,11 @@ const chain = [
   ['js/pages/crm-home.js', '202611245800'],
   ['js/pages/crm.js', '202611245800'],
   ['js/data/mock-part-crm.js', '202611245800'],
-  ['js/data/mock-adapter.js', '202611246400'],
+  ['js/data/mock-adapter.js', '202611247800'],
   ['js/data/supabase-crm.js', '202611245800'],
-  ['js/data/supabase-adapter.js', '202611246200'],
-  ['js/data/adapter.js', '202611246400'],
-  ['js/app.js', '202611246400'],
+  ['js/data/supabase-adapter.js', '202611246500'],
+  ['js/data/adapter.js', '202611247800'],
+  ['js/app.js', '202611247800'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -294,7 +294,7 @@ for (const [target, stamp] of chain) {
   if (stamps.length !== 1 || stamps[0] !== stamp) issues.push(target + ' ' + (stamps.join(',') || 'none'));
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(read('index.html').includes('js/app.js?v=202611246400'), 'index.html loads the shell at 202611246400');
+ok(read('index.html').includes('js/app.js?v=202611247800'), 'index.html loads the shell at 202611247800');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log(fail ? fail + ' failed' : 'crm note files passed');

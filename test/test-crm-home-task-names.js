@@ -140,7 +140,7 @@ ok(!host.querySelector('tr[data-task="t-other-owner"]'), 'My Open Tasks still hi
 
 const homeSrc = read('js/pages/crm-home.js');
 ok(homeSrc.includes('data-col="relatedTo"') && homeSrc.includes('data-col="contactName"') && homeSrc.includes('t.relatedLink') && homeSrc.includes('t.contactLink'), 'Home already prints each name as a link when the task has one');
-ok(read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611245800') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611246200') && read('js/app.js').includes('adapter.js?v=202611246400') && read('index.html').includes('js/app.js?v=202611246400'), 'the importer chain through the shell is stamped 202611246400');
+ok(read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611245800') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611246500') && read('js/app.js').includes('adapter.js?v=202611247800') && read('index.html').includes('js/app.js?v=202611247800'), 'the importer chain through the shell is stamped 202611247800');
 const listFn = read('js/data/supabase-crm.js');
 const listBody = listFn.slice(listFn.indexOf('async listCrmTasks'), listFn.indexOf('async getCrmTask'));
 ok(listBody.includes('taskPartyNames') && !listBody.includes(".eq('entity_id'") && !listBody.includes('.filter('), 'the task list adds one name read for the whole list and does not filter the rows afterwards');

@@ -105,11 +105,14 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-closing-date]')).toHaveCount(0);
   await expect(page.locator('[data-nav-closing-date]')).toBeVisible();
   await expect(page.locator('[data-status-bar]')).toBeVisible();
-  // the Place Order figures are the file's Agent fees
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-percent]')).toContainText('3%');
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('paid by Seller');
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
+  // FF-101c: Place Order figures show as Agent fees under the agent task sections on Tasks
+  const placedId = dealId(page);
+  await gotoHash(page, `#/deals/${placedId}/tasks`);
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-percent]')).toContainText('3%');
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('paid by Seller');
+  await expect(page.locator('[data-sidebox="buyer-agent"] [data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
+  await gotoHash(page, `#/deals/${placedId}`);
 
   await page.locator('#editdeal').click();
   await expect(page.locator('#edf input[name="parcelId"]')).toHaveValue(parcel);

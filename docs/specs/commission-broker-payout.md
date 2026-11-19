@@ -22,6 +22,6 @@ Design the payout fields so a future agent-profile default can prefill them. Do 
 ## What is not in this change
 
 - Agent-profile default payout (waiting on Matt).
-- Moving the Agent fees box off File Overview into the agent task section (that is FF-101c).
+- Agent-fees location under Tasks (FF-101c, merged): notes and `commission_task_guard` keep that Tasks wording; this item does not move the box again.
 - Applying the database file on TEST (not applied from this pull request).
 - Production database or secrets.

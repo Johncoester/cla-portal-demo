@@ -33,7 +33,7 @@ declare
   f jsonb;
   note jsonb := jsonb_build_object(
     'k', 'agent_fees_note', 'label', 'Your commission', 'type', 'info', 'req', false,
-    'text', 'Your commission amount is kept in the Agent fees box on the file overview (percent and dollars stay in step there, including any additional amount). Enter a broker fee here if you have one. Total commission is your commission plus the broker fee. How you want to be paid can later be saved on your agent profile as a default; that profile default is not built yet.'
+    'text', 'Your commission amount is kept in the Agent fees box under your agent task section on Tasks (percent and dollars stay in step there, including any additional amount). Enter a broker fee here if you have one. Total commission is your commission plus the broker fee. How you want to be paid can later be saved on your agent profile as a default; that profile default is not built yet.'
   );
   fedex jsonb := '["payout_method","FedEx overnight"]'::jsonb;
   wire jsonb := '["payout_method","Wire"]'::jsonb;
@@ -93,7 +93,8 @@ begin
   if new.template_code = 'commissions'
      and nullif(btrim(coalesce(new.form_data ->> 'commission_amount', '')), '') is not null
      and (tg_op = 'INSERT' or (new.form_data ->> 'commission_amount') is distinct from (old.form_data ->> 'commission_amount')) then
-    raise exception 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved.'
+    -- FF-101c wording (Tasks), not File Overview — keep exact phrase from 20261125260000.
+    raise exception 'Commissions are now kept in the Agent fees box under the agent task sections on Tasks. Reload the page and enter it there. Nothing was saved.'
       using errcode = 'P0001';
   end if;
 
@@ -136,7 +137,7 @@ create trigger tasks_commission_task_guard before insert or update of form_data 
   for each row execute function private.commission_task_guard();
 
 do $readback$
-declare pf jsonb;
+declare pf jsonb; note text; msg text;
 begin
   select fields into pf from public.task_templates where code = 'commissions' and active;
   if pf is null then raise exception 'readback: no active commissions template'; end if;
@@ -154,6 +155,14 @@ begin
   end if;
   if not exists (select 1 from jsonb_array_elements(pf) x where x ->> 'k' = 'account' and coalesce((x ->> 'mask')::boolean, false)) then
     raise exception 'readback: account must be masked';
+  end if;
+  select x ->> 'text' into note from jsonb_array_elements(pf) x where x ->> 'k' = 'agent_fees_note';
+  if note is null or position('agent task section on Tasks' in note) = 0 then
+    raise exception 'readback: commissions note still names File Overview';
+  end if;
+  select pg_get_functiondef('private.commission_task_guard()'::regprocedure) into msg;
+  if position('agent task sections on Tasks' in msg) = 0 then
+    raise exception 'readback: commission_task_guard still names File Overview';
   end if;
 end
 $readback$;

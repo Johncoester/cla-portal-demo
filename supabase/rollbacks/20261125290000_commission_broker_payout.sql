@@ -1,7 +1,8 @@
 -- Rollback for 20261125290000_commission_broker_payout.sql.
 -- Makes the previous commissions template version active again (open copies move back).
 -- The v3 with broker fee / payout is kept, switched off, because finished copies may point to it.
--- Restores the AF-8 commission_task_guard (refuse commission_amount only; no total rewrite).
+-- Restores the post-FF-101c commission_task_guard (refuse commission_amount only; no total rewrite).
+-- Keeps FF-101c Tasks wording — does not put File Overview back.
 begin;
 set local lock_timeout = '3s';
 
@@ -11,7 +12,7 @@ begin
   if new.template_code = 'commissions'
      and nullif(btrim(coalesce(new.form_data ->> 'commission_amount', '')), '') is not null
      and (tg_op = 'INSERT' or (new.form_data ->> 'commission_amount') is distinct from (old.form_data ->> 'commission_amount')) then
-    raise exception 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved.'
+    raise exception 'Commissions are now kept in the Agent fees box under the agent task sections on Tasks. Reload the page and enter it there. Nothing was saved.'
       using errcode = 'P0001';
   end if;
   return new;
