@@ -44,7 +44,7 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611245800')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611246200')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611246300')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611245800')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611246200')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611246300')),
@@ -57,7 +57,7 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611245800')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611245800')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611246200')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611246300')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611245800')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611245800')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611245800')),   // MF-056 buyer / seller scheduling link (no sign-in)
