@@ -3,8 +3,8 @@
  * Nothing is emailed from this build: links are shown to staff to copy, and in-app notifications are created.
  * Matt: the request's closing location defaults to the closest CLA Title office. Each side picks a location plus the dates and times that work.
  * The processor sees both answers on the file. */
-import { OFFICE_LOCATION, officeAddress } from './offices.js?v=202611246600';
-import { closingOfficeChoices, officeById, officeNameOf, settlementOffices } from './mock-part-offices.js?v=202611246600';
+import { OFFICE_LOCATION, officeAddress } from './offices.js?v=202611246700';
+import { closingOfficeChoices, officeById, officeNameOf, settlementOffices } from './mock-part-offices.js?v=202611246700';
 import { cleanScheduleAnswers, schedulePatch, schedulingToldEmail, settlementAgentChoices, INVITE_FROM, INVITE_FROM_NAME, schedulingFromDeal } from './scheduling-details.js?v=202611246600';
 import { cleanSideAgent, reminderEmptyMessage, reminderMessage, reminderRecipients, sideAgentFromDeal, sideAgentPatch } from './scheduling-agent.js?v=202611245800';
 export function closingSchedule(x) {
