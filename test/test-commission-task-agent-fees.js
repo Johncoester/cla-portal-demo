@@ -53,7 +53,10 @@ ok(seeded.fees.listing && seeded.fees.listing.commission && seeded.fees.listing.
   'the sample file shows the listing agent\'s $14,550 from their Commission information task, confirmed');
 const tasks = await api.listTasks('deal-1');
 const open = tasks.find((t) => t.templateCode === 'commissions' && t.status !== 'done');
-ok(open && open.templateVersion === 2, 'an open Commission information task on the sample file is on the new version');
+// FF-101b added commissions v3 (broker fee + payout) on top of AF-8's v2. Open copies now land on v3, which still has no commission_amount.
+const openDetail = open ? await api.getTask(open.id) : null;
+ok(open && open.templateVersion >= 2 && openDetail && !openDetail.fields.some((f) => f.k === 'commission_amount'),
+  'an open Commission information task on the sample file is on v2+ (no typed commission amount)');
 await api.signInDev('u-lagent');
 const done = (await api.listTasks('deal-1')).find((t) => t.templateCode === 'commissions' && t.status === 'done' && t.assignedRole === 'Listing Agent');
 let refused = '';

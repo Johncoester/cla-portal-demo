@@ -1699,6 +1699,39 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Commission broker fee and payout (FF-101b)
+
+**How it should work.** On the agent's Commission information task, the agent enters a broker fee and sees a read-only Total commission (their Agent fees commission for that side plus the broker fee). They also pick how to be paid: At settlement, FedEx overnight (with a mailing address), or Wire (with bank details). The account number shows last 4 only to people who are not the agent or the processor. Field names are ready for a future agent-profile default; that default is not built yet.
+
+**Status: In progress.** Tracker FF-101b. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026, 2:13 PM ET. Pull request: [PR 352](https://github.com/Johncoester/cla-portal-demo/pull/352). Database file `supabase/migrations/20261125290000_commission_broker_payout.sql` — not applied on TEST. Not Live.
+
+**What's built**
+
+- Commission information template v3 adds Broker fee ($), read-only Commission ($) from Agent fees, read-only Total commission, and payout method (At settlement / FedEx overnight / Wire) with the matching address or bank fields.
+- Total commission uses the existing Agent fees math: the side's commission amount already includes any additional amount; Total = that amount + broker fee.
+- An old page still cannot put a commission amount on this task (AF-8). Open copies move to v3; finished copies keep their version.
+- Wire account numbers use the same mask path as seller proceeds (owner and processor full; others last 4).
+- Demo adapter and unit tests cover save, total, FedEx/Wire validation, and masking. Cache stamp `202611247800` (above main’s FF-101c `6500`). Notes and `commission_task_guard` keep FF-101c Tasks wording.
+
+**What's still missing**
+
+- Database file not applied on TEST.
+- Agent-profile default payout (John emailed Matt Nov 18 11:19 AM; not answered).
+- Moving commission UI off File Overview into agent task sections (FF-101c).
+
+**Links**
+
+- Spec: [docs/specs/commission-broker-payout.md](docs/specs/commission-broker-payout.md)
+- Source: Francis Nov 18 11 AM notes; John confirmed 2:13 PM ET. Tracker FF-101b.
+- Related: Agent fees (AF-8), seller proceeds masking, FF-101c.
+
+**Decisions**
+
+- Commission $ stays in Agent fees (one place). This task shows it read-only and adds broker fee + payout only.
+- Payout field keys match a future profile default; the profile default itself waits on Matt.
+
+---
+
 ## Commission Paid By (FF-089)
 
 **How it should work.** On Place Order, under Earnest money & agent fees, the listing agent and the selling agent each have Commission Paid By: Buyer, Seller, or Split. Split asks for the buyer's share and the seller's share, and the two amounts must add up to the commission. That commission then shows on the buyer side, the seller side, or both, on the settlement statement and the Closing Disclosure.

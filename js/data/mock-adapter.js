@@ -10,11 +10,11 @@ import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
 import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611245800';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611246500';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611247800';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611245800';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611246500';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611246000';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611247800';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
@@ -141,7 +141,7 @@ export function ensurePreprocessorSeed(d) {
 export function upgradeToV30(d, from = 'v29') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v29') upgradeToV29(d, from); ensurePreprocessorSeed(d); d.upgradedFrom = from; return d; }
 export function ensureMattNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 export function ensureBuyerPersonal(d) { applyBuyerPersonal(d); return d; }
-export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCitizenshipFreeText(d); return d; }   // AF-8: commission task -> Agent fees, then v2. JN-CITIZEN-1: Citizenship is a typed line; saved answers stay.
+export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCommissionTaskV3(d); applyCitizenshipFreeText(d); return d; }   // AF-8: commission task -> Agent fees, then v2. FF-101b: v3 broker fee + payout. JN-CITIZEN-1: Citizenship is a typed line; saved answers stay.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
