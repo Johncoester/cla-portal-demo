@@ -286,7 +286,7 @@ const chain = [
   ['js/data/supabase-crm.js', '202611245800'],
   ['js/data/supabase-adapter.js', '202611246600'],
   ['js/data/adapter.js', '202611246700', '202611246700'],
-  ['js/app.js', '202611247600', '202611246700', '202611246700'],
+  ['js/app.js', '202611247600', '202611247600', '202611247600'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
