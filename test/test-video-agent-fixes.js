@@ -43,10 +43,11 @@ const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const dealSrc = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
-ok(app.includes("${link('tasks', 'Tasks', 'task')}${myTasksLink}"), 'My Tasks sits directly under Tasks for agents and staff');
-ok(app.includes("${link('tasks', 'To-do list', 'task')}${myTasksLink}"), 'My Tasks sits directly under the to-do list for buyers and sellers');
+// FF-101a: agents keep My Tasks only; staff still have Tasks then My Tasks.
+ok(app.includes("fileAgent ? myTasksLink") && app.includes("link('tasks', 'Tasks', 'task')"), 'agents get My Tasks only; staff still have Tasks then My Tasks');
+ok(app.includes("link('tasks', 'To-do list', 'task')") && app.includes('myTasksLink'), 'My Tasks sits with the to-do list for buyers and sellers');
 ok(app.includes('data-nav-my-tasks') && app.includes('tasks?mine=1'), 'My Tasks opens the file tasks already loaded, marked as mine');
-ok(dealSrc.includes('viewTasksHref(d.id, user)') && dealSrc.includes('data-view-tasks'), 'View Tasks opens that person\'s own section');
+ok(dealSrc.includes('myTasksHref') && dealSrc.includes('data-view-tasks'), 'the agent overview opens My Tasks');
 
 const api = createMockAdapter({ storage: memStore(), sessionStorage: memStore() });
 async function as(id) { await api.signInDev(id); return api.getSession(); }

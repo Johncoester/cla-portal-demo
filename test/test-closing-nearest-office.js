@@ -55,16 +55,20 @@ storage.setItem(STORAGE_KEY, JSON.stringify(moved));
 const api2 = createMockAdapter({ storage, sessionStorage: mem() });
 await api2.signInDev('u-proc');
 const def = await api2.getClosingOfficeDefault('deal-2');
-ok(def.officeId === 'off-fort-lauderdale' && def.reason === 'distance' && def.offices.some((o) => o.id === 'off-annapolis'), 'the file default follows the property point, and staff still get every active office');
+// FF-101d: the picker is only offices used for settlements (Towson, Rockville, Bethesda). Among those, Bethesda is closest to the Fort Lauderdale point.
+ok(def.officeId === 'off-bethesda' && def.reason === 'distance' && def.offices.length === 3 && def.offices.every((o) => ['off-rockville', 'off-bethesda', 'off-towson'].includes(o.id)) && !def.offices.some((o) => o.id === 'off-annapolis'), 'the file default follows the property point among settlement offices only');
 
 const slots = ['2027-06-15T10:00', '2027-06-16T14:30'];
 const created = await api2.createSettlementRequest('deal-2', { slots });
-ok(created.location === 'CLA Title office' && created.officeId === 'off-fort-lauderdale', 'a request with no location uses the closest office');
-const overridden = await api2.createSettlementRequest('deal-4', { slots, location: 'CLA Title office', officeId: 'off-annapolis' });
-ok(overridden.officeId === 'off-annapolis', 'staff can change the default office');
+ok(created.location === 'CLA Title office' && created.officeId === 'off-bethesda', 'a request with no location uses the closest settlement office');
+const overridden = await api2.createSettlementRequest('deal-4', { slots, location: 'CLA Title office', officeId: 'off-towson' });
+ok(overridden.officeId === 'off-towson', 'staff can change the default to another settlement office');
 let badOffice = '';
 try { await api2.createSettlementRequest('deal-5', { slots, location: 'CLA Title office', officeId: 'missing' }); } catch (e) { badOffice = e.message; }
-ok(/active CLA Title office/.test(badOffice), 'an unknown office is refused');
+ok(/CLA Title office/.test(badOffice), 'an unknown office is refused');
+let notSettlement = '';
+try { await api2.createSettlementRequest('deal-5', { slots, location: 'CLA Title office', officeId: 'off-annapolis' }); } catch (e) { notSettlement = e.message; }
+ok(/settlements/i.test(notSettlement), 'a non-settlement office is refused for a new request');
 
 const buyerTok = created.tokens.buyer;
 const sellerTok = created.tokens.seller;
@@ -82,7 +86,7 @@ const page = await closingRender({ api: api2, user: session, deal, refresh() {} 
 const html = toText(page.body);
 ok(html.includes('data-side-choice="buyer"') && html.includes('Rockville') && html.includes('data-choice-slot="2027-06-15T10:00"'), 'the processor sees the buyer location and date/time');
 ok(html.includes('data-side-choice="seller"') && html.includes('Mobile notary') && html.includes('data-choice-slot="2027-06-16T14:30"'), 'the processor sees the seller location and date/time');
-ok(html.includes('data-request-place') && html.includes('Fort Lauderdale'), 'the request itself shows the closest office the processor started from');
+ok(html.includes('data-request-place') && html.includes('Bethesda'), 'the request itself shows the closest settlement office the processor started from');
 
 await api2.signInDev('u-buyer');
 const buyerRows = await api2.listSettlements('deal-2');

@@ -2,15 +2,15 @@
 // Description; Cancel / Save and New / Save), the record view, the related lists (Notes, Attachments, Open Activities, Closed Activities,
 // Invited Meetings) and the Task and Meeting forms. Meetings: NO calendar sync, NO invitations, nothing is ever emailed. Function first.
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, fmtMoney, fmtSize, modal, closeModal, pill } from '../ui.js?v=202611161500';
-import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
+import { CONTACT_TYPES, contactTypeLabel, US_STATE_NAMES, localDate, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
 import { ROLES_IN_COMPANY, LEAD_SOURCES, RELATIONSHIP_STATUSES, LINK_FIELDS, safeHref, TASK_SUBJECTS, TASK_STATUSES, TASK_PRIORITIES, REPEAT_EVERY, MEETING_TYPES, relatedLists,
-  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611130900';
-import { sel, pairs, ownerSel } from './crm-kit.js?v=202611245800';
-import { CONVERTED_STATUS } from '../data/crm.js?v=202611130900';
-import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611130900';
-import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611243900';
-import { activityBoard, wireCalls } from './crm-calls.js?v=202611246800';
-import { wireZipCounty, wireSubjectTypeahead, inviteBtn, invitePreview } from './crm-janine.js?v=202611245800';
+  activityKindLabel, ACTIVITY_KINDS, entityLabel, localStamp } from '../data/crm.js?v=202611247700';
+import { sel, pairs, ownerSel } from './crm-kit.js?v=202611247700';
+import { CONVERTED_STATUS } from '../data/crm.js?v=202611247700';
+import { fieldsInSection, builtinRequired, activeOptions, defaultOption } from '../data/crm-config.js?v=202611247700';
+import { optSel, lbl, lblOrDash, hiddenField, cfInputs, cfRows, cfExtraSections } from './crm-custom.js?v=202611247700';
+import { activityBoard, wireCalls } from './crm-calls.js?v=202611247700';
+import { wireZipCounty, wireSubjectTypeahead, inviteBtn, invitePreview } from './crm-janine.js?v=202611247700';
 
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const v0 = (v) => (v == null ? '' : v);

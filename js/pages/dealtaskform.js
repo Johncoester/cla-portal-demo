@@ -1,12 +1,13 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile } from '../data/templates.js?v=202611245800';
+import { fieldActive, fieldsForRole, fieldsForFile, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from '../data/templates.js?v=202611247700';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611245800';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611245800';
-import { CLS, LABEL } from './dealtasks.js?v=202611245900';
-import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
+import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611247700';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611247700';
+import { CLS, LABEL } from './dealtasks.js?v=202611247700';
+import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
+import { AGENT_ROLE_SIDE } from '../data/agent-fees.js?v=202611246500';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
@@ -48,7 +49,10 @@ export function intakeFormHtml(t, { page = false, state = '', doneReadOnly = fal
     const type = { email: 'email', date: 'date', phone: 'tel' }[f.type] || 'text';
     const extra = { money: 'inputmode="decimal"', digits4: 'maxlength="4" inputmode="numeric"', phone: 'inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone', routing: 'maxlength="9" inputmode="numeric" autocomplete="off"',
       account: 'maxlength="17" inputmode="numeric" autocomplete="off"', state: 'maxlength="2" placeholder="MD"', zip: 'maxlength="10" inputmode="numeric"' }[f.type];
-    return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<input type="${type}" name="${f.k}" value="${val}" ${extra ? raw(extra) : ''}><span class="ferr"></span></label>`;
+    // FF-101b: Commission ($) and Total commission are read-only (total = Agent fees commission + broker fee).
+    const ro = f.readonly ? raw('readonly aria-readonly="true"') : '';
+    const hint = f.k === 'commission_shown' && t.commissionFromFees == null ? html`<span class="muted small">Not entered in Agent fees yet.</span>` : '';
+    return html`<label class="fld" data-k="${f.k}">${f.label} ${req}<input type="${type}" name="${f.k}" value="${val}" ${extra ? raw(extra) : ''} ${ro}>${hint}<span class="ferr"></span></label>`;
   };
   const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
   const answers = html`${t.maskedAnswers ? html`<p class="muted small" data-masked>Bank account numbers show the last 4 digits only. The client and the processor see them in full.</p>` : ''}<dl class="answers">${fields.filter((f) => f.type !== 'info' && fieldActive(f, v) && v[f.k] !== undefined).map((f) => html`<dt>${f.label}</dt><dd>${f.type === 'checkbox' ? 'Yes' : f.type === 'doc' ? docName(v[f.k]) : v[f.k]}</dd>`)}</dl>`;
@@ -101,7 +105,18 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
   const addMortgage = $('[data-add-mortgage]', form);
   if (addMortgage) addMortgage.addEventListener('click', () => { const rows = $('[data-mortgage-rows]', form); const i = $$('[data-mortgage-row]', rows).length;
     rows.insertAdjacentHTML('beforeend', `<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender></label><label>Phone<input data-mphone type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12"></label><label>Loan number<input data-mloan maxlength="30" autocomplete="off"></label><label>Type<input data-mtype></label></div>`); });
-  form.addEventListener('change', sync); sync();
+  // FF-101b: keep Total commission = commission (Agent fees) + broker fee as the agent types
+  // Use querySelector (not form.elements) so Expand all works in the linkedom test environment too.
+  const syncTotal = () => {
+    const total = form.querySelector('[name="total_commission"]');
+    if (!total) return;
+    const shown = form.querySelector('[name="commission_shown"]');
+    const broker = form.querySelector('[name="broker_fee"]');
+    const base = shown ? shown.value : formatCommissionMoney(moneyAmountOrZero(t.commissionFromFees));
+    if (shown && t.commissionFromFees != null) shown.value = formatCommissionMoney(moneyAmountOrZero(t.commissionFromFees));
+    total.value = totalCommissionAmount(base, broker ? broker.value : '');
+  };
+  form.addEventListener('change', sync); form.addEventListener('input', (e) => { if (e.target && e.target.name === 'broker_fee') syncTotal(); }); sync(); syncTotal();
   // FF-011: typing a full street line ("12 Main St, Rockville, MD 20850") fills the empty city, state and ZIP boxes on the same form
   const named = (n) => form.querySelector(`[name="${n}"]`);
   if (named('street') && named('city')) bindAddressFill(form);
@@ -167,6 +182,19 @@ export async function render(c0) {
     t.dealId = deal.id;
     applySpouse(t, await loadSpouseRows(api, deal.id), c0.user);
   }
+  // FF-101b (hosted): fill Commission ($) from Agent fees when the mock adapter did not already set it
+  if (t.templateCode === 'commissions' && (t.fields || []).some((f) => f.k === 'broker_fee') && t.commissionFromFees == null && api.getAgentFees) {
+    try {
+      const side = AGENT_ROLE_SIDE[t.assignedRole];
+      const view = await api.getAgentFees(deal.id);
+      const amt = side && view && view.fees && view.fees[side] && view.fees[side].commission ? view.fees[side].commission.amount : null;
+      t.commissionFromFees = amt;
+      if (t.canFill && !t.formHidden) {
+        t.formData = { ...(t.formData || {}), commission_shown: formatCommissionMoney(moneyAmountOrZero(amt)),
+          total_commission: totalCommissionAmount(amt, (t.formData || {}).broker_fee) };
+      }
+    } catch (e) { t.commissionFromFees = null; }
+  }
   const tplLabel = t.template ? html`${t.template.code} v${t.template.version}` : (t.templateCode ? html`${t.templateCode} v${t.templateVersion}` : 'n/a');
   const outside = !!(c0.user && (c0.user.accountRole || c0.user.role === 'Outside user'));   // buyers, sellers and agents (staff unchanged)
   const doneReadOnly = outside && t.status === 'done';
@@ -205,4 +233,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611245900'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611247700'); return m.render(c); }

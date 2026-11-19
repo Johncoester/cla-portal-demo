@@ -56,16 +56,18 @@ ok(technical.includes('could not be read') && technical.includes('Save it again'
 
 const page = read('js/pages/crm-janine.js');
 const stamp = page.match(/crm-import-file\.js\?v=(\d+)/g) || [];
-ok(stamp.length === 1 && stamp[0] === 'crm-import-file.js?v=202611245800', 'the file check is loaded once, at 202611242030');
-ok(page.includes('../data/crm-janine.js?v=202611245800') && page.includes("import('../data/crm-excel.js?v=202611221700')"), 'the import page loads the contact-type list; the Excel reader stamp stays');
+ok(stamp.length === 1 && stamp[0] === 'crm-import-file.js?v=202611247700', 'the file check is loaded once, at 202611242030');
+ok(page.includes('../data/crm-janine.js?v=202611247700') && page.includes("import('../data/crm-excel.js?v=202611221700')"), 'the import page loads the contact-type list; the Excel reader stamp stays');
 ok(!page.includes("$('[data-import-file]', root).addEventListener('change', guard"), 'a rejected file is not handed to the disappearing toast');
 ok(page.includes('data-import-file-help') && page.includes('data-import-file-err') && page.includes('class="err-text"') && page.includes('role="alert"'), 'the upload card has a helper and a red alert');
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
-ok(read('js/app.js').includes("pages/crm-janine.js?v=202611245800") && read('js/pages/crm.js').includes("crm-janine.js?v=202611245800") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611245800") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611245800"), 'the import page loads at 202611245800 with the contact type list');
-ok(read('index.html').includes('js/app.js?v=202611246800') && read('js/app.js').includes("pages/crm.js?v=202611246800") && read('js/pages/crm.js').includes("crm-forms.js?v=202611246800") && read('js/pages/crm.js').includes("crm-home.js?v=202611246800") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611246800"), 'the CRM pages Calls rides on, and the shell, are 202611246800');
-ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611246000") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611245900") && read('js/data/adapter.js').includes("mock-adapter.js?v=202611246000"), 'the shell loads the adapter that reads the tax rate sheet');
+ok(read('js/app.js').includes("pages/crm-janine.js?v=202611247700") && read('js/pages/crm.js').includes("crm-janine.js?v=202611247700") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611247700") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611247700"), 'the import page loads at 202611247700 with the contact type list');
+ok(read('index.html').includes('js/app.js?v=202611247700') && read('js/app.js').includes("pages/crm.js?v=202611247700") && read('js/pages/crm.js').includes("crm-forms.js?v=202611247700") && read('js/pages/crm.js').includes("crm-home.js?v=202611247700") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611247700"), 'the note edit pages are 202611247700 and the shell is 202611247700');
+ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611247700") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611247700") && read('js/data/adapter.js').includes("mock-adapter.js?v=202611247700"), 'the shell loads the adapter that reads the tax rate sheet');
+// FF-101a: allow unchanged — the CRM PR that introduced this check required a non-empty stamp-only
+// diff; after that merged, any later branch that does not retouch crm-import-file.js has an empty diff.
 const fileCheckDiff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', 'js/data/crm-import-file.js'], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-ok(fileCheckDiff.length > 0 && fileCheckDiff.every((l) => /\?v=202611\d+/.test(l)), 'the file check module changes only the cache stamp that loads the contact type list');
+ok(fileCheckDiff.length === 0 || fileCheckDiff.every((l) => /\?v=202611\d+/.test(l)), 'the file check module is unchanged or changes only the cache stamp that loads the contact type list');
 // Note edit changes the notes list in crm-forms.js. The task detail changes crm-home.js. Those files are not stamp-only.
 // index.html changes only the cache stamp. crm.js also carries the Calls list route (Feedback 32 item 3), so it is not stamp-only.
 for (const rel of ['index.html']) {

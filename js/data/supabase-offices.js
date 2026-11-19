@@ -2,10 +2,11 @@
  * project (best effort; the mock adapter and the SQL tests are the tested parts).
  *  - public.offices / public.office_counties: CLA staff read; writes go through save_office / set_office_active / reorder_offices (Admin, Super admin).
  *  - public.closing_office_choices(deal) + closing_office_default(deal): the picker for anyone on the order (active offices + a retired one in use). */
-import { OFFICE_LOCATION, officeAddress, canManageOffices, cleanOffice, nearestOffice } from './offices.js?v=202611245800';
+import { OFFICE_LOCATION, officeAddress, canManageOffices, cleanOffice, nearestOffice } from './offices.js?v=202611247700';
 const row = (o, counties) => ({ id: o.id, name: o.name, addressLine1: o.address_line1, addressLine2: o.address_line2 || '', city: o.city, state: o.state, zip: o.zip,
   latitude: o.latitude == null || o.latitude === '' ? null : Number(o.latitude), longitude: o.longitude == null || o.longitude === '' ? null : Number(o.longitude),
-  phone: o.main_phone || '', email: o.email || '', isMainOfficeForState: !!o.is_main_office_for_state, active: !!o.active, sortOrder: o.sort_order,
+  phone: o.main_phone || '', email: o.email || '', isMainOfficeForState: !!o.is_main_office_for_state, active: !!o.active,
+  usedForSettlements: o.used_for_settlements == null ? false : !!o.used_for_settlements, sortOrder: o.sort_order,
   createdAt: o.created_at, createdBy: o.created_by, updatedAt: o.updated_at, updatedBy: o.updated_by, updatedByName: o.updated_by ? 'an Admin' : 'Sample data',
   counties: counties.filter((c) => c.office_id === o.id && !c.removed_at).map((c) => ({ state: c.state, county: c.county })).sort((a, b) => a.county.localeCompare(b.county)) });
 const camelish = (o) => Array.isArray(o) ? o.map(camelish) : o && typeof o === 'object'
@@ -16,7 +17,8 @@ export function officesSupabase({ sb, ok, me }, base = {}) {
     return offices.map((o) => view(row(o, counties))); };
   const save = async (id, input) => { const v = cleanOffice(input);
     const newId = ok(await sb.rpc('save_office', { p_id: id, p_name: v.name, p_address_line1: v.addressLine1, p_address_line2: v.addressLine2, p_city: v.city, p_state: v.state, p_zip: v.zip,
-      p_main_phone: v.phone, p_email: v.email || null, p_is_main: v.isMainOfficeForState, p_counties: v.counties.map((c) => c.county), p_latitude: v.latitude, p_longitude: v.longitude }));
+      p_main_phone: v.phone, p_email: v.email || null, p_is_main: v.isMainOfficeForState, p_counties: v.counties.map((c) => c.county), p_latitude: v.latitude, p_longitude: v.longitude,
+      p_used_for_settlements: v.usedForSettlements }));
     return { ...(await all()).find((o) => o.id === newId), mainMovedFrom: [] }; };
   const choices = async (dealId) => ok(await sb.rpc('closing_office_choices', { p_deal: dealId })) || [];
   return {
@@ -31,9 +33,10 @@ export function officesSupabase({ sb, ok, me }, base = {}) {
       // latitude/longitude on deals arrive with the closing-office migration. Until then the ZIP center is enough.
       const wide = await sb.from('deals').select('state, county, zip, latitude, longitude').eq('id', dealId).maybeSingle();
       const deal = wide.error ? (camelish(ok(await sb.from('deals').select('state, county, zip').eq('id', dealId).maybeSingle())) || {}) : (camelish(wide.data) || {});
-      const near = nearestOffice(deal, stored.filter((o) => o.active !== false));
-      const picked = (await choices(dealId)).filter((o) => o.pickable).map((o) => ({ id: o.id, name: o.name, address: o.address, state: o.state, isMainOfficeForState: o.is_main_office_for_state, stateDefault: o.is_main_office_for_state }));
-      const list = picked.length ? picked : stored.filter((o) => o.active).map((o) => ({ id: o.id, name: o.name, address: o.address, state: o.state, isMainOfficeForState: o.isMainOfficeForState, stateDefault: o.isMainOfficeForState }));
+      const settlement = stored.filter((o) => o.active !== false && o.usedForSettlements);
+      const near = nearestOffice(deal, settlement);
+      const picked = (await choices(dealId)).filter((o) => o.pickable).map((o) => ({ id: o.id, name: o.name, address: o.address, state: o.state, isMainOfficeForState: o.is_main_office_for_state, stateDefault: o.is_main_office_for_state, usedForSettlements: true }));
+      const list = picked.length ? picked : settlement.map((o) => ({ id: o.id, name: o.name, address: o.address, state: o.state, isMainOfficeForState: o.isMainOfficeForState, stateDefault: o.isMainOfficeForState, usedForSettlements: true }));
       return { offices: list, officeId: near.officeId, reason: near.reason, text: near.text, miles: near.miles == null ? null : near.miles, officeLocation: OFFICE_LOCATION };
     },
     // proposals name their office (a retired one too)
