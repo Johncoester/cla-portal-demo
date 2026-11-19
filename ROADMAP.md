@@ -170,6 +170,43 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Routes stay `#/deals/:id/accounting` and `#/deals/:id/funding`. The new pages are `?v=receipts`, `?v=disbursements`, `?v=balances`, and `?v=balancing` on the accounting page that already exists.
 - The figures are the test ledger the file already has. Nothing is read from a bank, and nothing is written to TEST or production.
+- FF-103 moves this menu. Ledger, Receipts, Disbursements, Account Balances, and Balancing stay as tabs on the Accounting page. They are no longer separate rows in the file sidebar.
+
+---
+
+## File sidebar (FF-103)
+
+**How it should work.** Inside a file, a Processor or Super admin sees the left sidebar in this order: File Overview, Tasks, My Tasks, Inbox, Email, Documents, then ORDER (General and Title), then CLOSING (Charges), then one Accounting item, then PREVIEW (Closing Disclosure and Settlement Statement). General, Title, and Charges fold with a chevron. The second menu column inside the file is gone. Each page that column opened is still a direct sidebar link, except Ledger, Receipts, Disbursements, Account Balances, and Balancing, which stay as tabs on the Accounting page. The Accounting page itself, including the balance summary, is unchanged. A person who could not open a page still does not see it. A buyer or seller keeps the shorter menu.
+
+**Status: In progress.** Not on TEST yet. Tracker item FF-103. Not Live.
+
+**What's built**
+
+- The file sidebar for someone who can already open Accounting follows the order Francis confirmed.
+- General opens the existing Basic Info, Contacts, Loan check, Earnest & Commissions (the earnest block already on Basic Info), Taxes & Prorations, Payoffs, and Other Contacts.
+- Title opens the existing CPL, Policy Info & Rates, Commitment (Schedule A), and Final Policy pages.
+- Charges opens the existing charge sections A, B, C, E, F, G, H, J, K/M, and L/N.
+- Accounting is one sidebar item. It opens the ledger. Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding (when that person could already open Funding) are tabs on that page.
+- Closing Disclosure, Settlement Statement, Prorations, CD details & escrow, Payment summary, and Edit history are sidebar links.
+- Scheduling Details, Agreements, Activity, Post-Closing, E-Recording, and Wires stay reachable.
+- Someone who cannot see Accounting keeps the previous shorter file menu, including Funding when they could already open it.
+
+**What's missing**
+
+- Not checked on TEST yet. No database file.
+- There is no Properties page today, so the menu does not add one. The address and parcel stay on File Overview.
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [Accounting sidebar (FF-061)](#accounting-sidebar-ff-061).
+
+**Decisions**
+
+- No new pages and no database change. Each label opens a page the portal already has.
+- Loan opens the existing Title loan check. Commitment opens the existing Schedule A page. Earnest & Commissions opens Basic Info, where earnest money and the commission summary already sit.
+- Other Contacts stays under General because that page already existed in the second column.
+- The shell cache stamp is 202611247600.
 
 ---
 
@@ -412,6 +449,68 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove. On Nov 16, MF-056 renamed the Closing Date button to Scheduling Details. The date, time and days remaining stay on that button.
+
+---
+
+## Settlement office locations (FF-101d)
+
+**How it should work.** When an agent or processor picks a CLA office for the settlement (Schedule the Settlement task, Scheduling Details, or the party scheduling link), the list is only the offices marked for settlements. That starts as Towson, Rockville and Bethesda. Rockville is the main office. Other offices stay in the offices table and on Admin > Offices, but are not offered for new settlement picks. A retired office never appears. A pending proposal that already uses another office still shows that office on the file.
+
+**Status: In progress.** Tracker FF-101d. Francis Santos, Portal review Nov 18 2026 11 AM; John confirmed Nov 18 2026, 2:13 PM ET. Pull request: [PR 353](https://github.com/Johncoester/cla-portal-demo/pull/353). Database file `supabase/migrations/20261125300000_settlement_office_flag.sql` is not applied. Not Live.
+
+**What's built**
+
+- `public.offices.used_for_settlements` flag. Towson, Rockville and Bethesda are on; other offices stay off. Rows are not deleted.
+- Settlement pickers and nearest-office default read only active offices with that flag. Existing file/proposal office names still show.
+- Mock and hosted adapters follow the same rule. Cache stamp 202611246600.
+
+**What's still missing**
+
+- Not applied on TEST. Not checked on TEST yet.
+- Admin UI to tick the flag is FF-102 (separate PR).
+
+**Links**
+
+- Spec: [docs/specs/settlement-office-locations.md](docs/specs/settlement-office-locations.md). Source: Francis's Nov 18 Gemini notes (Gmail 1a1ef9d3d862da08). Tracker FF-101d.
+- Related: MF-010 (nearest office), MF-056 (Scheduling Details), FF-102 (Admin Offices flag UI).
+
+**Decisions**
+
+- Drive the picker from the offices table flag, not hard-coded names in the page (John, Nov 18).
+- Notes' "Talson" / "Rockwell" mean Towson / Rockville.
+- Do not apply the database file in this pull request.
+
+---
+
+
+## Admin Offices — Used for settlements (FF-102)
+
+**How it should work.** On Admin > Offices, an Admin or Super admin can tick **Used for settlements** on an office. That is the only way staff turn the flag on or off after FF-101d seeds Towson, Rockville and Bethesda. The settlement pickers (Schedule the Settlement, Scheduling Details, party link) keep using FF-101d's filtered list; this change does not duplicate that picker.
+
+**Status: In progress.** Tracker FF-102. John Coester via Francis Feedback, Nov 18 2026, 2:14 PM ET. Pull request: [PR 354](https://github.com/Johncoester/cla-portal-demo/pull/354). Rebased onto FF-101d (`cursor/ff-101d-settlement-offices-906a` / PR 353). Database file `supabase/migrations/20261125310000_office_used_for_settlements.sql` is not applied. Not Live.
+
+**What's built**
+
+- Admin > Offices checkbox and list chip for Used for settlements.
+- `save_office` takes `p_used_for_settlements` (Admin / Super admin only). Direct insert/update/delete on `public.offices` revoked for portal roles; select stays.
+- Reuses FF-101d picker code. No second column add or seed.
+- Cache stamp 202611246700.
+
+**What's still missing**
+
+- Apply `20261125310000` on TEST after `20261125300000` (FF-101d).
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/admin-offices.md](docs/specs/admin-offices.md). Tracker FF-102.
+- Related: FF-101d (settlement office flag + picker), MF-010 (nearest office).
+
+**Decisions**
+
+- Extend the existing Admin > Offices page; do not add a second offices screen (John / AGENTS.md).
+- Column and seed stay in FF-101d; this PR only owns the Admin save path and write protection.
+- Do not apply the database file in this pull request.
 
 ---
 
