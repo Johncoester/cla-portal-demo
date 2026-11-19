@@ -13,7 +13,7 @@ On the staff File Overview, rearrange the screen. Do not remove or change any ex
 
 ## What it does
 
-Staff see the four boxes under the milestone tracker, then the Closing Team cards, then the same Parties list with the selling side lined up beside the listing side. Buyers, sellers, and agents keep the overview they already had.
+Staff see the tasks bar, then four boxes (the value large, the label under it), then Closing Team cards (a gray initials square, the name, then the role). Parties is one list in the picture's order. The buyer agent reads Selling Agent. The agent coordinators read Selling Agent TC and Listing Agent TC. Abstractor reads Title Abstractor. A Loan Officer row is shown only when that lender contact is already a loan officer. People the picture does not list stay under that list. Buyers, sellers, and agents keep the overview they already had. The staff tracker shows "Wire/Cash to Close Acknowledge" and "Funding Auth". The stored stage names are not changed.
 
 ## What is not in this change
 

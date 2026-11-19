@@ -2448,21 +2448,22 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## File Overview layout (FF-105)
 
-**How it should work.** On the staff File Overview, under the status tracker, four boxes show Transaction Type, Open Date, Close Date, and Purchase Price from the file. A Closing Team row shows Processor, CLA Transaction Coordinator, Licensed Settlement Agent, and Sales Person. The person's name is blank when nobody is assigned, and the role title stays. Each salesperson gets their own card. Parties stay as they are today, including Processor, Title Company, the sales rep, Preprocessor, Notes, Automation, Call, Email, copy, Source of business, All contacts, and the add-party buttons. The buyer agent's row reads Selling Agent and lines up with Listing Agent. Selling Agency and Listing Agency show the company already saved on that agent. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
+**How it should work.** On the staff File Overview, the blue tasks bar stays above a row of four boxes (Transaction Type, Open Date, Close Date, Purchase Price) and a Closing Team row. Each Closing Team card shows initials, the person's name, then the role: Processor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person. A missing person leaves the name blank. Parties is one compact list in the picture's order: Buyer, Seller, Lender, Loan Officer (only when that name is already on the lender contact), Selling Agency, Selling Agent, Selling Agent TC, Listing Agency, Listing Agent, Listing Agent TC, Title Abstractor, and Underwriter. Processor, Title Company, the sales rep, Preprocessor, and anyone else already on the file stay under that list. Call, Email, copy, Source of business, All contacts, Notes, Automation, and Configuration stay. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
 
 **Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375). No database file. Not Live until someone checks it on TEST.
 
 **What's built**
 
-- Staff File Overview shows the four boxes and the Closing Team cards.
-- Selling Agent is the on-screen name for the buyer agent. That row lines up with Listing Agent. The agency line uses the agent's company.
+- Staff File Overview shows the four boxes (value, then the label) and the Closing Team cards (initials, name, then the role).
+- Parties follows the picture's order and labels. Selling Agent, Selling Agent TC, Listing Agent TC, and Title Abstractor are display words. The stored roles stay Buyer Agent, Buyer Agent TC, Listing Agent TC, and Abstractor.
+- A Loan Officer row appears only when the lender contact is already a loan officer.
 - Processor, Title Company, sales rep, Preprocessor, Notes, Automation, and the existing buttons stay.
 
 **What's still missing**
 
 - Not checked on TEST yet. Do not mark Live before that.
 - Licensed Settlement Agent has no saved field, so the card title shows and the name stays blank. Closer is unchanged.
-- The status tracker wording is unchanged.
+- The staff tracker shows "Wire/Cash to Close Acknowledge" and "Funding Auth". Reports and the database still use the old stage names.
 
 **Links**
 
