@@ -1559,6 +1559,39 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## A coordinator cannot be the agent (TC-SELF-BLOCK)
+
+**How it should work.** The transaction coordinator on a file is a different person from the agent they sit with. Adding the buyer's agent again as the buyer coordinator, or the listing agent as the listing coordinator, is refused. The same email counts as the same person. Linking an agent to themselves is refused. People already on a file stay there.
+
+**Status: In progress.** Tracker TC-SELF-BLOCK. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of TEST file MD-26-97260. Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372). Updated onto main after [PR 371](https://github.com/Johncoester/cla-portal-demo/pull/371) merged. Not applied on TEST. Not Live.
+
+**What's built**
+
+- Order Contacts, Add contact to this order, refuses that person before anything is saved. The message is: This person is already the Buyer Agent on this order. A transaction coordinator must be a different person. The listing side names Listing Agent. What was typed stays on the form.
+- Place Order uses the same check on the Agents step, before Next and before the order is placed. Parties uses it when a transaction coordinator is added.
+- A different person is still added. The buyer's agent can still be the listing coordinator when the listing agent is someone else.
+- The coordinator list on an agent refuses that agent, including when the typed email is the agent's email: This agent cannot be their own transaction coordinator.
+- The database file is `supabase/migrations/20261125340000_tc_self_block.sql`, with a rollback. It refuses new rows only. It does not change or delete existing people. It must be applied on TEST. The link-table guard is installed because TC-2's table is already on TEST. The TC-2 file itself is not rewritten. The shell cache stamp is 202611248300, above PR 371 (202611248100–202611248200) and PR 368 (202611248000).
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- A file that already has the agent saved again as the coordinator is left as it is. Removing that row is a separate cleanup.
+
+**Links**
+
+- Spec: [docs/specs/tc-self-block.md](docs/specs/tc-self-block.md)
+- Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372)
+- Source: John Coester, Nov 19 2026, 10:18 AM ET. Tracker TC-SELF-BLOCK.
+
+**Decisions**
+
+- The check is the agent they would be linked to on that side. The buyer's agent is not blocked from being the listing coordinator for a different listing agent.
+- A blank email does not count as the same person.
+- The database guard is a before-insert trigger, not a check on existing rows, so a file that already has this mistake can stay until someone removes it. The pull request does not change TEST data.
+
+---
+
 ## CRM history on a fresh database
 
 **How it should work.** A brand-new database should build the CRM the way TEST did on November 2: the accounts, leads, pipeline, and activities, plus the feature flag. The scratch setup should not create those tables first, or the history file would leave them in the old shape.

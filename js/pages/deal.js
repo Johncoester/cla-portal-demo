@@ -21,14 +21,14 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611247700';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611247700';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611248110';
+import { prefetchDealTab } from './deal-tab.js?v=202611248300';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { myTasksHref } from '../data/task-board.js?v=202611247700';
 import { earnestView } from '../data/earnest-commission.js?v=202611246500';
-import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611247700';
+import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611247700';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
@@ -401,6 +401,16 @@ async function addPartyModal(api, d, role, refresh, replaceId = '') {
     if (!entry.ok) throw new Error(entry.error);
     if (entry.action === 'skip') throw new Error(`Enter a name for this ${label}, or pick an existing contact.`);
     let id = entry.action === 'existing' ? entry.contactId : '';
+    if (agentTc) {
+      const known = id ? all.find((c) => c.id === id) : null;
+      const person = { contactId: id || '', email: (known && known.email) || f.email || (entry.contact && entry.contact.email) || '' };
+      const { options, linkedRoles } = await resolveTc(id);
+      const which = ($('[data-tc-agent]', m) || {}).value || '';
+      const problem = tcSideProblem({ hasPerson: true, linkedRoles, choice: which, choices: options });
+      if (problem) throw new Error(problem);
+      const self = selfTcOnOrderProblem(person, fileAgents(d.participants), tcRolesToSave({ linkedRoles, choice: which, choices: options }));
+      if (self) throw new Error(self);
+    }
     if (!id) {
       try { id = (await api.createContact(entry.contact)).id; }
       catch (err) {

@@ -3,7 +3,8 @@
 import {
   TC_NOT_AGENT, TC_NOT_ALLOWED, TC_SELF, TC_NOT_FOUND, TC_EMAIL_TAKEN,
   alreadyLinkedMessage, isRealEstateAgent, staffLoginProblem, newCoordinatorProblem, personName, formatCoordinatorPhone,
-} from './agent-tc-links.js?v=202611247700';
+  sameContactOrEmail, normEmail,
+} from './agent-tc-links.js?v=202611248300';
 
 export function agentTcLinksPart(x) {
   const { load, save, nid, needUser, fail, prof, contactOf, now, clone, str, emailOk, C } = x;
@@ -39,7 +40,7 @@ export function agentTcLinksPart(x) {
   }
   function assertTc(agent, tc) {
     if (!tc) fail(TC_NOT_FOUND);
-    if (tc.id === agent.id) fail(TC_SELF);
+    if (sameContactOrEmail(agent, tc)) fail(TC_SELF);
     const login = tc.profileId && prof(tc.profileId);
     const staff = staffLoginProblem(tc, login);
     if (staff) fail(staff);
@@ -72,6 +73,7 @@ export function agentTcLinksPart(x) {
       if (problem) fail(problem);
       const email = str(input.email, 200).toLowerCase();
       const d = load();
+      if (email && normEmail(agent.email) === email) fail(TC_SELF);
       if (email && (d.contacts.some((c) => c.email === email) || d.profiles.some((p) => p.email === email && p.status !== 'removed'))) fail(TC_EMAIL_TAKEN);
       if (email && !emailOk(email)) fail('Enter a valid email for this coordinator.');
       const tc = { id: nid('c'), profileId: null, contactType: null, firstName: str(input.firstName, 80), lastName: str(input.lastName, 80),

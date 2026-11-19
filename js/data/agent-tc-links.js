@@ -16,6 +16,21 @@ export const TC_NOT_FOUND = 'That person was not found. Pick someone from the li
 
 const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(e || '').trim());
 
+export function normEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+/* Same saved contact, or the same non-blank email. A blank email is not a person. */
+export function sameContactOrEmail(a, b) {
+  if (!a || !b) return false;
+  const idA = String(a.contactId || a.id || '').trim();
+  const idB = String(b.contactId || b.id || '').trim();
+  if (idA && idB && idA === idB) return true;
+  const emailA = normEmail(a.email);
+  const emailB = normEmail(b.email);
+  return !!(emailA && emailB && emailA === emailB);
+}
+
 export function personName(c) {
   const name = `${(c && c.firstName) || ''} ${(c && c.lastName) || ''}`.trim();
   return name || (c && c.company) || 'This person';

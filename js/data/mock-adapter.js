@@ -13,7 +13,7 @@ import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611247700';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611247900';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611247700';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611248300';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611247700';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
@@ -44,7 +44,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611247900';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611247700';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611247700';
-import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611247700';
+import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611248300';
 import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
 import { gmailMock } from './supabase-gmail.js?v=202611247700';
