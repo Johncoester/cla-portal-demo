@@ -131,7 +131,7 @@ begin
     if def is null then
       raise exception 'readback: policy % is missing', pol;
     end if;
-    if def not like '%(select auth.uid())%' then
+    if lower(regexp_replace(def, '\s', '', 'g')) not like '%(selectauth.uid()%' then
       raise exception 'readback: policy % does not use (select auth.uid())', pol;
     end if;
     if def like '%private.%' then
