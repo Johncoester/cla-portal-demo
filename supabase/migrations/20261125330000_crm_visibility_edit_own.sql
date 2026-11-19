@@ -321,7 +321,7 @@ begin
         array['if not exists (select 1 from public.crm_accounts a where a.id = p_id)', 'private.crm_in_pool(c.id)']),
       ('private.rpc_crm_follow_ups(uuid, text, boolean)'::text, '5fa1af54f098b93cb0c83a714191d18f',
         array['coalesce(p_owner, private.effective_uid())) and private.crm_entity_visible(a.entity, a.entity_id)), ''[]''::jsonb)'],
-        array['coalesce(p_owner, private.effective_uid())), ''[]''::jsonb)']),
+        array['coalesce(p_owner, private.effective_uid()))), ''[]''::jsonb)']),
       ('private.rpc_crm_report(date, date)'::text, 'cc40c7052426d6aa0e4b31e68f179bb3',
         array['public.crm_leads where private.crm_owner_ok(owner_id) and archived_at is null'],
         array['public.crm_leads where archived_at is null']),
