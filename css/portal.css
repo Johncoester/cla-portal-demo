@@ -1151,3 +1151,23 @@ fieldset.span2 { display: flex; flex-wrap: wrap; gap: .5rem; border: 1px solid v
 .af-form .af-reason { display: block; font-weight: 600; margin-bottom: var(--s3); } .af-form .af-reason textarea { width: 100%; margin-top: 6px; }
 @media (max-width: 700px) { .af-form .form-grid, .af-form .af-other { grid-template-columns: 1fr; } .agent-fees .af-list { grid-template-columns: 1fr; } .agent-fees .af-list dt { margin-top: 6px; } }
 .af-check { padding: var(--s3) 0; } .af-check-list { margin: var(--s2, 8px) 0 var(--s3) 20px; } .af-check-list li { margin: 4px 0; }
+/* FF-103: the accounting page no longer keeps a second menu column. The file sidebar holds those links. */
+.qc-shell.qc-shell-open { grid-template-columns: minmax(0, 1fr); }
+.nav-fold { list-style: none; width: 100%; margin: 0; padding: 0; }
+.nav-fold > details > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: var(--fs); color: var(--ink-2); padding: 8px 10px; border-radius: var(--r); }
+.nav-fold > details > summary::-webkit-details-marker { display: none; }
+.nav-fold > details > summary::before { content: ''; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); flex: none; margin-top: -2px; }
+.nav-fold > details[open] > summary::before { transform: rotate(45deg); margin-top: -4px; }
+.nav-fold > details > summary:hover { background: var(--surface-2); color: var(--ink); }
+.nav-fold .nav-pills { margin: 0 0 4px; padding: 0 0 0 12px; }
+body.theme-cards .nav-fold > details > summary { color: var(--tc-icon, var(--ink-2)); }
+body.theme-cards .nav-fold > details > summary:hover { background: #fff; color: var(--tc-blue, var(--ink)); }
+body.theme-cards .main-nav .nav-fold .nav-pills { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
+body.theme-cards .nav-fold .nav-link { height: auto; min-height: 36px; align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
+body.theme-cards .nav-fold .nav-label { white-space: normal; overflow: visible; text-overflow: unset; }
+@media (max-width: 860px) {
+  .main-nav .nav-fold, .main-nav .nav-sep { flex: 1 0 100%; width: 100%; }
+  .main-nav .nav-fold .nav-pills, body.theme-cards .main-nav .nav-fold .nav-pills { display: block; width: 100%; }
+  .nav-fold > details > summary { min-height: 44px; }
+  .nav-fold .nav-link { width: 100%; min-height: 40px; }
+}

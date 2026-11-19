@@ -135,6 +135,43 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Routes stay `#/deals/:id/accounting` and `#/deals/:id/funding`. The new pages are `?v=receipts`, `?v=disbursements`, `?v=balances`, and `?v=balancing` on the accounting page that already exists.
 - The figures are the test ledger the file already has. Nothing is read from a bank, and nothing is written to TEST or production.
+- FF-103 moves this menu. Ledger, Receipts, Disbursements, Account Balances, and Balancing stay as tabs on the Accounting page. They are no longer separate rows in the file sidebar.
+
+---
+
+## File sidebar (FF-103)
+
+**How it should work.** Inside a file, a Processor or Super admin sees the left sidebar in this order: File Overview, Tasks, My Tasks, Inbox, Email, Documents, then ORDER (General and Title), then CLOSING (Charges), then one Accounting item, then PREVIEW (Closing Disclosure and Settlement Statement). General, Title, and Charges fold with a chevron. The second menu column inside the file is gone. Each page that column opened is still a direct sidebar link, except Ledger, Receipts, Disbursements, Account Balances, and Balancing, which stay as tabs on the Accounting page. The Accounting page itself, including the balance summary, is unchanged. A person who could not open a page still does not see it. A buyer or seller keeps the shorter menu.
+
+**Status: In progress.** Not on TEST yet. Tracker item FF-103. Not Live.
+
+**What's built**
+
+- The file sidebar for someone who can already open Accounting follows the order Francis confirmed.
+- General opens the existing Basic Info, Contacts, Loan check, Earnest & Commissions (the earnest block already on Basic Info), Taxes & Prorations, Payoffs, and Other Contacts.
+- Title opens the existing CPL, Policy Info & Rates, Commitment (Schedule A), and Final Policy pages.
+- Charges opens the existing charge sections A, B, C, E, F, G, H, J, K/M, and L/N.
+- Accounting is one sidebar item. It opens the ledger. Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding (when that person could already open Funding) are tabs on that page.
+- Closing Disclosure, Settlement Statement, Prorations, CD details & escrow, Payment summary, and Edit history are sidebar links.
+- Scheduling Details, Agreements, Activity, Post-Closing, E-Recording, and Wires stay reachable.
+- Someone who cannot see Accounting keeps the previous shorter file menu, including Funding when they could already open it.
+
+**What's missing**
+
+- Not checked on TEST yet. No database file.
+- There is no Properties page today, so the menu does not add one. The address and parcel stay on File Overview.
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [Accounting sidebar (FF-061)](#accounting-sidebar-ff-061).
+
+**Decisions**
+
+- No new pages and no database change. Each label opens a page the portal already has.
+- Loan opens the existing Title loan check. Commitment opens the existing Schedule A page. Earnest & Commissions opens Basic Info, where earnest money and the commission summary already sit.
+- Other Contacts stays under General because that page already existed in the second column.
+- The shell cache stamp is 202611247600.
 
 ---
 
