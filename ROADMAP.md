@@ -1406,7 +1406,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/agent-tc-links.md](docs/specs/agent-tc-links.md)
-- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366. Button removal: John Coester, Nov 19 2026, 10:18 AM ET, screenshot of MD-26-97260 Order Contacts. Tracker row TC-BTN-REMOVE.
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366. Button removal: John Coester, Nov 19 2026, 10:18 AM ET, screenshot of MD-26-97260 Order Contacts. Tracker row TC-BTN-REMOVE. [PR 371](https://github.com/Johncoester/cla-portal-demo/pull/371).
 
 **Decisions**
 
