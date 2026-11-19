@@ -1384,17 +1384,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Transaction coordinators linked to an agent (TC-2)
 
-**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from.
+**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from. Order Contacts does not offer a Transaction coordinators button.
 
 **Status: In progress.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Not applied on TEST. Not Live.
 
 **What's built**
 
 - My Agent Profile shows Transaction coordinators for the signed-in agent, with add and remove.
-- Order Contacts has Transaction coordinators on a buyer's agent or listing agent. A processor can change the list. Sales can see it and cannot change it. The agent can change it on their own row.
+- Order Contacts does not show a Transaction coordinators button. Each row still has Invite to portal, Edit, and Remove from order. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of order MD-26-97260: that button did not belong on this list. Tracker row TC-BTN-REMOVE.
 - User List, Edit user, shows the same list for a realtor.
 - A new person needs a name. A bad email or a partial phone is pointed out, and what was typed stays. A CLA Title staff login is refused. The same person is not linked twice. Removing the link keeps the person and does not take anyone off a file.
-- The database file is `supabase/migrations/20261125240000_agent_tc_links.sql`. Who can see a link matches who can see the agent's contact. The shell cache stamp is 202611245900.
+- The database file is `supabase/migrations/20261125240000_agent_tc_links.sql`. Who can see a link matches who can see the agent's contact. Removing the Order Contacts button does not change that file. The shell cache stamp for this button removal is 202611248200. Order Contacts is loaded at 202611248100.
 
 **What's still missing**
 
@@ -1406,12 +1406,13 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/agent-tc-links.md](docs/specs/agent-tc-links.md)
-- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366.
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366. Button removal: John Coester, Nov 19 2026, 10:18 AM ET, screenshot of MD-26-97260 Order Contacts. Tracker row TC-BTN-REMOVE. [PR 371](https://github.com/Johncoester/cla-portal-demo/pull/371).
 
 **Decisions**
 
 - The link is stored on the agent contact, so an agent with no portal login can still have coordinators.
-- The agent edits the list on their own profile, because that page is already theirs. Staff who run orders edit it from Order Contacts and from User List. Sales can see the list and cannot change it, the same as other order edits.
+- The agent edits the list on their own profile, because that page is already theirs. Staff who run orders edit it from User List, Edit user. Sales can see the list there and cannot change it, the same as other contact edits.
+- Order Contacts does not open the coordinator list. John Coester, Nov 19 2026, 10:18 AM ET: the button made no sense on that list, and he did not ask for it. Invite to portal, Edit, and Remove from order stay on the row.
 - A coordinator is any outside contact. CLA Title staff, including the staff role Transaction Coordinator, cannot be linked here.
 
 ---
