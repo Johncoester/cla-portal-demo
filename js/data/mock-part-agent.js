@@ -3,11 +3,11 @@
  * Modify / Submit Revision, task-tied messages, Request Update (staff answer it), Share Access (RECORDED only: no email, no login is created),
  * "Complete Requests Now" invite email (preview + outbox only), rich-text messages with file attachments (Share Files), and the outside user's own
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611246600';
-import { senderFor } from './email-senders.js?v=202611245800';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611245800';
-import { SCHEDULE_CODE, sideOfRole, schedulePatch, partyRecipients, schedulingLinkEmail, schedulingToldEmail, INVITE_FROM, INVITE_FROM_NAME } from './scheduling-details.js?v=202611246600';
-import { settlementOffices, officeNameOf } from './mock-part-offices.js?v=202611246700';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611247700';
+import { senderFor } from './email-senders.js?v=202611247700';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611247700';
+import { SCHEDULE_CODE, sideOfRole, schedulePatch, partyRecipients, schedulingLinkEmail, schedulingToldEmail, INVITE_FROM, INVITE_FROM_NAME } from './scheduling-details.js?v=202611247700';
+import { settlementOffices, officeNameOf } from './mock-part-offices.js?v=202611247700';
 export function agentPortal(x) {
   const { api: root, load, save, nid, needUser, isManager, notViewOnly, dealOr404, onDeal, log, prof, nameOf, ownerOf, taskVisible, threadVisible, unreadIn, docVisible, participantsOf, isStaffView,
     notify, dealProfileIds, dealView, contactOf, clone, now, fail, str, emailOk, C } = x;
