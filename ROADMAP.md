@@ -1562,7 +1562,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The transaction coordinator on a file is a different person from the agent they sit with. Adding the buyer's agent again as the buyer coordinator, or the listing agent as the listing coordinator, is refused. The same email counts as the same person. Linking an agent to themselves is refused. People already on a file stay there.
 
-**Status: In progress.** Tracker TC-SELF-BLOCK. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of TEST file MD-26-97260. Not applied on TEST. Not Live.
+**Status: In progress.** Tracker TC-SELF-BLOCK. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of TEST file MD-26-97260. Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372). Not applied on TEST. Not Live. Do not merge until PR 371 has merged and this branch is updated onto main.
 
 **What's built**
 
@@ -1580,6 +1580,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/tc-self-block.md](docs/specs/tc-self-block.md)
+- Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372)
 - Source: John Coester, Nov 19 2026, 10:18 AM ET. Tracker TC-SELF-BLOCK.
 
 **Decisions**
