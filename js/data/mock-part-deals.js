@@ -177,7 +177,8 @@ export function dealsAndAuth(x) {
       d.deals.push(deal);
       if (proc) { const linked = assignProcessorParty(d, { dealId: deal.id, profile: proc, actor: u, now, newParticipantId: () => nid('dp'), newContactId: () => nid('c'), actorId: u.id }); if (linked.error) fail(linked.error); }
       const prec = preprocId && contactOf(preprocId.id); if (prec) d.participants.push({ id: nid('dp'), dealId: deal.id, contactId: prec.id, role: 'Preprocessor', createdAt: now() });
-      x.DEAL_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
+      // FF-104b: a new order gets the eight closing folders. Sample orders already stored keep the five they were given.
+      x.ORDER_DEFAULT_FOLDERS.forEach((name) => d.folders.push({ id: nid('f'), scope: 'deal', dealId: deal.id, name, staffOnly: false, createdBy: u.id, createdAt: now() }));
       // Staff task; participants' intake tasks are copied from the current task templates when each person is added (addParticipant).
       d.tasks.push({ id: nid('t'), dealId: deal.id, participantId: null, templateId: null, templateCode: null, templateVersion: null, kind: 'simple', title: 'Collect executed contract', description: '',
         assignedRole: 'Processor', status: 'todo', dueDate: null, formData: {}, savedAt: null, completedAt: null, completedBy: null, createdBy: u.id, createdAt: now() });
