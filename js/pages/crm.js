@@ -10,9 +10,9 @@ import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-jani
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611247700';
 import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, cfSorts, cfSearch, cfExtraSections, wireCfFiles } from './crm-custom.js?v=202611247700';
 import { settingsPage } from './crm-settings.js?v=202611247700';
-import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611247700';
+import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611246800';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611247700';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611247700';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611246800';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611247700';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
 import { searchPage } from './crm-search.js?v=202611247700';
@@ -20,7 +20,7 @@ import { dashboardsPage } from './crm-dashboards.js?v=202611247700';
 import { reportsHome } from './crm-reports.js?v=202611247700';
 import { dealsPage } from './crm-deals.js?v=202611247700';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611244500';
-import { callPage, callModal, callsList } from './crm-calls.js?v=202611247700';
+import { callPage, callModal, callsList } from './crm-calls.js?v=202611246800';
 import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611247700';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
