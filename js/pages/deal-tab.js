@@ -14,7 +14,7 @@ const TABS = Object.assign(Object.create(null), {
   wires: './dealfwp.js?v=202611247700',
   policy: './dealfwp.js?v=202611247700',
 });
-const TASK_FORM = './dealtaskform.js?v=202611247700';
+const TASK_FORM = './dealtaskform.js?v=202611247800';
 
 function ownSpec(tab) {
   if (typeof tab !== 'string' || !Object.prototype.hasOwnProperty.call(TABS, tab)) return '';

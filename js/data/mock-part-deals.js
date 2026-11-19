@@ -11,7 +11,7 @@ import { buildFileNumber, retagFileNumber, sentOutside, cleanFileNumber, FILE_NU
 import { officeDate } from './office-date.js?v=202611102100';
 import { lenderExtras, lenderColumnsTouched, lossPayeeSuggestions, brokerageContact, brokerageContactError, brokerageWrite } from './lender-file.js?v=202611247700';
 import { parcelInput } from './parcels.js?v=202611247700';
-import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611223000';
+import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_REFUSED, withoutOldCommission } from './earnest-commission.js?v=202611246500';
 import { cleanFee, feeChanges } from './accounting.js?v=202611243300';
 import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES, staffTaskCounts } from './party-task-completion.js?v=202611241000';

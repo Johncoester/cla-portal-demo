@@ -15,6 +15,7 @@ export async function render({ api, user, refresh }) {
     <td class="nowrap">${o.active ? html`<button type="button" class="ghost small" data-office-up="${o.id}" aria-label="Move ${o.name} up" ${i === 0 ? raw('disabled') : ''}>&uarr;</button>
       <button type="button" class="ghost small" data-office-down="${o.id}" aria-label="Move ${o.name} down" ${i === list.length - 1 ? raw('disabled') : ''}>&darr;</button>` : ''}</td>
     <td><strong data-office-name>${o.name}</strong>${o.isMainOfficeForState && o.active ? html` <span class="off-chip" data-office-main>Main office for ${o.state}</span>` : ''}
+      ${o.usedForSettlements ? html` <span class="off-chip" data-office-settlements>Used for settlements</span>` : ''}
       ${o.active ? '' : html` <span class="off-chip off-chip-retired" data-office-retired-tag>Retired</span>`}</td>
     <td data-office-address>${o.address}${o.coordSource === 'address' ? html` <span class="muted small" data-coord-source="address">Census address</span>` : o.coordSource === 'zip' ? html` <span class="muted small" data-coord-source="zip">ZIP center</span>` : ''}</td>
     <td class="nowrap">${o.phone || html`<span class="muted">none</span>`}${o.email ? html`<br><span class="small">${o.email}</span>` : ''}</td>
@@ -25,8 +26,7 @@ export async function render({ api, user, refresh }) {
   const head = html`<thead><tr><th>Order</th><th>Office</th><th>Address</th><th>Phone / email</th><th>Counties served</th><th>Last change</th><th></th></tr></thead>`;
   const body = html`<section class="offices-page" data-offices-page>
     <div class="page-head"><div><p class="eyebrow">Admin</p><h2 class="page-title">Offices</h2>
-      <p class="muted off-intro">The CLA Title offices people can pick when they propose or schedule a closing "at a CLA Title office". The picker lists the active offices in the order below,
-      and starts on the office closest to the property (straight-line distance from the property's latitude and longitude, or from the center of its ZIP). If that distance cannot be worked out, it uses an office in the property's state, then the main office. Staff can change the choice. Retire an office to stop new closings there: closings that already use it keep showing it.
+      <p class="muted off-intro">CLA Title offices. Tick <strong>Used for settlements</strong> so an office appears in Schedule the Settlement and Scheduling Details (FF-101d). That picker lists only those active offices, in the order below, and starts on the office closest to the property. Retire an office to stop offering it: closings that already use it keep showing it.
       Nothing is deleted. Only Admins and Super admins see this page.</p></div>
       <button class="m-btn" type="button" data-office-add>+ Add office</button></div>
     ${anySample ? html`<div class="notice info" data-office-sample-note><strong>Sample data.</strong> The offices marked "(sample)" are made-up placeholders, not real CLA Title addresses.
@@ -50,7 +50,7 @@ export async function render({ api, user, refresh }) {
   } };
 
   function officeForm(o) {
-    const v = o || { name: '', addressLine1: '', addressLine2: '', city: '', state: '', zip: '', latitude: '', longitude: '', phone: '', email: '', isMainOfficeForState: false, counties: [] };
+    const v = o || { name: '', addressLine1: '', addressLine2: '', city: '', state: '', zip: '', latitude: '', longitude: '', phone: '', email: '', isMainOfficeForState: false, usedForSettlements: false, counties: [] };
     const m = modal(o ? `Edit office: ${o.name}` : 'Add an office', html`<form id="of" class="form-grid off-form" novalidate data-office-form>
       <label class="span2">Office name *<input name="name" maxlength="120" required value="${v.name}" placeholder="e.g. CLA Title - Rockville, MD office"><span class="field-err" data-err="name"></span></label>
       <label class="span2">Address line 1 *<input name="addressLine1" maxlength="120" required value="${v.addressLine1}" autocomplete="address-line1"><span class="field-err" data-err="addressLine1"></span></label>
@@ -64,6 +64,8 @@ export async function render({ api, user, refresh }) {
       <label class="span2">Email <span class="muted small">(optional)</span><input name="email" type="email" maxlength="200" value="${v.email}"><span class="field-err" data-err="email"></span></label>
       <label class="span2 off-check"><input type="checkbox" name="isMainOfficeForState" ${v.isMainOfficeForState ? raw('checked') : ''} data-office-main-box> Main office for this state
         <span class="muted small">(used when the property's location cannot be measured; one per state, so ticking it here moves it from the current main office)</span></label>
+      <label class="span2 off-check"><input type="checkbox" name="usedForSettlements" ${v.usedForSettlements ? raw('checked') : ''} data-office-settlements-box> Used for settlements
+        <span class="muted small">(shows this office in Schedule the Settlement and Scheduling Details when the office is active)</span></label>
       <fieldset class="span2 off-counties" data-office-counties-box><legend>Counties served</legend>
         <p class="muted small" data-county-hint>Pick the state first.</p>
         <div class="off-county-tools" hidden><input type="search" data-county-filter placeholder="Filter counties" aria-label="Filter counties"> <button type="button" class="ghost small" data-county-clear>Clear all</button> <span class="small muted" data-county-count></span></div>
@@ -82,7 +84,8 @@ export async function render({ api, user, refresh }) {
     f.state.addEventListener('change', drawCounties); $('[data-county-filter]', f).addEventListener('input', filter);
     $('[data-county-clear]', f).addEventListener('click', () => { picked.clear(); drawCounties(); }); drawCounties();
     const read = () => ({ name: f.name.value, addressLine1: f.addressLine1.value, addressLine2: f.addressLine2.value, city: f.city.value, state: f.state.value, zip: f.zip.value,
-      latitude: f.latitude.value, longitude: f.longitude.value, phone: f.phone.value, email: f.email.value, isMainOfficeForState: f.isMainOfficeForState.checked, counties: [...picked].map((county) => ({ state: f.state.value, county })) });
+      latitude: f.latitude.value, longitude: f.longitude.value, phone: f.phone.value, email: f.email.value, isMainOfficeForState: f.isMainOfficeForState.checked,
+      usedForSettlements: f.usedForSettlements.checked, counties: [...picked].map((county) => ({ state: f.state.value, county })) });
     // the same rules as the adapter, shown next to each field before saving
     const FIELD = [[/Office name/, 'name'], [/Address line 1/, 'addressLine1'], [/City/, 'city'], [/state/i, 'state'], [/ZIP/, 'zip'], [/atitude|ongitude/, 'latitude'], [/phone/i, 'phone'], [/Email/, 'email']];
     const showErrs = (errs) => { $$('[data-err]', f).forEach((e) => { e.textContent = ''; }); $$('.is-invalid', f).forEach((e) => e.classList.remove('is-invalid')); const rest = [];

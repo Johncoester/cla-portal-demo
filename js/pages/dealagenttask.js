@@ -20,7 +20,7 @@ function editForm(t, a, dealId = '') {
     ${(a.added || []).map((c, i) => html`<div class="span2 form-grid card" data-added="${i}"><h4 class="span2">Added client contact ${i + 1} <button type="button" class="ghost" data-del-row="added.${i}">Remove</button></h4>${personFields(`added.${i}`, c)}</div>`)}
     <div class="span2"><button type="button" class="ghost" data-add-row="added">+ Add Client Contact</button></div>`;
   if (t.code === 'agent_transaction_info') return html`${inp('closingDate', 'Estimated Closing Date', a.closingDate, 'date')}${inp('purchasePrice', 'Purchase Price ($)', a.purchasePrice, 'text', 'inputmode="decimal"')}
-    <p class="span2 notice info" data-agent-task-fees>Your commission and fees are not on this task. Check and confirm them in the <a href="#/deals/${dealId}">Agent fees</a> box on the file overview; that is the one place CLA Title keeps them.</p>
+    <p class="span2 notice info" data-agent-task-fees>Your commission and fees are not on this task. Check and confirm them in the <a href="#/deals/${dealId}/tasks" data-agent-fees-link>Agent fees</a> under your agent task section on Tasks; that is the one place CLA Title keeps them.</p>
     ${inp('emdAmount', 'Earnest deposit amount ($)', a.emdAmount, 'text', 'inputmode="decimal"')}${inp('licenseId', 'Your Agency License ID', a.licenseId)}
     ${yn('holdingEmd', a.holdingEmd, 'Are you holding earnest money given to you by the buyer?')}
     <h4 class="span2">${t.assignedRole === 'Listing Agent' ? 'Listing' : 'Selling'} team members</h4>

@@ -144,7 +144,32 @@ const PROCEEDS_V1 = [F('method', 'How do you want to receive your proceeds?', 's
 const PROCEEDS_V2 = [...PROCEEDS_V1, F('proceeds_wire_note', 'Wire transfers', 'info', false, { text: PROCEEDS_WIRE_NOTE }),
   F('proceeds_statement', 'Seller proceeds acknowledgment', 'info', false, { text: PROCEEDS_STATEMENT }),
   F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true), F('notes', 'Anything else we should know?', 'textarea')];
-export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box on the file overview. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
+export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box under your agent task section on Tasks. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
+/* FF-101b (Francis Nov 18 11 AM notes; John confirmed 2:13 PM ET): broker fee + total on Commission information, and how the commission is paid.
+ * Commission $ still comes from Agent fees (amount already includes any additional amount on that side). Total = that commission + broker fee.
+ * Field keys (payout_method, mail_*, bank_*, account) are stable so a future agent-profile default can prefill them (Matt has not answered John's 11:19 AM email yet). */
+export const COMMISSION_PAYOUT_OPTS = ['At settlement', 'FedEx overnight', 'Wire'];
+export const COMMISSION_FEDEX = ['payout_method', 'FedEx overnight'];
+export const COMMISSION_WIRE = ['payout_method', 'Wire'];
+export const COMMISSION_BROKER_NOTE = 'Your commission amount is kept in the Agent fees box under your agent task section on Tasks (percent and dollars stay in step there, including any additional amount). Enter a broker fee here if you have one. Total commission is your commission plus the broker fee. How you want to be paid can later be saved on your agent profile as a default; that profile default is not built yet.';
+const COMMISSIONS_V3_FIELDS = [
+  F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
+  F('agent_fees_note', 'Your commission', 'info', false, { text: COMMISSION_BROKER_NOTE }),
+  F('commission_shown', 'Commission ($)', 'money', false, { readonly: true }),
+  F('broker_fee', 'Broker fee ($)', 'money', false),
+  F('total_commission', 'Total commission ($)', 'money', false, { readonly: true }),
+  F('payout_method', 'How should we send your commission?', 'select', true, { opts: COMMISSION_PAYOUT_OPTS }),
+  F('mail_street', 'Mail the check to: street address', 'text', true, { when: COMMISSION_FEDEX }),
+  F('mail_unit', 'Apt / unit', 'text', false, { when: COMMISSION_FEDEX }),
+  F('mail_city', 'City', 'text', true, { when: COMMISSION_FEDEX }),
+  F('mail_state', 'State', 'state', true, { when: COMMISSION_FEDEX }),
+  F('mail_zip', 'ZIP', 'zip', true, { when: COMMISSION_FEDEX }),
+  F('bank_name', 'Bank name', 'text', true, { when: COMMISSION_WIRE }),
+  F('account_name', 'Name on the account', 'text', true, { when: COMMISSION_WIRE }),
+  F('routing', 'Routing number (9 digits)', 'routing', true, { when: COMMISSION_WIRE }),
+  F('account', 'Account number', 'account', true, { when: COMMISSION_WIRE, mask: true }),
+  F('notes', 'Notes', 'textarea'),
+];
 export const TEMPLATE_DEFS = [
   { code: 'id_upload', version: 1, title: 'Upload photo ID', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'A clear photo or scan of a government ID.',
     fields: [F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }), F('id_expires', 'Expiration date', 'date', true), F('id_document', 'ID document', 'doc', true)] },
@@ -209,9 +234,13 @@ export const TEMPLATE_DEFS = [
   // AF-8 (John, Nov 14; migration 124 = SQL 20261123010000): the commission is no longer asked here. It is an Agent fee (one place);
   // the amount and Paid by are replaced by a note pointing to the Agent fees box. Brokerage, License ID and Notes stay.
   { code: 'commissions', version: 2, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], migration: 124,
-    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box on the file overview.',
+    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box under your agent task section on Tasks.',
     fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
       F('agent_fees_note', 'Your commission', 'info', false, { text: AGENT_FEES_NOTE }), F('notes', 'Notes', 'textarea')] },
+  // FF-101b (Francis Nov 18; migration 125 = SQL 20261125290000): broker fee, total commission, payout method (At settlement / FedEx overnight / Wire).
+  { code: 'commissions', version: 3, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], migration: 125,
+    description: 'Confirm your brokerage, license, broker fee and how you want your commission paid. Your commission amount stays in the Agent fees box.',
+    fields: COMMISSIONS_V3_FIELDS },
   // ---- Matt, Oct 31 (migration 14): seller forwarding address + how the seller gets their proceeds ----
   { code: 'forwarding_address', version: 1, title: 'Forwarding address', roles: ['Client-Seller'], dueDays: 10, agentRoles: [], migration: 14,
     description: 'Where should we send your mail after closing (the recorded deed, any escrow refund, your 1099-S and other closing papers)?',
@@ -433,8 +462,9 @@ export function entityPrefill(entity, fields) {
 
 /* AF-8 (migration 124, mirrored in SQL 20261123010000): commissions v2 without the amount. Unlike the intake versions above, every OPEN copy
  * (to do, in progress, blocked) moves to it and keeps its answers, so nobody is asked for a commission again; finished copies keep their version.
- * Idempotent: v2 is recognised by its agent_fees_note field. */
-const isCommissionsV2 = (t) => t.code === 'commissions' && (t.fields || []).some((f) => f.k === 'agent_fees_note');
+ * Idempotent: v2 is recognised by its agent_fees_note field and the absence of broker_fee (v3). */
+const isCommissionsV2 = (t) => t.code === 'commissions' && (t.fields || []).some((f) => f.k === 'agent_fees_note')
+  && !(t.fields || []).some((f) => f.k === 'broker_fee');
 export function applyCommissionTaskV2(d, { at = new Date().toISOString(), by = null } = {}) {
   const def = TEMPLATE_DEFS.find((t) => t.migration === 124); const added = []; let moved = 0;
   if (!Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
@@ -450,6 +480,42 @@ export function applyCommissionTaskV2(d, { at = new Date().toISOString(), by = n
       && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
     .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
   return { added, moved };
+}
+
+/* FF-101b (migration 125, mirrored in SQL 20261125290000): commissions v3 adds broker fee, total commission and payout method.
+ * Every OPEN copy moves to it and keeps answers; finished copies keep their version. Idempotent: recognised by broker_fee. */
+const isCommissionsV3 = (t) => t.code === 'commissions' && (t.fields || []).some((f) => f.k === 'broker_fee');
+export function applyCommissionTaskV3(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 125); const added = []; let moved = 0;
+  if (!Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isCommissionsV3);
+  if (!nt) {
+    if (!vs.length) return { added, moved };
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = Math.max(top.version + 1, def.version);
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: [...(top.agentRoles || [])], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-broker-payout`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  } else if (!nt.active) {
+    vs.forEach((t) => { t.active = t.id === nt.id; });
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && ['todo', 'in_progress', 'blocked'].includes(t.status)
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
+
+/* Money helpers for Commission information total (commission from Agent fees + broker fee). */
+export function moneyAmountOrZero(v) {
+  if (v == null || String(v).trim() === '') return 0;
+  const n = Number(String(v).replace(/[$,]/g, ''));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
+}
+export function formatCommissionMoney(n) {
+  const x = Math.round(Number(n) * 100) / 100;
+  return Number.isFinite(x) ? String(x) : '0';
+}
+export function totalCommissionAmount(commission, brokerFee) {
+  return formatCommissionMoney(moneyAmountOrZero(commission) + moneyAmountOrZero(brokerFee));
 }
 
 /* JN-CITIZEN-1: a copy of the question that was saved as a dropdown becomes a single line.

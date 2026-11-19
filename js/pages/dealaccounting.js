@@ -13,7 +13,7 @@ import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=20
 import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611243300';
 import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611247700';
 import { fwpCanRead } from '../data/funding-wire-policy.js?v=202611070139';
-import { qcNav, chargesView, paymentSummaryView, aggregateAdjustmentPatch } from './dealaccounting-charges.js?v=202611247700';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { chargesView, paymentSummaryView, aggregateAdjustmentPatch } from './dealaccounting-charges.js?v=202611245800';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
 import { booksHtml } from './dealaccounting-books.js?v=202611242700';
 import { contractView } from './dealaccounting-contract.js?v=202611247700';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
@@ -45,7 +45,7 @@ export async function render({ api, deal: fileDeal, user }) {
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
   const showFunding = !!((api.features || {}).funding && fwpCanRead(user) && modOn('funding'));
-  const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user), { showFunding });   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N, then Accounting, Preview, CLA tools
+  const bookTabs = BOOK_VIEWS.has(view) ? html`<nav class="tt-tabs acct-noprint" data-acct-books aria-label="Accounting">${[['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing']].map(([k, label]) => html`<a href="${base}?v=${k}" class="${view === k ? 'active' : ''}" data-nav-acct="${k}">${label}</a>`)}${showFunding ? html`<a href="#/deals/${deal.id}/funding" data-nav-acct="funding">Loan Funding</a>` : ''}</nav>` : '';
   const noLines = !acc.entries.length;
   const bookName = BOOK_VIEWS.has(view) ? (VIEWS.find(([k]) => k === view) || [])[1] : '';
   const sectionTitle = bookName || (VIEWS.find(([k]) => k === view) || ['', 'Accounting'])[1];
@@ -89,7 +89,7 @@ export async function render({ api, deal: fileDeal, user }) {
   else if (view === 'receipts' || view === 'disbursements' || view === 'balances' || view === 'balancing') v = { body: booksHtml(view, acc, base) };
   else v = await ledgerView(api, deal, acc, showRetired, base);
   const pageName = bookName || 'Accounting';
-  return { title: pageName, crumbs: [[pageName]], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell">${nav}<div class="qc-body">${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
+  return { title: pageName, crumbs: [[pageName]], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell qc-shell-open"><div class="qc-body">${bookTabs}${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------
