@@ -2477,14 +2477,22 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Clone a CRM dashboard copies its charts
 ## CRM Calls menu link (Feedback 32 item 3)
 
+**How it should work.** Clone on a CRM dashboard makes a new dashboard named like "Lead dashboard (copy)". Every chart comes with it: the same settings, filters, order, and size. The original dashboard stays as it was. A hidden chart is not copied. The copy is Only me.
 **How it should work.** Calls in the CRM menu opens a list of calls already saved on a lead, client, or company. The subject opens that call. If there are no calls, the page says so. It is not the full Calls module.
 
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 2. Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357). No database file. Not Live until someone checks Clone on TEST.
 **Status: In progress.** Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. Pull request: [PR 356](https://github.com/Johncoester/cla-portal-demo/pull/356). No database file. Not Live until someone checks Calls on TEST.
 
 **What's built**
 
+- Clone suggests "<name> (copy)" and saves that name, shortened so it still ends with " (copy)" when the original name is already at the 100-character limit.
+- Every visible chart is copied in one save: name, type, module, measure, grouping, filters, width, height, and order.
+- The dashboard's own owner and period filters are copied, so the charts match.
+- A retired chart stays on the original only.
+- A blank name is refused and nothing is saved.
 - Calls in the CRM menu opens the list instead of saying the page does not exist.
 - The list is one read of the calls already stored. Newer calls are first. Each subject opens the call that was already there.
 - A missing call says it was not found and goes back to the list. A processor can see the list.
@@ -2497,11 +2505,16 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Links**
 
+- Spec: [docs/specs/crm-dashboard-clone.md](docs/specs/crm-dashboard-clone.md)
+- Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357)
 - Spec: [docs/specs/crm-calls-menu.md](docs/specs/crm-calls-menu.md)
 - Pull request: [PR 356](https://github.com/Johncoester/cla-portal-demo/pull/356)
 
 **Decisions**
 
+- No database change. Charts already store their settings on the dashboard. The copy writes those rows in one batch.
+- The copy is Only me. Sharing on the original is not copied.
+- A hidden chart is not copied. Restore it on the original first if it should be included.
 - No database change. The list uses the calls already stored. It does not add a table or a query.
 - The full Calls module is not part of this change. The menu opens the short list so the link is not a dead end.
 

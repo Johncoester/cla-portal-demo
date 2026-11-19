@@ -34,6 +34,13 @@ const componentHeight = (h, missing = 1) => { if (h == null || h === '') return 
 const componentWidth = (w) => { const n = Number(w); return n === 2 || n === 3 ? n : 1; };
 const componentCriteria = (list) => withPresetKeys((Array.isArray(list) ? list : []).filter((c) => c && typeof c === 'object').slice(0, 10));
 const componentTarget = (spec) => { if (spec.type !== 'target') return null; if (spec.target == null || spec.target === '') return null; const n = Number(spec.target); if (!isFinite(n) || n < 0) throw new Error('Enter the target (a number that is 0 or more).'); return n; };
+// Janine, Nov 18 2026 (Feedback 31 item 2): a cloned dashboard is named "<name> (copy)" and keeps that ending inside the 100-character limit.
+const dashboardCopyName = (sourceName) => {
+  const suffix = ' (copy)';
+  const base = String(sourceName == null ? '' : sourceName).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  return base.slice(0, 100 - suffix.length) + suffix;
+};
+const plainCopy = (v, fallback) => (v == null ? fallback : JSON.parse(JSON.stringify(v)));
 const packMeasure = (spec) => { const fn = ['count', 'sum', 'avg'].includes(spec.measure && spec.measure.fn) ? spec.measure.fn : 'count'; const m = { fn }; if (fn !== 'count' && spec.measure && spec.measure.field) m.field = spec.measure.field; return m; };
 const packGrouping = (spec) => { const g = groupingWithCalendar({ ...(spec.grouping || {}) }); if (spec.grouping2 && spec.grouping2.field) g.grouping2 = groupingWithCalendar({ ...spec.grouping2 }); return g; };
 const storedParts = (c) => {
@@ -186,6 +193,7 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       if (!id) throw new Error('This browser cannot mint a dashboard id.');
       // No RETURNING on this insert. crm_dashboards_select calls crm_dash_visible, which looks the id up and cannot see this statement's new row.
       const row = { id, name: name.slice(0, 100), description: String(input.description || '').slice(0, 500), owner_id: u.id, visibility: input.visibility || 'me', share, locked: !!input.locked, created_by: u.id };
+      if (input.filters && typeof input.filters === 'object' && !Array.isArray(input.filters)) row.filters = input.filters;
       ok(await sb.from('crm_dashboards').insert(row));
       return dashOut(u, ok(await sb.from('crm_dashboards').select('*').eq('id', id).single()));
     },
@@ -199,7 +207,40 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       if (patch.shareUsers || patch.shareRoles || patch.shareDepts) o.share = { users: patch.shareUsers || [], roles: patch.shareRoles || [], departments: patch.shareDepts || [] };
       return dashOut(u, ok(await sb.from('crm_dashboards').update(o).eq('id', id).select('*').single()));
     },
-    async cloneCrmDashboard(id, { name } = {}) { const d = await this.getCrmDashboard(id); return this.createCrmDashboard({ name: name || `Copy of ${d.name}`, description: d.description, visibility: 'me' }); },
+    // Copies every visible chart in one insert. Retired charts stay on the original only. The original dashboard is not written.
+    async cloneCrmDashboard(id, { name } = {}) {
+      const u = await editor();
+      const asked = name == null ? null : String(name).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+      if (name != null && !asked) throw new Error('Dashboard Name is required.');
+      const src = ok(await sb.from('crm_dashboards').select('*').eq('id', id).maybeSingle());
+      if (!src || !dashboardVisible(u, dashOut(u, src))) throw new Error('Dashboard not found.');
+      const created = await this.createCrmDashboard({
+        name: asked == null ? dashboardCopyName(src.name) : asked.slice(0, 100),
+        description: src.description,
+        visibility: 'me',
+        filters: src.filters && typeof src.filters === 'object' && !Array.isArray(src.filters) ? plainCopy(src.filters, {}) : undefined,
+      });
+      const comps = ok(await sb.from('crm_dash_components').select('*').eq('dashboard_id', id).order('position')) || [];
+      const live = comps.filter((c) => !c.retired_at);
+      if (live.length) {
+        ok(await sb.from('crm_dash_components').insert(live.map((c) => ({
+          dashboard_id: created.id,
+          name: c.name,
+          type: c.type,
+          module: c.module,
+          chart_type: c.chart_type ?? null,
+          measure: plainCopy(c.measure, { fn: 'count' }),
+          grouping: plainCopy(c.grouping, {}),
+          criteria: plainCopy(c.criteria, []),
+          target: c.target == null || c.target === '' ? null : c.target,
+          width: c.width,
+          height: c.height,
+          position: c.position,
+          created_by: u.id,
+        }))));
+      }
+      return created;
+    },
     async retireCrmDashboard(id, retired = true) { const u = await editor(); return dashOut(u, ok(await sb.from('crm_dashboards').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id).select('*').single())); },
     async addCrmComponent(dashboardId, v = {}) {
       const u = await editor(); const spec = componentSpec(v); const module = requireModule(spec.module); const type = componentType(spec.type);
