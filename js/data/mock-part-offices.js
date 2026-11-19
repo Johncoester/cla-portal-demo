@@ -5,10 +5,10 @@
  * a real location is retired.
  * Rules (same as SQL): CLA staff read, Admins / Super admins write; NO deletes (an office is retired; a county taken off an office keeps its row
  * with removedAt); at most one active main office per state (setting a new one moves the flag); a county is served by one active office at most. */
-import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION, geoPoint } from './offices.js?v=202611245800';
+import { SAMPLE_OFFICES, cleanOffice, canManageOffices, OFFICE_ADMIN_ONLY, officeAddress, officeSort, normCounty, nearestOffice, OFFICE_LOCATION, geoPoint } from './offices.js?v=202611246600';
 const SEED_AT = '2026-11-04T12:00:00Z';
 const OLD_PLACEHOLDERS = ['off-rockville', 'off-annapolis', 'off-dc', 'off-fairfax', 'off-ftlauderdale'];
-const seedRow = (o) => { const { counties, ...rest } = o; return { ...rest, active: true, createdAt: SEED_AT, createdBy: null, updatedAt: SEED_AT, updatedBy: null }; };
+const seedRow = (o) => { const { counties, ...rest } = o; return { ...rest, active: true, usedForSettlements: !!o.usedForSettlements, createdAt: SEED_AT, createdBy: null, updatedAt: SEED_AT, updatedBy: null }; };
 const isPlaceholder = (o) => /\(sample\)/i.test(o.name || '') || /placeholder/i.test(o.addressLine1 || '');
 export function ensureOffices(d) {
   if (!Array.isArray(d.offices)) d.offices = SAMPLE_OFFICES.map(seedRow);
@@ -25,6 +25,9 @@ export function ensureOffices(d) {
   d.offices.forEach((o) => { if (o.latitude != null && o.longitude != null) return; const sample = SAMPLE_OFFICES.find((s) => s.id === o.id);
     const p = (sample && sample.latitude != null) ? { latitude: sample.latitude, longitude: sample.longitude, coordSource: sample.coordSource } : geoPoint({ zip: o.zip });
     if (!p) return; if (o.latitude == null) o.latitude = p.latitude; if (o.longitude == null) o.longitude = p.longitude; if (!o.coordSource && p.coordSource) o.coordSource = p.coordSource; else if (!o.coordSource && p.source === 'zip') o.coordSource = 'zip'; });
+  // FF-101d: older stored copies have no usedForSettlements. Copy from the sample row when present; otherwise leave off.
+  d.offices.forEach((o) => { if ('usedForSettlements' in o) return; const sample = SAMPLE_OFFICES.find((s) => s.id === o.id);
+    o.usedForSettlements = !!(sample && sample.usedForSettlements); });
   return d;
 }
 // the office records with their current counties (pure over the stored data)
@@ -62,7 +65,7 @@ export function officesPart({ load, save, needUser, nid, now, fail, nameOf, isSt
     async createOffice(input = {}) { const u = admin(); const v = clean(input); countyClash(null, v.counties); const d = db();
       if (d.offices.some((o) => o.active && o.name.toLowerCase() === v.name.toLowerCase())) fail('An active office already has that name.');
       const t = now(); const { counties, ...rec } = v;
-      const o = { id: nid('off'), ...rec, active: true, sortOrder: Math.max(0, ...d.offices.map((z) => z.sortOrder || 0)) + 1, createdAt: t, createdBy: u.id, updatedAt: t, updatedBy: u.id };
+      const o = { id: nid('off'), ...rec, active: true, usedForSettlements: !!v.usedForSettlements, sortOrder: Math.max(0, ...d.offices.map((z) => z.sortOrder || 0)) + 1, createdAt: t, createdBy: u.id, updatedAt: t, updatedBy: u.id };
       d.offices.push(o); setCounties(d, o.id, counties, u); const moved = moveMain(d, o, u);
       save(); return { ...view(one(o.id)), mainMovedFrom: moved }; },
     async updateOffice(id, input = {}) { const u = admin(); const d = db(); const o = officeById(d, id) || fail('Office not found.');
@@ -84,10 +87,22 @@ export function officesPart({ load, save, needUser, nid, now, fail, nameOf, isSt
       save(); return rows().map(view); },
   };
 }
-// the closing picker's data for one deal (used by mock-part-matt.js and the closing-date request): the ACTIVE offices + the closest one.
-// Closest is straight-line distance (offices.js). A retired office already on a closing is named by the caller; it is not offered here.
-export function closingOfficeChoices(d, deal) {
-  const all = officeRows(d); const live = all.filter((o) => o.active);
-  return { offices: live.map((o) => ({ id: o.id, name: o.name, address: officeAddress(o), state: o.state, isMainOfficeForState: !!o.isMainOfficeForState, stateDefault: !!o.isMainOfficeForState,
-    counties: o.counties })), ...nearestOffice(deal, live), officeLocation: OFFICE_LOCATION };
+// Settlement picker for one deal: active offices with usedForSettlements, plus any office already on this file (display only).
+// Closest is straight-line distance among the pickable ones. A retired office already on a closing is named by the caller; it is not offered here.
+export function settlementOffices(d) {
+  return officeRows(d).filter((o) => o.active && o.usedForSettlements);
+}
+export function closingOfficeChoices(d, deal, { keepOfficeIds = [] } = {}) {
+  const all = officeRows(d); const live = settlementOffices(d);
+  const keep = new Set((keepOfficeIds || []).filter(Boolean));
+  if (deal) {
+    if (deal.scheduledClosing && deal.scheduledClosing.officeId) keep.add(deal.scheduledClosing.officeId);
+    if (deal.schedBuyerOfficeId) keep.add(deal.schedBuyerOfficeId);
+    if (deal.schedSellerOfficeId) keep.add(deal.schedSellerOfficeId);
+  }
+  const list = live.slice();
+  keep.forEach((id) => { if (list.some((o) => o.id === id)) return; const o = all.find((z) => z.id === id); if (o) list.push(o); });
+  list.sort(officeSort);
+  return { offices: list.map((o) => ({ id: o.id, name: o.name, address: officeAddress(o), state: o.state, isMainOfficeForState: !!o.isMainOfficeForState, stateDefault: !!o.isMainOfficeForState,
+    usedForSettlements: !!o.usedForSettlements, counties: o.counties })), ...nearestOffice(deal, live), officeLocation: OFFICE_LOCATION };
 }

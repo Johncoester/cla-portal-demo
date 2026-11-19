@@ -5,6 +5,7 @@
  * A name keeps "(sample)" only when the address was not on that page. Latitude / longitude are the Census geocoder
  * address match when it returned one (coordSource "address"); otherwise the Census ZIP center (coordSource "zip").
  * An office is never deleted: it is retired (active = false). A retired office stays on closings that already use it but cannot be picked again.
+ * FF-101d: usedForSettlements marks offices offered on Schedule the Settlement / Scheduling Details. Admin (FF-102) will edit that flag.
  * Closest office for a property (Matt): straight-line miles from the property's latitude/longitude, or from its ZIP center when it has no point.
  * An office is placed the same way (its own latitude/longitude, else its ZIP center). Then, if a distance cannot be worked out: an active office
  * in the same state (the state's main office first), then the main office (lowest sort order), then any active office. Staff can still pick another. */
@@ -30,16 +31,17 @@ const C = (state, list) => list.map((county) => ({ state, county }));
 // Its View Map link is 8000 Towers Crescent Dr, Tysons, VA 22182, so the city and ZIP on the page do not match the pin.
 const pub = (id, name, line1, line2, city, state, zip, lat, lng, source, sort, extra = {}) => ({
   id, name, addressLine1: line1, addressLine2: line2, city, state, zip, latitude: lat, longitude: lng, coordSource: source,
-  phone: extra.phone || '', email: '', isMainOfficeForState: !!extra.main, sortOrder: sort, counties: C(state, extra.counties || []) });
+  phone: extra.phone || '', email: '', isMainOfficeForState: !!extra.main, sortOrder: sort,
+  usedForSettlements: !!extra.settlements, counties: C(state, extra.counties || []) });
 export const SAMPLE_OFFICES = [
-  pub('off-rockville', 'Rockville', '9210 Corporate Blvd', '#150', 'Rockville', 'MD', '20850', 39.107612, -77.189877, 'address', 1, { phone: '888-924-9008', main: true }),
+  pub('off-rockville', 'Rockville', '9210 Corporate Blvd', '#150', 'Rockville', 'MD', '20850', 39.107612, -77.189877, 'address', 1, { phone: '888-924-9008', main: true, settlements: true }),
   pub('off-white-plains', 'White Plains', '4560 Crain Highway', 'Suite 11', 'White Plains', 'MD', '20695', 38.587387, -76.945010, 'address', 2),
-  pub('off-bethesda', 'Bethesda', '7201 Wisconsin Avenue', '', 'Bethesda', 'MD', '20814', 38.981338, -77.092659, 'address', 3),
+  pub('off-bethesda', 'Bethesda', '7201 Wisconsin Avenue', '', 'Bethesda', 'MD', '20814', 38.981338, -77.092659, 'address', 3, { settlements: true }),
   pub('off-annapolis', 'Annapolis', '1910 Towne Centre Boulevard', 'Ste. 250', 'Annapolis', 'MD', '21401', 38.980745, -76.540246, 'address', 4),
   pub('off-chester', 'Chester', '110 S. Piney Road', 'Ste. 106', 'Chester', 'MD', '21619', 38.972726, -76.269768, 'address', 5),
   pub('off-frederick', 'Frederick', '201 Broadway Street', 'Suite 320', 'Frederick', 'MD', '21701', 39.410733, -77.412707, 'address', 6),
   pub('off-hagerstown', 'Hagerstown', '201 Prospect Avenue', '', 'Hagerstown', 'MD', '21742', 39.6782, -77.6527, 'zip', 7),
-  pub('off-towson', 'Towson', '200 Towsontown Blvd W', 'Ste 413', 'Towson', 'MD', '21204', 39.396086, -76.618924, 'address', 8),
+  pub('off-towson', 'Towson', '200 Towsontown Blvd W', 'Ste 413', 'Towson', 'MD', '21204', 39.396086, -76.618924, 'address', 8, { settlements: true }),
   pub('off-arlington-courthouse', 'Arlington Courthouse', '2311 Wilson Boulevard', '', 'Arlington', 'VA', '22201', 38.891038, -77.086702, 'address', 9),
   pub('off-ballston', 'Ballston', '4201 Wilson Boulevard', '', 'Arlington', 'VA', '22203', 38.879927, -77.110308, 'address', 10),
   pub('off-venture-x-fairfax', 'Venture X Fairfax', '3060 Williams Dr', 'Suite 300', 'Fairfax', 'VA', '22031', 38.8589, -77.2603, 'zip', 11),
