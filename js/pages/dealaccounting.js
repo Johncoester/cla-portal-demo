@@ -6,7 +6,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { modOn } from '../data/modules.js?v=202611247700';
 import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611247900';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611241500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611247900'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { cdPagesView, cdDetailsView, loanView } from './dealaccounting-cd.js?v=202611248400'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
 import { brokerageOnFile } from '../data/lender-file.js?v=202611247700';
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
 import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611243300';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
@@ -18,7 +18,7 @@ import { booksHtml } from './dealaccounting-books.js?v=202611242700';
 import { contractView } from './dealaccounting-contract.js?v=202611247700';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
-const VIEWS = [['contract', 'Basic Info'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['contract', 'Basic Info'], ['loan', 'Loan'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
 const BOOK_VIEWS = new Set(['ledger', 'receipts', 'disbursements', 'balances', 'balancing']);
 const BOOK_BLURB = {
   ledger: 'The fee ledger for this file. These are test figures. They are not a bank record and not a Closing Disclosure.',
@@ -52,6 +52,7 @@ export async function render({ api, deal: fileDeal, user }) {
   const sectionNote = bookName ? BOOK_BLURB[view]
     : view === 'contract'
       ? 'Sales price, loan amount, closing date, disbursement date, and source of business. These are the order’s figures.'
+      : view === 'loan' ? 'The loan on this file. What you enter here prints on page 1 of the Closing Disclosure.'
       : 'TEST only. The statements use the fee ledger and the order.';
   const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title" data-acct-title="${view}">${sectionTitle}</h2>
       <p class="muted small">${sectionNote}</p></div>
@@ -84,6 +85,7 @@ export async function render({ api, deal: fileDeal, user }) {
   else if (view === 'alta') v = await altaView(api, deal, acc, q, base);
   else if (view === 'cd') v = viewerChrome(await cdPagesView(api, deal, acc, docHead, printBtn, mountPrint), base);
   else if (view === 'cddetails') v = await cdDetailsView(api, deal, acc);
+  else if (view === 'loan') v = await loanView(api, deal);
   else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
   else if (view === 'receipts' || view === 'disbursements' || view === 'balances' || view === 'balancing') v = { body: booksHtml(view, acc, base) };

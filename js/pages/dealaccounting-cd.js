@@ -6,7 +6,7 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
 import { TEST_MARK } from '../data/accounting.js?v=202611247900';
 import { summaryScreens } from '../data/qualia-charges.js?v=202611243300';
-import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611070139';
+import { CD_DETAIL_GROUPS, LOAN_PAGE_GROUPS, loanPageInput } from '../data/cd-pages.js?v=202611248400';
 import { partyNames, brokerOf } from '../data/statement-parties.js?v=202611222900';
 import { cdBrokerCells } from '../data/lender-file.js?v=202611247700';
 import { fmtPhone } from '../data/constants.js?v=202611247700';
@@ -99,7 +99,7 @@ export async function cdPagesView(api, deal, acc, docHead, printBtn, mountPrint)
       <tr><td>Phone</td><td>${lenderPhone || '—'}</td><td data-cd-broker-phone>${cell(mb.phone)}</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr></tbody></table>
     <p class="small muted">Confirm Receipt: not used. This is a TEST page built by the portal, not a legal disclosure; the lender's Closing Disclosure is the real one.</p></section>`;
   const warn = X.calcWarnings && X.calcWarnings.length ? html`<div class="notice warn small acct-noprint" data-cd-calc-warnings>${X.calcWarnings.map((w) => html`<div>${w}</div>`)}</div>` : '';
-  const body = html`<div class="acct-toolbar acct-noprint"><span class="muted small">Closing Disclosure pages 1-5. Fees, lender credits, prorations and the summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column and the loan disclosures are entered on <a href="#/deals/${deal.id}/accounting?v=cddetails" data-goto-cddetails>CD details &amp; escrow</a>.</span><span class="spacer"></span>${printBtn('cd', deal)}</div>${warn}
+  const body = html`<div class="acct-toolbar acct-noprint"><span class="muted small">Closing Disclosure pages 1-5. Fees, lender credits, prorations and the summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column and the loan disclosures are entered on <a href="#/deals/${deal.id}/accounting?v=loan" data-goto-loan>Loan</a> and <a href="#/deals/${deal.id}/accounting?v=cddetails" data-goto-cddetails>CD details &amp; escrow</a>.</span><span class="spacer"></span>${printBtn('cd', deal)}</div>${warn}
     <div class="card acct-doc" data-print-area="cd" data-cd-full>${docHead(deal, 'Closing Disclosure', 'Built from the Accounting fee ledger and the CD details. For testing the portal only.')}${page1}${page2}${page3}${page4}${page5}<div class="acct-mark acct-mark-foot">${TEST_MARK}</div></div>`;
   return { body, mount: mountPrint };
 }
@@ -108,6 +108,29 @@ function escrowTable(E) {
     <table class="tbl acct-escrow" data-escrow-table><thead><tr><th>Month</th><th class="num">Deposit</th><th class="num">Paid out</th><th class="num">Balance</th></tr></thead><tbody>
     <tr><td>At closing</td><td class="num">${m2z(E.initialDeposit)}</td><td></td><td class="num">${m2z(E.initialDeposit)}</td></tr>
     ${E.schedule.map((s) => html`<tr class="${s.balance === E.lowBalance ? 'acct-escrow-low' : ''}"><td>${s.month}</td><td class="num">${m2z(s.deposit)}</td><td class="num">${s.disbursed ? m2z(s.disbursed) : ''}</td><td class="num">${m2z(s.balance)}</td></tr>`)}</tbody></table>`;
+}
+
+// ---------------- Loan (General › Loan): the loan details the Closing Disclosure prints on page 1 ----------------
+export async function loanView(api, deal) {
+  const X = await api.getAccountingCd(deal.id); const v = X.details || {}; const ro = !X.canEdit;
+  const FIELD = Object.fromEntries(CD_DETAIL_GROUPS.flatMap(([, , fields]) => fields.map((f) => [f[0], f])));
+  const field = (k) => { const [, type, label, opts] = FIELD[k]; const val = v[k] ?? ''; const dis = ro ? raw('disabled') : '';
+    if (type === 'select' || type === 'yn') return html`<label>${label}<select name="${k}" ${dis}>${(opts.some(([o]) => o === '') ? opts : [['', '—'], ...opts]).map(([o, l]) => html`<option value="${o}" ${String(o) === String(val) ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
+    return html`<label>${label}<input name="${k}" ${raw(type === 'text' ? 'maxlength="200"' : 'inputmode="decimal"')} value="${val}" autocomplete="off" ${dis}></label>`; };
+  const amount = deal.loanAmount == null || deal.loanAmount === '' ? null : Number(deal.loanAmount);
+  const fromOrder = html`<div class="card acct-form" data-loan-order><div class="acct-card-head"><h3>From the order</h3><span class="muted small">Change these on <a href="#/deals/${deal.id}" data-loan-goto-overview>File Overview</a>, Edit order details.</span></div>
+    <dl class="kv"><dt>Loan amount</dt><dd data-loan-amount>${amount == null ? '—' : m2z(amount)}</dd><dt>Lender</dt><dd data-loan-lender>${deal.lenderName || '—'}</dd></dl></div>`;
+  const form = html`<form class="card acct-form" id="acct-loan-form" data-loan-form novalidate><div class="acct-card-head"><h3>Loan details</h3><span class="muted small" data-loan-saved>${X.updatedAt ? `Last saved ${new Date(X.updatedAt).toLocaleString('en-US')}${X.updatedByName ? ' by ' + X.updatedByName : ''}` : 'Nothing entered yet'}</span></div>
+    <p class="small muted">These print on page 1 of the <a href="#/deals/${deal.id}/accounting?v=cd" data-loan-goto-cd>Closing Disclosure</a>. Leave a box empty if you don't know it yet: the Closing Disclosure shows a dash. ${ro ? html`<strong data-readonly-note>Read only for your role.</strong>` : ''}</p>
+    ${LOAN_PAGE_GROUPS.map(([title, keys]) => html`<fieldset class="acct-cd-group" data-loan-group="${title}"><legend>${title}</legend><div class="form-grid">${keys.map(field)}</div></fieldset>`)}
+    <p class="err-text small" data-loan-err></p>${ro ? '' : html`<div class="acct-form-actions"><button class="m-btn" type="submit" data-save-loan>Save loan details</button><span class="muted small">Logged with your name and the time.</span></div>`}</form>`;
+  return { body: html`<div class="acct-grid" data-loan-page>${fromOrder}${form}</div>`, mount: (root, c = {}) => {
+    const f = $('#acct-loan-form', root); if (!f || !$('[data-save-loan]', f)) return;
+    f.addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-loan-err]', f); err.textContent = '';
+      const typed = Object.fromEntries($$('input,select', f).map((i) => [i.name, i.value]));
+      try { const now = await api.getAccountingCd(deal.id);   // read again, so a change made on CD details in another tab is kept
+        await api.saveAccountingCd(deal.id, loanPageInput(now.details, typed)); toast('Loan details saved'); if (c.refresh) c.refresh(); else location.reload(); }
+      catch (x) { err.textContent = x.message; toast(x.message, 'err'); } }); } };
 }
 
 // ---------------- CD details & the prepaids / escrow calculator ----------------

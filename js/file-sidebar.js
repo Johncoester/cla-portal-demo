@@ -43,12 +43,13 @@ export function staffDealNav(o) {
 
   const basic = go(`${acct}?v=contract`, 'Basic Info', onView('contract'), ' data-nav-basic', 'orders');
   const contacts = o.link('contacts', 'Contacts', 'contact-us');
-  const loan = o.titleOn ? go(`${base}/title?v=loan`, 'Loan', tab === 'title' && view === 'loan', ' data-nav-loan', 'documents', o.titleBeta ? 'title' : '') : '';
+  // Loan (John, Nov 19 2026): the loan details the Closing Disclosure prints. Title's "Loan check" is still a step inside the Title tab.
+  const loan = go(`${acct}?v=loan`, 'Loan', onView('loan'), ' data-nav-loan', 'documents');
   const earnest = go(`${acct}?v=contract&focus=earnest`, 'Earnest & Commissions', tab === 'accounting' && view === 'contract' && focus === 'earnest', ' data-nav-earnest', 'documents');
   const taxes = o.payoffsReach ? go(`${acct}?v=taxes`, 'Taxes & Prorations', onView('taxes'), ' data-nav-taxes', 'documents') : '';
   const payoffs = o.payoffsReach && o.payoffsOn ? go(`${acct}?v=payoffs`, 'Payoffs', onView('payoffs'), ' data-nav-payoffs', 'documents', o.payoffsBeta ? 'payoffs' : '') : '';
   const other = o.payoffsReach ? go(`${acct}?v=othercontacts`, 'Other Contacts', onView('othercontacts'), ' data-nav-othercontacts', 'contact-us') : '';
-  const generalCurrent = (tab === 'contacts') || (tab === 'accounting' && (view === 'contract' || view === 'taxes' || view === 'payoffs' || view === 'othercontacts')) || (tab === 'title' && view === 'loan');
+  const generalCurrent = (tab === 'contacts') || (tab === 'accounting' && (view === 'contract' || view === 'loan' || view === 'taxes' || view === 'payoffs' || view === 'othercontacts'));
   const general = fold('general', 'General', html`${basic}${contacts}${loan}${earnest}${taxes}${payoffs}${other}`, generalCurrent);
 
   const titleBeta = o.titleBeta ? 'title' : '';
