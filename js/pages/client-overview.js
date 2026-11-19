@@ -68,8 +68,9 @@ export function clientNav(d, user, active, n = {}) {
   const tab = (key, href, label, cnt) => html`<a class="${on === key ? 'on' : ''}" href="${href}" data-co-tab="${label}"${on === key ? raw(' aria-current="page"') : ''}>${label}${cnt ? html` <span class="n">${cnt}</span>` : ''}</a>`;
   const B = `#/deals/${d.id}`; const agent = (user.roles || [user.role]).some((r) => /Agent$/.test(r));
   const myTasks = tab('my-tasks', `${B}/tasks?mine=1`, 'My Tasks', 0);
+  // FF-101a: an agent (or self-represented agent) keeps My Tasks and loses the general Tasks tab.
   return html`<nav class="co-seg" aria-label="This file" data-co-nav>${pure ? html`${tab('overview', B, BUYER_TAB_LABELS.overview, 0)}${tab('tasks', `${B}/tasks`, BUYER_TAB_LABELS.tasks, n.todo)}${myTasks}${tab('inbox', `${B}/inbox`, BUYER_TAB_LABELS.inbox, n.msg)}${tab('documents', `${B}/documents`, BUYER_TAB_LABELS.documents, n.docs)}${tab('closing', `${B}/closing`, BUYER_TAB_LABELS.closing, 0)}${tab('activity', `${B}/activity`, BUYER_TAB_LABELS.activity, 0)}`
-    : html`${tab('overview', B, 'Overview', 0)}${tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
+    : html`${tab('overview', B, 'Overview', 0)}${agent ? '' : tab('tasks', `${B}/tasks`, 'Tasks', n.tasks)}${myTasks}${tab('inbox', `${B}/inbox`, 'Messages', n.msg)}${tab('documents', `${B}/documents`, 'Documents', n.docs)}${tab('closing', `${B}/closing`, 'Closing', 0)}${tab('agreements', `${B}/agreements`, 'Agreements', n.ag)}${agent ? tab('contacts', `${B}/contacts`, 'Contacts', 0) : ''}${tab('activity', `${B}/activity`, 'Activity', 0)}`}</nav>`;
 }
 // The top of every client TAB page: the file line and the same pill tabs as the Overview (counts read the same way as there)
 export async function clientTabChrome({ api, user }, d, active) {

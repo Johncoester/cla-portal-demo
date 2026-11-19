@@ -59,6 +59,7 @@ ok(sides.participants.filter((p) => p.contactId === riley.id && p.role === 'Buye
 const mig = readFileSync(new URL('../supabase/migrations/20261125250000_agent_tc_on_file.sql', import.meta.url), 'utf8');
 const rb = readFileSync(new URL('../supabase/rollbacks/20261125250000_agent_tc_on_file.sql', import.meta.url), 'utf8');
 ok(mig.includes('linked_agent_roles') && mig.includes('Buyer Agent TC') && mig.includes('on behalf of') && mig.includes('file_roles_of'), 'the database treats the coordinator as their agent and records who finished the task');
+ok(mig.includes('coalesce((private.outside_roles(pid, d))[1], \'Outside user\')') && !mig.includes('coalesce(private.outside_roles(pid, d)[1]'), 'the file-role subscript is parenthesized so Postgres accepts it');
 ok(rb.includes('file_roles_of'), 'rollback restores file roles');
 
 console.log(fail ? `tc-3: ${fail} failed` : 'tc-3 passed');
