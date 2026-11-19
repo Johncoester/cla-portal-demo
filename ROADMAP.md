@@ -1352,7 +1352,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The contact type for an outside transaction coordinator reads exactly Transaction coordinator. The dropdown, the outside-user type, and the User List filter use those words and no description. A contact type that is not on the list says to pick Realtor, Lender, Buyer/Seller, or Transaction coordinator. A User List filter saved with the older longer label still finds the same people.
 
-**Status: In progress.** Tracker row 370, item TC-5b. John Coester, voice call Nov 18 2026, about 1:51 PM ET, the same wording as TC-5. Not Live. No database file.
+**Status: In progress.** Tracker row 370, item TC-5b. John Coester, voice call Nov 18 2026, about 1:51 PM ET, the same wording as TC-5. Pull request: [PR 362](https://github.com/Johncoester/cla-portal-demo/pull/362). Not Live. No database file.
 
 **What's built**
 
@@ -1368,6 +1368,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/tc-5b-type-label.md](docs/specs/tc-5b-type-label.md)
+- Pull request: [PR 362](https://github.com/Johncoester/cla-portal-demo/pull/362)
 - Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5b.
 
 **Decisions**
