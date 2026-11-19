@@ -1215,7 +1215,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. The choice says who they work for.
+- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. TC-1 said that on the choice. TC-5 (tracker row 370) replaces the two choices with one label, Transaction coordinator.
 - The old role stays on files that already have it. New people are not given that role from Add contact.
 
 ## Transaction coordinator contact type (TC-4)
@@ -1313,6 +1313,38 @@ This file lists the portal's major features: how each one should work, how far a
 - The coordinator stays when the agent is removed. Staff remove the coordinator from Order Contacts when that person should leave. That way a coordinator added by hand is never dropped because the agent left, and a coordinator added from the link is not dropped either.
 - Permission follows the link: the coordinator acts as the agent only while that agent is the buyer's agent or the listing agent on the file.
 - The file role list an outside user is added as stays Buyer Agent, Listing Agent, Client-Buyer, and Client-Seller. The coordinator is not added as a second agent. Their login is given the agent's role for that file so the existing checks (tasks, scheduling, upload) apply. Both coordinator sides stay allowed, which the two-role rule would block if those roles were added to that list.
+
+---
+
+## Transaction coordinator, one choice (TC-5)
+
+**How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent do they work for?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
+
+**Status: In progress.** Tracker row 370, item TC-5. John Coester, voice call Nov 18 2026, about 1:51 PM ET. Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350). Not Live. No database file.
+
+**What's built**
+
+- Add contact, Place Order, and Parties offer one role, Transaction coordinator.
+- The side is taken from the coordinator's links to the agents on that file. Linked to both agents saves both sides.
+- If there is no linked agent on the file, a required question lists the file's buyer's agent and listing agent. If the file has neither agent, saving says to add one first. What was typed stays.
+- Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. A refinance still has no transaction coordinator. The shell cache stamp is 202611246200.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Not Live.
+
+**Links**
+
+- Spec: [docs/specs/tc-5-one-choice.md](docs/specs/tc-5-one-choice.md)
+- Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350)
+- Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5.
+
+**Decisions**
+
+- The words on the choice are exactly Transaction coordinator. The side is not part of the label.
+- The side comes from the existing agent links (TC-2) and the same buyer or listing side those links already use (TC-3). Nothing new is stored.
+- The follow-up is only the question and the agents on this file. It is required when the side cannot be told from a link.
 
 ---
 
