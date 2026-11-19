@@ -2446,6 +2446,35 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
 - The disbursement date uses the existing column. Blank means the automatic date.
 
+## File Overview layout (FF-105)
+
+**How it should work.** On the staff File Overview, under the status tracker, four boxes show Transaction Type, Open Date, Close Date, and Purchase Price from the file. A Closing Team row shows Processor, CLA Transaction Coordinator, Licensed Settlement Agent, and Sales Person. The person's name is blank when nobody is assigned, and the role title stays. Each salesperson gets their own card. Parties stay as they are today, including Processor, Title Company, the sales rep, Preprocessor, Notes, Automation, Call, Email, copy, Source of business, All contacts, and the add-party buttons. The buyer agent's row reads Selling Agent and lines up with Listing Agent. Selling Agency and Listing Agency show the company already saved on that agent. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
+
+**Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- Staff File Overview shows the four boxes and the Closing Team cards.
+- Selling Agent is the on-screen name for the buyer agent. That row lines up with Listing Agent. The agency line uses the agent's company.
+- Processor, Title Company, sales rep, Preprocessor, Notes, Automation, and the existing buttons stay.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Licensed Settlement Agent has no saved field, so the card title shows and the name stays blank. Closer is unchanged.
+- The status tracker wording is unchanged.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-layout.md](docs/specs/file-overview-layout.md)
+
+**Decisions**
+
+- Layout only. No new database column and no removed field.
+- Licensed Settlement Agent is not the Closer.
+- A blank name means nobody is assigned. The role title stays.
+- More than one salesperson means more than one Sales Person card.
+
 ## CRM report grouping without fiscal buckets
 
 **How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.

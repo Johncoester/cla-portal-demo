@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611247700';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611247700';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611248300';
+import { prefetchDealTab } from './deal-tab.js?v=202611249100';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -228,7 +228,8 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
       <div class="op-status-top"><span class="op-status-label">ORDER STATUS &middot; <b data-status-step>Step ${stage + 1} of ${STAGES.length} &mdash; ${STAGES[stage]}</b>${ov && !staffView ? html` &middot; <span class="muted">your closing progress: <strong data-progress-step>${ov.progress.phaseName}</strong></span>` : ''}</span>
         <span class="op-status-right">${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>${staffView ? html` <button class="icon-edit" id="editdeal" title="Edit order details" aria-label="Edit order details">&#9998;</button>` : ''}` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</span></div>
       <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a step to set the stage. The last step closes the order.</p>` : ''}
-      ${staffView ? staffStatus : glance}</section>
+      ${staffView ? staffSummaryHtml(d) : ''}${staffView ? staffStatus : glance}</section>
+    ${staffView ? closingTeamHtml(d) : ''}
     ${staffView ? '' : html`<div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>`}
     ${staffView ? (edit && !d.processorId ? html`<div class="notice warn" data-unassigned-processor>This file has no processor yet. Click the Processor row to assign one.</div>` : '') : html`<p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}${d.parcelId ? html` &middot; Parcel <span data-parcel-id>${d.parcelId}</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorId ? html`<span data-processor-name>${d.processorName || 'assigned'}</span>` : staffView ? html`<span class="pill warn" data-unassigned-processor title="Click the Processor row to assign one">Unassigned</span>` : 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; Closer <span data-closer>${d.closerName || 'not set'}</span>` : ''}${d.tcUserId ? html` &middot; TC <span data-tc-name>${d.tcName || 'assigned'}</span>` : staffView ? html` &middot; TC <span class="muted" data-tc-none>not assigned</span>` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>`}
     ${staffView ? '' : html`${moneyRow(d, { canWire: staffView ? false : canWire, staffView, showEmd })}${earnestBlock(d, showEmd)}`}
@@ -489,6 +490,70 @@ export async function copyPlainText(text, deps = {}) {
     return ok;
   } catch (e) { return false; }
 }
+// FF-105 (Francis, Nov 19 2026): staff File Overview layout only. Labels and order. The stored role stays Buyer Agent.
+const teamName = (v) => String(v || '').trim();
+export function staffFileFacts(d) {
+  const price = d.purchasePrice == null || d.purchasePrice === '' ? '' : (fmtMoney(d.purchasePrice) || '');
+  return [
+    { key: 'transaction-type', label: 'Transaction Type', value: teamName(d.transactionType) },
+    { key: 'open-date', label: 'Open Date', value: fmtDate(d.openDate) || '' },
+    { key: 'close-date', label: 'Close Date', value: fmtDate(d.closingDate) || '' },
+    { key: 'purchase-price', label: 'Purchase Price', value: price },
+  ];
+}
+export function staffSummaryHtml(d) {
+  return html`<div class="op-summary" data-file-summary>${staffFileFacts(d).map((f) => html`<div class="op-sum-box" data-summary="${f.key}"><span class="op-box-label">${f.label}</span><strong>${f.value}</strong></div>`)}</div>`;
+}
+/* Licensed Settlement Agent has no saved field. The name stays blank. Closer is a different role and is not copied here. */
+export function closingTeamCards(d) {
+  const sales = (d.salesPeople || []).map((s) => ({ id: (s && s.id) || '', name: teamName(s && (s.name || `${s.firstName || ''} ${s.lastName || ''}`)) })).filter((s) => s.id || s.name);
+  const salesCards = (sales.length ? sales : [{ id: '', name: '' }]).map((s) => ({ role: 'Sales Person', name: s.name, id: s.id }));
+  return [
+    { role: 'Processor', name: teamName(d.processorName), id: d.processorId || '' },
+    { role: 'CLA Transaction Coordinator', name: teamName(d.tcName), id: d.tcUserId || '' },
+    { role: 'Licensed Settlement Agent', name: '', id: '', blankBecause: 'no-field' },
+    ...salesCards,
+  ];
+}
+export function closingTeamHtml(d) {
+  return html`<div class="box-title"><h2><span class="h-ico"></span>Closing Team</h2></div>
+    <div class="op-team" data-closing-team>${closingTeamCards(d).map((c) => html`<div class="op-team-card" data-team-card="${c.role}"${c.id ? html` data-team-id="${c.id}"` : ''}${c.blankBecause ? html` data-team-blank="${c.blankBecause}"` : ''}><span class="op-box-label">${c.role}</span><strong data-team-name>${c.name}</strong></div>`)}</div>`;
+}
+export function staffRoleTitle(p) {
+  if (p && p.label === 'Buyer Agent') return 'Selling Agent';
+  return (p && p.label) || '';
+}
+export function agencyDisplayName(rows) {
+  const names = [];
+  for (const p of rows || []) {
+    if (!p || p.placeholder) continue;
+    const co = teamName(p.company);
+    if (co && !names.includes(co)) names.push(co);
+  }
+  return names.join(', ');
+}
+/* Staff list order for the screen. Does not drop a row. Buyer Agent stays the stored label. */
+export function staffPartyPlan(rows) {
+  const list = (rows || []).map((p, rowIndex) => ({ ...p, rowIndex }));
+  const pull = (pred) => {
+    const hit = [];
+    for (let i = list.length - 1; i >= 0; i -= 1) if (pred(list[i])) hit.unshift(list.splice(i, 1)[0]);
+    return hit;
+  };
+  const buyers = pull((p) => p.label === 'Buyer' || p.label === 'Borrower');
+  const sellers = pull((p) => p.label === 'Seller');
+  const lenders = pull((p) => p.label === 'Lender' || p.fileRole === 'Lender');
+  lenders.sort((a, b) => (/loan officer/i.test(a.company || '') ? 1 : 0) - (/loan officer/i.test(b.company || '') ? 1 : 0));
+  const sellingAgents = pull((p) => p.label === 'Buyer Agent');
+  const listingAgents = pull((p) => p.label === 'Listing Agent');
+  const sellingTcs = pull((p) => p.fileRole === BUYER_AGENT_TC);
+  const listingTcs = pull((p) => p.fileRole === LISTING_AGENT_TC);
+  const showAgents = sellingAgents.length + listingAgents.length > 0;
+  return {
+    buyers, sellers, lenders, sellingAgents, listingAgents, sellingTcs, listingTcs, rest: list,
+    agencies: showAgents ? { selling: agencyDisplayName(sellingAgents), listing: agencyDisplayName(listingAgents) } : null,
+  };
+}
 const OVERVIEW_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Processor', 'Preprocessor'];
 // John, Nov 4 meeting: CLA staff also get the ABSTRACTOR and the UNDERWRITER in the same list. Someone added on Contacts with that role shows
 // with their details; otherwise the row still shows (Underwriter = the state's underwriter from Underwriter Splits, Abstractor = not assigned yet).
@@ -496,7 +561,7 @@ export const STAFF_EXTRA_ROLES = ['Abstractor', 'Underwriter'];
 export function partyRows(d, ov, staffView, splits = []) {
   const rows = ov ? ov.parties.map((p) => ({ ...p })) : [];
   if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role) && !(p.role === 'Lender' && rows.some((r) => r.label === 'Lender')))
-    .forEach((p) => { const roleBit = lenderRoleLabel(p.contact.lenderRole); const name = partyDisplayName(p); const company = [p.contact.company && p.contact.company !== name ? p.contact.company : '', roleBit].filter(Boolean).join(' · '); const agentTc = isAgentTcRole(p.role); const agentName = agentTc ? sideAgentName(d.participants, p.role) : ''; rows.push({ label: agentTc ? agentTcLabel(p.role) : p.role, agentNote: agentName, addRole: agentTc ? AGENT_TC_PICK : p.role, replaceId: agentTc ? p.id : '', agentTc, name, company, email: p.contact.email || '', phone: p.contact.phone || '', contactId: p.contact.contactHidden ? '' : (p.contactId || ''), contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }); });
+    .forEach((p) => { const roleBit = lenderRoleLabel(p.contact.lenderRole); const name = partyDisplayName(p); const company = [p.contact.company && p.contact.company !== name ? p.contact.company : '', roleBit].filter(Boolean).join(' · '); const agentTc = isAgentTcRole(p.role); const agentName = agentTc ? sideAgentName(d.participants, p.role) : ''; rows.push({ label: agentTc ? agentTcLabel(p.role) : p.role, fileRole: p.role, agentNote: agentName, addRole: agentTc ? AGENT_TC_PICK : p.role, replaceId: agentTc ? p.id : '', agentTc, name, company, email: p.contact.email || '', phone: p.contact.phone || '', contactId: p.contact.contactHidden ? '' : (p.contactId || ''), contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }); });
   if (staffView && !isRefi(d) && !rows.some((r) => r.agentTc)) rows.push({ label: agentTcLabel(AGENT_TC_PICK), addRole: AGENT_TC_PICK, agentTc: true, name: 'Not specified', company: '', email: '', phone: '', placeholder: true });
   if (staffView) for (const role of STAFF_EXTRA_ROLES) if (!rows.some((r) => r.label === role)) {
     const sp = role === 'Underwriter' ? (splits || []).find((x) => x.state === String(d.state || '').toUpperCase() && x.underwriter) : null;
@@ -515,15 +580,18 @@ function referralCell(row, state, canEdit) {
   }
   return html`<label class="op-ref referral-source"><input type="radio" name="fileReferral" value="${value}" data-referral-source="${value}" aria-label="Source of business: ${who}" ${state.checked ? raw('checked') : ''}> <span>Source of business</span></label>`;
 }
-function partiesList(d, ov, staffView, { splits = [], edit = false, source = '', sourceLabel = '' } = {}) {
+export function partiesList(d, ov, staffView, { splits = [], edit = false, source = '', sourceLabel = '' } = {}) {
   const rows = partyRows(d, ov, staffView, splits);
   const referral = staffView ? fileReferralState({ source, sourceLabel, rows, canEdit: edit }) : null;
+  const plan = staffView ? staffPartyPlan(rows) : null;
   const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
     const row = (p, i) => { const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
-    const ref = referral ? referralCell(p, referral.rows[i], edit) : '';
+    const at = p.rowIndex != null ? p.rowIndex : i;
+    const ref = referral ? referralCell(p, referral.rows[at], edit) : '';
     const pickProcessor = p.label === 'Processor' && edit;
-    return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${pickProcessor ? html` data-processor-editable` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${i}">
-      <span class="op-role">${p.label}${p.agentNote ? html` · ${p.agentNote}` : ''}</span><span class="op-nm">${avatar(p)}${p.entity && p.name === p.entity.name ? '' : entityLine(p.entity)}<strong>${p.name}</strong>${p.entity && p.name === p.entity.name && (p.entity.repName || p.entity.type) ? html`<small data-entity-rep>${[p.entity.type, p.entity.repName].filter(Boolean).join(' · ')}</small>` : ''}${p.company ? html`<small>${p.company}</small>` : ''}</span>
+    const title = staffView ? staffRoleTitle(p) : p.label;
+    return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${pickProcessor ? html` data-processor-editable` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${at}">
+      <span class="op-role">${title}${p.agentNote ? html` · ${p.agentNote}` : ''}</span><span class="op-nm">${avatar(p)}${p.entity && p.name === p.entity.name ? '' : entityLine(p.entity)}<strong>${p.name}</strong>${p.entity && p.name === p.entity.name && (p.entity.repName || p.entity.type) ? html`<small data-entity-rep>${[p.entity.type, p.entity.repName].filter(Boolean).join(' · ')}</small>` : ''}${p.company ? html`<small>${p.company}</small>` : ''}</span>
       ${hid ? html`<span class="op-ph op-hidden muted small contact-hidden" data-contact-hidden>${HIDDEN_CONTACT}</span><span class="op-em"></span>` : html`<span class="op-ph">${tel ? html`<span class="op-copy-val">${fmtPhone(p.phone)}</span>${partyCopyButton('phone', fmtPhone(p.phone))}` : html`<span class="muted">&mdash;</span>`}</span><span class="op-em">${em ? html`<span class="op-copy-val">${em}</span>${partyCopyButton('email', em)}` : html`<span class="muted">&mdash;</span>`}</span>`}
       <span class="op-acts">${tel ? html`<a class="op-act" href="tel:${tel}" data-call aria-label="Call ${p.name}">&#9742; Call</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9742; Call</span>`}
         ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
@@ -531,10 +599,15 @@ function partiesList(d, ov, staffView, { splits = [], edit = false, source = '',
         ${pickProcessor ? html`<button type="button" class="op-act" data-pick-processor>${processorPickLabel(p.name)}</button>` : ''}
         ${p.placeholder && edit && !p.agentTc ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}
         ${p.agentTc && edit ? html`<button type="button" class="op-act" data-add-party="${p.addRole}"${p.replaceId ? html` data-replace-party="${p.replaceId}"` : ''}>${p.placeholder ? '+ Add' : 'Change'}</button>` : ''}</span>${ref}</div>`; };
+  const one = (p) => row(p, p.rowIndex);
+  const blankSide = (title) => html`<div class="op-prow is-placeholder" data-party="${title}" data-party-placeholder><span class="op-role">${title}</span><span class="op-nm"><strong></strong></span><span class="op-ph"><span class="muted">&mdash;</span></span><span class="op-em"><span class="muted">&mdash;</span></span><span class="op-acts"><span class="op-act is-off" aria-disabled="true">&#9742; Call</span><span class="op-act is-off" aria-disabled="true">&#9993; Email</span></span></div>`;
+  const agencySide = (title, name) => html`<div class="op-prow" data-party-display="${title}"><span class="op-role">${title}</span><span class="op-nm"><strong>${name}</strong></span></div>`;
+  const pair = (kind, left, right) => html`<div class="op-align" data-party-align="${kind}"><div class="op-align-side" data-side="selling">${left}</div><div class="op-align-side" data-side="listing">${right}</div></div>`;
+  const staffRows = plan ? html`${plan.buyers.map(one)}${plan.sellers.map(one)}${plan.lenders.map(one)}${plan.agencies ? pair('agencies', agencySide('Selling Agency', plan.agencies.selling), agencySide('Listing Agency', plan.agencies.listing)) : ''}${plan.agencies ? pair('agents', plan.sellingAgents.length ? plan.sellingAgents.map(one) : blankSide('Selling Agent'), plan.listingAgents.length ? plan.listingAgents.map(one) : blankSide('Listing Agent')) : ''}${plan.sellingTcs.length || plan.listingTcs.length ? pair('coordinators', plan.sellingTcs.length ? plan.sellingTcs.map(one) : blankSide('Transaction coordinator'), plan.listingTcs.length ? plan.listingTcs.map(one) : blankSide('Transaction coordinator')) : ''}${plan.rest.map(one)}` : '';
   const legacy = referral && referral.legacy ? html`<p class="op-ref-legacy" data-referral-unmatched>Source of business: ${referral.unmatched}. This value is not tied to one person on the file.</p>` : '';
   const clear = referral && edit ? html`<label class="referral-source op-ref-clear"><input type="radio" name="fileReferral" value="" data-referral-clear aria-label="Source of business: Not set" ${referral.clearChecked ? raw('checked') : ''}> Not set</label>` : '';
   const hint = referral ? html`<p class="muted small" data-referral-hint>Source of business is one person: a buyer, seller, buyer agent, listing agent, or lender. It is not the CLA salesperson and it does not change a contact's Lead Source.</p>` : '';
-  return html`<div class="op-plist" data-parties data-party-list-all${referral ? raw(' data-referral-on') : ''}>${rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
+  return html`<div class="op-plist" data-parties data-party-list-all${referral ? raw(' data-referral-on') : ''}>${plan ? staffRows : rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
     ${staffView && edit ? html`<div class="op-ref-tools" data-referral-tools>${clear}</div>` : ''}${legacy}${hint}${staffView ? html`<p class="op-source muted" data-source-of-business>Source of business: ${sourceLabel || 'Not set'}</p>` : ''}
     <p class="muted small op-pnote">Call and Email open your phone or mail app. The portal does not send anything.</p>`;
 }
