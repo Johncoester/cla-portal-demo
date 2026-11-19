@@ -2302,6 +2302,31 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The saved field is still salesIds. The database still accepts any active staff login as a salesperson.
 - The list uses the role strings Sales Person and Sales Team.
 
+## Place Order walkthrough picks a real salesperson (E2E-FIX-B)
+
+**How it should work.** The Place Order walkthrough, signed in as the non-demo E2E Processor, searches Team & Notes for a salesperson who is not a demo user. A name that is not a person still says no match. The file-number prefix checks stay as they are.
+
+**Status: In progress.** Tracker row E2E-FIX-B. John, Nov 19 2026. No database file. Not Live. Nothing on testportal.clatitle.com changes.
+
+**What's built**
+
+- On TEST the walkthrough searches E2E Salesperson, checks that name on the chip, and checks that one salesperson id is saved.
+- A nonsense name still shows "No match."
+- The fake-data run still searches Sam Salesperson, the sample salesperson, who is not a demo user.
+
+**What's still missing**
+
+- Not merged. Do not mark Live. There is no database file, and the walkthrough has not been run again on TEST.
+- The file-number prefix checks were not reached in recent runs, because the walkthrough stopped on the old name. This change does not prove those checks.
+
+**Links**
+
+- Spec: [docs/specs/e2e-fix-b.md](docs/specs/e2e-fix-b.md)
+- Evidence: Actions run [44513431332](https://github.com/Johncoester/cla-portal-demo/actions/runs/44513431332), failing since run [44163727716](https://github.com/Johncoester/cla-portal-demo/actions/runs/44163727716) after FF-092 ([PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322), commit 8dbc9be1).
+
+**Decisions**
+
+- The test used a demo-only name. Sam Demo is hidden from the non-demo processor on purpose. The TEST search is E2E Salesperson. The portal code is unchanged (rule 5).
 
 ---
 
