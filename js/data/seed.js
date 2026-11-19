@@ -2,7 +2,22 @@
 import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611247700';
 import { crmZohoUpgrade } from './crm.js?v=202611247700';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611247700';
+// Sample orders already in the demo keep these five. Do not use this list for a new order.
 export const DEAL_FOLDERS = ['Contract & addenda', 'IDs & personal', 'Lender & payoff', 'HOA', 'Closing'];
+// FF-104b (Francis Santos, Nov 19 2026). A new closing order gets these eight instead.
+// Six names are also in TITLE_FOLDERS (js/data/title.js). Title adds a folder only when that
+// exact name is not already on the order, so those six are not created twice.
+// "450 Final Closing Documents" is not Title's "450 Prior Closing Documents".
+export const ORDER_DEFAULT_FOLDERS = [
+  '100 Processing',
+  '200 Title',
+  '300 Payoffs and Invoices',
+  '400 Lender Closing Instructions',
+  '450 Final Closing Documents',
+  '500 Post Closing - Final Signed Docs',
+  '600 Funds, Agent Commission Wire Instructions',
+  '700 Recorded Documents and Policies',
+];
 const addDays = (iso, n) => new Date(Date.parse(iso.slice(0, 10) + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 export function buildSeed() {
   const P = (id, first, last, role, n, extra = {}) => ({ id, email: `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '') + '@example.test', firstName: first, lastName: last,
