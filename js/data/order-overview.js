@@ -1,7 +1,7 @@
 // Order overview shape shared by the Supabase adapter. Inputs are already limited by RLS
 // (deal_contacts hides the other side, tasks/documents/threads/activity use their own policies).
 // This function does not invent rows, prices, or activity. A hidden contact keeps a blank phone and email.
-import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611245800';
+import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611246500';
 import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611245800';
 import { partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';

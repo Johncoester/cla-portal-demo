@@ -66,7 +66,7 @@ ok(msg(() => readPlaceOrderFees(form, 500000)) === 'Listing agent: Buyer amount 
 
 // ---- pointer and read-only summary ----
 const pointer = toText(agentFeesPointer('link', 'deal-1'));
-ok(pointer.includes('href="#/deals/deal-1"') && pointer.includes('only place'), 'the pointer links to the file overview and says it is the only place');
+ok(pointer.includes('href="#/deals/deal-1/tasks"') && pointer.includes('only place') && /task sections on Tasks/.test(pointer) && !/file overview/i.test(pointer), 'the pointer links to Tasks and says Agent fees under the agent task sections is the only place');
 const summary = toText(agentFeesSummaryHtml({ sides: { listing: 'edit' }, fees: { listing: { commission: { percent: 3, amount: 12000, payer: 'seller', source: 'staff' }, admin: null, other: [], rows: 1 } } }, 'deal-1'));
 ok(summary.includes('$12,000') && !summary.includes('data-af-edit'), 'Accounting shows the fees read only, with no Edit button');
 
