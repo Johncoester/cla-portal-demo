@@ -22,7 +22,7 @@ import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from 
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611245800';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
 import { prefetchDealTab } from './deal-tab.js?v=202611246600';
-import { placeText } from '../data/cla-offices.js?v=202611246600';
+import { placeText } from '../data/cla-offices.js?v=202611246700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611245800';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';

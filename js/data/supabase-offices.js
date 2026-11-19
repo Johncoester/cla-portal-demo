@@ -2,7 +2,7 @@
  * project (best effort; the mock adapter and the SQL tests are the tested parts).
  *  - public.offices / public.office_counties: CLA staff read; writes go through save_office / set_office_active / reorder_offices (Admin, Super admin).
  *  - public.closing_office_choices(deal) + closing_office_default(deal): the picker for anyone on the order (active offices + a retired one in use). */
-import { OFFICE_LOCATION, officeAddress, canManageOffices, cleanOffice, nearestOffice } from './offices.js?v=202611246600';
+import { OFFICE_LOCATION, officeAddress, canManageOffices, cleanOffice, nearestOffice } from './offices.js?v=202611246700';
 const row = (o, counties) => ({ id: o.id, name: o.name, addressLine1: o.address_line1, addressLine2: o.address_line2 || '', city: o.city, state: o.state, zip: o.zip,
   latitude: o.latitude == null || o.latitude === '' ? null : Number(o.latitude), longitude: o.longitude == null || o.longitude === '' ? null : Number(o.longitude),
   phone: o.main_phone || '', email: o.email || '', isMainOfficeForState: !!o.is_main_office_for_state, active: !!o.active,
@@ -17,7 +17,8 @@ export function officesSupabase({ sb, ok, me }, base = {}) {
     return offices.map((o) => view(row(o, counties))); };
   const save = async (id, input) => { const v = cleanOffice(input);
     const newId = ok(await sb.rpc('save_office', { p_id: id, p_name: v.name, p_address_line1: v.addressLine1, p_address_line2: v.addressLine2, p_city: v.city, p_state: v.state, p_zip: v.zip,
-      p_main_phone: v.phone, p_email: v.email || null, p_is_main: v.isMainOfficeForState, p_counties: v.counties.map((c) => c.county), p_latitude: v.latitude, p_longitude: v.longitude }));
+      p_main_phone: v.phone, p_email: v.email || null, p_is_main: v.isMainOfficeForState, p_counties: v.counties.map((c) => c.county), p_latitude: v.latitude, p_longitude: v.longitude,
+      p_used_for_settlements: v.usedForSettlements }));
     return { ...(await all()).find((o) => o.id === newId), mainMovedFrom: [] }; };
   const choices = async (dealId) => ok(await sb.rpc('closing_office_choices', { p_deal: dealId })) || [];
   return {

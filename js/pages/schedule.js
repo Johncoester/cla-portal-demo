@@ -3,7 +3,7 @@
 import { html, raw, $, guard, toast, formData } from '../ui.js?v=202611161500';
 import { slotText } from './dealclosing.js?v=202611246600';
 import { CLOSING_LOCATIONS } from '../data/constants.js?v=202611245800';
-import { OFFICE_LOCATION } from '../data/cla-offices.js?v=202611246600';
+import { OFFICE_LOCATION } from '../data/cla-offices.js?v=202611246700';
 
 export async function render({ api, params }) {
   let s; try { s = await api.getSchedulingLink(params.token); } catch (e) { return { title: 'Closing time', body: shell(html`<h2>Link not valid</h2><p>${e.message}</p>`) }; }
