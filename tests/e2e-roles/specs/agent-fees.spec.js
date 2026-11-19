@@ -56,6 +56,8 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   await expect(side(page, 'listing').locator('[data-af-admin]')).toContainText('$395');
 
   // Edit order details no longer takes a commission: it points to the Agent fees box
+  // E2E-FIX-D: the Edit order details button is on File Overview, not Tasks (same fix FF-101c made in order-entry.spec.js)
+  await gotoHash(page, `#/deals/${id}`);
   await page.locator('#editdeal').click();
   await expect(page.locator('#edf [data-agent-fees-pointer]')).toBeVisible();
   await expect(page.locator('#edf input[name="commissionPercent"]')).toHaveCount(0);
