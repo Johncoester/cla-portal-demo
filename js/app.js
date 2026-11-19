@@ -2,7 +2,7 @@
 import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611246700';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611246600';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611247600';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611245800';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611245800';
@@ -26,6 +26,7 @@ import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { canRequestVoice, voiceRouteOk } from './data/voice-demo.js?v=202611102100';
 import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611161500';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611161500';   // John, Nov 4 call: sidebar search + pinned order nav
+import { staffDealNav, wireFileFolds } from './file-sidebar.js?v=202611247600';
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611245800';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611091730';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
@@ -47,7 +48,7 @@ const pages = {
   dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611246600')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611245800')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611246500')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611246600')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611247600')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611245900')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611245900')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
@@ -196,11 +197,22 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const tasksNav = pureBuyer ? html`${link('tasks', 'To-do list', 'task')}${myTasksLink}` : fileAgent ? myTasksLink : html`${link('tasks', 'Tasks', 'task')}${myTasksLink}`;
   const acctOn = !!deal && !!((api.features || {}).accounting && acctCanRead(u) && modOn('accounting'));
   const fundingOn = !!deal && !!((api.features || {}).funding && fwpCanRead(u) && modOn('funding'));
-  const acctView = route.params.v || '';
-  const acctItem = (view, label) => html`<li class="nav-item"><a class="nav-link documents ${t === 'accounting' && acctView === view ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=${view}" data-nav-acct="${view}"${tip(label)}>${lbl('accounting', label)}</a></li>`;
-  const accountingMenu = acctOn ? html`<li class="nav-sep" data-nav-acct-section${modBeta('accounting') ? raw(' data-beta-nav') : ''}>Accounting${modBeta('accounting') ? betaTag('accounting') : ''}</li>${acctItem('ledger', 'Ledger')}${acctItem('receipts', 'Receipts')}${acctItem('disbursements', 'Disbursements')}${acctItem('balances', 'Account Balances')}${acctItem('balancing', 'Balancing')}${fundingOn ? html`<li class="nav-item"><a class="nav-link documents ${t === 'funding' ? 'active' : ''}" href="#/deals/${dealId}/funding" data-nav-acct="funding"${tip('Loan Funding')}>${lbl('funding', 'Loan Funding')}</a></li>` : ''}` : '';
+  const fileQuery = new URLSearchParams((typeof location !== 'undefined' ? location.hash : '').split('?')[1] || '');
+  const fileHead = html`${link('overview', 'File Overview', 'orders')}${tasksNav}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}`;
+  const legacyFile = html`${link('closing', 'Scheduling Details', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${fundingOn && !acctOn ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}`;
+  const orderNav = acctOn ? staffDealNav({
+    dealId, tab: t, view: route.params.v || '', section: fileQuery.get('s') || '', focus: fileQuery.get('focus') || '',
+    link, lbl, tip, betaTag,
+    titleOn: !!((api.features || {}).title && titleCanRead(u) && modOn('title')),
+    policyOn: !!((api.features || {}).policy && fwpCanRead(u) && modOn('policy')),
+    wiresOn: !!((api.features || {}).wires && fwpCanRead(u) && modOn('wires')),
+    fundingOn, payoffsReach: canReachPayoffs(u), payoffsOn: modOn('payoffs'),
+    postClosingOn: modOn('post-closing'), recordingOn: modOn('e-recording'),
+    acctBeta: modBeta('accounting'), titleBeta: modBeta('title'), payoffsBeta: modBeta('payoffs'),
+    fundingBeta: modBeta('funding'), wiresBeta: modBeta('wires'), policyBeta: modBeta('policy'),
+  }) : '';
   const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${tasksNav}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
-    : deal ? html`<li class="nav-sep">This file</li>${link('overview', 'File Overview', 'orders')}${tasksNav}${link('inbox', deal && isClient(deal.myRole) ? 'Messages' : 'Inbox', 'inbox')}${canUseGmail(u) && api.listDealEmails && api.mode === 'supabase' ? link('email', 'Email', 'inbox') : ''}${link('documents', 'Documents', 'documents')}${link('closing', 'Scheduling Details', 'task')}${link('contacts', 'Contacts', 'contact-us')}${link('agreements', 'Agreements', 'documents')}${link('activity', 'Activity', 'activity')}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? html`${accountingMenu}${modOn('post-closing') ? html`<li class="nav-item"><a class="nav-link ${t === 'accounting' && route.params.v === 'postclosing' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-postclosing>Post-Closing</a></li>` : ''}${modOn('e-recording') ? html`<li class="nav-item"><a class="nav-link" href="#/deals/${dealId}/accounting?v=postclosing" data-nav-recording>E-Recording</a></li>` : ''}${canReachPayoffs(u) && modOn('payoffs') ? html`<li class="nav-item"><a class="nav-link payoffs ${t === 'accounting' && route.params.v === 'payoffs' ? 'active' : ''}" href="#/deals/${dealId}/accounting?v=payoffs" data-nav-payoffs${tip('Payoffs / HOA', modBeta('payoffs'))}>${lbl('accounting', 'Payoffs / HOA')}</a></li>` : ''}` : ''}${fundingOn && !acctOn ? link('funding', 'Funding', 'documents', modBeta('funding')) : ''}${(api.features || {}).wires && fwpCanRead(u) && modOn('wires') ? link('wires', 'Wires', 'documents', modBeta('wires')) : ''}${(api.features || {}).policy && fwpCanRead(u) && modOn('policy') ? link('policy', 'Final Policy', 'documents', modBeta('policy')) : ''}${(api.features || {}).title && titleCanRead(u) && modOn('title') ? html`<li class="nav-item"><a class="nav-link title-nav ${t === 'title' ? 'active' : ''}" href="#/deals/${dealId}/title" data-nav-title${tip('Title', modBeta('title'))}${modBeta('title') ? raw(' data-beta-nav') : ''}>${lbl('title', 'Title')}${modBeta('title') ? betaTag('title') : ''}</a></li>` : ''}` : '';   // John, Nov 4: Title sits directly under Payoffs / HOA (staff only)   // (buyer branch above)
+    : deal ? html`<li class="nav-sep">This file</li>${fileHead}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? orderNav : legacyFile}` : '';   // FF-103: Accounting readers get the rearranged file menu. Everyone else keeps the shorter menu.
   // Inside a file the portal menu starts closed for every role. The file name and file tabs stay. The button only shows or hides that menu.
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
@@ -378,13 +390,26 @@ function markOpenFileTab(root) {
   if (!route || route.page !== 'deal' || !route.params || !route.params.id) return;
   const tab = route.params.tab || 'overview';
   const id = route.params.id;
+  const q = new URLSearchParams((location.hash || '').split('?')[1] || '');
+  const view = q.get('v') || '';
+  const sec = q.get('s') || '';
+  const focus = q.get('focus') || '';
+  const mine = q.get('mine') === '1';
+  const books = { ledger: 1, receipts: 1, disbursements: 1, balances: 1, balancing: 1 };
   root.querySelectorAll('a.nav-link').forEach((a) => {
     const href = a.getAttribute('href') || '';
     if (href.indexOf('#/deals/' + id) !== 0) return;
+    const hq = new URLSearchParams((href.split('?')[1] || '').split('#')[0]);
     const path = href.split('?')[0].replace(/^#\/?/, '').split('/').filter(Boolean);
     const linkTab = path[2] || 'overview';
-    const v = new URLSearchParams(href.split('?')[1] || '').get('v') || '';
-    a.classList.toggle('active', linkTab === tab && (tab !== 'accounting' || v === (route.params.v || '')));
+    if (linkTab !== tab) { a.classList.remove('active'); return; }
+    if (a.hasAttribute('data-nav-accounting')) { a.classList.toggle('active', !!books[view]); return; }
+    if (linkTab === 'tasks') { a.classList.toggle('active', (hq.get('mine') === '1') === mine); return; }
+    if (hq.has('focus') || a.hasAttribute('data-nav-earnest')) { a.classList.toggle('active', (hq.get('focus') || '') === focus && (hq.get('v') || '') === view); return; }
+    if (hq.has('s')) { a.classList.toggle('active', (hq.get('v') || '') === view && (hq.get('s') || '') === (sec || (view === 'charges' ? 'A' : ''))); return; }
+    if (hq.has('v')) { a.classList.toggle('active', (hq.get('v') || '') === view && !sec && !focus); return; }
+    if (tab === 'accounting' || tab === 'title' || tab === 'funding' || tab === 'wires' || tab === 'policy') { a.classList.toggle('active', !view); return; }
+    a.classList.add('active');
   });
 }
 function nextPaint() {
@@ -642,6 +667,7 @@ function wireFileNav() {
   const apply = (open) => { box.hidden = !open; btn.setAttribute('aria-expanded', open ? 'true' : 'false'); btn.textContent = open ? 'Hide portal menu' : 'Show portal menu'; };
   apply(false);
   btn.addEventListener('click', (e) => { e.preventDefault(); apply(box.hidden); });
+  wireFileFolds();
 }
 function syncFeedback(person) {
   syncStaffFeedbackWidget({ user: person || null, demoActive: !!(DEMO_VIEW && DEMO_VIEW.active), viewingAs: !!(VIEW_AS && VIEW_AS.viewing), getApi: getAdapter });

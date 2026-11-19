@@ -261,7 +261,7 @@ const want = new Map([
   ['js/data/adapter.js', '202611246700', '202611246700'],
   ['js/pages/crm-dashboards.js', '202611245800'],
   ['js/pages/crm.js', '202611245800'],
-  ['js/app.js', '202611246700', '202611246700'],
+  ['js/app.js', '202611247600', '202611247600', '202611247600'],
 ]);
 function walkDir(dir, out = []) {
   for (const name of readdirSync(dir)) {
