@@ -8,10 +8,10 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
   phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611247700';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
-import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611249100';
+import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611249300';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611247700';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611249100';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611249300';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611248300';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611247700';
