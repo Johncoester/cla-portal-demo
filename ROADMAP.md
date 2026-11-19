@@ -1215,7 +1215,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. The choice says who they work for.
+- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. TC-1 said that on the choice. TC-5 (tracker row 370) replaces the two choices with one label, Transaction coordinator.
 - The old role stays on files that already have it. New people are not given that role from Add contact.
 
 ## Transaction coordinator contact type (TC-4)
@@ -1286,7 +1286,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
 
-**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back, so nothing from this file is on TEST. The database file is corrected in place. Not applied on TEST. Not Live.
 
 **What's built**
 
@@ -1295,7 +1295,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Removing the agent leaves the coordinator on the file, including a coordinator someone added by hand.
 - The coordinator's login is treated as their agent on that file: they see the file, finish the agent's tasks, schedule the settlement, and upload. The task says the coordinator completed it on behalf of the agent.
 - The same coordinator is the buyer side on a file where their agent represents the buyer, and the listing side where that agent represents the seller.
-- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The shell cache stamp is 202611246000.
+- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The first copy used `private.outside_roles(pid, d)[1]`, which Postgres rejects. The corrected copy uses `(private.outside_roles(pid, d))[1]`. The rollback already used a column, not that call, so it did not need the same change. No page file changed, so the shell cache stamp stays 202611246000.
 
 **What's still missing**
 
@@ -1317,10 +1317,13 @@ This file lists the portal's major features: how each one should work, how far a
 ---
 
 ## Agents see only their own tasks (FF-101a)
+## Transaction coordinator, one choice (TC-5)
 
 **How it should work.** On a file, the buyer's agent, the listing agent, and a transaction coordinator acting for them see only the tasks assigned to them. The general **Tasks** button and tab are removed for those people so they cannot open every task on the file. They keep **My Tasks**. Staff keep Tasks and My Tasks as they are today. A coordinator linked to the agent (TC-3) can still see and finish that agent's tasks.
+**How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent do they work for?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
 
 **Status: In progress.** Tracker row FF-101a. Francis Santos, Nov 18 2026 11 AM meeting notes, confirmed by John Nov 18 2:13 PM ET. Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row 370, item TC-5. John Coester, voice call Nov 18 2026, about 1:51 PM ET. Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350). Not Live. No database file.
 
 **What's built**
 
@@ -1329,23 +1332,35 @@ This file lists the portal's major features: how each one should work, how far a
 - The agent overview "outstanding" button opens My Tasks.
 - The fake portal and the database file refuse agent reads of other parties' tasks. A coordinator still sees the agent's own tasks and can finish them on the agent's behalf.
 - The database file is `supabase/migrations/20261125280000_agent_own_tasks.sql` (with rollback). The shell cache stamp is 202611246300.
+- Add contact, Place Order, and Parties offer one role, Transaction coordinator.
+- The side is taken from the coordinator's links to the agents on that file. Linked to both agents saves both sides.
+- If there is no linked agent on the file, a required question lists the file's buyer's agent and listing agent. If the file has neither agent, saving says to add one first. What was typed stays.
+- Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. A refinance still has no transaction coordinator. The shell cache stamp is 202611246200.
 
 **What's still missing**
 
 - Not applied on TEST. Not Live.
 - Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks.
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Not Live.
 
 **Links**
 
 - Spec: [docs/specs/agent-own-tasks.md](docs/specs/agent-own-tasks.md)
 - PR: [#355](https://github.com/Johncoester/cla-portal-demo/pull/355)
 - Source: Francis Santos, Nov 18 2026 11 AM meeting notes (Gmail 1a1ef9d3d862da08), confirmed by John Nov 18 2:13 PM ET. Tracker row FF-101a.
+- Spec: [docs/specs/tc-5-one-choice.md](docs/specs/tc-5-one-choice.md)
+- Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350)
+- Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5.
 
 **Decisions**
 
 - Enforce in the UI first, and tighten the database so an agent cannot read other parties' tasks even outside the menu.
 - Staff views are unchanged.
 - A TC acting for an agent must still see and complete that agent's tasks (TC-3).
+- The words on the choice are exactly Transaction coordinator. The side is not part of the label.
+- The side comes from the existing agent links (TC-2) and the same buyer or listing side those links already use (TC-3). Nothing new is stored.
+- The follow-up is only the question and the agents on this file. It is required when the side cannot be told from a link.
 
 ---
 

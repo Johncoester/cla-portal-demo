@@ -91,7 +91,7 @@ security definer
 set search_path to pg_catalog, public, extensions
 as $$
   select case when pr.role is distinct from 'Outside user' then pr.role
-    else coalesce(private.outside_roles(pid, d)[1], 'Outside user') end
+    else coalesce((private.outside_roles(pid, d))[1], 'Outside user') end
   from (select (select role from public.profiles where id = pid) as role) pr
 $$;
 

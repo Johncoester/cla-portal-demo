@@ -13,7 +13,7 @@ import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCitizenshipFreeText } from './templates.js?v=202611245800';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611245800';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611246000';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611246200';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611246000';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
@@ -245,7 +245,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const d = load();
     if (!(d.agentTcLinks || []).some((l) => l.tcContactId === tc.id && l.agentContactId === agent.id)) return null;
     if (!d.participants.some((p) => p.dealId === dealId && p.contactId === agent.id && p.role === role)) return null;
-    return { agentProfileId, role, roleLabel: role === 'Listing Agent' ? 'Listing transaction coordinator' : "Buyer's transaction coordinator" };
+    return { agentProfileId, role, roleLabel: 'Transaction coordinator' };
   }
   // When an agent is added, or a link is saved, put each linked coordinator on that side.
   // dealId set: that file only (any status except a refinance). dealId empty: open files only.

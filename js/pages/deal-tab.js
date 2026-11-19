@@ -4,7 +4,7 @@ const TABS = Object.assign(Object.create(null), {
   inbox: './dealmsgs.js?v=202611245800',
   email: './dealemail.js?v=202611245800',   // John, Nov 9: Gmail phase 1 (staff only; the tab module refuses everyone else)
   documents: './dealdocs.js?v=202611245800',
-  contacts: './dealcontacts.js?v=202611245900',
+  contacts: './dealcontacts.js?v=202611246200',
   activity: './dealactivity.js?v=202611161500',
   closing: './dealclosing.js?v=202611245800',
   agreements: './dealagreements.js?v=202611161500',
@@ -14,7 +14,7 @@ const TABS = Object.assign(Object.create(null), {
   wires: './dealfwp.js?v=202611245800',
   policy: './dealfwp.js?v=202611245800',
 });
-const TASK_FORM = './dealtaskform.js?v=202611245900';
+const TASK_FORM = './dealtaskform.js?v=202611246200';
 
 function ownSpec(tab) {
   if (typeof tab !== 'string' || !Object.prototype.hasOwnProperty.call(TABS, tab)) return '';

@@ -10,7 +10,7 @@ import { assertContactSaved, contactWritePatch, sameParty } from '../data/contac
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611245800';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611245800';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { agentTcChoiceLabel, agentTcHelp, agentTcLabel, isAgentTcRole, rolesForNewContact } from '../data/agent-tc.js?v=202611245300';
+import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611246200';
 import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611245900';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611245900';
 
@@ -47,7 +47,7 @@ export async function render({ api, user, deal, refresh }) {
       ? html`<td colspan="2" class="muted contact-hidden">Contact through CLA Title</td>`
       : html`<td>${fmtPhone(p.contact.phone)} ${phoneBtn}</td><td>${p.contact.email} ${emailBtn}</td>`;
     const dup = separate(p) ? html` <span class="pill warn" data-duplicate-party title="Another ${p.role} row has the same name. Edit saves only this contact.">Separate contact</span>` : '';
-    return html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${who}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${dup}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${agentTcLabel(p.role)}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}${roleBit ? html` · ${roleBit}` : ''}</td><td>${p.contact.company}</td>${contactCells}
+    return html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${who}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${dup}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${agentTcLabel(p.role, sideAgentName(deal.participants, p.role))}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}${roleBit ? html` · ${roleBit}` : ''}</td><td>${p.contact.company}</td>${contactCells}
     <td class="nowrap">${isRealEstateAgent(p.contact, [p.role]) ? html`<button type="button" class="ghost" data-tc-open="${p.contactId}">Transaction coordinators</button> ` : ''}${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`;
   });
   const body = html`${staffView ? lenderSectionHtml(deal, { canEdit: edit }) : ''}<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
@@ -71,33 +71,34 @@ export async function render({ api, user, deal, refresh }) {
   } };
 
   // John, Nov 2: type-to-search picker (name / email / phone / brokerage).
-  // TC-1: the only coordinator choices are the buyer's and the listing agent's. Both are outside assistants.
+  // TC-5: one role, Transaction coordinator. The side follows the linked agent on this file.
   // Francis, Nov 9: same Place Order inline "Add … as a new person" when there is no match,
   // so adding a party on an already-opened file no longer dead-ends on "clear the search box".
   async function addPerson() {
     const people = await api.listContacts();
+    const typeFor = (r) => contactTypeForRole(r) || coordinatorContactType(r);
     const m = modal('Add contact to this order', html`<form id="apf" class="form-grid"><label class="span2">Role on this order<select name="role">${options(contactRoleChoices(deal), 'Other', (r) => agentTcChoiceLabel(r))}</select></label>${isRefi(deal) ? html`<p class="muted small span2" data-refi-roles>Refinance: no seller, realtor or transaction coordinator roles. Add the borrower as Client-Buyer.</p>` : ''}
       <p class="muted small span2">One person can hold two roles on an order only when an agent is buying or selling for themselves: add them once as Client-Buyer and once as Buyer Agent (or Client-Seller and Listing Agent).</p>
-      <p class="muted small span2" data-agent-tc-note hidden></p>
       <p class="muted small span2">Type a name, email and phone in the fields below. You do not have to pick an existing contact, and no portal login or invite is created. Invite them later with Invite to portal. The search box and, for an agent or lender, the company list are optional.</p>
       <label class="span2" data-dir-wrap hidden>Existing company or person<select data-dir-select aria-label="Existing company or person"><option value="">Not listed — type them below</option></select></label>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
       <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}<label data-lrole hidden>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">No contact person</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label></div>
+      <label class="span2" data-tc-which hidden>Which agent do they work for?<select data-tc-agent aria-label="Which agent do they work for?"><option value="">Choose…</option></select></label>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
     const roleSel = $('[name=role]', m);
     const dirWrap = $('[data-dir-wrap]', m); const dirSel = $('[data-dir-select]', m);
     const paintDir = () => {
       const role = roleSel.value;
-      const show = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender' || isAgentTcRole(role);
+      const show = role === 'Buyer Agent' || role === 'Listing Agent' || role === 'Lender' || isAgentTcRole(role) || isAgentTcPick(role);
       dirWrap.hidden = !show;
       if (!show) { dirSel.value = ''; return; }
-      const model = directoryModel(people, role === 'Lender' ? 'lender' : isAgentTcRole(role) ? 'tc' : 'agent');
+      const model = directoryModel(people, role === 'Lender' ? 'lender' : (isAgentTcRole(role) || isAgentTcPick(role)) ? 'tc' : 'agent');
       const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
       dirSel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${directoryGroups(model).map(([label, options]) => group(label, options))}`);
     };
     dirSel.addEventListener('change', () => {
       const choice = directoryChoice(dirSel.value);
-      if (choice.kind === 'person') { const c = people.find((p) => p.id === choice.contactId); if (c) pk.set(c); }
+      if (choice.kind === 'person') { const c = people.find((p) => p.id === choice.contactId); if (c) pk.set(c); paintTc(); }
       else if (choice.kind === 'company') { const co = $('[name=company]', m); if (co) co.value = choice.company; }
     });
     // Same quick-create rules as Place Order (ordernew.js): split the typed name; lender company-ish strings become company-only.
@@ -105,7 +106,7 @@ export async function render({ api, user, deal, refresh }) {
       const name = String(typed || '').trim(); if (!name) throw new Error('Type a name first.');
       const role = roleSel.value;
       const { firstName, lastName } = splitPersonName(name);
-      const contactType = contactTypeForRole(role) || '';
+      const contactType = typeFor(role) || '';
       let input;
       if (role === 'Lender') {
         const companyish = !lastName || /\b(llc|inc|corp|bank|mortgage|lending|loan|capital|financial|credit)\b/i.test(name);
@@ -119,17 +120,45 @@ export async function render({ api, user, deal, refresh }) {
       if (!people.some((x) => x.id === c.id)) people.push(c);
       return c;
     };
+    let tcGen = 0;
+    const chosenContactId = () => (pk && pk.value) || (directoryChoice(dirSel.value).kind === 'person' ? directoryChoice(dirSel.value).contactId : '');
+    const resolveTc = async (contactId) => {
+      const agents = fileAgents(deal.participants);
+      const choices = tcAgentChoices(agents);
+      let linkedRoles = [];
+      if (contactId) linkedRoles = tcRolesFromLinks(agents, await linkedAgentIdsFor(api, contactId, agents));
+      return { choices, linkedRoles };
+    };
+    const paintTc = async () => {
+      const gen = ++tcGen;
+      const wrap = $('[data-tc-which]', m);
+      const sel = $('[data-tc-agent]', m);
+      if (!wrap || !sel) return;
+      if (!isAgentTcPick(roleSel.value)) { wrap.hidden = true; return; }
+      const { choices, linkedRoles } = await resolveTc(chosenContactId());
+      if (gen !== tcGen) return;
+      if (linkedRoles.length || !choices.length) { wrap.hidden = true; return; }
+      const keep = sel.value;
+      sel.replaceChildren();
+      const blank = document.createElement('option'); blank.value = ''; blank.textContent = 'Choose…'; sel.appendChild(blank);
+      for (const c of choices) { const opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; sel.appendChild(opt); }
+      if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+      wrap.hidden = false;
+    };
     const pk = mountPicker($('[data-picker=contactId]', m), () => people, {
       createVerb: () => (roleSel.value === 'Lender' ? 'lender' : 'person'),
       onCreate: quickCreate,
+      onSet: () => { paintTc(); },
     });
+    const q = $('.picker-q', $('[data-picker=contactId]', m));
+    if (q) q.addEventListener('input', () => { paintTc(); });
     const ctSel = $('[data-newperson] [name=contactType]', m); let ctTouched = false; ctSel.addEventListener('change', () => { ctTouched = true; });
     const paintRole = () => { const r = roleSel.value; const lender = r === 'Lender'; const person = r === 'Client-Buyer' || r === 'Client-Seller';
       $('[data-fn]', m).firstChild.textContent = lender ? 'Contact first name (optional)' : person ? 'First name (leave blank for an entity)' : 'First name';
       $('[data-co]', m).firstChild.textContent = lender ? 'Lender company name' : person ? 'Entity or company name' : 'Company / brokerage';
       const lrole = $('[data-lrole]', m); if (lrole) lrole.hidden = !lender; };
-    roleSel.addEventListener('change', () => { const r = roleSel.value; if (!ctTouched) ctSel.value = contactTypeForRole(r); const agentNote = $('[data-agent-tc-note]', m); const help = agentTcHelp(r); if (agentNote) { agentNote.hidden = !help; agentNote.textContent = help ? help + ' A new person is saved as Transaction coordinator, not as a Realtor.' : ''; } paintRole(); paintDir(); });
-    paintRole(); paintDir();
+    roleSel.addEventListener('change', () => { const r = roleSel.value; if (!ctTouched) ctSel.value = typeFor(r); paintRole(); paintDir(); paintTc(); });
+    paintRole(); paintDir(); paintTc();
     $('#apf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let id = f.contactId || (pk && pk.value) || '';
       const choice = directoryChoice(dirSel.value);
       if (!id && choice.kind === 'person') id = choice.contactId;
@@ -137,8 +166,18 @@ export async function render({ api, user, deal, refresh }) {
       if (!id && f.role === 'Lender') { const built = lenderCompanyContact({ company: f.company, firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, lenderRole: f.lenderRole }); if (!built.ok) throw new Error(built.error); id = (await api.createContact(built.contact)).id; }
       if (!id && (f.role === 'Client-Buyer' || f.role === 'Client-Seller') && !String(f.firstName || '').trim() && String(f.company || '').trim()) id = (await api.createContact({ firstName: '', lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || 'buyer_seller' })).id;
       if (!id && !String(f.firstName || '').trim() && !String(f.company || '').trim()) throw new Error('Enter a first name, or a company or entity name.');
-      if (!id) id = (await api.createContact({ firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType })).id;
-      await api.addParticipant(deal.id, id, f.role); closeModal(); toast('Contact added'); repaint(); }));
+      if (!id) id = (await api.createContact({ firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || typeFor(f.role) })).id;
+      if (isAgentTcPick(f.role)) {
+        const { choices, linkedRoles } = await resolveTc(id);
+        const choice = ($('[data-tc-agent]', m) || {}).value || '';
+        const problem = tcSideProblem({ hasPerson: true, linkedRoles, choice, choices });
+        if (problem) throw new Error(problem);
+        for (const role of tcRolesToSave({ linkedRoles, choice, choices })) {
+          try { await api.addParticipant(deal.id, id, role); }
+          catch (err) { if (!isAlreadyTcMessage(err && err.message)) throw err; }
+        }
+      } else await api.addParticipant(deal.id, id, f.role);
+      closeModal(); toast('Contact added'); repaint(); }));
   }
   // Nov 9 (Francis: "can't invite buyers and sellers"; John: "a processor needs to be able to invite"): Invite to portal for a buyer, seller or agent
   // row with no login, right here on the file. A contact with no email gets one typed here (saved on the contact). The one-time link is shown to
