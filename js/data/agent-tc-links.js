@@ -2,7 +2,7 @@
  * A transaction coordinator is an outside assistant linked to one or more real estate agents.
  * The link lives on the agent. It is not the CLA Title staff role "Transaction Coordinator".
  * Fake data only. */
-import { phoneOk, fmtPhone, PHONE_MSG } from './constants.js?v=202611245800';
+import { phoneOk, fmtPhone, PHONE_MSG } from './constants.js?v=202611247700';
 
 export const TC_NOT_AGENT = 'Transaction coordinators are linked to a real estate agent. This contact is not an agent.';
 export const TC_NOT_ALLOWED = 'You cannot change transaction coordinators for this agent. A processor can, and the agent can change their own.';

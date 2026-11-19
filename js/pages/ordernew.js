@@ -1,7 +1,7 @@
 // Place Order (Processor, Admin, Super admin; John Nov 2): creates a deal and links the chosen people (their intake tasks are copied from the current task templates).
 // John, Nov 2 (later): Open Date (backdating allowed, never future), every US state (no default), EMD amount + due date, documents attached at placement,
 // type-to-search pickers for Buyer / Seller / Buyer Agent / Listing Agent, one "Add new user" place.
-// FF-088 / TC-1: each side's transaction coordinator is an outside assistant who works for that side's agent.
+// FF-088 / TC-5: one Transaction coordinator. The side follows the agent they are linked to on this order.
 // REDESIGN (John, Nov 3): the same form is now a STEP-BY-STEP flow modeled on the existing portal's order opening (docs/ORDER-OPEN-REFERENCE.md):
 //   1 Transaction -> 2 Property -> 3 Buyers & Sellers -> 4 Lender & Loan -> 5 Agents -> 6 Team & Notes -> 7 Review & Submit
 // with a progress bar (click any step to jump to it), per-step validation on Next, a review summary and a confirmation panel on the new order's page.
@@ -11,28 +11,28 @@
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611161500';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
+import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611245800';
+import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611247700';
 import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611243801';
-import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611245800';
-import { ENTITY_TYPES } from '../data/templates.js?v=202611245800';
-import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611245800';
-import { closerChoices, resolveCloser } from '../data/closer.js?v=202611245800';
-import { duplicateNotice } from '../data/order-duplicates.js?v=202611245800';
+import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups, companyOnlyContact } from '../data/file-party.js?v=202611247700';
+import { ENTITY_TYPES } from '../data/templates.js?v=202611247700';
+import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611247700';
+import { closerChoices, resolveCloser } from '../data/closer.js?v=202611247700';
+import { duplicateNotice } from '../data/order-duplicates.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611242810';
-import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611245800';
-import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
+import { looksLikeEntityName, entityIdentity, newPartyContact, lenderCompanyContact, lenderExtras, readLenderContactRows, brokerageContact, brokerageContactError } from '../data/lender-file.js?v=202611247700';
+import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611243300';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245800';
-import { readEarnest } from '../data/earnest-commission.js?v=202611223000';
-import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611245800';
-import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611243061';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611247700';
+import { readEarnest } from '../data/earnest-commission.js?v=202611246500';
+import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611247700';
+import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611246500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { AGENT_TC_ROLES, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, isAgentTcRole, partyProblemLine, roleForPartyField, uniqueProblems, agentTcChoiceLabel, agentTcHelp } from '../data/agent-tc.js?v=202611245300';
-import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611245800';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611245800';
+import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, partyProblemLine, placeOrderTcChoices, roleForPartyField, tcRolesFromLinks, tcRolesToSave, tcSideProblem, uniqueProblems } from '../data/agent-tc.js?v=202611247700';
+import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611247700';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -73,11 +73,11 @@ const agentCard = (role, label) => html`<div class="agent-card party-dir" data-a
   <label>Role<select data-agent-role aria-label="${label} role"><option value="Buyer Agent" ${role === 'Buyer Agent' ? raw('selected') : ''}>Buyer agent</option><option value="Listing Agent" ${role === 'Listing Agent' ? raw('selected') : ''}>Listing agent</option></select></label>
   <input type="hidden" name="p:${role}" value="">
   <p class="muted small">Choose a company or agent, or type the person and company. No portal login is created, and no invite is sent.</p></div>`;
-const agentTcCard = (role, label) => html`<div class="agent-card party-dir" data-agent-tc="${role}" data-dir="p:${role}">${dirSelect(`${label} — existing contact`)}
-  ${dirFields(label)}
-  <input type="hidden" name="p:${role}" value="">
-  <button type="button" class="ghost" data-add-tc="${role}">+ Add ${label.toLowerCase()}</button>
-  <p class="muted small">${agentTcHelp(role)} A new person is saved as Transaction coordinator, not as a Realtor. No invite is sent.</p></div>`;
+const agentTcCard = () => html`<div class="agent-card party-dir" data-agent-tc="${AGENT_TC_PICK}" data-dir="p:${AGENT_TC_PICK}">${dirSelect('Transaction coordinator — existing contact')}
+  ${dirFields('Transaction coordinator')}
+  <input type="hidden" name="p:${AGENT_TC_PICK}" value="">
+  <label data-tc-which hidden>Which agent are they linked to?<select data-tc-agent aria-label="Which agent are they linked to?"><option value="">Choose…</option></select></label>
+  <p class="muted small">Choose someone already saved, or type the person. No portal login is created, and no invite is sent.</p></div>`;
 const partyBlock = (role, label) => html`<fieldset class="span2 multi-party" data-multi="${role}"><legend>${label}s</legend>
   <div class="multi-rows" data-rows>${Array.from({ length: MIN_ROWS }, (_, i) => partyRow(role, label, i + 1))}</div><button type="button" class="ghost" data-add-row="${role}">+ Add another ${MULTI[role]}</button></fieldset>`;
 
@@ -124,7 +124,7 @@ export async function render({ api, user, go }) {
   // the file's Processor: Unassigned is the default. Any active staff login (including Super admin) can be picked.
   const today = officeDate();
   // "Add new user" roles. Salesperson creates a staff login, which is Admin-only (John's earlier decision), so only Admins / Super admins see it.
-  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], [BUYER_AGENT_TC, agentTcChoiceLabel(BUYER_AGENT_TC)], [LISTING_AGENT_TC, agentTcChoiceLabel(LISTING_AGENT_TC)], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
+  const NEW_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', 'Buyer Agent'], ['Listing Agent', 'Listing Agent'], ['Lender', 'Lender'], [AGENT_TC_PICK, 'Transaction coordinator'], ...(user.isAdmin ? [['Sales Person', 'Salesperson']] : [])];
   const visOpts = visibilityChoices(user.role, user.isAdmin);
   const N = STEPS.length;
   const panel = (key, inner, intro) => { const i = STEPS.findIndex((s) => s[0] === key); const [, title] = STEPS[i];
@@ -196,9 +196,9 @@ export async function render({ api, user, go }) {
         <p class="muted small">Choose a company or loan officer, or type the company and the person. No portal login is created, and no invite is sent. Company name, phone and email fill in when you choose someone (change them for this order if needed). The loss payee clause lists clauses already used for that company, and you can edit the text.</p></div>`,
         'Money is typed with commas (485,000). Every amount is optional and can be filled in later.')}
       ${panel('agents', html`<div class="form-grid agents-grid">${agentCard('Buyer Agent', 'Buyer agent')}${agentCard('Listing Agent', 'Listing agent')}
-        ${agentTcCard(BUYER_AGENT_TC, "Buyer's transaction coordinator")}${agentTcCard(LISTING_AGENT_TC, 'Listing transaction coordinator')}</div>
-        <p class="muted small">Each side's transaction coordinator is optional. Buyer's transaction coordinator: works for the buyer's agent. Listing transaction coordinator: works for the listing agent. Type the person, or choose someone already saved. A portal login is not required. Agents never see wire instructions.</p>`,
-        'The realtors on each side, who referred the file, and each side\'s transaction coordinator.')}
+        ${agentTcCard()}</div>
+        <p class="muted small">The transaction coordinator is optional. Agents never see wire instructions.</p>`,
+        'The realtors on each side, who referred the file, and the transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
         <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
         <label class="span2">Closer<input name="closerName" list="place-closer-staff" maxlength="120" autocomplete="off" aria-label="Closer" data-closer-input><datalist id="place-closer-staff">${closers.map((c) => html`<option value="${c.label}"></option>`)}</datalist><span class="field-hint">Pick an active CLA staff member, or type a name. Same field as Edit order details.</span></label>
@@ -305,7 +305,7 @@ export async function render({ api, user, go }) {
       const phoneInput = () => (lender ? $('[name=lenderPhone]', root) : field('phone'));
       const emailInput = () => (lender ? $('[name=lenderEmail]', root) : field('email'));
       const paint = () => {
-        const model = directoryModel(people, lender ? 'lender' : isAgentTcRole(role) ? 'tc' : 'agent');
+        const model = directoryModel(people, lender ? 'lender' : (isAgentTcRole(role) || isAgentTcPick(role)) ? 'tc' : 'agent');
         const current = sel.value;
         const group = (label, options) => (options.length ? html`<optgroup label="${label}">${options.map((o) => html`<option value="${o.value}">${o.label}</option>`)}</optgroup>` : '');
         sel.innerHTML = toText(html`<option value="">Not listed — type them below</option>${directoryGroups(model).map(([label, options]) => group(label, options))}`);
@@ -353,7 +353,7 @@ export async function render({ api, user, go }) {
             company: companyInput() ? companyInput().value : '',
             email: emailInput() ? emailInput().value : '',
             phone: phoneInput() ? phoneInput().value : '',
-            contactType: contactTypeForRole(role) || 'realtor',
+            contactType: contactTypeForRole(role) || coordinatorContactType(role) || 'realtor',
             lenderRole: lender && $('[data-lender-role]', root) ? $('[data-lender-role]', root).value : '',
           };
         },
@@ -377,7 +377,51 @@ export async function render({ api, user, go }) {
         },
       };
     };
-    const pickers = { 'Buyer Agent': mountDir('Buyer Agent'), 'Listing Agent': mountDir('Listing Agent'), Lender: mountDir('Lender'), [BUYER_AGENT_TC]: mountDir(BUYER_AGENT_TC), [LISTING_AGENT_TC]: mountDir(LISTING_AGENT_TC) };
+    const pickers = { 'Buyer Agent': mountDir('Buyer Agent'), 'Listing Agent': mountDir('Listing Agent'), Lender: mountDir('Lender'), [AGENT_TC_PICK]: mountDir(AGENT_TC_PICK) };
+    const placeAgents = () => {
+      const one = (role, side) => {
+        const snap = pickers[role].snapshot();
+        const present = !!(snap.id || [snap.person, snap.company, snap.email, snap.phone].some((v) => String(v || '').trim()));
+        const name = snap.id ? nameOf(snap.id) : [snap.person, snap.company].map((v) => String(v || '').trim()).filter(Boolean).join(' — ');
+        return { side, contactId: snap.id || '', present, name, role: side === 'listing' ? 'Listing Agent' : 'Buyer Agent' };
+      };
+      return { buyer: one('Buyer Agent', 'buyer'), listing: one('Listing Agent', 'listing') };
+    };
+    let tcRefresh = Promise.resolve();
+    let tcGen = 0;
+    const refreshTcSide = async () => {
+      const gen = ++tcGen;
+      const slot = pickers[AGENT_TC_PICK];
+      if (!slot) return;
+      const read = slot.read();
+      const has = !!(String(read.contactId || '').trim() || [read.person, read.company, read.email, read.phone].some((v) => String(v || '').trim()));
+      const wrap = $('[data-tc-which]', slot.el);
+      const sel = $('[data-tc-agent]', slot.el);
+      const agents = placeAgents();
+      const choices = placeOrderTcChoices(agents.buyer, agents.listing);
+      if (gen !== tcGen) return;
+      if (!has || !wrap || !sel) { if (wrap) wrap.hidden = true; slot.el.dataset.tcSides = ''; return; }
+      let roles = [];
+      if (read.contactId) {
+        const linked = await linkedAgentIdsFor(api, read.contactId, [agents.buyer, agents.listing].filter((a) => a.contactId));
+        roles = tcRolesFromLinks([agents.buyer, agents.listing].filter((a) => a.contactId), linked);
+      }
+      if (gen !== tcGen) return;
+      slot.el.dataset.tcSides = roles.join(',');
+      if (roles.length || !choices.length) { wrap.hidden = true; return; }
+      const keep = sel.value;
+      sel.replaceChildren();
+      const blank = document.createElement('option'); blank.value = ''; blank.textContent = 'Choose…'; sel.appendChild(blank);
+      for (const c of choices) { const opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; sel.appendChild(opt); }
+      if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+      wrap.hidden = false;
+    };
+    const queueTc = () => { tcRefresh = refreshTcSide().catch(() => {}); };
+    ['Buyer Agent', 'Listing Agent', AGENT_TC_PICK].forEach((role) => {
+      const el = pickers[role].el;
+      el.addEventListener('input', queueTc);
+      el.addEventListener('change', queueTc);
+    });
     const moveAgent = (from, to) => {
       const card = $(`[data-agent-card="${from}"]`, root);
       const snap = pickers[from].snapshot();
@@ -426,7 +470,7 @@ export async function render({ api, user, go }) {
     Object.keys(MULTI).forEach((role) => { rows[role] = []; $$(`[data-multi="${role}"] [data-party-row]`, root).forEach((el) => hookRow(role, el));
       $(`[data-add-row="${role}"]`, root).addEventListener('click', () => { const r = addRow(role); $('.picker-q', r.el).focus(); }); });
     // which pickers count for this transaction type (a refinance ignores the hidden seller / realtor boxes completely)
-    const blockedOnRefi = (role) => REFI_BLOCKED_ROLES.includes(role) || isAgentTcRole(role);
+    const blockedOnRefi = (role) => REFI_BLOCKED_ROLES.includes(role) || isAgentTcRole(role) || isAgentTcPick(role);
     const counts = (role) => !(refi() && blockedOnRefi(role));
     // ---------- the steps ----------
     const active = () => STEPS.map((s) => s[0]).filter((k) => !(k === 'agents' && refi()));   // a refinance has no Agents step
@@ -450,7 +494,7 @@ export async function render({ api, user, go }) {
       const legend = $('legend', add); const openBtn = $('#an-open', root);
       if (cur === 'loan') { legend.textContent = 'Add lender'; openBtn.textContent = '+ Add lender'; }
       else { legend.textContent = 'Add new user'; openBtn.textContent = '+ Add new user'; }
-      const rolePick = $('#an-role', root); const allowed = cur === 'loan' ? ['Lender'] : cur === 'agents' ? ['Buyer Agent', 'Listing Agent', ...AGENT_TC_ROLES, 'Sales Person'] : ['Client-Buyer', 'Client-Seller', 'Sales Person'];
+      const rolePick = $('#an-role', root); const allowed = cur === 'loan' ? ['Lender'] : cur === 'agents' ? ['Buyer Agent', 'Listing Agent', AGENT_TC_PICK, 'Sales Person'] : ['Client-Buyer', 'Client-Seller', 'Sales Person'];
       if (rolePick) [...rolePick.options].forEach((o) => { if (!o.value) return; const hide = !allowed.includes(o.value) || (refi() && blockedOnRefi(o.value)); o.hidden = hide; o.disabled = hide; if (o.value === 'Client-Buyer') o.textContent = refi() ? 'Borrower' : 'Buyer'; });
       if (rolePick && rolePick.value && rolePick.selectedOptions[0] && rolePick.selectedOptions[0].disabled) rolePick.value = cur === 'loan' ? 'Lender' : '';
       $('[data-wiz-back]', root).hidden = i <= 0; const nx = $('[data-wiz-next]', root); nx.hidden = cur === 'review';
@@ -506,7 +550,17 @@ export async function render({ api, user, go }) {
         if (!ALLOWED_UPLOAD_EXT.includes((file.name.split('.').pop() || '').toLowerCase())) errs.push({ el: input, msg: `${file.name}: that file type is not allowed.` }); } };
       if (k === 'transaction') fileErr(txIn);
       if (k === 'team') fileErr(fileIn);
-      if (k === 'agents') ['Buyer Agent', 'Listing Agent', ...AGENT_TC_ROLES].filter(counts).forEach((role) => { const entry = manualPartyEntry(pickers[role].read()); if (!entry.ok) errs.push({ el: $(`[data-dir="p:${role}"] [data-dir-field="email"]`, p) || $(`[data-dir="p:${role}"] [data-dir-field="phone"]`, p), msg: entry.error }); });
+      if (k === 'agents') ['Buyer Agent', 'Listing Agent', AGENT_TC_PICK].filter(counts).forEach((role) => {
+        const entry = manualPartyEntry(pickers[role].read());
+        if (!entry.ok) errs.push({ el: $(`[data-dir="p:${role}"] [data-dir-field="email"]`, p) || $(`[data-dir="p:${role}"] [data-dir-field="phone"]`, p), msg: entry.error });
+        if (role !== AGENT_TC_PICK || !entry.ok || entry.action === 'skip') return;
+        const slot = pickers[AGENT_TC_PICK];
+        const sides = (slot.el.dataset.tcSides || '').split(',').filter(Boolean);
+        const choice = ($('[data-tc-agent]', slot.el) || {}).value || '';
+        const agents = placeAgents();
+        const problem = tcSideProblem({ hasPerson: true, linkedRoles: sides, choice, choices: placeOrderTcChoices(agents.buyer, agents.listing) });
+        if (problem) errs.push({ el: $('[data-tc-agent]', slot.el) || $(`[data-dir="p:${role}"] [data-dir-field="person"]`, p), msg: problem });
+      });
       return errs; };
     const clearMarks = (p) => { $$('[data-ferr]', p).forEach((x) => x.remove()); $$('.has-err', p).forEach((x) => x.classList.remove('has-err')); $$('[aria-invalid]', p).forEach((x) => x.removeAttribute('aria-invalid')); };
     const mark = (k, errs) => { const p = $(`[data-wiz-step="${k}"]`, root); clearMarks(p); const box = $('[data-wiz-errors]', p);
@@ -517,7 +571,7 @@ export async function render({ api, user, go }) {
     const validate = (k) => { const errs = check(k); mark(k, errs); paint(); return errs; };
     // after an error, fix-as-you-go: re-check the current step when a field changes (only once it has been flagged)
     form.addEventListener('change', () => { if (bad.has(cur)) validate(cur); });
-    const next = () => { const list = active(); const errs = validate(cur);
+    const next = async () => { if (cur === 'agents') await refreshTcSide(); const list = active(); const errs = validate(cur);
       if (errs.length) { toast(errs.map((e) => e.msg).join(' | '), 'err'); const first = errs.find((e) => e.el); if (first) first.el.focus(); return; }
       show(list[list.indexOf(cur) + 1]); };
     $('[data-wiz-next]', root).addEventListener('click', next);
@@ -566,7 +620,7 @@ export async function render({ api, user, go }) {
                     ['Lender', (pickers.Lender.value || f.lenderName || ($('[data-lender-person]', root) && $('[data-lender-person]', root).value)) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>` : ''}${pickers.Lender.value ? html`${f.lenderName ? ' · ' : ''}${nameOf(pickers.Lender.value)}` : (($('[data-lender-person]', root) && $('[data-lender-person]', root).value.trim()) ? html`${f.lenderName ? ' · ' : ''}${$('[data-lender-person]', root).value.trim()} <span class="muted small">(typed on this file)</span>` : '')}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Brokerage: ' + f.mortgageBrokerName), f.mortgageBrokerContact && ('Broker contact: ' + f.mortgageBrokerContact), f.mortgageBrokerPhone, f.mortgageBrokerEmail, f.mortgageBrokerAddress, f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
-        ${r ? '' : section('agents', 'Agents', [['Buyer agent', agentReview('Buyer Agent')], ['Listing agent', agentReview('Listing Agent')], ["Buyer's transaction coordinator", agentReview(BUYER_AGENT_TC)], ['Listing transaction coordinator', agentReview(LISTING_AGENT_TC)]])}
+        ${r ? '' : section('agents', 'Agents', [['Buyer agent', agentReview('Buyer Agent')], ['Listing agent', agentReview('Listing Agent')], ['Transaction coordinator', agentReview(AGENT_TC_PICK)]])}
         ${section('team', 'Team & Notes', [['Processor', val(selText($('[name=processorId]', root)).replace(/^Choose the Processor.*$/, ''))], ['Preprocessor', val(selText($('[name=preprocessorUserId]', root)))], ['Closer', val(f.closerName)], ['Sales Rep', sales.length ? sales.join(', ') : dash],
           ['Notes', f.notes ? html`<span class="review-notes">${f.notes.length > 240 ? f.notes.slice(0, 240) + '\u2026' : f.notes}</span>` : dash],
           ['Documents', files.length ? html`${files.map((x, i) => html`<div>${x.name} <span class="muted small">${fmtSize(x.size)}${($(`[data-doctype="${i}"]`, root) || {}).value ? ' \u00b7 ' + $(`[data-doctype="${i}"]`, root).value : ''}</span></div>`)}<span class="muted small">${selText($('#nof-vis', root))}${$('#nof-wire', root).checked ? ' \u00b7 wire instructions (never shown to agents)' : ''}</span>` : dash]])}
@@ -583,7 +637,7 @@ export async function render({ api, user, go }) {
       $('[data-refi-note]', root).hidden = !on;
       $('[data-multi="Client-Seller"]', root).hidden = on;
       ['Buyer Agent', 'Listing Agent'].forEach((r) => { const card = $(`[data-agent-card="${r}"]`, root); if (card) card.hidden = on; });
-      AGENT_TC_ROLES.forEach((r) => { const card = $(`[data-agent-tc="${r}"]`, root); if (card) card.hidden = on; });
+      const tcCard = $(`[data-agent-tc="${AGENT_TC_PICK}"]`, root); if (tcCard) tcCard.hidden = on;
       const bf = $('[data-multi="Client-Buyer"]', root); bf.dataset.refi = String(on);
       $('legend', bf).textContent = on ? 'Borrowers' : 'Buyers'; $('[data-add-row="Client-Buyer"]', bf).textContent = on ? '+ Add another borrower' : '+ Add another buyer';
       const docLabel = $('[data-tx-doc-label]', root); if (docLabel) docLabel.textContent = on ? 'Upload title request' : 'Upload sales contract';
@@ -622,14 +676,13 @@ export async function render({ api, user, go }) {
       $('#an-first-t', root).textContent = lender ? 'Contact first name (optional)' : entity ? 'Representative first name (optional)' : 'First name *';
       $('#an-first', root).required = false;
       $('#an-last-l', root).firstChild.textContent = lender ? 'Contact last name (optional)' : entity ? 'Representative last name (optional)' : 'Last name';
-      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender' || isAgentTcRole(r)); $('#an-company-t', root).textContent = lender ? 'Lender company name *' : 'Brokerage / company';
-      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r); $('#an-lrole-l', root).hidden = !lender; $('#an-email-req', root).hidden = r !== 'Sales Person';
+      $('#an-company-l', root).hidden = !(r === 'Buyer Agent' || r === 'Listing Agent' || r === 'Lender' || isAgentTcRole(r) || isAgentTcPick(r)); $('#an-company-t', root).textContent = lender ? 'Lender company name *' : 'Brokerage / company';
+      $('#an-ctype-l', root).hidden = !r || r === 'Sales Person'; $('#an-ctype', root).value = contactTypeForRole(r) || coordinatorContactType(r); $('#an-lrole-l', root).hidden = !lender; $('#an-email-req', root).hidden = r !== 'Sales Person';
       $('#an-note', root).textContent = r === 'Sales Person' ? 'A Sales Person login is created in HR. Add the employee there and copy the invite link. Nothing is emailed.'
         : lender ? 'Adds the lender company as a contact. No portal login is created. A contact person is optional, and this does not change another lender\'s saved record.'
         : entity ? 'The entity name is the buyer or seller. First and last are only a representative and can be left blank. The entity name is not split into a first and last name. No portal login is created.'
         : r ? `Adds a contact (no portal login, no email or invite is sent) and ${MULTI[r] ? `adds them to the ${MULTI[r]}s of this order (after any already chosen)` : `puts them in the ${NEW_ROLES.find((x) => x[0] === r)[1]} slot of this order`}.` : ''; };
     $('#an-open', root).addEventListener('click', () => { anForm.hidden = false; if (cur === 'loan' && !anRole.value) { anRole.value = 'Lender'; anRole.dispatchEvent(new Event('change')); } else anRole.focus(); });
-    $$('[data-add-tc]', root).forEach((b) => b.addEventListener('click', () => { const card = $(`[data-agent-tc="${b.dataset.addTc}"]`, root); const box = card && $('[data-dir-field="person"]', card); if (box) box.focus(); }));
     $('#an-cancel', root).addEventListener('click', () => { reset(); anForm.hidden = true; });
     anRole.addEventListener('change', () => { anFields.hidden = !anRole.value; dup.hidden = true; paintNew(); });
     $('#an-kind', root).addEventListener('change', paintNew);
@@ -637,13 +690,13 @@ export async function render({ api, user, go }) {
     const place = (role, c) => {
       if (role === 'Sales Person') salesUi.addAndSelect({ id: c.profileId || c.id, firstName: c.firstName, lastName: c.lastName, role: 'Sales Person' });
       else if (MULTI[role]) placeParty(role, c);
-      else if (pickers[role]) pickers[role].set(c);
+      else if (pickers[role]) { pickers[role].set(c); if (isAgentTcPick(role)) queueTc(); }
       toast(`${personLabel(c)} added as ${NEW_ROLES.find((x) => x[0] === role)[1]}`); reset(); anForm.hidden = true; };
     $('#an-create', root).addEventListener('click', guard(async () => {
       const role = anRole.value; if (!role) throw new Error('Choose the role first.');
       const kind = ($('#an-kind', root) || {}).value || 'person';
       const entity = (role === 'Client-Buyer' || role === 'Client-Seller') && kind === 'entity';
-      const first = v('an-first'); const email = v('an-email').toLowerCase(); const company = role === 'Lender' || role === 'Buyer Agent' || role === 'Listing Agent' || isAgentTcRole(role) ? v('an-company') : '';
+      const first = v('an-first'); const email = v('an-email').toLowerCase(); const company = role === 'Lender' || role === 'Buyer Agent' || role === 'Listing Agent' || isAgentTcRole(role) || isAgentTcPick(role) ? v('an-company') : '';
       const built = newPartyContact({ role, kind, entityName: v('an-entity'), entityType: ($('#an-etype', root) || {}).value || '', firstName: first, lastName: v('an-last'), email, phone: v('an-phone'), company, contactType: ($('#an-ctype', root) || {}).value || '', lenderRole: ($('#an-lrole', root) || {}).value || '' });
       if (!built.ok) throw new Error(built.error);
       if (role === 'Sales Person' && !email) throw new Error('Email is required for a salesperson (it is their login).');
@@ -674,7 +727,7 @@ export async function render({ api, user, go }) {
     const syncPickers = () => { $$('[data-picker]', root).forEach((el) => { const hid = $('input[type=hidden]', el); const person = people.find((p) => p.id === (hid && hid.value));
       if (!person) return; const q = $('.picker-q', el); const chosen = $('[data-chosen]', el);
       if (q) q.value = personLabel(person); if (chosen) chosen.textContent = `Selected: ${personLabel(person)}`; el.setAttribute('data-selected', ''); });
-      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender', ...AGENT_TC_ROLES]) { const slot = pickers[role]; const hid = slot && $('input[type=hidden]', slot.el); if (hid && hid.value) slot.applySnapshot({ id: hid.value, person: '', company: '', email: '', phone: '' }); } };
+      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender', AGENT_TC_PICK]) { const slot = pickers[role]; const hid = slot && $('input[type=hidden]', slot.el); if (hid && hid.value) slot.applySnapshot({ id: hid.value, person: '', company: '', email: '', phone: '' }); } };
     const persistDraft = () => {
       if (sealed || !draftStore || !draftKey || placing) return false;
       const body = collectOrderFields(form);
@@ -739,7 +792,7 @@ export async function render({ api, user, go }) {
         const id = await saveTypedContact(buyerSellerEntry(readBuyer(r, role)), labelOf(role));
         if (id) { const c = people.find((p) => p.id === id); if (c) r.pk.set(c); }
       }
-      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender', ...AGENT_TC_ROLES]) {
+      for (const role of ['Buyer Agent', 'Listing Agent', 'Lender', AGENT_TC_PICK]) {
         if (!counts(role)) continue;
         const slot = pickers[role]; if (!slot || slot.value) continue;
         const id = await saveTypedContact(manualPartyEntry(slot.read()), slot.read().label);
@@ -749,6 +802,7 @@ export async function render({ api, user, go }) {
     const commitOrder = async ({ asDraft }) => {
       if (placing) return;
       if (!asDraft && cur !== 'review') { next(); return; }
+      await refreshTcSide();
       for (const k of active().filter((x) => x !== 'review')) { const errs = validate(k); if (errs.length) { if (asDraft) persistDraft(); show(k); throw new Error(errs.map((x) => x.msg).join(' | ')); } }
       const e = { target: form };
       const f = formData(form);
@@ -767,7 +821,17 @@ export async function render({ api, user, go }) {
       const files = [...fileIn.files]; const txFiles = [...txIn.files];
       const pickedReferral = $$('[name=referralSource]', root).find((el) => el.checked);
       const hiddenName = (pk) => (($('input[type=hidden]', pk.el) || {}).name) || '';
-      const picks = [...Object.entries(pickers).filter(([role, pk]) => pk && pk.value && counts(role)).map(([role, pk]) => ({ role, contactId: pk.value, name: hiddenName(pk) })), ...Object.keys(MULTI).filter(counts).flatMap((role) => rows[role].filter((r) => r.pk.value).map((r) => ({ role, contactId: r.pk.value, name: hiddenName(r.pk) })))];
+      await refreshTcSide();
+      const tcSlot = pickers[AGENT_TC_PICK];
+      let tcRoles = [];
+      if (tcSlot && tcSlot.value && counts(AGENT_TC_PICK)) {
+        const agents = placeAgents();
+        const onForm = [agents.buyer, agents.listing].filter((a) => a.contactId);
+        const fromLinks = tcRolesFromLinks(onForm, await linkedAgentIdsFor(api, tcSlot.value, onForm));
+        const choice = ($('[data-tc-agent]', tcSlot.el) || {}).value || '';
+        tcRoles = tcRolesToSave({ linkedRoles: fromLinks, choice, choices: placeOrderTcChoices(agents.buyer, agents.listing) });
+      }
+      const picks = [...Object.entries(pickers).filter(([role, pk]) => pk && pk.value && counts(role) && role !== AGENT_TC_PICK).map(([role, pk]) => ({ role, contactId: pk.value, name: hiddenName(pk) })), ...tcRoles.map((role) => ({ role, contactId: tcSlot.value, name: `p:${role}` })), ...Object.keys(MULTI).filter(counts).flatMap((role) => rows[role].filter((r) => r.pk.value).map((r) => ({ role, contactId: r.pk.value, name: hiddenName(r.pk) })))];
       const referral = referralFromForm({ value: pickedReferral ? pickedReferral.value : '', picks, refinance: refi() });
       f.sourceOfBusiness = ''; delete f.sourceContactId;
       if (!showMdQuestions(f.state, refi())) { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
@@ -802,8 +866,9 @@ export async function render({ api, user, go }) {
       // People come from the picker state. FormData alone misses a party when the hidden id was cleared.
       const formParts = [...new FormData(e.target).entries()].filter(([k, x]) => k.startsWith('p:') && String(x || '').trim()).map(([k, x]) => ({ name: k, contactId: String(x).trim(), role: roleForPartyField(k) }));
       const entries = partyEntries(formParts, picks);
-      for (const { name, contactId, role } of entries) { if (!counts(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
-        try { const res = await api.addParticipant(deal.id, contactId, role, entities[name] ? { entity: entities[name] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; } catch (err) { problems.push(partyProblemLine(name, err.message)); } }
+      for (const { name, contactId, role } of entries) { if (!counts(role) || isAgentTcPick(role)) continue;   // refinance: hidden seller / realtor / TC boxes are not saved
+        try { const res = await api.addParticipant(deal.id, contactId, role, entities[name] ? { entity: entities[name] } : undefined); tasks += (res && res.tasksCreated) || 0; added[role] = (added[role] || 0) + 1; }
+        catch (err) { if (isAgentTcRole(role) && isAlreadyTcMessage(err && err.message)) added[role] = (added[role] || 0) + 1; else problems.push(partyProblemLine(name, err.message)); } }
       const lenderCompany = (input.lenderName || '').trim();
       const extraContacts = readLenderContactRows(e.target);
       let namedLender = !!(lenderPk && lenderPk.value) || !!added.Lender;
@@ -823,7 +888,7 @@ export async function render({ api, user, go }) {
       }
       // Agent fees (Nov 13): saved after the agents are on the file, so Accounting names their company
       for (const [side, fees] of Object.entries(agentFees)) { if (!fees || !api.saveAgentFees) continue;
-        try { await api.saveAgentFees(deal.id, side, fees, ''); } catch (err) { problems.push(`${AF_SIDE_LABEL[side]} fees were not saved (${err.message}). Enter them in the Agent fees box on the file`); } }
+        try { await api.saveAgentFees(deal.id, side, fees, ''); } catch (err) { problems.push(`${AF_SIDE_LABEL[side]} fees were not saved (${err.message}). Enter them in the Agent fees box under the agent task sections on Tasks`); } }
       if (referral) { try { await api.updateDeal(deal.id, { sourceOfBusiness: referral }); } catch (err) { problems.push(`Source of business was not saved: ${err.message}`); } }
       let saved = 0;
       const uploadIds = new WeakMap();

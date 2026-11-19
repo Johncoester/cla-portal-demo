@@ -1,7 +1,7 @@
 /* MF-058 (Matt Landsberg, Nov 17 2026). Settlement agent/notary on each side of Scheduling Details.
  * Column names stay settlement_agent_*. This file does not write the file closing date. */
-import { fmtPhone, phoneOk } from './constants.js?v=202611245800';
-import { placeSummary, propertyAddress, resolveSettlementAgent, scheduleTimeLabel, schedulingFromDeal } from './scheduling-details.js?v=202611245800';
+import { fmtPhone, phoneOk } from './constants.js?v=202611247700';
+import { placeSummary, propertyAddress, resolveSettlementAgent, scheduleTimeLabel, schedulingFromDeal } from './scheduling-details.js?v=202611247700';
 
 export const AUTOSAVE_MS = 600;
 export const AGENT_LABEL = 'Settlement agent/notary';

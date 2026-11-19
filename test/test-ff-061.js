@@ -10,22 +10,17 @@ const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const charges = readFileSync(new URL('../js/pages/dealaccounting-charges.js', import.meta.url), 'utf8');
 const buyer = app.slice(app.indexOf('const dealNav'), app.indexOf(': deal ?'));
 const staff = app.slice(app.indexOf(': deal ?'), app.indexOf('const fileNav'));
-const menu = app.slice(app.indexOf('const accountingMenu'), app.indexOf('const dealNav'));
-
 ok(buyer.includes("link('closing', 'Closing appointment', 'task')") && !buyer.includes('data-nav-acct'), 'a buyer or seller keeps Closing appointment and does not get Accounting');
-ok(staff.includes("link('closing', 'Scheduling Details', 'task')"), 'Scheduling Details stays in the file sidebar');
-ok(menu.includes("acctItem('ledger', 'Ledger')") && menu.indexOf("acctItem('ledger', 'Ledger')") < menu.indexOf("acctItem('receipts', 'Receipts')") && menu.indexOf("acctItem('receipts', 'Receipts')") < menu.indexOf("acctItem('disbursements', 'Disbursements')") && menu.indexOf("acctItem('disbursements', 'Disbursements')") < menu.indexOf("acctItem('balances', 'Account Balances')") && menu.indexOf("acctItem('balances', 'Account Balances')") < menu.indexOf("acctItem('balancing', 'Balancing')") && menu.indexOf("acctItem('balancing', 'Balancing')") < menu.indexOf('Loan Funding'), 'Accounting lists Ledger, Receipts, Disbursements, Account Balances, Balancing, then Loan Funding');
-ok(staff.includes('${accountingMenu}') && staff.includes('acctCanRead(u)') && staff.includes("fundingOn && !acctOn ? link('funding', 'Funding'"), 'the section replaces the old Accounting link, and Funding stays for someone who cannot see Accounting');
+const side = readFileSync(new URL('../js/file-sidebar.js', import.meta.url), 'utf8');
+ok(app.includes("link('closing', 'Scheduling Details', 'task')") && side.includes("link('closing', 'Scheduling Details', 'task')"), 'Scheduling Details stays in the file sidebar');
+ok(!app.includes('${accountingMenu}') && staff.includes('acctCanRead(u)') && app.includes("fundingOn && !acctOn ? link('funding', 'Funding'"), 'FF-103 replaces the Accounting sub-list; Funding stays for someone who cannot see Accounting');
 ok(app.includes('id="global-nav" data-global-nav hidden') && app.includes('</ul></li>${dealNav}') && app.includes('apply(false)'), 'the collapsed portal menu still starts closed and does not hide the file sidebar');
-ok(!app.includes("link('accounting', 'Accounting'"), 'the single Accounting link is gone from the file sidebar');
+ok(!app.includes("link('accounting', 'Accounting'"), 'the old helper call is not how the file sidebar draws Accounting');
 
-const closingAt = charges.indexOf('<div class="qc-nav-group">Closing</div><div class="qc-nav-sub">Charges</div>');
-const acctAt = charges.indexOf('<div class="qc-nav-group" data-qc-acct-section>Accounting</div>');
-const previewAt = charges.indexOf('<div class="qc-nav-group">Preview</div>');
-ok(closingAt > 0 && acctAt > closingAt && previewAt > acctAt, 'on the accounting page, Accounting sits directly under the Closing charges');
+const page = readFileSync(new URL('../js/pages/dealaccounting.js', import.meta.url), 'utf8');
+ok(!page.includes('qcNav(') && page.includes('data-acct-books') && page.includes("['ledger', 'Ledger']") && page.includes('data-nav-acct="funding"'), 'FF-103 stops drawing the second column; Ledger and Loan Funding stay as tabs on the accounting page');
 const navFn = charges.slice(charges.indexOf('export function qcNav'), charges.indexOf('// ---------------- help rail'));
-ok(navFn.includes('QC_SECTIONS.map') && !navFn.includes('Fee ledger'), 'the Closing charge list stays, and Fee ledger is no longer a link under CLA tools');
-ok(charges.includes('data-nav-acct="ledger"') && charges.includes('data-nav-acct="funding"') && charges.includes('opts.showFunding'), 'Loan Funding on the accounting page is the existing Funding address, and only when Funding is already allowed');
+ok(navFn.includes('QC_SECTIONS.map') && !navFn.includes('Fee ledger'), 'the charge section names stay available, and Fee ledger is not a CLA tools link');
 
 const deal = { transactionType: 'Purchase', purchasePrice: 100000, loanAmount: 50000, emdAmount: 5000, state: 'MD' };
 const fees = [{ id: 'fee-1', kind: 'charge', description: 'Settlement fee', amount: 500, split: { buyer: 400, seller: 0, lender: 0, other: 0 }, timing: 'at', poc: false, retired: false, payee: 'CLA Title' }];
