@@ -33,6 +33,8 @@ import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-f
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
+// The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
+const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -48,6 +50,12 @@ function staffSections(ctx, dealId) {
     promptHtml: () => locPromptHtml(ctx, { id: dealId }),
     splits: () => (!user.accountRole && user.role !== 'Outside user' && ctx.api.listUnderwriterSplits ? ctx.api.listUnderwriterSplits().then((r) => (r && r.rows) || []).catch(() => []) : Promise.resolve([])),
     demoLocked: () => (ctx.api.demoViewStatus ? ctx.api.demoViewStatus().then((d) => !!((d || {}).active)).catch(() => true) : Promise.resolve(false)),
+    // PERF-OVERVIEW-1 (John, Nov 19 2026): these three ran one after another after the batch above. They now run with it.
+    closerStaff: () => (runsOrders(user) && api.listActiveStaff ? Promise.resolve().then(() => api.listActiveStaff()).catch(() => []) : Promise.resolve([])),
+    locations: () => (!user.accountRole && user.role !== 'Outside user' && api.listClosingLocations ? Promise.resolve().then(() => api.listClosingLocations(dealId)).catch(() => []) : Promise.resolve([])),
+    // The whole contact directory feeds only the agent dropdowns on the Settlement card. Staff File Overview does not draw that card,
+    // so staff do not load the directory when the page opens. The Add buyer / seller / agent / lender window loads it when it opens.
+    contactChoices: () => (agentDropdownsShown(user) && api.listContacts ? Promise.resolve().then(() => api.listContacts()).catch(() => []) : Promise.resolve([])),
   });
 }
 
@@ -111,13 +119,9 @@ export async function render(ctx) {
   const flagHtml = locFlags.length ? html`<div class="notice warn" data-location-flags>${locFlags.map((f) => html`<div data-location-flag="${f.participantId}"><strong>${f.text}</strong> &middot; signing method: ${f.signingLabel} <a href="#/deals/${deal.id}/closing">scheduling</a></div>`)}</div>` : '';
   const staffView = !user.accountRole && user.role !== 'Outside user';
   const canEdit = runsOrders(user) && !demoLocked;
-  let closerStaff = [];
-  let contactChoices = [];
-  if (canEdit) {
-    try { closerStaff = api.listActiveStaff ? await api.listActiveStaff() : []; } catch (e) { closerStaff = []; }
-    try { contactChoices = api.listContacts ? await api.listContacts() : []; } catch (e) { contactChoices = []; }
-  }
-  const locations = staffView && api.listClosingLocations ? await api.listClosingLocations(deal.id).catch(() => []) : [];
+  const closerStaff = canEdit ? (pack.closerStaff || []) : [];
+  const contactChoices = canEdit && !staffView ? (pack.contactChoices || []) : [];
+  const locations = staffView ? (pack.locations || []) : [];
   const settlement = { staffView, canEdit, canEditSigning: staffView && canManageClosingLocations(user) && !demoLocked, closerStaff, contactChoices, locations };
   const v = overview({ ...ctx, demoLocked, settlement }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
   const staffLayout = staffView ? html`${staffSummaryHtml(deal)}${closingTeamHtml(deal)}` : '';
