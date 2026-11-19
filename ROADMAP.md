@@ -1466,6 +1466,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Opening the old Tasks address as an agent still shows only My Tasks.
 - The agent overview "outstanding" button opens My Tasks.
 - The fake portal and the database file refuse agent reads of other parties' tasks. A coordinator still sees the agent's own tasks and can finish them on the agent's behalf.
+- The walkthrough no longer looks for a Client-Buyer row on the buyer agent's tasks page. It checks My Tasks and only that agent's own tasks (E2E-FIX-A).
 - The database file is `supabase/migrations/20261125280000_agent_own_tasks.sql` (with rollback). The shell cache stamp is 202611246300.
 - Add contact, Place Order, and Parties offer one role, Transaction coordinator.
 - The side is taken from the coordinator's links to the agents on that file. Linked to both agents saves both sides.
@@ -1475,7 +1476,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not applied on TEST. Not Live.
-- Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks.
+- Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks. The walkthrough check for that is E2E-FIX-A.
 - Not on TEST until this pull request is merged. There is no database file to apply.
 - Not Live.
 
@@ -1496,6 +1497,31 @@ This file lists the portal's major features: how each one should work, how far a
 - The words on the choice are exactly Transaction coordinator. The side is not part of the label.
 - The side comes from the existing agent links (TC-2) and the same buyer or listing side those links already use (TC-3). Nothing new is stored.
 - The follow-up is only the question and the agents on this file. It is required when the side cannot be told from a link.
+
+---
+
+## Buyer agent walkthrough matches My Tasks (E2E-FIX-A)
+
+**How it should work.** The role walkthrough, signed in as the buyer agent, opens Tasks on the test file and sees My Tasks with only that agent's own tasks. It does not see a Client-Buyer row or a way to complete the client's work.
+
+**Status: In progress.** Tracker row E2E-FIX-A. John Coester, Nov 19 2026. Not Live. No database file. Nothing on testportal.clatitle.com changes.
+
+**What's built**
+
+- The one walkthrough check in `tests/e2e-roles/specs/agent-complete-invite.spec.js` now looks for My Tasks, the Buyer's Agent tasks list, and only that agent's rows. It fails if a Client-Buyer or Client-Seller row is showing, or if "Fill in for client" or a Complete control for the client's work is on the page.
+
+**What's still missing**
+
+- Not merged. The other failures in Actions run 44513431332 are not part of this change.
+
+**Links**
+
+- Spec: [docs/specs/e2e-fix-a.md](docs/specs/e2e-fix-a.md)
+- Source: John Coester, Nov 19 2026. Tracker row E2E-FIX-A. Actions run 44513431332, failing since run 44452846353. FF-101a is [PR 355](https://github.com/Johncoester/cla-portal-demo/pull/355), merge 8b2ce856.
+
+**Decisions**
+
+- The test changed because FF-101a removed client tasks from the agent login on purpose. Completing a client task from that login stays out of scope. The check was not loosened to hide a bug (AGENTS.md rule 5).
 
 ---
 
