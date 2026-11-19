@@ -146,7 +146,7 @@ Migration `supabase/migrations/20261117100000_agent_fees.sql` (rollback in `supa
 Migration `supabase/migrations/20261118010000_agent_fee_sides.sql` adds `agent_fee_sides(deal)`: the sides the caller may see, with `read` or `edit` (none for buyers, sellers or a refinance).
 
 - `js/data/agent-fees.js`: the shared rules (% and $ from the sales price, payer defaults, other-fee checks, plain error messages). `js/data/supabase-agent-fees.js` calls the database functions; `js/data/mock-part-agent-fees.js` is the demo copy with the same rules.
-- `js/pages/agent-fees-box.js`: the box on the file overview (`js/pages/deal.js`), loaded alongside the overview's other reads. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
+- `js/pages/agent-fees-box.js`: reusable Agent fees cards. FF-101c (Francis Nov 18, confirmed by John): each side sits under that side's task section on Tasks (`js/pages/dealtasks.js`), not on File Overview. Accounting still uses the read-only summary. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
 - Tests: `test/test-agent-fees.js` (rules and the demo adapter), `test/test-agent-fees-sql.sh` (AF-1 and the sides function).
 
 ## AF-3 as built (agent and TC changes, notices to the CLA team)

@@ -1,13 +1,15 @@
 // crm-home.js : CRM Home (Zoho Classic View: task list widget, Today's Leads, Amount by Stage) and the Task / Meeting detail pages (John, Nov 2).
 // Function first, minimal styling. Reminders show in the portal only; nothing is emailed; meetings are never sent as invitations.
-import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill } from '../ui.js?v=202611161500';
-import { localDate } from '../data/constants.js?v=202611245800';
-import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611130900';
-import { tabs, head } from './crm-kit.js?v=202611245800';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611245800';
-import { inviteBtn, invitePreview } from './crm-janine.js?v=202611245800';
-import { optionsOf, optLabel } from '../data/crm-config.js?v=202611130900';
-import { lbl } from './crm-custom.js?v=202611243900';
+import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney, pill, modal, closeModal } from '../ui.js?v=202611161500';
+import { localDate } from '../data/constants.js?v=202611247700';
+import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611247700';
+import { tabs, head } from './crm-kit.js?v=202611247700';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611246800';
+import { inviteBtn, invitePreview } from './crm-janine.js?v=202611247700';
+import { optionsOf, optLabel } from '../data/crm-config.js?v=202611247700';
+import { lbl } from './crm-custom.js?v=202611247700';
+import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611161500';
+import { homeChartsSkip, writeProbe, homeChartMessage, pageSession } from '../data/crm-home-charts.js?v=202611247000';
 const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name
 const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => o.value), status: optionsOf(cfg, 'taskStatus').map((o) => o.value) });
 
@@ -37,7 +39,112 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
       <table class="tbl" id="home-stages"><thead><tr><th>Stage</th><th>Opportunities</th><th>Amount (est. yearly volume)</th><th style="width:40%"></th></tr></thead><tbody>
       ${stages.map((s) => html`<tr data-stage-row="${s.stage}"><td>${lbl(cfg, 'oppStage', s.stage)}</td><td>${s.count}</td><td data-amount>${fmtMoney(s.amount)}</td><td><div class="bar" style="background:#7FB539;height:12px;width:${Math.round((s.amount / max) * 100)}%"></div></td></tr>`)}</tbody></table>
       <p class="muted small">From the referral-partner pipeline (open the <a href="#/crm/pipeline">Pipeline</a>). Archived opportunities are left out.</p></div>`;
-  return { title: 'CRM Home', crumbs: crumbs('Home'), body, mount(root) {
+  const CHART_H = { s: 180, m: 260, l: 380 };
+  const chartBody = (c) => {
+    if (c.error) return html`<p class="err-text" data-comp-error>${c.error}</p>`;
+    const d = c.data || {}; const cur = !!d.currency;
+    if (c.type === 'kpi') return raw(kpiHtml(d, cur));
+    if (c.type === 'target') return raw(targetHtml(d, cur));
+    if (c.type === 'funnel') return raw(funnelHtml(d, cur));
+    return raw(chartSvg(d, (c.config && c.config.chartType) || 'column', { currency: cur, height: CHART_H[c.height] || 260 }));
+  };
+  const chartCard = (c) => html`<div class="card" data-home-chart="${c.id}" data-source-name="${c.sourceName || ''}" style="width:100%;box-sizing:border-box">
+    <h3 style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="dash-drag" data-drag-handle>${c.name}</span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ghost" data-home-refresh="${c.id}">Refresh</button> <button type="button" class="ghost" data-home-rename="${c.id}">Rename</button> <button type="button" class="ghost" data-home-remove="${c.id}">Remove</button></span></h3>
+    <div data-comp-body>${chartBody(c)}</div></div>`;
+  const cssId = (id) => (globalThis.CSS && CSS.escape ? CSS.escape(id) : String(id).replace(/[^A-Za-z0-9_-]/g, ''));
+  function paintHomeCharts(root, charts) {
+    let box = $('[data-home-charts]', root);
+    if (!box) { box = document.createElement('div'); box.setAttribute('data-home-charts', ''); root.appendChild(box); }
+    box.innerHTML = toText(charts.map((c) => chartCard(c)));
+    wireHomeCharts(box, charts);
+  }
+  function wireHomeCharts(box, charts) {
+    const byId = new Map(charts.map((c) => [c.id, c]));
+    const order = () => [...box.querySelectorAll('[data-home-chart]')].map((el) => el.dataset.homeChart);
+    box.addEventListener('click', guard(async (e) => {
+      const refreshBtn = e.target.closest('[data-home-refresh]');
+      const renameBtn = e.target.closest('[data-home-rename]');
+      const removeBtn = e.target.closest('[data-home-remove]');
+      if (refreshBtn) {
+        const id = refreshBtn.dataset.homeRefresh;
+        const card = await api.refreshCrmHomeChart(id);
+        const node = box.querySelector(`[data-home-chart="${cssId(id)}"]`);
+        if (node && card) {
+          const title = node.querySelector('[data-drag-handle]'); if (title) title.textContent = card.name || '';
+          const body = node.querySelector('[data-comp-body]'); if (body) body.innerHTML = toText(chartBody(card));
+          byId.set(id, card);
+        }
+        toast('Chart refreshed');
+        return;
+      }
+      if (renameBtn) { openHomeRename(renameBtn.dataset.homeRename, byId.get(renameBtn.dataset.homeRename) || {}); return; }
+      if (!removeBtn) return;
+      const id = removeBtn.dataset.homeRemove;
+      if (!confirm('Take this chart off Home? The chart stays on the dashboard.')) return;
+      await api.removeCrmHomeChart(id);
+      const node = box.querySelector(`[data-home-chart="${cssId(id)}"]`); if (node) node.remove();
+      byId.delete(id);
+      toast('Removed from Home. The dashboard chart is unchanged.');
+      if (!box.querySelector('[data-home-chart]')) { writeProbe(pageSession(), 'empty', me.id); box.remove(); }
+    }));
+    let card = null; let before = '';
+    box.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button, a, input, select, textarea')) return;
+      const handle = e.target.closest('[data-drag-handle]');
+      if (!handle || !box.contains(handle)) return;
+      card = handle.closest('[data-home-chart]'); if (!card) return;
+      before = order().join('|'); card.classList.add('is-dragging');
+      try { if (e.pointerId != null && card.setPointerCapture) card.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer has no capture */ }
+      e.preventDefault();
+    });
+    box.addEventListener('pointermove', (e) => {
+      if (!card) return;
+      const under = document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null;
+      const target = under && under.closest ? under.closest('[data-home-chart]') : null;
+      if (!target || target === card || !box.contains(target)) return;
+      const rect = target.getBoundingClientRect();
+      box.insertBefore(card, e.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
+    });
+    const finish = async () => {
+      if (!card) return;
+      card.classList.remove('is-dragging'); const next = order(); card = null;
+      if (next.join('|') === before) return;
+      try { await api.reorderCrmHomeCharts(next); writeProbe(pageSession(), 'on', me.id); toast('Order saved'); }
+      catch (err) { toast(homeChartMessage(err), 'err'); if (typeof refresh === 'function') refresh(); }
+    };
+    box.addEventListener('pointerup', finish); box.addEventListener('pointercancel', finish);
+  }
+  function openHomeRename(id, cur) {
+    const m = modal('Rename on Home', html`<form data-home-rename-form>
+      <p class="muted small">This name is only on your Home. The chart on the dashboard keeps its name. Leave this blank to use the dashboard name.</p>
+      <label>Name on Home<input name="homeName" maxlength="100" value="${cur.homeTitle || ''}" placeholder="${cur.sourceName || cur.name || ''}"></label>
+      <p><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn" type="submit">Save</button></p></form>`);
+    const form = $('[data-home-rename-form]', m);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const typed = $('[name="homeName"]', e.target).value;
+      try {
+        await api.renameCrmHomeChart(id, typed);
+        closeModal(); writeProbe(pageSession(), 'on', me.id);
+        toast('Name saved on Home. The dashboard chart is unchanged.');
+        if (typeof refresh === 'function') refresh();
+      } catch (err) { toast(homeChartMessage(err), 'err'); }
+    });
+  }
+  function loadHomeCharts(root) {
+    if (homeChartsSkip(pageSession(), me.id)) return Promise.resolve();
+    if (!api || typeof api.listCrmHomeCharts !== 'function') return Promise.resolve();
+    return api.listCrmHomeCharts().then((pack) => {
+      if (!pack || pack.available === false) { writeProbe(pageSession(), 'off', me.id); return; }
+      const charts = Array.isArray(pack.charts) ? pack.charts : [];
+      if (!charts.length) { writeProbe(pageSession(), 'empty', me.id); return; }
+      writeProbe(pageSession(), 'on', me.id);
+      paintHomeCharts(root, charts);
+    }).catch(() => { /* a failed read leaves Home as it was */ });
+  }
+  let chartsReady = Promise.resolve();
+  return { title: 'CRM Home', crumbs: crumbs('Home'), body, chartsReady: () => chartsReady, mount(root) {
     const fsel = $('[data-task-filter]', root); fsel.value = HOME_TASK_FILTERS.includes(SS('filter')) ? SS('filter') : HOME_TASK_DEFAULT;
     let [sk, sd] = (SS('sort') || 'dueDate:asc').split(':');
     const draw = () => { SS('filter', fsel.value); SS('sort', `${sk}:${sd}`);
@@ -71,7 +178,10 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
       $('[data-leads-prev]', root).disabled = page === 0; $('[data-leads-next]', root).disabled = page >= pages - 1; };
     $('[data-leads-prev]', root).addEventListener('click', () => { if (page > 0) { page -= 1; drawLeads(); } });
     $('[data-leads-next]', root).addEventListener('click', () => { if (page < pages - 1) { page += 1; drawLeads(); } });
-    drawLeads(); } };
+    drawLeads();
+    chartsReady = loadHomeCharts(root);
+  } };
+
 }
 const localDay = (iso) => { const d = new Date(iso); if (isNaN(d)) return ''; const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 

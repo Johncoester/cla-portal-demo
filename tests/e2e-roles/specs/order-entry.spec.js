@@ -47,14 +47,18 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-wiz-step="loan"] input[name="af.listing.amount"]')).toHaveValue('12000.00');
   await page.locator('[data-wiz-step="loan"] input[name="af.buyer.admin"]').fill('395');
   await advance(page, 'agents');
-  // FF-088: these are the agents' coordinators, typed as outside contacts. The old staff-only dropdowns are gone.
+  // TC-5: one Transaction coordinator. With no linked agent, the side is chosen from the agents on this order.
   const buyerTcName = `Zzqe2e${run.slice(-4)} BuyerTC`;
-  const buyerTc = page.locator('[data-agent-tc="Buyer Agent TC"]');
+  const agentName = `Zzqe2e${run.slice(-4)} Agent`;
+  await page.locator('[data-agent-card="Buyer Agent"] [data-dir-field="person"]').fill(agentName);
+  const buyerTc = page.locator('[data-agent-tc="Transaction coordinator"]');
   await expect(buyerTc.locator('[data-dir-field="person"]')).toBeVisible();
+  await expect(page.locator('[data-agent-tc="Buyer Agent TC"]')).toHaveCount(0);
   await buyerTc.locator('[data-dir-field="person"]').fill(buyerTcName);
   await buyerTc.locator('[data-dir-field="email"]').fill(`zzqe2e${run.slice(-4)}-buyertc@example.test`);
   await buyerTc.locator('[data-dir-field="phone"]').fill('301-555-0142');
-  await expect(page.locator('[data-agent-tc="Listing Agent TC"] [data-dir-field="person"]')).toBeVisible();
+  await expect(buyerTc.locator('[data-tc-which]')).toBeVisible();
+  await buyerTc.locator('[data-tc-agent]').selectOption('buyer');
   await advance(page, 'team');
   await expect(page.locator('[data-wiz-step="team"] input[name="closerName"]')).toBeVisible();
   // FF-092: salespeople are a search box with chips. The checkbox list is gone. The saved field is still salesIds.
@@ -88,7 +92,7 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-parties]')).toContainText(buyer);
   await expect(page.locator('[data-parties]')).toContainText(seller);
   await expect(page.locator('[data-parties]')).toContainText(buyerTcName);
-  await expect(page.locator('[data-party="Buyer\'s transaction coordinator"]')).toContainText(buyerTcName);
+  await expect(page.locator('[data-party="Transaction coordinator"]')).toContainText(buyerTcName);
   await expect(page.locator('[data-file-address]')).toContainText('100 E2E Test File');
   await expect(page.locator('[data-file-order]')).toContainText(number[0]);
   await expect(page.locator('[data-order-header]')).toContainText('Settlement date');
@@ -101,11 +105,14 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('[data-closing-date]')).toHaveCount(0);
   await expect(page.locator('[data-nav-closing-date]')).toBeVisible();
   await expect(page.locator('[data-status-bar]')).toBeVisible();
-  // the Place Order figures are the file's Agent fees
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-percent]')).toContainText('3%');
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('paid by Seller');
-  await expect(page.locator('[data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
+  // FF-101c: Place Order figures show as Agent fees under the agent task sections on Tasks
+  const placedId = dealId(page);
+  await gotoHash(page, `#/deals/${placedId}/tasks`);
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-percent]')).toContainText('3%');
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('paid by Seller');
+  await expect(page.locator('[data-sidebox="buyer-agent"] [data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
+  await gotoHash(page, `#/deals/${placedId}`);
 
   await page.locator('#editdeal').click();
   await expect(page.locator('#edf input[name="parcelId"]')).toHaveValue(parcel);

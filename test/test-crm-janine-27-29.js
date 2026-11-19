@@ -59,7 +59,7 @@ ok(read('js/pages/crm-reports.js').includes('data-create-report') && read('js/pa
 const dash = read('js/pages/crm-dashboards.js');
 ok(dash.includes('data-dash-kebab') && dash.includes('data-add-comp') && !dash.includes('Reorder and resize') && !dash.includes('data-dash-menu') && dash.includes('data-resize') && dash.includes('data-drag-handle') && dash.includes('Notes (beta)'), 'the dashboard keeps Add Component, a title kebab, and direct drag');
 ok(dash.includes('data-comp-menu') && dash.includes('Move to another dashboard') && dash.includes('Download (CSV)'), 'each component keeps its own menu');
-ok(!read('js/data/nov5-rules.js').includes('202611120600') && read('js/data/nov5-rules.js').includes('crm-janine.js?v=202611245800') && read('js/data/county-auto.js').includes('crm-janine.js?v=202611245800'), 'nov5-rules.js and county-auto.js use the one crm-janine stamp');
+ok(!read('js/data/nov5-rules.js').includes('202611120600') && read('js/data/nov5-rules.js').includes('crm-janine.js?v=202611247700') && read('js/data/county-auto.js').includes('crm-janine.js?v=202611247700'), 'nov5-rules.js and county-auto.js use the one crm-janine stamp');
 
 const mig = read('supabase/migrations/20261112050000_crm_janine_deal_name_import.sql');
 const rb = read('supabase/rollbacks/20261112050000_crm_janine_deal_name_import.sql');
@@ -78,8 +78,10 @@ for (const file of moneyFiles) {
 // TC-4 restamps modules that import the contact type list. Money helpers in constants.js stay as they were on main.
 const mainRef = execFileSync('git', ['rev-parse', '--verify', 'origin/main'], { cwd: root, encoding: 'utf8' }).trim();
 const diffLines = (file) => execFileSync('git', ['diff', '-U0', mainRef, 'HEAD', '--', file], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-const stampOnly = (file) => { const diff = diffLines(file); return diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l)); };
-ok(stampOnly('js/data/supabase-tc.js') && stampOnly('js/data/nov5-rules.js') && stampOnly('js/data/county-auto.js'), 'supabase-tc, nov5-rules, and county-auto change only a cache stamp');
+// FF-101a: allow unchanged — same as index.html below. The CRM PR that added this required a
+// non-empty stamp-only diff; after merge, later branches that do not retouch these modules are empty.
+const stampOnlyOrUnchanged = (file) => { const diff = diffLines(file); return diff.length === 0 || diff.every((l) => /\?v=202611\d+/.test(l)); };
+ok(stampOnlyOrUnchanged('js/data/supabase-tc.js') && stampOnlyOrUnchanged('js/data/nov5-rules.js') && stampOnlyOrUnchanged('js/data/county-auto.js'), 'supabase-tc, nov5-rules, and county-auto are unchanged or change only a cache stamp');
 const moneySlice = (src) => src.slice(src.indexOf('export const moneyClean'));
 ok(moneySlice(execFileSync('git', ['show', mainRef + ':js/data/constants.js'], { cwd: root, encoding: 'utf8' })) === moneySlice(read('js/data/constants.js')), 'money helpers in constants.js are unchanged');
 
@@ -113,9 +115,9 @@ for (const [target, hits] of stamps) {
   if (distinct.length > 1) issues.push(target + ' ' + distinct.join(','));
 }
 const janinePins = (stamps.get('js/data/crm-janine.js') || []).filter((h) => allowOld.has(h.from));
-if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611245800')) issues.push('crm-janine pin moved');
+if (janinePins.length !== allowOld.size || janinePins.some((h) => h.stamp !== '202611247700')) issues.push('crm-janine pin moved');
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(html.includes('js/app.js?v=202611247200') && html.includes('css/portal.css?v=202611245700'), 'index.html uses the current shell stamp');
+ok(html.includes('js/app.js?v=202611247200') && html.includes('css/portal.css?v=202611247600'), 'index.html uses the current shell stamp');
 const tList = performance.now();
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-admin');

@@ -4,13 +4,13 @@
 // Nov 2 (John): filter/search, staff role vs per-file roles for outside users, clients linked to salespeople (many-to-many),
 // Super admin (only a Super admin grants/removes it or deletes/suspends/changes a Super admin).
 import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options, plainError } from '../ui.js?v=202611161500';
-import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611245800';
-import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
+import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611247700';
+import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
 // contact type (John, Nov 2): outside users only (agents, clients, lenders); staff have none
 const ctypeSel = (sel, dis = '') => html`<label data-ctype-field>Contact type <span class="muted small">(outside users; for reporting)</span><select name="contactType" ${dis}><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select><span class="field-hint">${AGENT_TC_TYPE_NOTE}</span></label>`;
-import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611245800';
-import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611245900';
-import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611245900';
+import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611247700';
+import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611247700';
+import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611247700';
 const acct = (r) => (r === OUTSIDE ? 'Realtor / Client (role set per order)' : r);   // display only (live40): the stored value stays 'Outside user'
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it

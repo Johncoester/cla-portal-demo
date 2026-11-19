@@ -30,12 +30,16 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   const pct = `2.${(Date.now() % 9) + 1}`;
 
   // 1. the Processor enters the listing agent's commission and admin fee
+  // FF-101c: Agent fees live under the buyer/listing agent task sections on Tasks (not File Overview)
   await signIn(page, 'processor');
   await openMockFile(page);
   const id = dealId(page);
-  await expect(page.locator('[data-agent-fees]')).toBeVisible();
+  await gotoHash(page, `#/deals/${id}/tasks`);
+  await expect(page.locator('[data-agent-fees]').first()).toBeVisible();
   await expect(side(page, 'listing')).toBeVisible();
   await expect(side(page, 'buyer')).toBeVisible();
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees-side="listing"]')).toBeVisible();
+  await expect(page.locator('[data-sidebox="buyer-agent"] [data-agent-fees-side="buyer"]')).toBeVisible();
   let form = await openEdit(page, 'listing');
   await expect(form.locator('[data-af-price]')).toContainText('$');
   await form.locator('input[name="commissionPercent"]').fill(pct);
@@ -60,6 +64,7 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   // 2. the listing agent sees only their side, checks the "You're confirming" screen, and confirms
   await switchTo(page, 'listingAgent');
   await openMockFile(page);
+  await gotoHash(page, `#/deals/${id}/tasks`);
   await expect(side(page, 'listing')).toBeVisible();
   await expect(side(page, 'buyer')).toHaveCount(0);
   await expect(side(page, 'listing').locator('[data-af-percent]')).toContainText(`${pct}%`);
@@ -91,6 +96,7 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   // 3. the Processor changes the confirmed fee: blank reason is refused, then saved with a reason
   await switchTo(page, 'processor');
   await openMockFile(page);
+  await gotoHash(page, `#/deals/${id}/tasks`);
   form = await openEdit(page, 'listing');
   await expect(form.locator('textarea[name="reason"]')).toBeVisible();
   await form.locator('input[name="adminAmount"]').fill('400');

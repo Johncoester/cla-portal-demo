@@ -41,7 +41,7 @@ ok(once === 'once' && calls === 1 && slept.length === 0, 'a single try does not 
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../js/data/adapter.js', import.meta.url), 'utf8');
-ok(app.includes('const loadRoute = (load) => importWithRetry(() => fetchRoute(load))') && app.includes("deal: () => loadRoute(() => import('./pages/deal.js?v=202611245900'))"), 'every route import goes through the retry helper, including the deal page');
-ok(adapter.includes("importWithRetry(() => import('./supabase-adapter.js?v=202611245900'))") && adapter.includes("importWithRetry(() => import('./mock-adapter.js?v=202611246000'))") && adapter.includes('loading = null'), 'the adapter retries both back ends and does not keep a failed load');
+ok(app.includes('const loadRoute = (load) => importWithRetry(() => fetchRoute(load))') && app.includes("deal: () => loadRoute(() => import('./pages/deal.js?v=202611247900'))"), 'every route import goes through the retry helper, including the deal page');
+ok(adapter.includes("importWithRetry(() => import('./supabase-adapter.js?v=202611247000'))") && adapter.includes("importWithRetry(() => import('./mock-adapter.js?v=202611247000'))") && adapter.includes('loading = null'), 'the adapter retries both back ends and does not keep a failed load');
 console.log(fail ? fail + ' failed' : 'import retry passed');
 process.exit(fail ? 1 : 0);

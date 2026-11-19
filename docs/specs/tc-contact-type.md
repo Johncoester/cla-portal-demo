@@ -8,7 +8,7 @@ Source: John Coester, live call Nov 18 2026, 11:27 AM ET, confirmed 11:35 AM ET,
 
 ## What the user sees
 
-Contact type lists offer **Transaction coordinator (outside, works for agents)**. Under the list, the page says: "An outside assistant who works for one or more real estate agents. Not a CLA Title staff role."
+Contact type lists offer **Transaction coordinator**. TC-5b shortened that label. Under the list, the page still says: "An outside assistant who works for one or more real estate agents. Not a CLA Title staff role."
 
 That choice is on a contact (User List, the contact edit on a file, Place Order's Add new user, and the CRM contact form). The contacts list on a file, the user list, and the CRM client and lead lists can filter or group by it.
 
