@@ -1,18 +1,18 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill, toText } from '../ui.js?v=202611161500';
-import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611245800';
-import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611245800';
-import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611245800';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611245800';
-import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611245800';
-import { copyPlainText } from './deal.js?v=202611247600';
+import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
+import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611247700';
+import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611247700';
+import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611247700';
+import { copyPlainText } from './deal.js?v=202611247700';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
-import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611245800';
-import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611245800';
+import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
+import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611246200';
-import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611245900';
-import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611245900';
+import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611247700';
+import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611247700';
+import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611247700';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -83,7 +83,7 @@ export async function render({ api, user, deal, refresh }) {
       <label class="span2" data-dir-wrap hidden>Existing company or person<select data-dir-select aria-label="Existing company or person"><option value="">Not listed — type them below</option></select></label>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
       <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}<label data-lrole hidden>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">No contact person</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label></div>
-      <label class="span2" data-tc-which hidden>Which agent do they work for?<select data-tc-agent aria-label="Which agent do they work for?"><option value="">Choose…</option></select></label>
+      <label class="span2" data-tc-which hidden>Which agent are they linked to?<select data-tc-agent aria-label="Which agent are they linked to?"><option value="">Choose…</option></select></label>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
     const roleSel = $('[name=role]', m);
     const dirWrap = $('[data-dir-wrap]', m); const dirSel = $('[data-dir-select]', m);

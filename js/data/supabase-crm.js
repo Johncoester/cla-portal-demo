@@ -3,17 +3,17 @@
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
-import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611130900';
-import { localDate, runsOrders as runsOrdersCI, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611245800';
+import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611247700';
+import { localDate, runsOrders as runsOrdersCI, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611247700';
 import { uploadBytes, uploadFileName } from './upload-bytes.js?v=202611141400';
-import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611130900';
-import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611246500';
-import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611130900';
+import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCustom } from './crm-config.js?v=202611247700';
+import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611247700';
+import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611247700';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
-import { dealStageOf } from './crm-analytics.js?v=202611243900';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611245800';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611245800';
-import { contactTypeSaveError } from './contact-insert.js?v=202611245800';
+import { dealStageOf } from './crm-analytics.js?v=202611247700';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611247700';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611247700';
+import { contactTypeSaveError } from './contact-insert.js?v=202611247700';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };

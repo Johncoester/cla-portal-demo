@@ -1,9 +1,9 @@
 // Public closing-time link (#/schedule/<token>). Works without signing in, like the old portal's scheduler links. Shows only that side's view.
 // Each side picks a closing location (default: the closest CLA Title office) and the dates and times that work. The processor sees both answers on the file.
 import { html, raw, $, guard, toast, formData } from '../ui.js?v=202611161500';
-import { slotText } from './dealclosing.js?v=202611246600';
-import { CLOSING_LOCATIONS } from '../data/constants.js?v=202611245800';
-import { OFFICE_LOCATION } from '../data/cla-offices.js?v=202611246700';
+import { slotText } from './dealclosing.js?v=202611247700';
+import { CLOSING_LOCATIONS } from '../data/constants.js?v=202611247700';
+import { OFFICE_LOCATION } from '../data/cla-offices.js?v=202611247700';
 
 export async function render({ api, params }) {
   let s; try { s = await api.getSchedulingLink(params.token); } catch (e) { return { title: 'Closing time', body: shell(html`<h2>Link not valid</h2><p>${e.message}</p>`) }; }

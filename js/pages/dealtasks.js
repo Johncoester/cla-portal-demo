@@ -3,14 +3,14 @@
 // Matt, Nov 9: processors get a denser list (more rows on screen), one Expand all that opens every buyer and seller intake
 // section for editing on this page, and a green / navy / red cue for done / open / overdue. Buyer, seller and agent lists stay the same shape.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast, toText } from '../ui.js?v=202611161500';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, isAgent, localDate, isRefi } from '../data/constants.js?v=202611245800';
-import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611245800';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, isAgent, localDate, isRefi } from '../data/constants.js?v=202611247700';
+import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611247700';
 import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611245800';
-import { taskOpenHref } from '../data/task-actions.js?v=202611245800';
+import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611247700';
+import { taskOpenHref } from '../data/task-actions.js?v=202611247700';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=202611246500';
+import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=202611247700';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'Done', blocked: 'blocked', cancelled: 'cancelled' };
@@ -22,8 +22,8 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611246600')).render(ctx);
-  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611246600');
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611247700')).render(ctx);
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611247700');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
   // FF-101a: agents (and a TC acting as them) always see only their own tasks — the general Tasks list is gone for them.
@@ -120,8 +120,8 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611247800');
-      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611245800');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611247700');
+      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611247700');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
       await Promise.all(ids.map(async (id) => {

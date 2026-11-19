@@ -3,36 +3,36 @@ import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, opti
 import { textToHtml, hasSignature } from '../data/gmail-email.js?v=202611191000';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES, contactTypeForRole } from '../data/constants.js?v=202611245800';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES, contactTypeForRole } from '../data/constants.js?v=202611247700';
 import { officeDate } from '../data/office-date.js?v=202611102100';
-import { modOn } from '../data/modules.js?v=202611245800';
-import { slotText } from './dealclosing.js?v=202611246600';
-import { pickerHtml, mountPicker } from './person-picker.js?v=202611245800';
-import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611245800';
+import { modOn } from '../data/modules.js?v=202611247700';
+import { slotText } from './dealclosing.js?v=202611247700';
+import { pickerHtml, mountPicker } from './person-picker.js?v=202611247700';
+import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { cleanFileNumber } from '../data/file-number.js?v=202611222500';
-import { composeModal } from './compose.js?v=202611245800';
-import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611245800';
+import { composeModal } from './compose.js?v=202611247700';
+import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611247700';
 import { processorPickLabel, processorPickError } from '../data/processor-pick.js?v=202611222000';
-import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611245800';
-import { canManageClosingLocations } from '../data/closing-location.js?v=202611245800';
-import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611245800';
-import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611245800';
+import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611247700';
+import { canManageClosingLocations } from '../data/closing-location.js?v=202611247700';
+import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611247700';
+import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611247700';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611246600';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611245800';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611247700';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611247700';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611247600';
-import { placeText } from '../data/cla-offices.js?v=202611246700';
+import { prefetchDealTab } from './deal-tab.js?v=202611247700';
+import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
-import { lenderRoleLabel } from '../data/lender-file.js?v=202611245800';
+import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { myTasksHref } from '../data/task-board.js?v=202611245800';
+import { myTasksHref } from '../data/task-board.js?v=202611247700';
 import { earnestView } from '../data/earnest-commission.js?v=202611246500';
-import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611246200';
-import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611245800';
-import { bindAddressFill } from '../data/address-fill.js?v=202611245800';
+import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611247700';
+import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611247700';
+import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611243300';
-import { agentFeesPointer } from './agent-fees-box.js?v=202611246500';
+import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
 function staffSections(ctx, dealId) {
   const { api } = ctx;
   const user = ctx.user;
@@ -355,7 +355,7 @@ async function addPartyModal(api, d, role, refresh, replaceId = '') {
     <label>Phone<input name="phone" type="tel" inputmode="tel" maxlength="40" placeholder="xxx-xxx-xxxx" data-phone autocomplete="off" aria-label="Phone"></label>
     <label class="span2">${role === 'Lender' ? 'Lender company' : directory ? 'Company / brokerage' : 'Company or entity name'}<input name="company" maxlength="120" autocomplete="off" aria-label="Company"></label>
     ${role === 'Lender' ? html`<label class="span2">This person is<select name="lenderRole" aria-label="Lender contact type"><option value="">Company only</option><option value="loan_officer">Loan Officer</option><option value="lender_tc">Lender TC</option></select></label>` : ''}
-    ${agentTc ? html`<label class="span2" data-tc-which hidden>Which agent do they work for?<select data-tc-agent aria-label="Which agent do they work for?"><option value="">Choose…</option></select></label>` : ''}
+    ${agentTc ? html`<label class="span2" data-tc-which hidden>Which agent are they linked to?<select data-tc-agent aria-label="Which agent are they linked to?"><option value="">Choose…</option></select></label>` : ''}
     <div class="span2"><button class="m-btn" type="submit">Add ${label}</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const pk = directory ? null : mountPicker($('[data-picker=contactId]', m), () => choices);
   const dir = $('[data-dir-select]', m);

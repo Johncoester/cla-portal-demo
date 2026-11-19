@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { PARTICIPANT_ROLES, REFI_BLOCKED_ROLES } from '../js/data/constants.js';
 import {
-  AGENT_TC_LABEL, AGENT_TC_PICK, TC_CHOOSE_AGENT, TC_NEED_AGENT,
+  AGENT_TC_LABEL, AGENT_TC_PICK, TC_CHOOSE_AGENT, TC_NEED_AGENT, TC_WHICH_AGENT,
   agentTcChoiceLabel, agentTcLabel, fileAgents, isAlreadyTcMessage, linkedAgentIdsFor,
   rolesForNewContact, sideAgentName, tcAgentChoices, tcRoleFromChoice, tcRolesFromLinks,
   tcRolesToSave, tcSideProblem, placeOrderTcChoices,
@@ -39,6 +39,8 @@ ok(choices.length === 2 && choices[0].label === 'Bianca Buyer-Agent' && choices[
 ok(tcRoleFromChoice(choices[1].value, choices) === 'Listing Agent TC', 'choosing the listing agent stores the listing side');
 ok(tcSideProblem({ hasPerson: false, linkedRoles: [], choice: '', choices }) === '', 'a blank coordinator does not ask for an agent');
 ok(tcSideProblem({ hasPerson: true, linkedRoles: ['Buyer Agent TC'], choice: '', choices }) === '', 'a known side does not ask again');
+ok(TC_WHICH_AGENT === 'Which agent are they linked to?' && !/works for/i.test(TC_WHICH_AGENT), 'the follow-up asks which agent they are linked to');
+ok(TC_CHOOSE_AGENT === 'Choose which agent they are linked to.' && !/works for/i.test(TC_CHOOSE_AGENT), 'leaving the follow-up blank does not say works for');
 ok(tcSideProblem({ hasPerson: true, linkedRoles: [], choice: '', choices }) === TC_CHOOSE_AGENT, 'an unknown side requires the follow-up');
 ok(tcSideProblem({ hasPerson: true, linkedRoles: [], choice: '', choices: [] }) === TC_NEED_AGENT, 'no agent on the file tells the user to add one first');
 ok(tcRolesToSave({ linkedRoles: ['Buyer Agent TC', 'Listing Agent TC'], choice: choices[0].value, choices }).join() === 'Buyer Agent TC,Listing Agent TC', 'links win over the follow-up');
@@ -68,9 +70,9 @@ ok(isAlreadyTcMessage('Riley Coordinator is already the transaction coordinator 
 const page = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), 'utf8');
 const contacts = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta.url), 'utf8');
 const parties = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
-ok((page.match(/\$\{agentTcCard\(\)\}/g) || []).length === 1 && page.includes('Which agent do they work for?') && !page.includes("works for the buyer's agent"), 'Place Order has one coordinator card');
-ok(contacts.includes('Which agent do they work for?') && contacts.includes('tcRolesFromLinks') && !contacts.includes("works for the buyer's agent"), 'Add contact resolves the side from the link');
-ok(parties.includes('Which agent do they work for?') && parties.includes('+ Add transaction coordinator') && !parties.includes('Works for the listing agent'), 'Parties uses the one choice');
+ok((page.match(/\$\{agentTcCard\(\)\}/g) || []).length === 1 && page.includes('Which agent are they linked to?') && !page.includes('Which agent do they work for?'), 'Place Order has one coordinator card');
+ok(contacts.includes('Which agent are they linked to?') && contacts.includes('tcRolesFromLinks') && !contacts.includes('Which agent do they work for?'), 'Add contact resolves the side from the link');
+ok(parties.includes('Which agent are they linked to?') && parties.includes('+ Add transaction coordinator') && !parties.includes('Which agent do they work for?'), 'Parties uses the one choice');
 
 console.log(fail ? `tc-5: ${fail} failed` : 'tc-5 passed');
 if (fail) process.exit(1);

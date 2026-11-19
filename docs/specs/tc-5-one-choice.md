@@ -11,7 +11,7 @@ When that choice is used, the side is set from the coordinator's links to the ag
 - Linked only to the buyer's agent: saved as the buyer's side.
 - Linked only to the listing agent: saved as the listing side.
 - Linked to both agents on this file: saved on both sides.
-- Not linked to an agent on this file: a required question, **Which agent do they work for?**, lists the file's buyer's agent and listing agent. Nothing else is added under that question.
+- Not linked to an agent on this file: a required question, **Which agent are they linked to?**, lists the file's buyer's agent and listing agent. Nothing else is added under that question. Leaving it blank says: Choose which agent they are linked to.
 
 If the file has no buyer's agent and no listing agent, saving says to add one of those agents first. A blank coordinator is still skipped. A refinance still has no transaction coordinator.
 

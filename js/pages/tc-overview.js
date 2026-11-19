@@ -1,12 +1,12 @@
 // TC FILE OVERVIEW (John, Nov 5): light, mirrors buyer/seller overview. Order: progress, address/key info, outstanding tasks, contacts.
 // Quick jumps: Contract info, Milestones, EMD & ALTA, Documents/Upload, Messages (all parties). FAKE DATA ONLY.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
-import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611245800';
-import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611245800';
-import { composeModal } from './compose.js?v=202611245800';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611245800';
+import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611247700';
+import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611247700';
+import { composeModal } from './compose.js?v=202611247700';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { agentFeesPointer } from './agent-fees-box.js?v=202611246500';
+import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;

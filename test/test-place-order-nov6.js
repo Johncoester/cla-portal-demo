@@ -62,7 +62,7 @@ ok((await a.createDeal({ ...ORDER, street: '8 Old Source Rd', sourceOfBusiness: 
 
 const page = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), 'utf8');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
-for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', 'Transaction coordinator', 'Which agent do they work for?', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'data-sales-picker', 'MIN_ROWS = 2', 'data-agent-tc']) ok(page.includes(bit), 'wizard has ' + bit);
+for (const bit of ['Upload sales contract', 'Upload title request', 'Add lender', 'Transaction coordinator', 'Which agent are they linked to?', '+ Add another ${MULTI[role]}', "'Client-Seller': 'seller'", 'Who can see these files', 'id="tx-files"', 'id="tx-vis"', 'id="sob-block"', 'data-sales-picker', 'MIN_ROWS = 2', 'data-agent-tc']) ok(page.includes(bit), 'wizard has ' + bit);
 ok(!page.includes("works for the buyer's agent") && !page.includes('Listing transaction coordinator'), 'Place Order does not offer a listing or buyer coordinator label');
 const salesPicker = readFileSync(new URL('../js/pages/sales-multi.js', import.meta.url), 'utf8');
 ok(salesPicker.includes('name="salesIds"') && salesPicker.includes('role="combobox"') && page.includes("getAll('salesIds')"), 'salespeople still save as salesIds from the search box');

@@ -3,7 +3,7 @@
  * A new buyer or listing coordinator is saved as that contact type. An existing contact keeps its type.
  * Fake data only. Run: node test/test-tc-contact-type.js */
 import { readFileSync } from 'node:fs';
-import { AGENT_TC_TYPE, AGENT_TC_TYPE_LABEL, AGENT_TC_TYPE_NOTE, CONTACT_TYPES, contactTypeForRole, contactTypeLabel, outsideTypeLabel } from '../js/data/constants.js';
+import { AGENT_TC_TYPE, AGENT_TC_TYPE_LABEL, AGENT_TC_TYPE_LABEL_SAVED, AGENT_TC_TYPE_NOTE, CONTACT_TYPE_ERROR, CONTACT_TYPES, contactTypeForRole, contactTypeLabel, outsideTypeLabel } from '../js/data/constants.js';
 import { manualPartyEntry, directoryModel } from '../js/data/file-party.js';
 import { contactInsertRow, contactTypeSaveError } from '../js/data/contact-insert.js';
 import { USER_ROLE_FILTERS, filterUsers } from '../js/data/user-filter.js';
@@ -15,9 +15,10 @@ const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('
 const rejects = async (p, name, re) => { try { await p(); ok(false, name + ' (should have failed)'); } catch (e) { ok(!re || re.test(e.message), name + ' [' + e.message + ']'); } };
 
 ok(AGENT_TC_TYPE === 'agent_tc' && AGENT_TC_TYPE.length <= 20, 'the stored code is short enough for the contact type field');
-ok(contactTypeLabel(AGENT_TC_TYPE) === AGENT_TC_TYPE_LABEL && /outside/i.test(AGENT_TC_TYPE_LABEL) && /agents/i.test(AGENT_TC_TYPE_LABEL), 'the label says this is an outside coordinator who works for agents');
+ok(AGENT_TC_TYPE_LABEL === 'Transaction coordinator' && contactTypeLabel(AGENT_TC_TYPE) === AGENT_TC_TYPE_LABEL && !/outside|works for/i.test(AGENT_TC_TYPE_LABEL), 'the contact type label is exactly Transaction coordinator');
 ok(/outside assistant/i.test(AGENT_TC_TYPE_NOTE) && /real estate agents/i.test(AGENT_TC_TYPE_NOTE) && /not a cla title staff role/i.test(AGENT_TC_TYPE_NOTE), 'the description is an outside assistant, not CLA staff');
 ok(CONTACT_TYPES.some(([code, label]) => code === AGENT_TC_TYPE && label === AGENT_TC_TYPE_LABEL), 'the contact type list offers Transaction coordinator');
+ok(CONTACT_TYPE_ERROR === 'Pick a contact type from the list (Realtor, Lender, Buyer/Seller, or Transaction coordinator).', 'a bad contact type says to pick from the list');
 ok(contactTypeForRole('Buyer Agent TC') === AGENT_TC_TYPE && contactTypeForRole('Listing Agent TC') === AGENT_TC_TYPE, 'a new buyer or listing coordinator defaults to Transaction coordinator');
 ok(contactTypeForRole('Transaction Coordinator') === '' && contactTypeForRole('Buyer Agent') === 'realtor' && contactTypeForRole('Lender') === 'lender', 'the CLA staff role has no contact type, and agents and lenders keep theirs');
 
@@ -51,6 +52,7 @@ ok(outsideTypeLabel(outside) === AGENT_TC_TYPE_LABEL && !/staff/i.test(outsideTy
 ok(USER_ROLE_FILTERS.some(([value, label]) => value === 'type:' + AGENT_TC_TYPE_LABEL && label === AGENT_TC_TYPE_LABEL), 'the user list can group by the outside coordinator type');
 ok(filterUsers([outside, staff], { contactType: AGENT_TC_TYPE }).map((u) => u.id).join() === 'u-out', 'the contact type filter finds the new type and leaves others out');
 ok(filterUsers([outside, staff], { role: 'type:' + AGENT_TC_TYPE_LABEL }).length === 1, 'the outside-type filter matches a coordinator');
+ok(filterUsers([outside, staff], { role: 'type:' + AGENT_TC_TYPE_LABEL_SAVED }).map((u) => u.id).join() === 'u-out', 'a saved filter that still uses the old longer label matches the same coordinator');
 ok(filterUsers([outside, staff], { role: 'Transaction Coordinator' }).map((u) => u.id).join() === 'u-tc', 'the CLA staff role filter is unchanged');
 
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
