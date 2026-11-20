@@ -2045,7 +2045,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On New Custom View and Edit view, Choose Columns, the selected columns move the same way as Manage columns on All Leads, All Clients, All Companies, and All Deals. Drag a selected column to a new place. The row has the same border and grab cursor as that list. Arrow keys move the focused row one place. Add and remove stay. The record name stays selected and can sit in any place. The order you leave is the order the view saves and the order that view's list shows.
 
-**Status: In progress.** Janine Santos, Feedback 30 follow-up item 3, confirmed by email Nov 19, 2026, 6:30 PM ET ("Yes"). No database file. Not Live until this is merged and someone checks it on TEST.
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 3, confirmed by email Nov 19, 2026, 6:30 PM ET ("Yes"). Pull request: [PR 386](https://github.com/Johncoester/cla-portal-demo/pull/386). No database file. Not Live until this is merged and someone checks it on TEST.
 
 **What's built**
 
