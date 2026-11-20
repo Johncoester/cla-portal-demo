@@ -2,7 +2,8 @@
  * "New Custom View" = criteria + columns + sharing, and "Save filter" chips with counts). Routes: #/crm/views/<id> (a view), #/crm/views/new/<module>,
  * #/crm/views/<id>/edit. The adapter decides which rows a person may see; a view only narrows them. Function first, minimal styling. */
 import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611161500';
-import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611247700';
+import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611247700';
+import { startingViewColumns } from '../data/crm-all-columns.js?v=202611249850';
 import { criteriaEditor } from './crm-criteria.js?v=202611247700';
 import { tabs, head } from './crm-kit.js?v=202611247100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
@@ -83,8 +84,8 @@ export async function viewPage(c) {
 async function editorPage(c, v0, module) {
   const { api, me, cfg } = c; if (!VIEW_MODULE_LABEL[module]) throw new Error('Pick Clients, Leads, Companies or Deals.');
   const fields = viewModuleFields(module, cfg); const targets = await api.listCrmShareTargets(); const users = criteriaUserList(targets.users).map((u) => ({ id: u.id, name: u.role ? `${u.name} (${u.role})` : u.name })); const nk = VIEW_NAME_KEY[module];
-  const s = v0 ? JSON.parse(JSON.stringify(v0)) : { name: '', criteria: [], logic: 'and', columns: [...VIEW_DEFAULT_COLUMNS[module]], sortField: nk, sortDir: 'asc', visibility: 'me', shareUsers: [], pinned: true };
-  s.columns = placeNameColumn(module, s.columns);
+  const s = v0 ? JSON.parse(JSON.stringify(v0)) : { name: '', criteria: [], logic: 'and', columns: [], sortField: nk, sortDir: 'asc', visibility: 'me', shareUsers: [], pinned: true };
+  s.columns = v0 ? placeNameColumn(module, s.columns) : await startingViewColumns({ api, userId: me && me.id, module, cfg, fields });
   const lab = (k) => (fields.find((f) => f.key === k) || { label: k }).label;
   const ce = criteriaEditor('view', fields, s.criteria, { logic: s.logic || 'and', cfg, users });
   const body = html`${head(v0 ? `Edit view: ${v0.name}` : `New Custom View: ${VIEW_MODULE_LABEL[module]}`, me)}${tabs(module)}

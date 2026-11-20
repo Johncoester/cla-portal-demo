@@ -6,6 +6,7 @@ import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../d
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611247700';
 import { canChangeCrmRecord } from '../data/crm-visibility.js?v=202611247100';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611247700';
+import { allListBuiltInKeys, allListCatalogKeys } from '../data/crm-all-columns.js?v=202611249850';
 import { tabs, head, sel, pairs, ownerSel, ctype, money, listView, ordersCard, wireArchive, setCrmAdmin, setCrmMe, editControl, archiveControl, lockNote, archiveBtn } from './crm-kit.js?v=202611247100';
 import { newActivityPage, importPage, wireCompanyDup, dupHtml } from './crm-janine.js?v=202611247700';
 import { flattenCustom, defaultOption, fieldsInSection } from '../data/crm-config.js?v=202611247700';
@@ -19,10 +20,10 @@ import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compo
 import { searchPage } from './crm-search.js?v=202611247100';
 import { dashboardsPage } from './crm-dashboards.js?v=202611247100';
 import { reportsHome } from './crm-reports.js?v=202611247100';
-import { dealsPage } from './crm-deals.js?v=202611249600';
+import { dealsPage } from './crm-deals.js?v=202611249850';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611249600';
 import { callPage, callModal, callsList } from './crm-calls.js?v=202611247100';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611247100';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611249850';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
@@ -122,6 +123,15 @@ const listCatalog = (module, cfg, cols) => {
   }, (r) => display(f, r, cfg)]);
   return [...cols, ...extra];
 };
+const colsInOrder = (module, cfg, built) => {
+  const by = new Map(built.map((c) => [c[0], c]));
+  return allListBuiltInKeys(module, cfg).map((k) => by.get(k)).filter(Boolean);
+};
+const catalogInOrder = (module, cfg, cols) => {
+  const built = listCatalog(module, cfg, cols);
+  const by = new Map(built.map((c) => [c[0], c]));
+  return allListCatalogKeys(module, cfg).map((k) => by.get(k)).filter(Boolean);
+};
 const when = (v) => (v ? fmtDateTime(v) : html`<span class="muted">—</span>`);
 const TIME_COLS = [['createdAt', 'Created Time', (r) => when(r.createdAt), (r) => r.createdAt || ''], ['modifiedAt', 'Modified Time', (r) => when(r.modifiedAt), (r) => r.modifiedAt || ''], ['lastActivityAt', 'Last Activity Time', (r) => when(r.lastActivityAt), (r) => r.lastActivityAt || '']];
 // Clients: modified_at is still null until the next save. Show the created time in that column.
@@ -130,11 +140,12 @@ const TIME_SORTS = [['createdAt', 'Created Time'], ['modifiedAt', 'Modified Time
 async function leadsList({ api, me, owners, go, cfg, refresh, openCreate = false }) {
   const rows = (await api.listCrmLeads()).map((r) => flattenCustom(cfg, 'lead', r)); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
-  const bar = await viewsBar(api, 'leads'); const leadCols = [['name', 'Lead Name', (r) => html`${link('leads', r)}${r.converted ? html` ${pill('Converted', 'ok')}` : ''}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], ['company', 'Company', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}" data-lead-company>${r.accountName}</a>` : r.company || muted('—')), (r) => r.company], ['email', 'Email'], ['phone', 'Phone'],
+  const bar = await viewsBar(api, 'leads'); const leadBuilt = [['name', 'Lead Name', (r) => html`${link('leads', r)}${r.converted ? html` ${pill('Converted', 'ok')}` : ''}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], ['company', 'Company', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}" data-lead-company>${r.accountName}</a>` : r.company || muted('—')), (r) => r.company], ['email', 'Email'], ['phone', 'Phone'],
       ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'leadRelationshipStatus', 'relationshipStatus', 'Relationship Status')]),
       ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ...(H('county') ? [] : [['county', 'County']]),
       ['ownerName', 'Lead Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...TIME_COLS, ...cfCols(cfg, 'lead')];
-  const lv = listView({ bar, saved: { api, listKey: 'leads' }, dates: true, headerSort: true, key: 'leads', userId: me.id, rows, cols: leadCols.slice(0, 10), catalog: listCatalog('leads', cfg, leadCols), bulk: { module: 'lead', api, me, owners, refresh }, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const leadCols = colsInOrder('leads', cfg, leadBuilt);
+  const lv = listView({ bar, saved: { api, listKey: 'leads' }, dates: true, headerSort: true, key: 'leads', userId: me.id, rows, cols: leadCols.slice(0, 10), catalog: catalogInOrder('leads', cfg, leadCols), bulk: { module: 'lead', api, me, owners, refresh }, fields: ['name', 'email', 'company', 'phone', 'leadSource', 'notes', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'lead')], sortDefault: 'createdAt:desc', csv: me.canConfigure ? 'crm-leads.csv' : '', exporter: (cols, out) => api.exportCrmList('leads', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
    
     filters: [['ownerId', 'Lead Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Relationship Status', leadStatusOpts(cfg, rows), 'Any status'],
       ['leadSource', 'Lead Source', fopts(cfg, 'leadSource'), 'Any source'], ['county', 'County', countyOpts(rows), 'Any county'], ['state', 'State', stateOpts(rows), 'Any state'], ['contactType', 'Contact type', ctOpts, 'Any type'],
@@ -180,12 +191,13 @@ async function contactsList({ api, me, owners, go, cfg, refresh, openCreate = fa
   const rows = (await api.listCrmContacts()).map((r) => { const row = flattenCustom(cfg, 'contact', r); return { ...row, modifiedAt: row.modifiedAt || row.createdAt || null }; }); const accounts = me.canEdit ? await api.listCrmAccounts() : [];
   const H = (k) => hiddenField(cfg, 'person', k);
   const bar = await viewsBar(api, 'contacts');
-  const contactCols = [['name', 'Client Name', (r) => html`${link('contacts', r)}${r.archived ? html` ${pill('Archived')}` : ''}${r.hasLogin ? html` <span class="muted small">(portal login)</span>` : ''}`, (r) => r.name],
+  const contactBuilt = [['name', 'Client Name', (r) => html`${link('contacts', r)}${r.archived ? html` ${pill('Archived')}` : ''}${r.hasLogin ? html` <span class="muted small">(portal login)</span>` : ''}`, (r) => r.name],
       ['companyName', 'Company Name', (r) => (r.accountId ? html`<a href="#/crm/accounts/${r.accountId}">${r.accountName}</a>` : r.company), (r) => r.companyName], ...(H('roleInCompany') ? [] : [pk(cfg, 'roleInCompany', 'roleInCompany', 'Role in Company')]), ['email', 'Email'],
       ...(H('mobile') ? [] : [['mobile', 'Mobile']]), ...(H('leadSource') ? [] : [pk(cfg, 'leadSource', 'leadSource', 'Lead Source')]), ...(H('relationshipStatus') ? [] : [pk(cfg, 'relationshipStatus', 'relationshipStatus', 'Status')]),
       ['ownerName', 'Client Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName], ...CLIENT_TIME_COLS,
       ...(H('county') ? [] : [['county', 'County']]), ...(H('contactType') ? [] : [['contactType', 'Contact type', (r) => ctype(r.contactType), (r) => contactTypeLabel(r.contactType) || '']]), ['orders', 'Orders'], ['volume', 'Volume', (r) => money(r.volume), (r) => r.volume], ...cfCols(cfg, 'contact')];
-  const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, headerSort: true, key: 'contacts', userId: me.id, rows, cols: contactCols.slice(0, 10), catalog: listCatalog('contacts', cfg, contactCols), bulk: { module: 'contact', api, me, owners, refresh }, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const contactCols = colsInOrder('contacts', cfg, contactBuilt);
+  const lv = listView({ bar, saved: { api, listKey: 'contacts' }, dates: true, headerSort: true, key: 'contacts', userId: me.id, rows, cols: contactCols.slice(0, 10), catalog: catalogInOrder('contacts', cfg, contactCols), bulk: { module: 'contact', api, me, owners, refresh }, fields: ['name', 'email', 'companyName', 'phone', 'mobile', 'tags', 'county', 'city', 'roleInCompany', ...cfSearch(cfg, 'contact')], csv: me.canConfigure ? 'crm-clients.csv' : '', exporter: (cols, out) => api.exportCrmList('contacts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
     filters: [['ownerId', 'Client Owner', ownerOpts(owners), 'Any owner'], ['roleInCompany', 'Role in Company', fopts(cfg, 'roleInCompany'), 'Any role'], ['relationshipStatus', 'Status', [...fopts(cfg, 'relationshipStatus'), ['none', 'Not set']], 'Any status'],
       ['leadSource', 'Lead Source', fopts(cfg, 'leadSource'), 'Any source'], ['county', 'County', countyOpts(rows), 'Any county'], ['state', 'State', stateOpts(rows), 'Any state'], ['contactType', 'Contact type', ctOpts, 'Any type'], ['archived', 'Archived', archivedOpts, 'Hide archived'], ...cfFilters(cfg, 'contact')],
     sorts: [['name', 'Client Name'], ['companyName', 'Company Name'], ['relationshipStatus', 'Status'], ['county', 'County'], ['lastContactedOn', 'Last contacted'], ['orders', 'Orders'], ['volume', 'Volume'], ['ownerName', 'Client Owner'], ...TIME_SORTS, ...cfSorts(cfg, 'contact')] });
@@ -218,9 +230,10 @@ async function contactPage({ api, me, owners, assignees, params, refresh, cfg })
 async function accountsList({ api, me, owners, go, cfg, refresh, openCreate = false }) {
   const rows = (await api.listCrmAccounts()).map((a) => flattenCustom(cfg, 'account', { ...a, place: [a.city, a.state].filter(Boolean).join(', ') }));
   const bar = await viewsBar(api, 'accounts');
-  const accountCols = [['name', 'Company Name', (r) => html`${link('accounts', r)}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], pk(cfg, 'accountKind', 'kind', 'Type'), ...(hiddenField(cfg, 'account', 'city') ? [] : [['place', 'City']]), ['ownerName', 'Company Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName],
+  const accountBuilt = [['name', 'Company Name', (r) => html`${link('accounts', r)}${r.archived ? html` ${pill('Archived')}` : ''}`, (r) => r.name], pk(cfg, 'accountKind', 'kind', 'Type'), ...(hiddenField(cfg, 'account', 'city') ? [] : [['place', 'City']]), ['ownerName', 'Company Owner', (r) => r.ownerName || muted('Unassigned'), (r) => r.ownerName],
       ['contacts', 'Clients'], ['orders', 'Orders'], ['volume', 'Volume', (r) => money(r.volume), (r) => r.volume], ...TIME_COLS, ...cfCols(cfg, 'account')];
-  const lv = listView({ bar, saved: { api, listKey: 'accounts' }, dates: true, headerSort: true, sortDefault: 'name:asc', key: 'accounts', userId: me.id, rows, cols: accountCols.slice(0, 10), catalog: listCatalog('accounts', cfg, accountCols), bulk: { module: 'account', api, me, owners, refresh }, fields: ['name', 'city', 'website', 'notes', ...cfSearch(cfg, 'account')], csv: me.canConfigure ? 'crm-companies.csv' : '', exporter: (cols, out) => api.exportCrmList('accounts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
+  const accountCols = colsInOrder('accounts', cfg, accountBuilt);
+  const lv = listView({ bar, saved: { api, listKey: 'accounts' }, dates: true, headerSort: true, sortDefault: 'name:asc', key: 'accounts', userId: me.id, rows, cols: accountCols.slice(0, 10), catalog: catalogInOrder('accounts', cfg, accountCols), bulk: { module: 'account', api, me, owners, refresh }, fields: ['name', 'city', 'website', 'notes', ...cfSearch(cfg, 'account')], csv: me.canConfigure ? 'crm-companies.csv' : '', exporter: (cols, out) => api.exportCrmList('accounts', cols, out),   // John, Nov 3: CSV = Admin / Super admin only
     filters: [['ownerId', 'Company Owner', ownerOpts(owners), 'Any owner'], ['kind', 'Type', fopts(cfg, 'accountKind'), 'Any type'], ['archived', 'Archived', archivedOpts, 'Hide archived'], ...cfFilters(cfg, 'account')],
     sorts: [['name', 'Name'], ['kind', 'Type'], ['orders', 'Orders'], ['volume', 'Volume'], ['ownerName', 'Company Owner'], ...TIME_SORTS, ...cfSorts(cfg, 'account')] });
   const body = html`${head('CRM: Companies', me)}${tabs('accounts')}${lv.body}`;
