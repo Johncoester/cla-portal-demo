@@ -2757,7 +2757,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On CRM, then Companies, each column header sorts the All Companies list. The first click sorts up. The second click sorts down. The same arrow used on Leads, Clients, and Deals shows the direction. Search, filters, and pages stay in effect.
 
-**Status: In progress.** Janine Santos, Feedback 30 follow-up item 1, confirmed by email Nov 19 2026, 6:30 PM ET ("Yes"). No database file. Not Live until this is merged and someone checks it on TEST.
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 1, confirmed by email Nov 19 2026, 6:30 PM ET ("Yes"). Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384). No database file. Not Live until this is merged and someone checks it on TEST.
 
 **What's built**
 
@@ -2773,6 +2773,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-companies-sort.md](docs/specs/crm-companies-sort.md)
+- Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384)
 
 **Decisions**
 

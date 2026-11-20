@@ -4,7 +4,7 @@
 
 **Tracker:** Feedback 30 follow-up item 1. No separate tracker id is stored in this repo.
 
-**Status:** In progress. Not Live until this is merged and someone checks it on TEST. No database file.
+**Status:** In progress. Pull request 384. Not Live until this is merged and someone checks it on TEST. No database file.
 
 ## What the user sees
 
