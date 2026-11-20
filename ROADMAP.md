@@ -1328,7 +1328,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
 
-**Status: In progress.** John Coester, chat, Nov 20 2026, 10:41 AM ET, from his screenshot of Order Contacts on MD-26-97260. Tracker item TC-INVITE-1. Pull request: PR_LINK. Not Live until `supabase/migrations/20261125360000_tc_portal_invite.sql` is applied on TEST.
+**Status: In progress.** John Coester, chat, Nov 20 2026, 10:41 AM ET, from his screenshot of Order Contacts on MD-26-97260. Tracker item TC-INVITE-1. Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387). Not Live until `supabase/migrations/20261125360000_tc_portal_invite.sql` is applied on TEST.
 
 **What's built**
 
@@ -1344,7 +1344,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md) (Portal invite)
-- Pull request: PR_LINK
+- Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387)
 - Source: John Coester, chat, Nov 20 2026, 10:41 AM ET. Tracker item TC-INVITE-1.
 
 **Decisions**
