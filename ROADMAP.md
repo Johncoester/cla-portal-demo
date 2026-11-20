@@ -1359,7 +1359,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
 
-**Status: In progress.** John Coester, chat, Nov 20 2026, 11:33 AM ET, after the error toast when adding TC Portal Jc (tcportaljc@gmail.com) to DC-26-78512. Tracker item CONTACT-REUSE-1. This is a bug fix, not a new feature, so rule 9 does not block it. Not Live until this is on TEST. No database file.
+**Status: In progress.** John Coester, chat, Nov 20 2026, 11:33 AM ET, after the error toast when adding TC Portal Jc (tcportaljc@gmail.com) to DC-26-78512. Tracker item CONTACT-REUSE-1. Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388). This is a bug fix, not a new feature, so rule 9 does not block it. Not Live until this is on TEST. No database file.
 
 **What's built**
 
@@ -1374,6 +1374,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/contact-reuse.md](docs/specs/contact-reuse.md)
+- Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388)
 - Source: John Coester, chat, Nov 20 2026, 11:33 AM ET. Tracker item CONTACT-REUSE-1.
 
 **Decisions**
