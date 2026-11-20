@@ -2014,6 +2014,33 @@ This file lists the portal's major features: how each one should work, how far a
 - Janine asked to move the name, not to drop it. It stays required and it can sit in any selected position.
 - An older view with no stored name position keeps the name first. A view that already stored a position keeps that position.
 
+## New custom view starts with the All list columns
+
+**How it should work.** On Leads, Clients, Companies, and Deals, New Custom View opens with the same columns, in the same order, as All Leads, All Clients, All Companies, or All Deals. A person's own column choice on that All list is the starting point. They can still add, remove, and reorder columns before saving. A view that is already saved keeps its own columns. The record name stays selected, in the place the All list already gave it, or first when the All list is not showing it.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 2, confirmed by email Nov 19, 2026, 6:30 PM ET. No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- New Custom View for all four lists starts from the All list's columns, including a column choice saved on that login.
+- Edit of a saved view still shows that view's columns.
+- The name column can still move, and it cannot be removed. A list column the view cannot store, such as Source on Deals, is left out. Companies City on the All list is the City field on the view.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- A column change on the All list that has not been saved to the login yet is not copied if New Custom View is opened in that same moment.
+
+**Links**
+
+- Spec: [docs/specs/crm-new-view-all-columns.md](docs/specs/crm-new-view-all-columns.md)
+
+**Decisions**
+
+- No database file. The All list already stores a person's column choice.
+- The All list and New Custom View share one column list, so the two cannot drift.
+- The shell cache stamp is 202611249850, above main's 202611249800.
+
 ## Page load retry (LOAD-RETRY-1)
 
 **How it should work.** Opening a page shows "Loading this page." while its files arrive. If GitHub Pages answers 503 for one file, the portal tries that load again. If it still fails, the loading line is replaced with "This page didn't load. Check your connection and try again." and a Reload button. The loading line does not stay on screen.
