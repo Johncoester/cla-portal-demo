@@ -793,17 +793,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged (PR 263, Nov 14); not Live until its database file is applied on TEST. TB-2b (Try on one file, new files only) pull request open.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged ([PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263), Nov 14); engine file already applied on TEST as 20261114143634. TB-2b merged ([PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265)); try-and-scope file already applied on TEST as 20261114170335. TB-6 Live on TEST ([PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389), Nov 20).**
 
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
-| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265) open. Not Live until `20261122010000_task_flow_try_and_scope.sql` is applied on TEST, after TB-2's file |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Database file already applied on TEST as `task_flow_engine` version 20261114143634 (repo file `20261121010000_task_flow_engine.sql`). |
+| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | Merged, [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265). Database file already applied on TEST as `task_flow_try_and_scope` version 20261114170335 (repo file `20261122010000_task_flow_try_and_scope.sql`). |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
-| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Pull request open. Not Live until `20261126010000_task_flow_client_requests.sql` is applied on TEST, after TB-2 and TB-2b's files |
+| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
 
 **What's built**
 
@@ -814,7 +814,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- TB-2 and TB-2b are not Live: apply `20261121010000_task_flow_engine.sql`, then `20261122010000_task_flow_try_and_scope.sql`, on TEST (they need TB-1's file, already applied, and pg_cron, already on TEST). John wants to try it himself before Grok tests it.
+- TB-2, TB-2b and TB-6 database files are applied on TEST. John tests the TB-6 flow himself before Grok tests it.
 - "Contract received" and "Title commitment received" can be saved but not turned on yet.
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
