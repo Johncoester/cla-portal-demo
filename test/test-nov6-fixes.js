@@ -16,10 +16,9 @@ await api.signInDev('u-admin');
 const lender = await api.createContact({ firstName: '', lastName: '', company: 'Example Home Loans', email: 'loans@example.test', contactType: 'lender' });
 ok(lender.company === 'Example Home Loans' && lender.firstName === '' && !lender.profileId, 'a lender company is saved without a person name or a login');
 const pat = await api.createContact({ firstName: 'Pat', lastName: 'Smith', email: 'pat@example.test', contactType: 'buyer_seller' });
-let reused = '';
-try { await api.createContact({ firstName: 'Pat', lastName: 'Jones', email: 'pat@example.test' }); } catch (e) { reused = e.message; }
-const again = (await api.listContacts('pat@example.test')).find((c) => c.email === 'pat@example.test');
-ok(/already exists/.test(reused) && again.lastName === 'Smith' && again.id === pat.id, 'the same email keeps the saved last name and does not add a second contact');
+const reused = await api.createContact({ firstName: 'Pat', lastName: 'Jones', email: 'pat@example.test' });
+const again = (await api.listContacts('pat@example.test')).filter((c) => c.email === 'pat@example.test');
+ok(reused.id === pat.id && reused.lastName === 'Smith' && again.length === 1 && again[0].id === pat.id, 'the same email keeps the saved last name and does not add a second contact');
 const deal = await api.createDeal({ street: '9 Fix Lane', city: 'Rockville', state: 'MD', zip: '20850', transactionType: 'Purchase', processorId: '' });
 ok(!deal.processorId, 'an order can be saved with Processor unassigned');
 const ann = await api.createContact({ firstName: 'Ann', lastName: 'Buyer', email: 'ann-buyer@example.test', company: '100 Buyer Street' });

@@ -689,7 +689,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Place Order buyer and seller rows take a name, email, and phone (and the entity fields that were already there). The search box remains for an existing contact. A typed name no longer stops on "pick a person from the list."
 - Buyer's agent, listing agent, and lender: a list of saved companies and agents or loan officers, plus boxes to type a person and a company.
 - The same entry is on the file's Parties buttons and on Contacts → Add contact.
-- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten.
+- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten. If the typed email already belongs to a contact, that contact is used (CONTACT-REUSE-1).
 
 **What's still missing**
 
@@ -1352,6 +1352,35 @@ This file lists the portal's major features: how each one should work, how far a
 - This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
 - A coordinator gets the short client login, not the agent account.
 - A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+
+---
+
+## Reuse a contact by email (CONTACT-REUSE-1)
+
+**How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 11:33 AM ET, after the error toast when adding TC Portal Jc (tcportaljc@gmail.com) to DC-26-78512. Tracker item CONTACT-REUSE-1. This is a bug fix, not a new feature, so rule 9 does not block it. Not Live until this is on TEST. No database file.
+
+**What's built**
+
+- Order Contacts → Add contact, and File Overview party buttons, use the existing contact when the typed email already belongs to someone. A short note says that person was already a contact.
+- Saving a new contact in the background does the same thing, so Place Order and other add-person screens also reuse the existing record instead of failing.
+- Editing a contact and changing its email to one already used still fails in plain words.
+
+**What's still missing**
+
+- Proof on TEST after this is merged. Not Live until then.
+
+**Links**
+
+- Spec: [docs/specs/contact-reuse.md](docs/specs/contact-reuse.md)
+- Source: John Coester, chat, Nov 20 2026, 11:33 AM ET. Tracker item CONTACT-REUSE-1.
+
+**Decisions**
+
+- One contact per email stays. The fix is to link that contact to the file, not to allow a second record.
+- The saved name, phone, and company are not overwritten when the typed details differ.
+- Assigning a TC to agents (admin, contact record, or file) so they automatically appear on every one of those agents' files is a later item, not this fix.
 
 ---
 
