@@ -5,6 +5,7 @@ import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611
 import { STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcAlreadyMessage, agentTcRefiMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611248300';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
+import { existingContactByEmail, normContactEmail } from './contact-reuse.js?v=202611249950';
 import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611247700';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
@@ -66,8 +67,9 @@ export function contactsTasksDocs(x) {
         email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: companyName, contactType: ctype(input.contactType), createdBy: u.id, createdAt: now() };
       try { c.lenderRole = cleanLenderRole(input.lenderRole, c.contactType); } catch (e) { fail(e.message); }
       if (c.email && !emailOk(c.email)) fail('Email is not valid.');
-      if (c.email && d.contacts.some((z) => z.email === c.email)) fail('A contact with this email already exists.');
-      if (c.email && d.profiles.some((z) => z.email === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
+      const existing = existingContactByEmail(d.contacts, c.email);
+      if (existing) return clone(existing);
+      if (c.email && d.profiles.some((z) => normContactEmail(z.email) === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
       d.contacts.push(c); save(); return clone(c);
     },
     async updateContact(id, patch) {

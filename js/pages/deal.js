@@ -21,11 +21,12 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611249900';
+import { prefetchDealTab } from './deal-tab.js?v=202611249950';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
+import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
 import { myTasksHref } from '../data/task-board.js?v=202611247700';
 import { earnestView } from '../data/earnest-commission.js?v=202611246500';
 import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
@@ -353,7 +354,7 @@ async function addPartyModal(api, d, role, refresh, replaceId = '') {
   const choices = all.filter((c) => !on.has(c.id));
   const model = directory ? directoryModel(choices, role === 'Lender' ? 'lender' : agentTc ? 'tc' : 'agent') : null;
   const m = modal(`${replaceId ? 'Change the' : 'Add a'} ${label}`, html`<form id="apty" class="form-grid">
-    <p class="span2 muted small">Type the name, email and phone onto this file. You do not have to pick an existing contact, and no portal login is created. Invite them later from Contacts.</p>
+    <p class="span2 muted small">Type the name, email and phone onto this file. You do not have to pick an existing contact, and no portal login is created. If that email is already on a contact, that person is added to this file and a second record is not created. Invite them later from Contacts.</p>
     ${directory ? html`<label class="span2">Existing company or ${role === 'Lender' ? 'loan officer' : agentTc ? 'transaction coordinator' : 'agent'}<select data-dir-select aria-label="Existing company or person">${directoryOptionsHtml(model)}</select></label>` : html`<div class="span2">${pickerHtml('contactId', 'Existing contact (optional)')}</div>`}
     <label>First name<input name="firstName" maxlength="80" autocomplete="off" aria-label="First name"></label>
     <label>Last name<input name="lastName" maxlength="80" autocomplete="off" aria-label="Last name"></label>
@@ -407,6 +408,8 @@ async function addPartyModal(api, d, role, refresh, replaceId = '') {
     if (!entry.ok) throw new Error(entry.error);
     if (entry.action === 'skip') throw new Error(`Enter a name for this ${label}, or pick an existing contact.`);
     let id = entry.action === 'existing' ? entry.contactId : '';
+    let reused = id ? null : existingContactByEmail(all, f.email || (entry.contact && entry.contact.email) || '');
+    if (!id && reused) id = reused.id;
     if (agentTc) {
       const known = id ? all.find((c) => c.id === id) : null;
       const person = { contactId: id || '', email: (known && known.email) || f.email || (entry.contact && entry.contact.email) || '' };
@@ -418,12 +421,9 @@ async function addPartyModal(api, d, role, refresh, replaceId = '') {
       if (self) throw new Error(self);
     }
     if (!id) {
-      try { id = (await api.createContact(entry.contact)).id; }
-      catch (err) {
-        const msg = String((err && err.message) || err || '');
-        if (/already exists/i.test(msg)) throw new Error('That email is already saved on a contact. Pick that person from the list, or enter a different email.');
-        throw err;
-      }
+      const created = await api.createContact(entry.contact);
+      id = created.id;
+      reused = all.find((c) => c.id === created.id) || null;
     }
     if (agentTc) {
       const { options, linkedRoles } = await resolveTc(id);
@@ -440,7 +440,7 @@ async function addPartyModal(api, d, role, refresh, replaceId = '') {
       }
     } else await api.addParticipant(d.id, id, role);
     closeModal();
-    toast(`${label[0].toUpperCase() + label.slice(1)} ${replaceId ? 'saved' : 'added'}. No portal invite was sent.`);
+    toast(reused ? reuseContactMessage(reused) : `${label[0].toUpperCase() + label.slice(1)} ${replaceId ? 'saved' : 'added'}. No portal invite was sent.`);
     refresh();
   }));
 }

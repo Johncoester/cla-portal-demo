@@ -134,7 +134,7 @@ try { contactInsertRow({ firstName: '', company: 'X', contactType: 'vendor' }); 
 ok(/contact type/.test(badType), 'an unknown contact type is refused');
 const adapter = readFileSync(new URL('../js/data/supabase-adapter.js', import.meta.url), 'utf8');
 const createFn = adapter.slice(adapter.indexOf('async createContact'), adapter.indexOf('async updateContact'));
-ok(createFn.includes("from('contacts').insert(contactInsertRow(input))") && !createFn.includes('crm_create_contact') && !adapter.slice(adapter.indexOf('async addParticipant'), adapter.indexOf('async setParticipantEntity')).includes('crm_'), 'place-order contacts use the direct insert, and an entity uses the participant RPC');
+ok(createFn.includes('contactInsertRow(input)') && createFn.includes("from('contacts').insert(row)") && createFn.includes('findContactByEmail') && !createFn.includes('crm_create_contact') && !adapter.slice(adapter.indexOf('async addParticipant'), adapter.indexOf('async setParticipantEntity')).includes('crm_'), 'place-order contacts still use the direct insert, reuse an existing email, and an entity uses the participant RPC');
 const orderSrc = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), 'utf8');
 const dup = orderSrc.slice(orderSrc.indexOf('one person per email'), orderSrc.indexOf('if (role === \'Sales Person\') throw'));
 ok(dup.includes('Select existing person') && !dup.includes('updateContact') && !dup.includes('createCrmContact'), 'an existing email selects that contact and does not overwrite it');
