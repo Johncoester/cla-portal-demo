@@ -804,7 +804,7 @@ This file lists the portal's major features: how each one should work, how far a
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
 | TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Pull request open. Not Live until `20261126010000_task_flow_client_requests.sql` is applied on TEST, after TB-2 and TB-2b's files |
-| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | Built, pull request to open after TB-6 (PR 389) merges (rule 18). Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
+| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
 
 **What's built**
 
