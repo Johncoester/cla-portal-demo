@@ -16,7 +16,9 @@ const orderOf = (cfg) => ({ priority: optionsOf(cfg, 'taskPriority').map((o) => 
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const SS = (k, v) => { try { if (v === undefined) return sessionStorage.getItem('crm-home:' + k); sessionStorage.setItem('crm-home:' + k, v); } catch (e) { return null; } return null; };
-const TASK_COLS = [['dueDate', 'Due Date'], ['subject', 'Subject'], ['relatedTo', 'Related To'], ['contactName', 'Contact Name'], ['status', 'Status'], ['priority', 'Priority']];
+// Janine, Nov 19 2026 (Feedback 29, Home tab): Related To is the same name as Contact Name, so it is not a column.
+// Contact Name is the link to the lead, client, company, or deal the task belongs to.
+const TASK_COLS = [['dueDate', 'Due Date'], ['subject', 'Subject'], ['contactName', 'Contact Name'], ['status', 'Status'], ['priority', 'Priority']];
 const LEADS_PER_PAGE = 5;
 
 // ---------------- HOME ----------------
@@ -155,10 +157,9 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
       $('#home-tasks tbody', root).innerHTML = toText(list.length ? list.map((t) => html`<tr data-task="${t.id}" class="${dueTone(t.dueDate, today, taskOpen(t)) === 'overdue' ? 'overdue' : ''}">
         <td data-col="dueDate">${dueCell(t)}</td>
         <td data-col="subject"><a href="#/crm/tasks/${t.id}" data-task-subject>${subj(cfg, t.subject)}</a>${t.reminderDue ? html` ${pill('Reminder', 'warn')}` : ''}</td>
-        <td data-col="relatedTo">${t.relatedLink ? html`<a href="${t.relatedLink}">${t.relatedTo}</a>` : t.relatedTo || ''}</td>
-        <td data-col="contactName">${t.contactLink && t.contactName ? html`<a href="${t.contactLink}">${t.contactName}</a>` : t.contactName || ''}</td>
+        <td data-col="contactName">${t.contactLink && t.contactName ? html`<a href="${t.contactLink}" data-task-contact="${t.entity}">${t.contactName}</a>` : t.contactName || ''}</td>
         <td data-col="status">${lbl(cfg, 'taskStatus', t.status)}</td><td data-col="priority">${lbl(cfg, 'taskPriority', t.priority)}</td>
-        <td data-col="actions">${!t.system ? (canChangeCrmRecord(me, t) ? html`<button type="button" class="ghost" data-quick-edit="${t.id}">Edit</button>${t.open ? html` <button type="button" class="ghost" data-quick-close="${t.id}">Close</button>` : ''}` : html`<button type="button" class="ghost" disabled data-locked-edit style="opacity:.45">Edit</button> <span class="muted" data-lock-note>${CRM_LOCK_NOTE}</span>`) : ''}</td></tr>`) : html`<tr><td colspan="7" class="muted">No tasks in this view.</td></tr>`);
+        <td data-col="actions">${!t.system ? (canChangeCrmRecord(me, t) ? html`<button type="button" class="ghost" data-quick-edit="${t.id}">Edit</button>${t.open ? html` <button type="button" class="ghost" data-quick-close="${t.id}">Close</button>` : ''}` : html`<button type="button" class="ghost" disabled data-locked-edit style="opacity:.45">Edit</button> <span class="muted" data-lock-note>${CRM_LOCK_NOTE}</span>`) : ''}</td></tr>`) : html`<tr><td colspan="${TASK_COLS.length + 1}" class="muted">No tasks in this view.</td></tr>`);
       $('[data-task-count]', root).textContent = `${list.length} task(s)`;
       $$('[data-sort-mark]', root).forEach((s) => { s.innerHTML = s.dataset.sortMark === sk ? (sd === 'asc' ? '&uarr;' : '&darr;') : ''; }); };
     fsel.addEventListener('change', draw);

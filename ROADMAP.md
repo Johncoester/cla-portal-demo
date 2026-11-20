@@ -2630,6 +2630,39 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
 - A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
+- Janine later asked to drop the Related To column. That follow-up is the next section. It is not part of PR 340.
+
+---
+
+## CRM Home My Tasks drops Related To (Feedback 29 follow-up)
+
+**How it should work.** On CRM Home, My Tasks no longer has a Related To column. Contact Name is the name of the record the task belongs to, and it is a link. A lead opens that lead. A client opens that client. A company opens that company. A deal opens that deal, using the property address as the name. Due Date, Subject, Status, Priority, and Edit stay as they are. A task with no name still shows, with a blank Contact Name. The task page itself still has Related To.
+
+**Status: In progress.** Janine Santos, Nov 18 2026, asked to remove Related To because it showed the same information as Contact Name, as long as Contact Name shows for tasks from every module. She confirmed on Nov 19 2026, 6:28 PM ET, with "Feedback 29 - Home tab tasks: Yes." No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- The Home task list no longer has Related To. The other columns on that list are unchanged.
+- Contact Name links to the lead, client, company, or deal.
+- The list asks once for each of those tables that the list actually uses. It does not ask once per task.
+- A name the read does not return stays blank, and the rest of the list still shows.
+- Opening one task is unchanged. That page still shows Related To.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- A task under a pipeline opportunity still has a blank Contact Name. An opportunity does not have its own page.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-tasks-related-to.md](docs/specs/crm-home-tasks-related-to.md)
+- Pull request: [PR 383](https://github.com/Johncoester/cla-portal-demo/pull/383)
+
+**Decisions**
+
+- No database change. The task already stores which record it belongs to.
+- The deal name is the property address, the same name the deal page uses.
+- Related To stays on the task page. Only the Home list drops that column.
 
 ---
 
