@@ -803,11 +803,13 @@ This file lists the portal's major features: how each one should work, how far a
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
+| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Pull request open. Not Live until `20261126010000_task_flow_client_requests.sql` is applied on TEST, after TB-2 and TB-2b's files |
 
 **What's built**
 
 - TB-1: **Admin > Task Builder**, its own menu item, for Admins and Super admins only (everyone else gets "Not authorized"). It lists flows with name, description, what starts it, On / Off, and who changed it last. **+ New flow** and **Edit** take a name, what starts it, days (for "EMD not received" and "Days before closing") and a description. New flows start Off; Turn on / Turn off switch them; nothing is deleted. A History card shows every change.
 - TB-2: each flow says **which files** it applies to (transaction type: purchase, cash purchase or refinance; state; sales person — blank means any) and has **steps** run in order: create a task, create a phone call task, wait a number of days, or stop if the EMD has been received. A task goes to everyone on the file with the chosen role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). The page shows each flow's steps, recent runs (flow, file, status, latest step) and a **Check files now** button. A flow needs at least one task step before it can be turned on. The database starts flows when an order is opened, the EMD is marked received, or the closing date is set or changed, and every 15 minutes checks the day-based triggers and waits. Nothing in it can stop an order from saving.
+- TB-6 (John, Nov 20): a **Request a form from a party** step: which intake form, who it goes to, due in, and reminders (every N days, up to M times). The request is the party's own form task, so it is done when they submit it. Each person gets **one email per file** listing everything still needed from them, and reminder emails go at most once a day, listing what is still open (outbox only). A test run adds the tasks but emails nobody. Spec: TB-6 in [docs/specs/task-builder.md](docs/specs/task-builder.md).
 - TB-2b (John, Nov 14): **Try on one file** runs a flow once on a chosen open file, now, even while the flow is Off, with waits skipped so every step shows at once. Its tasks are real tasks on that file marked "Test run", and it never counts as the flow's real run there. **Turn on** asks which files: **New files only** (the default: files opened after it was turned on) or **Existing open files too**, so turning a flow on never sweeps the open files already there by surprise. An "Order opened" flow only ever runs on new orders. The list and History show which was picked.
 
 **What's still missing**
@@ -817,6 +819,7 @@ This file lists the portal's major features: how each one should work, how far a
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
 - Clients and agents can see tasks assigned to them but only staff mark them done (open question for John).
+- TB-6: request emails go to people with a portal account (a party's request waits until they accept their invite); one email per person per file, not one across all their files.
 
 **Links**
 
@@ -825,7 +828,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. Still open: whether clients and agents can tick off tasks.
+- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. John, Nov 20: client requests in Task Builder, with one email per person listing everything still needed, not one email per request. Still open: whether clients and agents can tick off tasks.
 
 ---
 
