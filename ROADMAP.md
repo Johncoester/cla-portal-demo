@@ -2018,7 +2018,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Leads, Clients, Companies, and Deals, New Custom View opens with the same columns, in the same order, as All Leads, All Clients, All Companies, or All Deals. A person's own column choice on that All list is the starting point. They can still add, remove, and reorder columns before saving. A view that is already saved keeps its own columns. The record name stays selected, in the place the All list already gave it, or first when the All list is not showing it.
 
-**Status: In progress.** Janine Santos, Feedback 30 follow-up item 2, confirmed by email Nov 19, 2026, 6:30 PM ET. No database file. Not Live until this is merged and someone checks it on TEST.
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 2, confirmed by email Nov 19, 2026, 6:30 PM ET. Pull request: [PR 385](https://github.com/Johncoester/cla-portal-demo/pull/385). No database file. Not Live until this is merged and someone checks it on TEST.
 
 **What's built**
 
