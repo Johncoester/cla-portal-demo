@@ -1307,7 +1307,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not Live until `supabase/migrations/20261124170000_agent_tc_role_check.sql` is applied on TEST. Until then, typing a coordinator creates the order, leaves the coordinator off, and stays on Place Order.
-- Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
+- Nothing for the invite: since Nov 20 2026 Invite to portal is offered on these two roles (TC-INVITE-1, below). A person who already has an outside login can still be picked.
 
 **Links**
 
@@ -1320,6 +1320,38 @@ This file lists the portal's major features: how each one should work, how far a
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
 - The staff rule stays for a row already saved under the old role name: only an active staff login can be stored as that role. TC-1 takes that name off Add contact. See Transaction coordinator on Add contact (TC-1).
 - The Nov 16 file did not add the two roles to the people-role list. That list has to allow them, or Place Order creates the file and does not open it.
+- Nov 20 2026, 10:41 AM ET: John reversed "no invite for these two roles" in chat ("yes of course a TC needs an invite"). See TC portal invite (TC-INVITE-1).
+
+---
+
+## TC portal invite (TC-INVITE-1)
+
+**How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 10:41 AM ET, from his screenshot of Order Contacts on MD-26-97260. Tracker item TC-INVITE-1. Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387). Not Live until `supabase/migrations/20261125360000_tc_portal_invite.sql` is applied on TEST.
+
+**What's built**
+
+- Order Contacts shows Invite to portal on a coordinator row with no login. The dialog calls the role Transaction coordinator.
+- Share Files can invite a coordinator with no login, the same way.
+- The database file lets the portal invite and the Share Files invite accept the two coordinator roles. Everything else in both is unchanged.
+
+**What's still missing**
+
+- Changing a coordinator's email does not send a new invite by itself. That automatic invite still covers buyers, sellers and agents only.
+- The invite email does not name the coordinator's role. It greets them and names the property.
+
+**Links**
+
+- Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md) (Portal invite)
+- Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387)
+- Source: John Coester, chat, Nov 20 2026, 10:41 AM ET. Tracker item TC-INVITE-1.
+
+**Decisions**
+
+- This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
+- A coordinator gets the short client login, not the agent account.
+- A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
 
 ---
 

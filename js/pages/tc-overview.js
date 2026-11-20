@@ -3,7 +3,7 @@
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
 import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611247700';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611247700';
-import { composeModal } from './compose.js?v=202611247700';
+import { composeModal } from './compose.js?v=202611249900';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';

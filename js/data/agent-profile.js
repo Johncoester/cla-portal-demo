@@ -14,7 +14,9 @@ export const canInviteAgents = (u) => !!u && u.status !== 'removed' && (u.isAdmi
 // Portal invite from a file (John + Francis, Nov 9: "a processor needs to be able to invite"): the same staff who may invite agents
 // (Processor, Preprocessor, Sales Person, Sales Team, Admin; still not a TC) invite a Client-Buyer, Client-Seller, Buyer Agent or Listing Agent
 // row that has no portal login. Agents get the agent account form; buyers and sellers a short login form (no brokerage / license).
-export const PORTAL_INVITE_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
+// TC-INVITE-1 (John, Nov 20 2026, 10:41 AM ET: "yes of course a TC needs an invite"): an agent's transaction coordinator row
+// (Buyer Agent TC / Listing Agent TC) is invited too, with the same short login form as a buyer or seller (kind 'client', no agent profile).
+export const PORTAL_INVITE_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC'];
 export const inviteKindForRole = (role) => (role === 'Buyer Agent' || role === 'Listing Agent' ? 'agent' : 'client');
 export const canInviteToPortal = (u, role) => canInviteAgents(u) && PORTAL_INVITE_ROLES.includes(role);
 export const inviteStatus = (inv, nowIso = new Date().toISOString()) => (!inv ? 'invalid' : inv.status === 'pending' && inv.expiresAt && inv.expiresAt < nowIso ? 'expired' : inv.status);
