@@ -2751,3 +2751,32 @@ This file lists the portal's major features: how each one should work, how far a
 - Phase 1 is the tab, then the default folders. Nothing else from the picture is built in this phase.
 - The Title module keeps its own extra folder names. "450 Final Closing Documents" and "450 Prior Closing Documents" are different folders.
 
+---
+
+## CRM Companies column sort (Feedback 30 follow-up item 1)
+
+**How it should work.** On CRM, then Companies, each column header sorts the All Companies list. The first click sorts up. The second click sorts down. The same arrow used on Leads, Clients, and Deals shows the direction. Search, filters, and pages stay in effect.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 1, confirmed by email Nov 19 2026, 6:30 PM ET ("Yes"). Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- Companies uses the same header sort as Leads and Clients. The Sort menu is no longer on that list.
+- The list still opens on Company Name, A to Z. A sort already saved on the login is kept.
+- Search, Company Owner, Type, Archived, and the three time filters limit which companies are sorted. The next page continues that order.
+- Blank city, owner, and times stay at the bottom. Clients, Orders, and Volume sort as amounts.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-companies-sort.md](docs/specs/crm-companies-sort.md)
+- Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384)
+
+**Decisions**
+
+- No database file. The company list is already loaded, then sorted in the browser, the same way Leads and Clients sort after their list is loaded.
+- Cache stamp 202611249800, so a saved copy of the Companies page is not reused.
+
