@@ -6,6 +6,7 @@
  * The old role name Transaction Coordinator is not offered when adding someone.
  * A file that already has that role still keeps the row. */
 import { AGENT_TC_TYPE } from './constants.js?v=202611247700';
+import { sameContactOrEmail } from './agent-tc-links.js?v=202611248300';
 
 export const BUYER_AGENT_TC = 'Buyer Agent TC';
 export const LISTING_AGENT_TC = 'Listing Agent TC';
@@ -75,6 +76,7 @@ export function fileAgents(participants) {
     .map((p) => ({
       contactId: p.contactId || (p.contact && p.contact.id) || '',
       role: p.role,
+      email: (p.contact && p.contact.email) || p.email || '',
       name: personNameOf(p.contact) || (p.role === 'Listing Agent' ? 'Listing agent' : "Buyer's agent"),
     }))
     .filter((a) => a.contactId);
@@ -148,6 +150,27 @@ export function tcRolesToSave({ linkedRoles, choice, choices }) {
 
 /* Blank person: nothing to check. Linked sides: nothing to ask.
  * Otherwise the follow-up is required, and it needs an agent on the file. */
+/* The coordinator is the agent they would sit with on this file. Buyer side checks the
+ * buyer's agent. Listing side checks the listing agent. A blank email does not match. */
+export function tcSelfOnOrderMessage(agentRole) {
+  const label = agentRole === 'Listing Agent' ? 'Listing Agent' : 'Buyer Agent';
+  return `This person is already the ${label} on this order. A transaction coordinator must be a different person.`;
+}
+
+export function selfTcOnOrderProblem(person, agents, rolesToSave) {
+  const want = new Set();
+  for (const role of rolesToSave || []) {
+    if (role === LISTING_AGENT_TC) want.add('Listing Agent');
+    else if (role === BUYER_AGENT_TC) want.add('Buyer Agent');
+  }
+  if (!want.size || !person) return '';
+  for (const agent of agents || []) {
+    if (!agent || !want.has(agent.role)) continue;
+    if (sameContactOrEmail(person, agent)) return tcSelfOnOrderMessage(agent.role);
+  }
+  return '';
+}
+
 export function tcSideProblem({ hasPerson, linkedRoles, choice, choices }) {
   if (!hasPerson) return '';
   if (linkedRoles && linkedRoles.length) return '';

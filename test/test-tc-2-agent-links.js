@@ -54,7 +54,7 @@ const panel = readFileSync(new URL('../js/pages/agent-tc-panel.js', import.meta.
 const mig = readFileSync(new URL('../supabase/migrations/20261125240000_agent_tc_links.sql', import.meta.url), 'utf8');
 const rb = readFileSync(new URL('../supabase/rollbacks/20261125240000_agent_tc_links.sql', import.meta.url), 'utf8');
 ok(page.includes('agentTcSectionHtml') && page.includes('mountAgentTcSection'), 'the agent profile shows the coordinator list');
-ok(contacts.includes('data-tc-open') && contacts.includes('Transaction coordinators'), 'Order Contacts opens the coordinator list on an agent');
+ok(!contacts.includes('data-tc-open') && !contacts.includes('>Transaction coordinators<') && contacts.includes('Invite to portal') && contacts.includes('data-edit') && contacts.includes('Remove from order'), 'Order Contacts has no Transaction coordinators button; Invite, Edit, and Remove from order stay');
 ok(users.includes('agentTcSectionHtml') && users.includes('isRealEstateAgent'), 'User List edit shows the coordinator list for a realtor');
 ok(panel.includes('data-tc-err') && panel.includes('newCoordinatorProblem') && !panel.includes('form.reset()') === false, 'a failed add leaves the form in place until it saves');
 ok(panel.includes("showErr(problem); return;"), 'a blank or bad coordinator is pointed out before anything is saved');

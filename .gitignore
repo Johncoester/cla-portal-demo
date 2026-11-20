@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 test-results/
 tests/e2e-roles/test-results/
 tests/e2e-roles/playwright-report/

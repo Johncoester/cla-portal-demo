@@ -814,6 +814,20 @@ details.po-card > summary { cursor: pointer; list-style: none; display: flex; al
   .op-prow { grid-template-columns: 170px minmax(160px, 1.2fr) 130px minmax(160px, 1.4fr) 300px; }
   .op-plist[data-referral-on] .op-prow { grid-template-columns: 148px minmax(140px, 1.05fr) 118px minmax(140px, 1.15fr) minmax(168px, 240px) 152px; }
 }
+/* FF-105: value over a small label, and Closing Team cards with initials on top. */
+.op-summary, .op-team { display: grid; gap: 8px; margin: 10px 0 4px; }
+.op-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.op-team { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.op-sum-box, .op-team-card { border: 1px solid #e3e3e3; border-radius: 8px; background: #fff; padding: 12px 14px; min-width: 0; }
+.op-sum-box strong { display: block; min-height: 1.2em; color: #222; font-size: 20px; font-weight: 600; overflow-wrap: anywhere; }
+.op-sum-box .op-box-label { display: block; margin-top: 4px; }
+.op-team-card { text-align: center; }
+.op-team-av { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin: 0 auto 8px; background: #e4e4e4; color: #666; border-radius: 4px; font-weight: 700; font-size: 15px; }
+.op-team-card strong { display: block; min-height: 1.2em; color: #222; font-size: 16px; overflow-wrap: anywhere; }
+.op-team-card .op-box-label { display: block; margin-top: 4px; }
+@media (max-width: 700px) {
+  .op-summary, .op-team { grid-template-columns: 1fr 1fr; }
+}
 
 /* HR WORKSPACE, Phase 1 (John + Francis, Nov 4; Zoho People layout in the baby-blue card style). Works in both themes. */
 .hr-page { --hr-baby: #89cff0; --hr-baby-soft: #e8f6fd; --hr-baby-line: #bfe6f8; --hr-ink: #1f6fa3; --hr-on: #0b2a45; }

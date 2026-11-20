@@ -4,7 +4,7 @@
 import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611247700';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611247700';
 import { textToHtml } from './gmail-email.js?v=202611191000';
-import { agentTcAlreadyMessage, isAgentTcRole } from './agent-tc.js?v=202611247700';
+import { agentTcAlreadyMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611248300';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
@@ -628,6 +628,15 @@ export async function createSupabaseAdapter(cfg) {
       const contact = camel(ok(await sb.from('contacts').select('id, first_name, last_name, email, company').eq('id', cid).maybeSingle()));
       if (!contact) throw new Error('Contact not found.');
       const onFile = (ok(await sb.rpc('deal_contacts', { p_deal: dealId })) || []).map((r) => ({ role: r.role, contactId: r.contact_id, contact: { id: r.contact_id, firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company } }));
+      if (isAgentTcRole(role)) {
+        const agentRole = role === 'Listing Agent TC' ? 'Listing Agent' : 'Buyer Agent';
+        const self = selfTcOnOrderProblem(
+          { contactId: contact.id, email: contact.email },
+          onFile.filter((p) => p.role === agentRole).map((p) => ({ contactId: p.contactId, email: p.contact && p.contact.email, role: agentRole })),
+          [role],
+        );
+        if (self) throw new Error(self);
+      }
       if (sameParty(onFile, contact, role)) throw new Error(isAgentTcRole(role) ? agentTcAlreadyMessage(contact, role) : duplicatePartyMessage(contact, role));
       const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: cid, role }).select('id').single());
       if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity }));

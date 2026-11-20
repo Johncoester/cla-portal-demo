@@ -62,19 +62,21 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await advance(page, 'team');
   await expect(page.locator('[data-wiz-step="team"] input[name="closerName"]')).toBeVisible();
   // FF-092: salespeople are a search box with chips. The checkbox list is gone. The saved field is still salesIds.
+  // Sam Demo is a demo user, so the non-demo E2E Processor never sees that name. On TEST the salesperson is E2E Salesperson.
+  const salesName = targetMode() === 'test' ? 'E2E Salesperson' : 'Sam';
   const salesBox = page.locator('[data-sales-multi] .picker-q');
   await expect(page.locator('[data-sales-picker] legend')).toHaveText('Salespeople on this order');
   await expect(salesBox).toHaveAttribute('role', 'combobox');
   await expect(page.locator('[data-wiz-step="team"] input[type="checkbox"][name="salesIds"]')).toHaveCount(0);
   await salesBox.fill('zzzz-not-a-person');
   await expect(page.locator('[data-sales-multi] [data-none]')).toContainText('No match');
-  await salesBox.fill('Sam');
-  await expect(page.locator('#sales-people-list [role="option"]').first()).toContainText('Sam');
+  await salesBox.fill(salesName);
+  await expect(page.locator('#sales-people-list [role="option"]').first()).toContainText(salesName);
   await salesBox.press('Enter');
-  await expect(page.locator('[data-sales-chip]')).toContainText('Sam');
+  await expect(page.locator('[data-sales-chip]')).toContainText(salesName);
   await page.locator('[data-sales-remove]').click();
   await expect(page.locator('[data-sales-chip]')).toHaveCount(0);
-  await salesBox.fill('Sam');
+  await salesBox.fill(salesName);
   await salesBox.press('Enter');
   await expect(page.locator('[data-sales-values] input[name="salesIds"]')).toHaveCount(1);
   await page.locator('[data-wiz-step="team"] textarea[name="notes"]').fill(`E2E-RUN-${run}`);

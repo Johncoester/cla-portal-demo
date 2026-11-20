@@ -2,7 +2,7 @@
  * Add, remove, and show the list. The same buttons and form layout as the rest of the portal. */
 import { html, $, $$, guard, toast } from '../ui.js?v=202611161500';
 import { fmtPhone } from '../data/constants.js?v=202611247700';
-import { newCoordinatorProblem, personName, TC_NEED_PERSON } from '../data/agent-tc-links.js?v=202611247700';
+import { newCoordinatorProblem, personName, TC_NEED_PERSON, TC_SELF, sameContactOrEmail } from '../data/agent-tc-links.js?v=202611248300';
 
 const nameOf = (c) => personName(c);
 
@@ -57,8 +57,10 @@ export function mountAgentTcSection(root, { api, agentContactId, canEdit }) {
   const form = $('[data-tc-add]', box);
   if (form && canEdit) {
     const pick = $('[data-tc-pick]', form);
+    let directory = [];
     api.listContacts().then((people) => {
-      const opts = (people || []).filter((c) => c && c.id && c.id !== agentContactId && !String(c.id).startsWith('staff:'));
+      directory = people || [];
+      const opts = directory.filter((c) => c && c.id && c.id !== agentContactId && !String(c.id).startsWith('staff:'));
       opts.sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
       pick.innerHTML = html`<option value="">Someone new — type them below</option>${opts.map((c) => html`<option value="${c.id}">${nameOf(c)}${c.email ? html` (${c.email})` : ''}</option>`)}`.toString();
     }).catch(() => { /* the list stays on "someone new"; typing still works */ });
@@ -68,12 +70,17 @@ export function mountAgentTcSection(root, { api, agentContactId, canEdit }) {
       const fd = new FormData(form);
       const picked = String(fd.get('tcContactId') || '');
       const typed = { firstName: fd.get('firstName'), lastName: fd.get('lastName'), email: fd.get('email'), phone: fd.get('phone'), company: fd.get('company') };
+      const agent = directory.find((c) => c.id === agentContactId) || { id: agentContactId };
       try {
-        if (picked) await api.linkAgentTc(agentContactId, picked);
-        else {
+        if (picked) {
+          const chosen = directory.find((c) => c.id === picked) || { id: picked };
+          if (sameContactOrEmail(agent, chosen)) { showErr(TC_SELF); return; }
+          await api.linkAgentTc(agentContactId, picked);
+        } else {
           const problem = newCoordinatorProblem(typed);
           if (problem) { showErr(problem); return; }
           if (!String(typed.firstName || '').trim() && !String(typed.company || '').trim()) { showErr(TC_NEED_PERSON); return; }
+          if (sameContactOrEmail(agent, { email: typed.email })) { showErr(TC_SELF); return; }
           await api.createAndLinkAgentTc(agentContactId, typed);
         }
       } catch (err) { showErr(err.message || 'The coordinator was not saved. Check the name and try again.'); throw err; }

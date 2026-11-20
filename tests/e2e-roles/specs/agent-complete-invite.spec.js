@@ -4,23 +4,41 @@ import { targetMode } from '../helpers/gate.js';
 import { plusAlias } from '../helpers/allowlist.js';
 import { findRememberedInviteLink, gmailAccessToken, rememberInviteLink } from '../helpers/inbox.js';
 
-test('a buyer agent cannot complete a client task', async ({ page, issues }) => {
+// FF-101a (PR 355, merge 8b2ce856): the buyer agent's Tasks page is My Tasks and lists only that agent's own work.
+// Completing a client's task from this login is out of scope, so the page no longer shows Client-Buyer rows.
+test('a buyer agent sees My Tasks and only their own tasks', async ({ page, issues }) => {
   await signIn(page, 'buyerAgent');
   await openMockFile(page);
   const id = dealId(page);
   await gotoHash(page, `#/deals/${id}/tasks`);
-  const clientRows = page.locator('[data-task-row]', { hasText: 'Client-Buyer' });
-  await expect(clientRows.first()).toBeVisible();
-  await expect(clientRows.locator('[data-tick]')).toHaveCount(0);
-  const forClient = page.getByRole('link', { name: 'Fill in for client' });
-  if (await forClient.count()) {
-    await forClient.first().click();
-    await expect(page.locator('[data-agent-no-complete]')).toBeVisible();
-    await expect(page.locator('[data-mode="complete"]')).toHaveCount(0);
-    await expect(page.locator('[data-mode="save"]')).toBeVisible();
-  } else {
-    await expect(page.locator('[data-mode="complete"]')).toHaveCount(0);
+  const mine = page.locator('[data-file-tasks="mine"]');
+  await expect(mine).toBeVisible();
+  await expect(mine.getByRole('heading', { name: 'My Tasks' })).toBeVisible();
+  await expect(page.locator('[data-co-tab="Tasks"]')).toHaveCount(0);
+  const own = mine.locator('[data-sidebox="buyer-agent"]');
+  await expect(own).toBeVisible();
+  await expect(own.locator('.side-tag')).toHaveText("Buyer's Agent tasks");
+  const countText = (await own.locator('.side-count').innerText()).trim();
+  expect(countText).toMatch(/^\(\d+\)$/);
+  const count = Number(countText.slice(1, -1));
+  expect(count).toBeGreaterThan(0);
+  await expect(own.locator('[data-task-row]')).toHaveCount(count);
+  await expect(mine.locator('[data-sidebox="buyer"]')).toHaveCount(0);
+  await expect(mine.locator('[data-sidebox="seller"]')).toHaveCount(0);
+  await expect(mine.locator('[data-sidebox="listing-agent"]')).toHaveCount(0);
+  const rows = mine.locator('[data-task-row]');
+  const rowCount = await rows.count();
+  expect(rowCount).toBe(count);
+  for (let i = 0; i < rowCount; i += 1) {
+    const row = rows.nth(i);
+    await expect(row).toContainText('Buyer Agent');
+    await expect(row).toHaveAttribute('data-mine', '1');
   }
+  await expect(page.locator('[data-task-row]', { hasText: 'Client-Buyer' })).toHaveCount(0);
+  await expect(page.locator('[data-task-row]', { hasText: 'Client-Seller' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Fill in for client' })).toHaveCount(0);
+  await expect(page.locator('[data-mode="complete"]')).toHaveCount(0);
+  await expect(page.locator('[data-task-row]', { hasText: 'Client-Buyer' }).locator('[data-tick]')).toHaveCount(0);
   expect(freshIssues(issues)).toEqual([]);
 });
 

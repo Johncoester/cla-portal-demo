@@ -1384,17 +1384,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Transaction coordinators linked to an agent (TC-2)
 
-**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from.
+**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from. Order Contacts does not offer a Transaction coordinators button.
 
 **Status: In progress.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Not applied on TEST. Not Live.
 
 **What's built**
 
 - My Agent Profile shows Transaction coordinators for the signed-in agent, with add and remove.
-- Order Contacts has Transaction coordinators on a buyer's agent or listing agent. A processor can change the list. Sales can see it and cannot change it. The agent can change it on their own row.
+- Order Contacts does not show a Transaction coordinators button. Each row still has Invite to portal, Edit, and Remove from order. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of order MD-26-97260: that button did not belong on this list. Tracker row TC-BTN-REMOVE.
 - User List, Edit user, shows the same list for a realtor.
 - A new person needs a name. A bad email or a partial phone is pointed out, and what was typed stays. A CLA Title staff login is refused. The same person is not linked twice. Removing the link keeps the person and does not take anyone off a file.
-- The database file is `supabase/migrations/20261125240000_agent_tc_links.sql`. Who can see a link matches who can see the agent's contact. The shell cache stamp is 202611245900.
+- The database file is `supabase/migrations/20261125240000_agent_tc_links.sql`. Who can see a link matches who can see the agent's contact. Removing the Order Contacts button does not change that file. The shell cache stamp for this button removal is 202611248200. Order Contacts is loaded at 202611248100.
 
 **What's still missing**
 
@@ -1406,12 +1406,13 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/agent-tc-links.md](docs/specs/agent-tc-links.md)
-- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366.
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366. Button removal: John Coester, Nov 19 2026, 10:18 AM ET, screenshot of MD-26-97260 Order Contacts. Tracker row TC-BTN-REMOVE. [PR 371](https://github.com/Johncoester/cla-portal-demo/pull/371).
 
 **Decisions**
 
 - The link is stored on the agent contact, so an agent with no portal login can still have coordinators.
-- The agent edits the list on their own profile, because that page is already theirs. Staff who run orders edit it from Order Contacts and from User List. Sales can see the list and cannot change it, the same as other order edits.
+- The agent edits the list on their own profile, because that page is already theirs. Staff who run orders edit it from User List, Edit user. Sales can see the list there and cannot change it, the same as other contact edits.
+- Order Contacts does not open the coordinator list. John Coester, Nov 19 2026, 10:18 AM ET: the button made no sense on that list, and he did not ask for it. Invite to portal, Edit, and Remove from order stay on the row.
 - A coordinator is any outside contact. CLA Title staff, including the staff role Transaction Coordinator, cannot be linked here.
 
 ---
@@ -1466,6 +1467,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Opening the old Tasks address as an agent still shows only My Tasks.
 - The agent overview "outstanding" button opens My Tasks.
 - The fake portal and the database file refuse agent reads of other parties' tasks. A coordinator still sees the agent's own tasks and can finish them on the agent's behalf.
+- The walkthrough no longer looks for a Client-Buyer row on the buyer agent's tasks page. It checks My Tasks and only that agent's own tasks (E2E-FIX-A).
 - The database file is `supabase/migrations/20261125280000_agent_own_tasks.sql` (with rollback). The shell cache stamp is 202611246300.
 - Add contact, Place Order, and Parties offer one role, Transaction coordinator.
 - The side is taken from the coordinator's links to the agents on that file. Linked to both agents saves both sides.
@@ -1475,7 +1477,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not applied on TEST. Not Live.
-- Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks.
+- Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks. The walkthrough check for that is E2E-FIX-A.
 - Not on TEST until this pull request is merged. There is no database file to apply.
 - Not Live.
 
@@ -1496,6 +1498,32 @@ This file lists the portal's major features: how each one should work, how far a
 - The words on the choice are exactly Transaction coordinator. The side is not part of the label.
 - The side comes from the existing agent links (TC-2) and the same buyer or listing side those links already use (TC-3). Nothing new is stored.
 - The follow-up is only the question and the agents on this file. It is required when the side cannot be told from a link.
+
+---
+
+## Buyer agent walkthrough matches My Tasks (E2E-FIX-A)
+
+**How it should work.** The role walkthrough, signed in as the buyer agent, opens Tasks on the test file and sees My Tasks with only that agent's own tasks. It does not see a Client-Buyer row or a way to complete the client's work.
+
+**Status: In progress.** Tracker row E2E-FIX-A (Requests tab, row 391). John Coester, Nov 19 2026. Pull request: [PR 370](https://github.com/Johncoester/cla-portal-demo/pull/370). Not Live. No database file. Nothing on testportal.clatitle.com changes.
+
+**What's built**
+
+- The one walkthrough check in `tests/e2e-roles/specs/agent-complete-invite.spec.js` now looks for My Tasks, the Buyer's Agent tasks list, and only that agent's rows. It fails if a Client-Buyer or Client-Seller row is showing, or if "Fill in for client" or a Complete control for the client's work is on the page.
+
+**What's still missing**
+
+- Not merged. The other failures in Actions run 44513431332 are not part of this change.
+
+**Links**
+
+- Spec: [docs/specs/e2e-fix-a.md](docs/specs/e2e-fix-a.md)
+- Pull request: [PR 370](https://github.com/Johncoester/cla-portal-demo/pull/370)
+- Source: John Coester, Nov 19 2026. Tracker row E2E-FIX-A. Actions run 44513431332, failing since run 44452846353. FF-101a is [PR 355](https://github.com/Johncoester/cla-portal-demo/pull/355), merge 8b2ce856.
+
+**Decisions**
+
+- The test changed because FF-101a removed client tasks from the agent login on purpose. Completing a client task from that login stays out of scope. The check was not loosened to hide a bug (AGENTS.md rule 5).
 
 ---
 
@@ -1528,6 +1556,39 @@ This file lists the portal's major features: how each one should work, how far a
 - The stored code stays `agent_tc`. Only the words on screen change.
 - The note under the list, that this is an outside assistant and not a CLA Title staff role, stays. John asked for the label itself to have no description.
 - The older filter words are still accepted so a saved filter does not go blank.
+
+---
+
+## A coordinator cannot be the agent (TC-SELF-BLOCK)
+
+**How it should work.** The transaction coordinator on a file is a different person from the agent they sit with. Adding the buyer's agent again as the buyer coordinator, or the listing agent as the listing coordinator, is refused. The same email counts as the same person. Linking an agent to themselves is refused. People already on a file stay there.
+
+**Status: In progress.** Tracker TC-SELF-BLOCK. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of TEST file MD-26-97260. Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372). Updated onto main after [PR 371](https://github.com/Johncoester/cla-portal-demo/pull/371) merged. Not applied on TEST. Not Live.
+
+**What's built**
+
+- Order Contacts, Add contact to this order, refuses that person before anything is saved. The message is: This person is already the Buyer Agent on this order. A transaction coordinator must be a different person. The listing side names Listing Agent. What was typed stays on the form.
+- Place Order uses the same check on the Agents step, before Next and before the order is placed. Parties uses it when a transaction coordinator is added.
+- A different person is still added. The buyer's agent can still be the listing coordinator when the listing agent is someone else.
+- The coordinator list on an agent refuses that agent, including when the typed email is the agent's email: This agent cannot be their own transaction coordinator.
+- The database file is `supabase/migrations/20261125340000_tc_self_block.sql`, with a rollback. It refuses new rows only. It does not change or delete existing people. It must be applied on TEST. The link-table guard is installed because TC-2's table is already on TEST. The TC-2 file itself is not rewritten. The shell cache stamp is 202611248300, above PR 371 (202611248100–202611248200) and PR 368 (202611248000).
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- A file that already has the agent saved again as the coordinator is left as it is. Removing that row is a separate cleanup.
+
+**Links**
+
+- Spec: [docs/specs/tc-self-block.md](docs/specs/tc-self-block.md)
+- Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372)
+- Source: John Coester, Nov 19 2026, 10:18 AM ET. Tracker TC-SELF-BLOCK.
+
+**Decisions**
+
+- The check is the agent they would be linked to on that side. The buyer's agent is not blocked from being the listing coordinator for a different listing agent.
+- A blank email does not count as the same person.
+- The database guard is a before-insert trigger, not a check on existing rows, so a file that already has this mistake can stay until someone removes it. The pull request does not change TEST data.
 
 ---
 
@@ -2302,6 +2363,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The saved field is still salesIds. The database still accepts any active staff login as a salesperson.
 - The list uses the role strings Sales Person and Sales Team.
 
+## Place Order walkthrough picks a real salesperson (E2E-FIX-B)
+
+**How it should work.** The Place Order walkthrough, signed in as the non-demo E2E Processor, searches Team & Notes for a salesperson who is not a demo user. A name that is not a person still says no match. The file-number prefix checks stay as they are.
+
+**Status: In progress.** Tracker row E2E-FIX-B (Requests tab, row 390). John, Nov 19 2026. Pull request: [PR 369](https://github.com/Johncoester/cla-portal-demo/pull/369). No database file. Not Live. Nothing on testportal.clatitle.com changes.
+
+**What's built**
+
+- On TEST the walkthrough searches E2E Salesperson, checks that name on the chip, and checks that one salesperson id is saved.
+- A nonsense name still shows "No match."
+- The fake-data run still searches Sam Salesperson, the sample salesperson, who is not a demo user.
+
+**What's still missing**
+
+- Not merged. Do not mark Live. There is no database file, and the walkthrough has not been run again on TEST.
+- The file-number prefix checks were not reached in recent runs, because the walkthrough stopped on the old name. This change does not prove those checks.
+
+**Links**
+
+- Spec: [docs/specs/e2e-fix-b.md](docs/specs/e2e-fix-b.md)
+- Pull request: [PR 369](https://github.com/Johncoester/cla-portal-demo/pull/369)
+- Evidence: Actions run [44513431332](https://github.com/Johncoester/cla-portal-demo/actions/runs/44513431332), failing since run [44163727716](https://github.com/Johncoester/cla-portal-demo/actions/runs/44163727716) after FF-092 ([PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322), commit 8dbc9be1).
+
+**Decisions**
+
+- The test used a demo-only name. Sam Demo is hidden from the non-demo processor on purpose. The TEST search is E2E Salesperson. The portal code is unchanged (rule 5).
 
 ---
 
@@ -2358,6 +2445,37 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
 - The disbursement date uses the existing column. Blank means the automatic date.
+
+## File Overview layout (FF-105)
+
+**How it should work.** On the staff File Overview, the blue tasks bar stays above a row of four boxes (Transaction Type, Open Date, Close Date, Purchase Price) and a Closing Team row. Each Closing Team card shows initials, the person's name, then the role: Processor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person. A missing person leaves the name blank. Parties is one compact list in the picture's order: Buyer, Seller, Lender, Loan Officer (only when that name is already on the lender contact), Selling Agency, Selling Agent, Selling Agent TC, Listing Agency, Listing Agent, Listing Agent TC, Title Abstractor, and Underwriter. Processor, Title Company, the sales rep, Preprocessor, and anyone else already on the file stay under that list. Call, Email, copy, Source of business, All contacts, Notes, Automation, and Configuration stay. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
+
+**Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- Staff File Overview shows the four boxes (value, then the label) and the Closing Team cards (initials, name, then the role).
+- Parties follows the picture's order and labels. Selling Agent, Selling Agent TC, Listing Agent TC, and Title Abstractor are display words. The stored roles stay Buyer Agent, Buyer Agent TC, Listing Agent TC, and Abstractor.
+- A Loan Officer row appears only when the lender contact is already a loan officer.
+- Processor, Title Company, sales rep, Preprocessor, Notes, Automation, and the existing buttons stay.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Licensed Settlement Agent has no saved field, so the card title shows and the name stays blank. Closer is unchanged.
+- The staff tracker shows "Wire/Cash to Close Acknowledge" and "Funding Auth". Reports and the database still use the old stage names.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-layout.md](docs/specs/file-overview-layout.md)
+- Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375)
+
+**Decisions**
+
+- Layout only. No new database column and no removed field.
+- Licensed Settlement Agent is not the Closer.
+- A blank name means nobody is assigned. The role title stays.
+- More than one salesperson means more than one Sales Person card.
 
 ## CRM report grouping without fiscal buckets
 
@@ -2569,4 +2687,34 @@ This file lists the portal's major features: how each one should work, how far a
 - A hidden chart is not copied. Restore it on the original first if it should be included.
 - No database change. The list uses the calls already stored. It does not add a table or a query.
 - The full Calls module is not part of this change. The menu opens the short list so the link is not a dead end.
+
+---
+
+## Document folders (FF-104)
+
+**How it should work.** On an order, Documents keeps All files, Received, and Sent. A fourth tab, Folders, lists that order's folders and how many files are in each one. CLA staff can add a folder and move a document into a folder. Buyers, sellers, and agents do not see the tab. A new closing order gets eight folders (100 Processing through 700 Recorded Documents and Policies) instead of the five older names. Orders that already exist keep the folders and files they have.
+
+**Status: In progress.** FF-104a (the Folders tab) is [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376). FF-104b (the eight folders on new orders) is [PR 377](https://github.com/Johncoester/cla-portal-demo/pull/377). The database file is not applied on TEST. Not Live.
+
+**What's built**
+
+- FF-104a: the Folders tab, the file count, Add folder, and Move, for Processor, Preprocessor, Transaction Coordinator, Admin, and Super admin. Sales can open the tab and see the counts. They cannot add or move.
+- FF-104b: a new closing order gets the eight folders. An order that already exists keeps the folders it has. Title does not add a second copy of a folder name the order already has. "450 Final Closing Documents" and Title's "450 Prior Closing Documents" are both kept.
+
+**What's still missing**
+
+- Apply `supabase/migrations/20261125350000_order_default_folders.sql` on TEST. Do not mark Live before that, and not before someone checks a new order there.
+- Master Template Library, Generate, Search Packages, a Word editor, Download Word, Download PDF, the Merge / Delete / Rename / Refresh / Download / Print / Send / eSign toolbar, and Drafts. John has not decided the eSign provider, the Word editor, or Delete / retention.
+- A photo-ID upload on a new order no longer has an "IDs & personal" folder, so it is filed as Unfiled. Older orders still have that folder.
+
+**Links**
+
+- Spec: [docs/specs/document-folders.md](docs/specs/document-folders.md)
+- Pull request: [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376) (FF-104a) and [PR 377](https://github.com/Johncoester/cla-portal-demo/pull/377) (FF-104b)
+- Source: Francis Santos, Nov 19 2026, 1:15 PM ET, confirmed Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Tracker FF-104a and FF-104b.
+
+**Decisions**
+
+- Phase 1 is the tab, then the default folders. Nothing else from the picture is built in this phase.
+- The Title module keeps its own extra folder names. "450 Final Closing Documents" and "450 Prior Closing Documents" are different folders.
 
