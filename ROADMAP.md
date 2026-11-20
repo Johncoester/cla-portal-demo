@@ -1991,13 +1991,13 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Custom view name column can move
 
-**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. The arrows move it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
+**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. Drag it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
 
 **Status: In progress.** Janine, Feedback 30 item 2, confirmed before this change. No database file. Not Live until this is merged and someone checks it on TEST.
 
 **What's built**
 
-- The name column can move up and down on Leads, Clients, Companies, and Deals, and it cannot be removed.
+- The name column can be dragged on Leads, Clients, Companies, and Deals, and it cannot be removed.
 - The saved order is the order of the list. A missing name position stays first.
 - The criteria user list from pull request 309 stays. Both work on the same custom view.
 
@@ -2040,6 +2040,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database file. The All list already stores a person's column choice.
 - The All list and New Custom View share one column list, so the two cannot drift.
 - The shell cache stamp is 202611249850, above main's 202611249800.
+
+## Custom view columns drag like the All list
+
+**How it should work.** On New Custom View and Edit view, Choose Columns, the selected columns move the same way as Manage columns on All Leads, All Clients, All Companies, and All Deals. Drag a selected column to a new place. The row has the same border and grab cursor as that list. Arrow keys move the focused row one place. Add and remove stay. The record name stays selected and can sit in any place. The order you leave is the order the view saves and the order that view's list shows.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 3, confirmed by email Nov 19, 2026, 6:30 PM ET ("Yes"). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- Selected columns on Leads, Clients, Companies, and Deals use the All list's drag row. The up and down arrows are gone.
+- Add, remove, and the record-name rule stay. A blank view name does not throw away the order.
+- The saved column order is the order the view list shows.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-column-drag.md](docs/specs/crm-view-column-drag.md)
+
+**Decisions**
+
+- Reuse the All list's column row and its drag and arrow-key controls. Do not keep a second set of arrow buttons.
+- No database file. The view already stores column order.
+- The shell cache stamp is 202611249870, above main's 202611249850.
 
 ## Page load retry (LOAD-RETRY-1)
 
