@@ -197,7 +197,7 @@ const chain = [
   ['js/pages/crm-shortcuts.js', '202611249600'],
   ['js/pages/crm-deals.js', '202611249850'],
   ['js/pages/crm.js', '202611249850'],
-  ['js/app.js', '202611249850'],
+  ['js/app.js', '202611249900'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -206,8 +206,8 @@ for (const [target, stamp] of chain) {
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 const appFrom = [...(hits.get('js/app.js') || [])];
-ok(read('index.html').includes('js/app.js?v=202611249850') && appFrom.length === 1 && appFrom[0] === '202611249850', 'index.html loads the shell at 202611249850');
-ok(read('js/app.js').includes('adapter.js?v=202611249700'), 'the shell loads the adapter at 202611249700 so Home reads company and deal names');
+ok(read('index.html').includes('js/app.js?v=202611249900') && appFrom.length === 1 && appFrom[0] === '202611249900', 'index.html loads the shell at 202611249900');
+ok(read('js/app.js').includes('adapter.js?v=202611249900'), 'the shell loads the adapter at 202611249900 so Home reads company and deal names');
 
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
