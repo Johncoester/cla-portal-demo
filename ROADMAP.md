@@ -2446,6 +2446,37 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
 - The disbursement date uses the existing column. Blank means the automatic date.
 
+## File Overview layout (FF-105)
+
+**How it should work.** On the staff File Overview, the blue tasks bar stays above a row of four boxes (Transaction Type, Open Date, Close Date, Purchase Price) and a Closing Team row. Each Closing Team card shows initials, the person's name, then the role: Processor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person. A missing person leaves the name blank. Parties is one compact list in the picture's order: Buyer, Seller, Lender, Loan Officer (only when that name is already on the lender contact), Selling Agency, Selling Agent, Selling Agent TC, Listing Agency, Listing Agent, Listing Agent TC, Title Abstractor, and Underwriter. Processor, Title Company, the sales rep, Preprocessor, and anyone else already on the file stay under that list. Call, Email, copy, Source of business, All contacts, Notes, Automation, and Configuration stay. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
+
+**Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- Staff File Overview shows the four boxes (value, then the label) and the Closing Team cards (initials, name, then the role).
+- Parties follows the picture's order and labels. Selling Agent, Selling Agent TC, Listing Agent TC, and Title Abstractor are display words. The stored roles stay Buyer Agent, Buyer Agent TC, Listing Agent TC, and Abstractor.
+- A Loan Officer row appears only when the lender contact is already a loan officer.
+- Processor, Title Company, sales rep, Preprocessor, Notes, Automation, and the existing buttons stay.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Licensed Settlement Agent has no saved field, so the card title shows and the name stays blank. Closer is unchanged.
+- The staff tracker shows "Wire/Cash to Close Acknowledge" and "Funding Auth". Reports and the database still use the old stage names.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-layout.md](docs/specs/file-overview-layout.md)
+- Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375)
+
+**Decisions**
+
+- Layout only. No new database column and no removed field.
+- Licensed Settlement Agent is not the Closer.
+- A blank name means nobody is assigned. The role title stays.
+- More than one salesperson means more than one Sales Person card.
+
 ## CRM report grouping without fiscal buckets
 
 **How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.

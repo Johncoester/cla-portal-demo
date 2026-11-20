@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611247700';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611247700';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611249200';
+import { prefetchDealTab } from './deal-tab.js?v=202611249400';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -120,7 +120,8 @@ export async function render(ctx) {
   const locations = staffView && api.listClosingLocations ? await api.listClosingLocations(deal.id).catch(() => []) : [];
   const settlement = { staffView, canEdit, canEditSigning: staffView && canManageClosingLocations(user) && !demoLocked, closerStaff, contactChoices, locations };
   const v = overview({ ...ctx, demoLocked, settlement }, deal, here, ag, salesStaff, ov, splits); const extra = agentPanels(ctx, deal, ov, ur, inv); const done = placedPanel(deal);
-  return { ...v, deal, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
+  const staffLayout = staffView ? html`${staffSummaryHtml(deal)}${closingTeamHtml(deal)}` : '';
+  return { ...v, deal, body: html`${done.html}${promptHtml}${flagHtml}${v.head}${extra.top}${staffLayout}${v.body}${extra.bottom}`, mount(root) { done.mount(root); v.mount(root); extra.mount(root); } };
 }
 
 // REDESIGN (John, Nov 3): the confirmation after Place Order. ordernew.js leaves a note in sessionStorage (key below) and opens the new order; the
@@ -205,7 +206,8 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
   // seller / agent / price keeps showing it (nothing is hidden that is on the file), but nothing new can be added.
   const refi = isRefi(d); const B = refi ? 'Borrower' : 'Buyer';
   const showSellers = !refi || all('Client-Seller').length; const showAgents = (r) => !refi || all(r).length; const showPrice = !refi || d.purchasePrice != null; const showEmd = !refi || d.emdAmount != null || d.emdDueDate;
-  const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${s}</span></li>`);
+  const stageWord = (i) => (staffView ? staffTrackerLabel(i) : STAGES[i]);
+  const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${stageWord(i)}</span></li>`);
   const stage = Math.max(0, Math.min(STAGES.length - 1, Number(d.stage) || 0)); const today = localDate();
   const toGo = d.closingDate ? Math.round((Date.parse(d.closingDate + 'T12:00:00') - Date.parse(today + 'T12:00:00')) / 864e5) : null;
   const openN = ov ? (staffView ? ov.counts.tasks : ov.outstanding) : d.openTasks;
@@ -225,7 +227,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
     ${openN != null ? html`<span data-open-tasks><a href="#/deals/${d.id}/tasks"><b>${openN}</b> open task${openN === 1 ? '' : 's'}</a></span>` : ''}
     ${emailN ? html`<span data-email-unread><a href="#/deals/${d.id}/email"><b>${emailN}</b> unread email${emailN === 1 ? '' : 's'}</a></span>` : ''}</div>`;
   const head = html`<section class="op-status" data-status-bar aria-label="Order status">
-      <div class="op-status-top"><span class="op-status-label">ORDER STATUS &middot; <b data-status-step>Step ${stage + 1} of ${STAGES.length} &mdash; ${STAGES[stage]}</b>${ov && !staffView ? html` &middot; <span class="muted">your closing progress: <strong data-progress-step>${ov.progress.phaseName}</strong></span>` : ''}</span>
+      <div class="op-status-top"><span class="op-status-label">ORDER STATUS &middot; <b data-status-step>Step ${stage + 1} of ${STAGES.length} &mdash; ${stageWord(stage)}</b>${ov && !staffView ? html` &middot; <span class="muted">your closing progress: <strong data-progress-step>${ov.progress.phaseName}</strong></span>` : ''}</span>
         <span class="op-status-right">${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>${staffView ? html` <button class="icon-edit" id="editdeal" title="Edit order details" aria-label="Edit order details">&#9998;</button>` : ''}` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</span></div>
       <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a step to set the stage. The last step closes the order.</p>` : ''}
       ${staffView ? staffStatus : glance}</section>
@@ -489,14 +491,106 @@ export async function copyPlainText(text, deps = {}) {
     return ok;
   } catch (e) { return false; }
 }
+// FF-105 (Francis, Nov 19 2026): staff File Overview layout only. Labels and order. The stored role stays Buyer Agent.
+const teamName = (v) => String(v || '').trim();
+export function staffFileFacts(d) {
+  const price = d.purchasePrice == null || d.purchasePrice === '' ? '' : (fmtMoney(d.purchasePrice) || '');
+  return [
+    { key: 'transaction-type', label: 'Transaction Type', value: teamName(d.transactionType) },
+    { key: 'open-date', label: 'Open Date', value: fmtDate(d.openDate) || '' },
+    { key: 'close-date', label: 'Close Date', value: fmtDate(d.closingDate) || '' },
+    { key: 'purchase-price', label: 'Purchase Price', value: price },
+  ];
+}
+export function staffSummaryHtml(d) {
+  return html`<div class="op-summary" data-file-summary>${staffFileFacts(d).map((f) => html`<div class="op-sum-box" data-summary="${f.key}"><strong>${f.value}</strong><span class="op-box-label">${f.label}</span></div>`)}</div>`;
+}
+export function nameInitials(name) {
+  const bits = teamName(name).split(/\s+/).filter(Boolean);
+  if (!bits.length) return '';
+  return `${bits[0][0] || ''}${bits.length > 1 ? bits[bits.length - 1][0] : ''}`.toUpperCase();
+}
+/* Licensed Settlement Agent has no saved field. The name stays blank. Closer is a different role and is not copied here.
+ * The card says Transaction Coordinator. "Transaction Coordinator for CLA" in the picture is sample text, not the role. */
+export function closingTeamCards(d) {
+  const sales = (d.salesPeople || []).map((s) => ({ id: (s && s.id) || '', name: teamName(s && (s.name || `${s.firstName || ''} ${s.lastName || ''}`)) })).filter((s) => s.id || s.name);
+  const salesCards = (sales.length ? sales : [{ id: '', name: '' }]).map((s) => ({ role: 'Sales Person', name: s.name, id: s.id }));
+  return [
+    { role: 'Processor', name: teamName(d.processorName), id: d.processorId || '' },
+    { role: 'Transaction Coordinator', name: teamName(d.tcName), id: d.tcUserId || '' },
+    { role: 'Licensed Settlement Agent', name: '', id: '', blankBecause: 'no-field' },
+    ...salesCards,
+  ];
+}
+export function closingTeamHtml(d) {
+  return html`<div class="box-title"><h2><span class="h-ico"></span>Closing Team</h2></div>
+    <div class="op-team" data-closing-team>${closingTeamCards(d).map((c) => html`<div class="op-team-card" data-team-card="${c.role}"${c.id ? html` data-team-id="${c.id}"` : ''}${c.blankBecause ? html` data-team-blank="${c.blankBecause}"` : ''}><span class="op-team-av" aria-hidden="true">${nameInitials(c.name)}</span><strong data-team-name>${c.name}</strong><span class="op-box-label">${c.role}</span></div>`)}</div>`;
+}
+/* Picture words on the staff tracker only. STAGES itself stays the stored stage name. */
+const TRACKER_DISPLAY = { 4: 'Wire/Cash to Close Acknowledge', 8: 'Funding Auth' };
+export function staffTrackerLabel(i) {
+  return TRACKER_DISPLAY[i] || STAGES[i] || '';
+}
+const isLoanOfficerRow = (p) => !!(p && (p.lenderRole === 'loan_officer' || (!p.lenderRole && /(?:^|· |\| )Loan Officer$/.test(String(p.company || '')))));
+export function staffRoleTitle(p) {
+  if (!p) return '';
+  if (p.label === 'Buyer Agent') return 'Selling Agent';
+  if (p.fileRole === BUYER_AGENT_TC) return 'Selling Agent TC';
+  if (p.fileRole === LISTING_AGENT_TC) return 'Listing Agent TC';
+  if (p.label === 'Abstractor') return 'Title Abstractor';
+  if (isLoanOfficerRow(p)) return 'Loan Officer';
+  return p.label || '';
+}
+export function agencyDisplayName(rows) {
+  const names = [];
+  for (const p of rows || []) {
+    if (!p || p.placeholder) continue;
+    const co = teamName(p.company);
+    if (co && !names.includes(co)) names.push(co);
+  }
+  return names.join(', ');
+}
+/* Staff list order from Francis's picture. Does not drop a row. Stored labels stay Buyer Agent, Abstractor, and Lender. */
+export function staffPartyPlan(rows) {
+  const list = (rows || []).map((p, rowIndex) => ({ ...p, rowIndex }));
+  const pull = (pred) => {
+    const hit = [];
+    for (let i = list.length - 1; i >= 0; i -= 1) if (pred(list[i])) hit.unshift(list.splice(i, 1)[0]);
+    return hit;
+  };
+  const party = (p) => ({ kind: 'party', party: p });
+  const buyers = pull((p) => p.label === 'Buyer' || p.label === 'Borrower');
+  const sellers = pull((p) => p.label === 'Seller');
+  const allLenders = pull((p) => p.label === 'Lender' || p.fileRole === 'Lender');
+  const loanOfficers = allLenders.filter(isLoanOfficerRow);
+  const lenders = allLenders.filter((p) => !isLoanOfficerRow(p));
+  const sellingAgents = pull((p) => p.label === 'Buyer Agent');
+  const listingAgents = pull((p) => p.label === 'Listing Agent');
+  const sellingTcs = pull((p) => p.fileRole === BUYER_AGENT_TC);
+  const listingTcs = pull((p) => p.fileRole === LISTING_AGENT_TC);
+  const abstractors = pull((p) => p.label === 'Abstractor');
+  const underwriters = pull((p) => p.label === 'Underwriter');
+  const image = [...buyers.map(party), ...sellers.map(party), ...lenders.map(party), ...loanOfficers.map(party)];
+  if (sellingAgents.length || listingAgents.length) {
+    image.push({ kind: 'agency', title: 'Selling Agency', name: agencyDisplayName(sellingAgents) });
+    sellingAgents.forEach((p) => image.push(party(p)));
+    sellingTcs.forEach((p) => image.push(party(p)));
+    image.push({ kind: 'agency', title: 'Listing Agency', name: agencyDisplayName(listingAgents) });
+    listingAgents.forEach((p) => image.push(party(p)));
+    listingTcs.forEach((p) => image.push(party(p)));
+  }
+  abstractors.forEach((p) => image.push(party(p)));
+  underwriters.forEach((p) => image.push(party(p)));
+  return { image, rest: list, loanOfficers };
+}
 const OVERVIEW_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Processor', 'Preprocessor'];
 // John, Nov 4 meeting: CLA staff also get the ABSTRACTOR and the UNDERWRITER in the same list. Someone added on Contacts with that role shows
 // with their details; otherwise the row still shows (Underwriter = the state's underwriter from Underwriter Splits, Abstractor = not assigned yet).
 export const STAFF_EXTRA_ROLES = ['Abstractor', 'Underwriter'];
 export function partyRows(d, ov, staffView, splits = []) {
   const rows = ov ? ov.parties.map((p) => ({ ...p })) : [];
-  if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role) && !(p.role === 'Lender' && rows.some((r) => r.label === 'Lender')))
-    .forEach((p) => { const roleBit = lenderRoleLabel(p.contact.lenderRole); const name = partyDisplayName(p); const company = [p.contact.company && p.contact.company !== name ? p.contact.company : '', roleBit].filter(Boolean).join(' · '); const agentTc = isAgentTcRole(p.role); const agentName = agentTc ? sideAgentName(d.participants, p.role) : ''; rows.push({ label: agentTc ? agentTcLabel(p.role) : p.role, agentNote: agentName, addRole: agentTc ? AGENT_TC_PICK : p.role, replaceId: agentTc ? p.id : '', agentTc, name, company, email: p.contact.email || '', phone: p.contact.phone || '', contactId: p.contact.contactHidden ? '' : (p.contactId || ''), contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }); });
+  if (staffView) d.participants.filter((p) => !p.removed && p.contact && !OVERVIEW_ROLES.includes(p.role))
+    .forEach((p) => { const roleBit = lenderRoleLabel(p.contact.lenderRole); const name = partyDisplayName(p); const company = [p.contact.company && p.contact.company !== name ? p.contact.company : '', roleBit].filter(Boolean).join(' · '); const agentTc = isAgentTcRole(p.role); const agentName = agentTc ? sideAgentName(d.participants, p.role) : ''; const contactId = p.contact.contactHidden ? '' : (p.contactId || ''); if (p.role === 'Lender' && rows.some((r) => r.label === 'Lender' && r.contactId && r.contactId === contactId)) return; rows.push({ label: agentTc ? agentTcLabel(p.role) : p.role, fileRole: p.role, lenderRole: p.contact.lenderRole || '', agentNote: agentName, addRole: agentTc ? AGENT_TC_PICK : p.role, replaceId: agentTc ? p.id : '', agentTc, name, company, email: p.contact.email || '', phone: p.contact.phone || '', contactId, contactHidden: !!p.contact.contactHidden, entity: p.entity || null, profileId: p.contact.profileId || null, canMessage: false }); });
   if (staffView && !isRefi(d) && !rows.some((r) => r.agentTc)) rows.push({ label: agentTcLabel(AGENT_TC_PICK), addRole: AGENT_TC_PICK, agentTc: true, name: 'Not specified', company: '', email: '', phone: '', placeholder: true });
   if (staffView) for (const role of STAFF_EXTRA_ROLES) if (!rows.some((r) => r.label === role)) {
     const sp = role === 'Underwriter' ? (splits || []).find((x) => x.state === String(d.state || '').toUpperCase() && x.underwriter) : null;
@@ -515,15 +609,18 @@ function referralCell(row, state, canEdit) {
   }
   return html`<label class="op-ref referral-source"><input type="radio" name="fileReferral" value="${value}" data-referral-source="${value}" aria-label="Source of business: ${who}" ${state.checked ? raw('checked') : ''}> <span>Source of business</span></label>`;
 }
-function partiesList(d, ov, staffView, { splits = [], edit = false, source = '', sourceLabel = '' } = {}) {
+export function partiesList(d, ov, staffView, { splits = [], edit = false, source = '', sourceLabel = '' } = {}) {
   const rows = partyRows(d, ov, staffView, splits);
   const referral = staffView ? fileReferralState({ source, sourceLabel, rows, canEdit: edit }) : null;
+  const plan = staffView ? staffPartyPlan(rows) : null;
   const avatar = (p) => (p.salesRep && p.profileId ? (p.photo ? html`<img class="party-avatar" src="${p.photo}" alt="" data-sales-photo>` : html`<span class="party-avatar" aria-hidden="true" data-sales-initials>${p.initials}</span>`) : '');
     const row = (p, i) => { const hid = p.contactHidden; const tel = hid ? '' : telOf(p.phone); const em = hid ? '' : p.email || '';
-    const ref = referral ? referralCell(p, referral.rows[i], edit) : '';
+    const at = p.rowIndex != null ? p.rowIndex : i;
+    const ref = referral ? referralCell(p, referral.rows[at], edit) : '';
     const pickProcessor = p.label === 'Processor' && edit;
-    return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${pickProcessor ? html` data-processor-editable` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${i}">
-      <span class="op-role">${p.label}${p.agentNote ? html` · ${p.agentNote}` : ''}</span><span class="op-nm">${avatar(p)}${p.entity && p.name === p.entity.name ? '' : entityLine(p.entity)}<strong>${p.name}</strong>${p.entity && p.name === p.entity.name && (p.entity.repName || p.entity.type) ? html`<small data-entity-rep>${[p.entity.type, p.entity.repName].filter(Boolean).join(' · ')}</small>` : ''}${p.company ? html`<small>${p.company}</small>` : ''}</span>
+    const title = staffView ? staffRoleTitle(p) : p.label;
+    return html`<div class="op-prow${p.salesRep ? ' sales-rep-party' : ''}${p.placeholder ? ' is-placeholder' : ''}" data-party="${p.label}"${p.placeholder ? html` data-party-placeholder` : ''}${pickProcessor ? html` data-processor-editable` : ''}${p.salesRep ? html` data-sales-rep="${p.profileId || ''}"` : ''} data-party-row="${at}">
+      <span class="op-role">${title}${p.agentNote ? html` · ${p.agentNote}` : ''}</span><span class="op-nm">${avatar(p)}${p.entity && p.name === p.entity.name ? '' : entityLine(p.entity)}<strong>${p.name}</strong>${p.entity && p.name === p.entity.name && (p.entity.repName || p.entity.type) ? html`<small data-entity-rep>${[p.entity.type, p.entity.repName].filter(Boolean).join(' · ')}</small>` : ''}${p.company ? html`<small>${p.company}</small>` : ''}</span>
       ${hid ? html`<span class="op-ph op-hidden muted small contact-hidden" data-contact-hidden>${HIDDEN_CONTACT}</span><span class="op-em"></span>` : html`<span class="op-ph">${tel ? html`<span class="op-copy-val">${fmtPhone(p.phone)}</span>${partyCopyButton('phone', fmtPhone(p.phone))}` : html`<span class="muted">&mdash;</span>`}</span><span class="op-em">${em ? html`<span class="op-copy-val">${em}</span>${partyCopyButton('email', em)}` : html`<span class="muted">&mdash;</span>`}</span>`}
       <span class="op-acts">${tel ? html`<a class="op-act" href="tel:${tel}" data-call aria-label="Call ${p.name}">&#9742; Call</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9742; Call</span>`}
         ${em ? html`<a class="op-act" href="mailto:${em}" data-email aria-label="Email ${p.name} (opens your mail app)">&#9993; Email</a>` : html`<span class="op-act is-off" aria-disabled="true">&#9993; Email</span>`}
@@ -531,10 +628,13 @@ function partiesList(d, ov, staffView, { splits = [], edit = false, source = '',
         ${pickProcessor ? html`<button type="button" class="op-act" data-pick-processor>${processorPickLabel(p.name)}</button>` : ''}
         ${p.placeholder && edit && !p.agentTc ? html`<a class="op-act" href="#/deals/${d.id}/contacts" data-add-role="${p.label}" aria-label="Add ${p.label.toLowerCase()} on Contacts">+ Add</a>` : ''}
         ${p.agentTc && edit ? html`<button type="button" class="op-act" data-add-party="${p.addRole}"${p.replaceId ? html` data-replace-party="${p.replaceId}"` : ''}>${p.placeholder ? '+ Add' : 'Change'}</button>` : ''}</span>${ref}</div>`; };
+  const one = (p) => row(p, p.rowIndex);
+  const agencyRow = (title, name) => html`<div class="op-prow" data-party-display="${title}"><span class="op-role">${title}</span><span class="op-nm"><strong>${name}</strong></span><span class="op-ph"><span class="muted">&mdash;</span></span><span class="op-em"><span class="muted">&mdash;</span></span><span class="op-acts"><span class="op-act is-off" aria-disabled="true">&#9742; Call</span><span class="op-act is-off" aria-disabled="true">&#9993; Email</span></span></div>`;
+  const staffRows = plan ? html`${plan.image.map((item) => item.kind === 'agency' ? agencyRow(item.title, item.name) : one(item.party))}${plan.rest.map(one)}` : '';
   const legacy = referral && referral.legacy ? html`<p class="op-ref-legacy" data-referral-unmatched>Source of business: ${referral.unmatched}. This value is not tied to one person on the file.</p>` : '';
   const clear = referral && edit ? html`<label class="referral-source op-ref-clear"><input type="radio" name="fileReferral" value="" data-referral-clear aria-label="Source of business: Not set" ${referral.clearChecked ? raw('checked') : ''}> Not set</label>` : '';
   const hint = referral ? html`<p class="muted small" data-referral-hint>Source of business is one person: a buyer, seller, buyer agent, listing agent, or lender. It is not the CLA salesperson and it does not change a contact's Lead Source.</p>` : '';
-  return html`<div class="op-plist" data-parties data-party-list-all${referral ? raw(' data-referral-on') : ''}>${rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
+  return html`<div class="op-plist" data-parties data-party-list-all${referral ? raw(' data-referral-on') : ''}>${plan ? staffRows : rows.length ? rows.map(row) : html`<p class="muted">Nobody on this order yet.</p>`}</div>
     ${staffView && edit ? html`<div class="op-ref-tools" data-referral-tools>${clear}</div>` : ''}${legacy}${hint}${staffView ? html`<p class="op-source muted" data-source-of-business>Source of business: ${sourceLabel || 'Not set'}</p>` : ''}
     <p class="muted small op-pnote">Call and Email open your phone or mail app. The portal does not send anything.</p>`;
 }
