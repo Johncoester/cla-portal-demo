@@ -3,9 +3,9 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, p
 import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611247700';
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611247700';
-import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611247700';
-import { copyPlainText } from './deal.js?v=202611249500';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611249900';
+import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611249900';
+import { copyPlainText } from './deal.js?v=202611249900';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
@@ -193,7 +193,7 @@ export async function render({ api, user, deal, refresh }) {
   function invitePortal(contactId, role) {
     const p = deal.participants.find((x) => x.contactId === contactId && x.role === role); if (!p) return; const c = p.contact; const hasEmail = !!String(c.email || '').trim();
     const who = inviteKindForRole(role) === 'agent' ? 'agent account' : 'portal login';
-    const m = modal('Invite to portal', html`<form id="ipf" class="form-grid" data-invite-portal-form><p class="span2"><strong>${partyDisplayName(p)}</strong> (${role}) gets a one-time link to set up their ${who} for this file.</p>
+    const m = modal('Invite to portal', html`<form id="ipf" class="form-grid" data-invite-portal-form><p class="span2"><strong>${partyDisplayName(p)}</strong> (${agentTcLabel(role, sideAgentName(deal.participants, role))}) gets a one-time link to set up their ${who} for this file.</p>
       <label class="span2">Email<input name="email" type="email" maxlength="160" value="${c.email || ''}" ${hasEmail ? raw('readonly') : raw('required placeholder="name@example.com"')} data-invite-email></label>
       ${hasEmail ? '' : html`<p class="muted small span2" data-invite-email-note>This contact has no email yet. The email you enter is saved on the contact.</p>`}
       <div class="span2"><button class="m-btn" type="submit" data-invite-create>Create invite link</button> <button type="button" class="ghost" data-close>Close</button></div>

@@ -4,11 +4,11 @@ import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE } from '../data/constants.js?v=202611247700';
 import { raw } from '../ui.js?v=202611161500';
 import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611247700';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611247700';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611249900';
 import { presentThread } from '../data/portal-threads.js?v=202611162200';
-import { noLoginContactId, canShareInvite, shareInviteToast } from '../data/share-invite.js?v=202611191100';
-import { autoSendInvite } from '../data/invite-send.js?v=202611247700';
-import { TYPED_ROLES, cleanTypedRecipient, personByEmail, heldContactId, plainMessageHtml, addTypedRecipient } from '../data/typed-recipient.js?v=202611247700';
+import { noLoginContactId, canShareInvite, shareInviteToast } from '../data/share-invite.js?v=202611249900';
+import { autoSendInvite } from '../data/invite-send.js?v=202611249900';
+import { TYPED_ROLES, cleanTypedRecipient, personByEmail, heldContactId, plainMessageHtml, addTypedRecipient } from '../data/typed-recipient.js?v=202611249900';
 
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
