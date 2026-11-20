@@ -19,8 +19,8 @@ import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compo
 import { searchPage } from './crm-search.js?v=202611247100';
 import { dashboardsPage } from './crm-dashboards.js?v=202611247100';
 import { reportsHome } from './crm-reports.js?v=202611247100';
-import { dealsPage } from './crm-deals.js?v=202611247100';
-import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611247200';
+import { dealsPage } from './crm-deals.js?v=202611249600';
+import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611249600';
 import { callPage, callModal, callsList } from './crm-calls.js?v=202611247100';
 import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611247100';
 
