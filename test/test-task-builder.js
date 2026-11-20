@@ -17,7 +17,7 @@ const aerr = async (p) => { try { await p; return ''; } catch (e) { return e.mes
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 
 // rules
-ok(TRIGGERS.map((t) => t.code).join() === 'order_opened,contract_received,emd_received,emd_not_received,commitment_received,closing_date_set,days_before_closing', 'the starter list of triggers');
+ok(TRIGGERS.map((t) => t.code).join() === 'order_opened,contract_received,emd_received,emd_not_received,commitment_received,closing_date_set,days_before_closing,file_closed', 'the list of triggers (File closed added for TB-7)');
 ok(triggerNeedsDays('emd_not_received') && triggerNeedsDays('days_before_closing') && !triggerNeedsDays('order_opened'), 'only the two day-based triggers need days');
 ok(triggerText('emd_not_received', 2) === 'EMD not received, 2 days after the order was opened' && triggerText('days_before_closing', 1) === 'Days before closing, 1 day before the closing date', 'trigger text reads in plain words');
 ok(/Give the flow a name/.test(err(() => cleanFlow({ name: '  ', trigger: 'order_opened' }))), 'a blank name is refused in plain words');
@@ -42,7 +42,7 @@ ok(SECTIONS['task-builder'] === '/task-builder' && routeWs(route) === 'admin', '
 // menu: its own item, not under Task Templates
 const app = read('js/app.js');
 ok(/add\('task-builder', 'Task Builder', '#\/task-builder', 'task'\)/.test(app) && app.includes("if (canOpenTaskSetup(u, demo)) add('task-builder'"), 'Task Builder is its own admin menu item for Admins and Super admins');
-ok(app.includes("'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611261000'))"), 'the page is registered at its stamp');
+ok(app.includes("'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611271000'))"), 'the page is registered at its stamp');
 
 // the mock portal
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
