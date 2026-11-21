@@ -2729,6 +2729,7 @@ This file lists the portal's major features: how each one should work, how far a
 - First panel: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
 - Order change: [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360)
 - Call opens the Calls list: [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368)
+- Modules moved to the top tabs: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
 
 **Decisions**
 
@@ -2758,6 +2759,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/crm-module-tabs.md](docs/specs/crm-module-tabs.md)
 - Record shortcuts: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Pull request: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
 
 **Decisions**
 

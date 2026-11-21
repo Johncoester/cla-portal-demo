@@ -2,7 +2,7 @@
 
 **Requested by:** Janine Santos, CRM Feedback 36, and the Feedback 28 shortcut-order follow-up. She confirmed the wording on Nov 20 2026, 12:40 PM ET ("yes, that's it"). Tracker row F36, row 416.
 
-**Status:** In progress. Not Live. No database file. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** In progress. Pull request [404](https://github.com/Johncoester/cla-portal-demo/pull/404). Not Live. No database file. See [ROADMAP.md](../../ROADMAP.md).
 
 ## What the user sees
 
