@@ -22,7 +22,7 @@ import { closingSchedule } from './mock-part-schedule.js?v=202611247700';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611247700';
 import { mattNov2 } from './mock-part-nov2.js?v=202611247700';
-import { crmPart } from './mock-part-crm.js?v=202611247000';
+import { crmPart } from './mock-part-crm.js?v=202611289960';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611247700';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611247700';
@@ -321,7 +321,14 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     return held.length ? held : [OUTSIDE];   // agent roles sort first
   }
   const fileRole = (profileId, dealId) => fileRoles(profileId, dealId)[0];
-  const fileRoleText = (profileId, dealId) => { const rs = fileRoles(profileId, dealId); return rs.length ? fileRoleLabel(rs) : undefined; };   // display: 'Buyer + Buyer\'s Agent' or the one role
+  const TC_FILE_LABEL = 'Transaction Coordinator';
+  // TC-PROFILE-1: an outside coordinator on a file only through the agent they work for is labelled Transaction Coordinator there
+  // (the same rule as private.rpc_my_file_roles_full). Their roles stay the agent side, so access is unchanged.
+  const tcOnlyOn = (profileId, dealId) => { const p = load().profiles.find((x) => x.id === profileId); const c = contactOf(profileId);
+    if (!p || !isOutside(p.role) || !c || !dealId || !linkedAgentRoles(profileId, dealId).length) return false;
+    return !load().participants.some((z) => z.dealId === dealId && z.contactId === c.id && OUTSIDE_FILE_ROLES.includes(z.role)); };
+  const fileLabelOn = (profileId, dealId, rs) => (tcOnlyOn(profileId, dealId) ? TC_FILE_LABEL : fileRoleLabel(rs));
+  const fileRoleText = (profileId, dealId) => { const rs = fileRoles(profileId, dealId); return rs.length ? fileLabelOn(profileId, dealId, rs) : undefined; };   // display: 'Buyer + Buyer\'s Agent' or the one role
   const holds = (u, r) => (u.roles || [u.role]).includes(r);
   // BUYER-ONLY RULES (Matt / John, Nov 4 call): a buyer on this file who is not also an agent on it
   const pureBuyer = (u) => !!u && !isStaffView(u) && holds(u, 'Client-Buyer') && !(u.roles || [u.role]).some((r) => isAgent(r));
@@ -354,8 +361,8 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // Roles an outside user holds across their files (for the dashboard groups and the login picker)
   const fileRolesOf = (u) => [...new Set(dealsFor(u).flatMap((x) => fileRoles(u.id, x.id)).filter((r) => r && r !== OUTSIDE))].sort((a, b) => OUTSIDE_FILE_ROLES.indexOf(a) - OUTSIDE_FILE_ROLES.indexOf(b));
   // the same, as one label per kind of file ('Buyer + Buyer's Agent' for a self-represented file) for the login picker / top bar
-  const LABEL_ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
-  const fileLabelsOf = (u) => [...new Set(dealsFor(u).map((x) => fileRoleLabel(fileRoles(u.id, x.id))).filter((r) => r && r !== OUTSIDE))].sort((a, b) => LABEL_ORDER.indexOf(a) - LABEL_ORDER.indexOf(b));
+  const LABEL_ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller', TC_FILE_LABEL];
+  const fileLabelsOf = (u) => [...new Set(dealsFor(u).map((x) => fileLabelOn(u.id, x.id, fileRoles(u.id, x.id))).filter((r) => r && r !== OUTSIDE))].sort((a, b) => LABEL_ORDER.indexOf(a) - LABEL_ORDER.indexOf(b));
   const log = (dealId, actorId, action, entity, entityId, detail) => { load().activity.push({ id: nid('a'), dealId, actorId, action, entity, entityId, detail: str(detail, 300), createdAt: now() }); };
   const prof = (id) => load().profiles.find((x) => x.id === id);
   const nameOf = (id) => { if (typeof id === 'string' && id.startsWith('link:')) return `Scheduling link (${id.slice(5)} side)`; const p = prof(id); return p ? `${p.firstName} ${p.lastName}`.trim() + (p.status === 'removed' ? ' (removed)' : '') : 'Unknown'; };
@@ -474,7 +481,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     // John, Nov 4: deal notes are staff/agent working notes; Client-Buyer / Client-Seller never get them (may name the other side's agent)
     const clientOnly = (u.roles || [u.role]).every((r) => isClient(r));
     const taskCounts = staffTaskCounts(tasks, localDate());
-    return { ...clone(x), notes: clientOnly ? '' : (x.notes || ''), scheduledClosing: sc0, sourceOfBusiness: src, sourceOfBusinessLabel: srcLabel, claRepresentation: staffView ? (x.claRepresentation || null) : null, claRepresentationLabel: staffView ? claRepresentationLabel(x.claRepresentation) : '', myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, displayName: propertyAddressOf(x), stageName: STAGES[x.stage],
+    return { ...clone(x), notes: clientOnly ? '' : (x.notes || ''), scheduledClosing: sc0, sourceOfBusiness: src, sourceOfBusinessLabel: srcLabel, claRepresentation: staffView ? (x.claRepresentation || null) : null, claRepresentationLabel: staffView ? claRepresentationLabel(x.claRepresentation) : '', myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: tcOnlyOn(u.id, x.id) ? TC_FILE_LABEL : fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, displayName: propertyAddressOf(x), stageName: STAGES[x.stage],
       openTasks: taskCounts.open,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && holds(u, t.assignedRole)))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
