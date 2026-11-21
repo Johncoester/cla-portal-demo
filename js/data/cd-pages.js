@@ -64,6 +64,20 @@ export const CD_DETAIL_GROUPS = [
 export const CD_DETAIL_FIELDS = CD_DETAIL_GROUPS.flatMap(([, , f]) => f);
 const FIELD = Object.fromEntries(CD_DETAIL_FIELDS.map((f) => [f[0], f]));
 export const cdFieldLabel = (k) => (FIELD[k] ? FIELD[k][2] : k);
+// THE LOAN PAGE (John, Nov 19 2026: the CD's loan details were blank because the only place to type them was the long "CD details & escrow" form).
+// The Loan page under General shows only these fields. They are the same saved values the Closing Disclosure reads, not a second copy.
+export const LOAN_PAGE_GROUPS = [
+  ['Loan', ['loan.id', 'loan.type', 'loan.purpose', 'loan.product', 'loan.term', 'loan.mic']],
+  ['Interest and payment', ['loan.rate', 'loan.monthlyPI']],
+  ['Can it change after closing?', ['loan.amountCanIncrease', 'loan.rateCanIncrease', 'loan.piCanIncrease', 'loan.prepaymentPenalty', 'loan.prepaymentMax', 'loan.balloon', 'loan.balloonAmount']],
+];
+export const LOAN_PAGE_KEYS = LOAN_PAGE_GROUPS.flatMap(([, keys]) => keys);
+// A save replaces the whole CD details record, so the Loan page sends everything already saved plus its own boxes. Nothing else is touched.
+export function loanPageInput(saved, form) {
+  const out = { ...(saved && typeof saved === 'object' ? saved : {}) };
+  for (const k of LOAN_PAGE_KEYS) if (form && k in form) out[k] = form[k];
+  return out;
+}
 export function cleanCdDetails(input, prev = {}) {
   const v = { ...(prev || {}), ...(input || {}) }; const out = {};
   for (const [k, raw] of Object.entries(v)) {

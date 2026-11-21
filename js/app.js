@@ -1,8 +1,8 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611281200';
+import { getAdapter } from './data/adapter.js?v=202611289950';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611269900';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611289950';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611247700';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611247700';
@@ -26,7 +26,7 @@ import { botRegistry } from './data/bot-registry.js?v=202611080400';
 import { canRequestVoice, voiceRouteOk } from './data/voice-demo.js?v=202611102100';
 import { mountVoiceChrome, prepareVoiceShell, stopVoiceNow, voiceMenuHtml } from './pages/voice-panel.js?v=202611161500';
 import { orderPin, mainPin, homeSearch, moreWrap, noteRecent, wireSideSearch } from './sidebar-search.js?v=202611161500';   // John, Nov 4 call: sidebar search + pinned order nav
-import { staffDealNav, wireFileFolds } from './file-sidebar.js?v=202611247600';
+import { staffDealNav, wireFileFolds } from './file-sidebar.js?v=202611289950';
 import { WORKSPACES, wsById, usesWorkspaces, currentWs, lastWs, setWs, clearSessionWs, routeWs, navInWs, hrVisible, hrOnly } from './workspace.js?v=202611247700';
 import { hrCanManage, hrIsSuper, HR_HEARTBEAT_MS } from './data/hr.js?v=202611247700';   // HR workspace (John + Francis, Nov 4)   // John, Nov 4: Workspace dropdown (Admin / Super admin)
 // PHONE FORMAT (Matt, Oct 31): every phone input (data-phone, or a form field of type tel) formats itself as xxx-xxx-xxxx while typing
@@ -45,10 +45,10 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611249900')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611269900')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611289950')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611247700')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611248300')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611269900')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611289950')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611248300')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611249900')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
@@ -58,7 +58,7 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611247700')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611247700')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611269900')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611289950')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611247700')),   // MF-056 buyer / seller scheduling link (no sign-in)
