@@ -804,7 +804,7 @@ This file lists the portal's major features: how each one should work, how far a
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
 | TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
-| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
+| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20). Nov 21: plain timing on every step, any staff member as the sales person, and email to the agents who didn't refer the file (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
 
 **What's built**
 
@@ -831,6 +831,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. John, Nov 20: client requests in Task Builder, with one email per person listing everything still needed, not one email per request. John, Nov 20: an email step and a File closed trigger; flows stay Off until he has tested them and turns them on. Still open: whether clients and agents can tick off tasks.
+- John, Nov 21: each step says in plain words when it happens ("2 days after the order opens: create this task, due 1 day later"); Task Builder's Sales person choice lists every staff member with a search box (being the sales person is set on the file); a Send an email step can go to the agents who didn't refer the file, using the file's Source of business, for his owner intro email. Open: Place Order and the file still offer only Sales Person and Sales Team as salespeople (Janine, Nov 18), so an Admin who sells can't be added there yet.
 
 ---
 
