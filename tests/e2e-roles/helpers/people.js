@@ -10,6 +10,9 @@ export const SEED_MARKER = 'E2E-ROLE-FILE';
 
 export const PEOPLE = {
   processor: { mockId: 'u-proc', label: 'Processor', emailEnv: 'E2E_PROCESSOR_EMAIL', passwordEnv: 'E2E_PROCESSOR_PASSWORD', staff: true, placeOrder: true },
+  // John, Nov 16: the file-email check sends from testportal@clatitle.com, which is connected on Processor 1
+  // (clatestportal+processor@gmail.com). Only email.spec signs in as this login.
+  processorMailbox: { mockId: 'u-proc', label: 'Processor', emailEnv: 'E2E_PROCESSOR_MAILBOX_EMAIL', passwordEnv: 'E2E_PROCESSOR_MAILBOX_PASSWORD', staff: true },
   salesPerson: { mockId: 'u-sp', label: 'Sales Person', emailEnv: 'E2E_SALES_PERSON_EMAIL', passwordEnv: 'E2E_SALES_PERSON_PASSWORD', viewOnly: true },
   salesTeam: { mockId: 'u-team', label: 'Sales Team', emailEnv: 'E2E_SALES_TEAM_EMAIL', passwordEnv: 'E2E_SALES_TEAM_PASSWORD', viewOnly: true, seesAllFiles: true },
   coordinator: { mockId: 'u-tc', label: 'Transaction Coordinator', emailEnv: 'E2E_TRANSACTION_COORDINATOR_EMAIL', passwordEnv: 'E2E_TRANSACTION_COORDINATOR_PASSWORD', shell: 'tc' },
