@@ -172,7 +172,7 @@ const homeSrc = read('js/pages/crm-home.js');
 const homeList = homeSrc.slice(homeSrc.indexOf('const TASK_COLS'), homeSrc.indexOf('export async function taskPage'));
 ok(!homeList.includes('data-col="relatedTo"') && homeList.includes('data-col="contactName"') && homeList.includes('t.contactLink'), 'the Home list prints Contact Name as a link and does not print Related To');
 ok(homeSrc.includes('data-f="relatedTo"'), 'the task page still shows Related To');
-ok(read('js/pages/crm.js').includes('crm-home.js?v=202611261100') && read('js/app.js').includes('pages/crm.js?v=202611289960') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611249700') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611289960') && read('js/app.js').includes('adapter.js?v=202611289960') && read('index.html').includes('js/app.js?v=202611289960'), 'the Home page is at 202611261100 and the shell is 202611270100');
+ok(read('js/pages/crm.js').includes('crm-home.js?v=202611261100') && read('js/app.js').includes('pages/crm.js?v=202611289960') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611249700') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611289970') && read('js/app.js').includes('adapter.js?v=202611289970') && read('index.html').includes('js/app.js?v=202611289970'), 'the Home page is at 202611261100 and the shell is 202611270100');
 const listFn = read('js/data/supabase-crm.js');
 const listBody = listFn.slice(listFn.indexOf('async listCrmTasks'), listFn.indexOf('async getCrmTask'));
 ok(listBody.includes('taskPartyNames') && !listBody.includes(".eq('entity_id'") && !listBody.includes('.filter('), 'the task list adds one name read for the whole list and does not filter the rows afterwards');
