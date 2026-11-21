@@ -32,4 +32,4 @@ The database file is `supabase/migrations/20261127020000_crm_sales_person_owners
 
 Who can open the CRM. Who can edit a record they do not own. The assign-to-self rule for a Sales Person. The tick. Spreadsheet import, which still matches an owner by the tick. Zoho sync.
 
-The shell cache stamp is 202611281300.
+The shell cache stamp is 202611289960.

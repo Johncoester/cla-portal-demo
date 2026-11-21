@@ -224,6 +224,8 @@ This file lists the portal's major features: how each one should work, how far a
 - Excess deposit ([PR 290](https://github.com/Johncoester/cla-portal-demo/pull/290), Nov 15 2026, built by Claude, not merged yet). When someone other than CLA holds the deposit and has already paid it to the seller, the processor types that amount under Accounting, Contract figures, Earnest money, in "Deposit already paid to the seller". It shows as Excess Deposit on CD line N.01, on the ALTA and on the fee ledger, comes off the seller's proceeds, and is not counted as money CLA receives. The buyer still gets credit for the whole deposit. On the Qualia file this makes seller proceeds $51,475.00, the same as Qualia. It is saved with "EMD held by" on the order, so no database file is needed. It cannot be more than the deposit.
 - A test (`test/test-qualia-scenario.js`) enters the purchase the way a processor does and checks every figure against Qualia's. It runs with the other tests on every pull request.
 
+- Loan page (QFLOW-3, Nov 19 2026, built by Claude, [PR 379](https://github.com/Johncoester/cla-portal-demo/pull/379), not merged). On TEST the Closing Disclosure's page 1 showed dashes for loan term, product, loan type and interest rate. The only place to type them was the long "CD details & escrow" form, and "Loan" in the file menu opened Title's loan check. General > Loan now opens a short Loan page: the order's loan amount and lender on top, then loan ID, type, purpose, product, term, MIC, interest rate, monthly payment and the "can it change" answers. They are the same saved values the Closing Disclosure prints, and saving them keeps everything else on CD details. Title's Loan check is still a step inside the Title tab. No database file.
+
 **What's still missing**
 
 - The Title tab's Schedule A, Requirements and Policy info start blank. Qualia fills the proposed insured, the commitment number, the policy amounts and the standard requirements from the file.
@@ -2994,5 +2996,5 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The database file is required. A Sales Person cannot read every other salesperson's profile, so the existing owner list (a database function) is the one place that can show the full list. The pull request does not apply it.
 - Sales Team is not added by role. Inactive users stay off the list.
-- Cache stamp 202611281300, above main's 202611281200, so a saved copy of the shell is not reused.
+- Cache stamp 202611289960, above main's 202611289950, so a saved copy of the shell is not reused.
 
