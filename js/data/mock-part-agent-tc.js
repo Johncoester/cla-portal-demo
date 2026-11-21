@@ -88,6 +88,17 @@ export function agentTcLinksPart(x) {
       save();
       return clone(rowOf(link));
     },
+    // TC-ASSIGN-1: the agents a coordinator works with.
+    async listTcAgents(tcContactId) {
+      const u = needUser();
+      const tc = contactById(tcContactId);
+      if (!tc || !canSee(u, tc)) fail(TC_NOT_FOUND);
+      return clone(linksOf(load()).filter((l) => l.tcContactId === tc.id).map((l) => {
+        const a = contactById(l.agentContactId) || {};
+        return { id: l.id, contactId: l.agentContactId, tcContactId: tc.id, firstName: a.firstName || '', lastName: a.lastName || '', email: a.email || '',
+          phone: a.phone || '', company: a.company || '', profileId: a.profileId || null, createdAt: l.createdAt };
+      }).sort((a, b) => personName(a).localeCompare(personName(b))));
+    },
     async unlinkAgentTc(agentContactId, tcContactId) {
       const u = needUser();
       const agent = needAgent(u, agentContactId, true);
