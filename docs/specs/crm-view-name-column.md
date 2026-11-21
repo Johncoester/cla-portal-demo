@@ -10,7 +10,7 @@
 
 On New Custom View and Edit view, under Choose Columns, the record name stays in the Selected list. That is Lead Name, Client Name, Company Name, or Deal Name.
 
-It is no longer stuck at the top. The up and down arrows move it like any other selected column. Client Owner, or any other selected column, can sit first.
+It is no longer stuck at the top. Drag the row, the same way Manage columns works on the All list. Client Owner, or any other selected column, can sit first. Arrow keys on the focused row move it one place.
 
 The name cannot be removed. It does not appear under Available.
 
