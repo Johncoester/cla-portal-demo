@@ -195,8 +195,8 @@ const dual = [...hits.entries()].filter(([, stamps]) => stamps.size > 1);
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.map(([t, s]) => t + ' ' + [...s].join(',')).join('; ') : ''));
 const chain = [
   ['js/pages/crm-shortcuts.js', '202611249600'],
-  ['js/pages/crm-deals.js', '202611249850'],
-  ['js/pages/crm.js', '202611249850'],
+  ['js/pages/crm-deals.js', '202611249870'],
+  ['js/pages/crm.js', '202611261050'],
   ['js/app.js', '202611269900'],
 ];
 const issues = [];

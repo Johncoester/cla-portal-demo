@@ -20,10 +20,10 @@ import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compo
 import { searchPage } from './crm-search.js?v=202611247100';
 import { dashboardsPage } from './crm-dashboards.js?v=202611247100';
 import { reportsHome } from './crm-reports.js?v=202611247100';
-import { dealsPage } from './crm-deals.js?v=202611249850';
+import { dealsPage } from './crm-deals.js?v=202611249870';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611249600';
 import { callPage, callModal, callsList } from './crm-calls.js?v=202611247100';
-import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611249850';
+import { viewPage, viewsBar, wireViewsBar } from './crm-views.js?v=202611249870';
 
 const crumbs = (label, extra) => [['CRM', '#/crm'], ...(extra ? [[label, extra[0]], [extra[1]]] : [[label]])];
 const archivedOpts = [['only', 'Archived only'], ['all', 'Active + archived']];
