@@ -1496,7 +1496,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from. Order Contacts does not offer a Transaction coordinators button.
 
-**Status: In progress.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Not applied on TEST. Not Live.
+**Status: Live.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. `20261125240000_agent_tc_links.sql` is applied on TEST (recorded as `agent_tc_links`, v20261118182129, Nov 18 2026 1:21 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied.
 
 **What's built**
 
@@ -1531,7 +1531,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
 
-**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back, so nothing from this file is on TEST. The database file is corrected in place. Not applied on TEST. Not Live.
+**Status: Live.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back; the corrected file `20261125250000_agent_tc_on_file.sql` is applied on TEST (v20261119021738, Nov 18 2026 9:17 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied. Since Nov 21, TC-VIS-1 (PR 392) lets a coordinator on the file see and work their agent's tasks and fees, and TC-ASSIGN-1 (PR 394) puts a linked coordinator on all of the agent's files, from either side or from the file.
 
 **What's built**
 
