@@ -38,3 +38,18 @@ John, Nov 11 2026 (t1510u, option B at t1512u). Two builders work in this repo: 
 19. Merging. Grok merges Claude's pull requests only after the required checks pass AND John says OK in chat. Claude never merges.
 20. Reviews. Grok and Claude review each other's pull requests against the Build standards (rules 10-16). A review is not testing. Every pull request still needs proof on TEST: the walkthrough (e2e-roles) or a person testing it. Claude can only open TEST through John's browser, so Grok or a tester usually provides that proof.
 21. Claude follows this file too, but never emails the team as John without asking John first.
+
+## Merge duties and team testing (John, Nov 21 2026, 1:42 PM ET "Yes, set it up" / 1:44 PM ET "lets do it"; requester-test emails at 1:46 PM ET)
+
+Starts once the walkthrough (e2e-roles) on main is green after PR 297 merges. Until then the Leader relays merges.
+
+These rules do not replace rules 1-23. Rule 3 still applies: one pull request at a time, all 4 checks green, and the branch updated onto main first if main moved.
+
+24. Same rule for every bot: each bot merges its own green PRs without asking the CLA Title Portal Leader, and updates the PR onto main first if main moved. This replaces asking the Leader for a 'go'. Rule 3 (one PR at a time, all 4 checks green, branch up to date) still applies.
+25. A bot may apply its own area's database files on TEST only after the file is merged in the repo. Portal-wide database changes stay with the Leader.
+26. Claude's PRs: once John OKs one, whichever bot is free merges it. Claude does not merge.
+27. Any PR touching accounting, sign-in, or who can see what needs a review comment from another builder before merge.
+28. Claude will replace the version-stamp chain. When that lands, it merges while nothing else is mid-merge, it must still force browsers to load new code after each merge, and the stamp-test change is explained under rule 5.
+
+<!-- Rule 29 is in force now. It does not wait on the walkthrough or PR 297. -->
+29. In force now (John, Nov 21 2026, 1:46 PM ET). After something is built and we need live testing from the team, email the person who requested the change to test it. If you need to follow up, do it through email. Do not ask John to send the emails. Have the bots just send it. The building bot emails the requester (Matt, Francis or Janine) from jcoester@clatitle.com once the item is live on TEST, with a subject starting with '[Written by AI]', CC jcoester-6jkr3p+portal@mail.grokbot.com, plain test steps, and a request for PASS or what's wrong. It follows up by email and marks the tracker "Waiting on requester test".
