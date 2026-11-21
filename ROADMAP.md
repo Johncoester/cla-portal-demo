@@ -805,7 +805,7 @@ This file lists the portal's major features: how each one should work, how far a
 | TB-5 | Drag-and-drop flowchart screen | Planned |
 | TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
 | TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
-| TB-8 | Easier steps (John, Nov 21, by voice): each step says in plain words when it happens; Sales person lists every staff member with a search box; an email step can go to the agents who didn't refer the file (owner intro) (Owner: Claude) | Pull request open. Not Live until `20261128010000_task_flow_non_referring_agents.sql` is applied on TEST |
+| TB-8 | Easier steps (John, Nov 21, by voice): each step says in plain words when it happens; Sales person lists every staff member with a search box; an email step can go to the agents who didn't refer the file (owner intro) (Owner: Claude) | [PR 395](https://github.com/Johncoester/cla-portal-demo/pull/395) open. Not Live until `20261128010000_task_flow_non_referring_agents.sql` is applied on TEST |
 
 **What's built**
 
