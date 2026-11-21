@@ -29,7 +29,9 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
   const today = localDate(); const todayLeads = leads.filter((l) => !l.archived && localDay(l.createdAt) === today).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   const so = optionsOf(cfg, 'oppStage'); const stages = amountByStage(opps, so.map((o) => o.value), so.filter((o) => o.retired).map((o) => o.value)); const max = Math.max(1, ...stages.map((s) => s.amount));
   const reminders = tasks.filter((t) => t.reminderDue && (t.ownerId === me.id));
-  const body = html`${head('CRM: Home', me)}${tabs('home')}
+  // Janine, Nov 19 2026 (F31b, confirmed Nov 20): the ... menu is the way to reorder. Move up and Move down save this person's order.
+  const homeMenu = html`<details class="dash-kebab" data-home-menu><summary aria-label="Home actions">...</summary><div role="menu" style="left:auto;right:0"><button type="button" data-home-reorder disabled>Reorder</button><p class="muted small" data-home-reorder-note hidden>There are no charts on Home to reorder.</p></div></details> <button type="button" class="m-btn" data-home-reorder-done hidden>Done</button>`;
+  const body = html`${head('CRM: Home', me, homeMenu)}${tabs('home')}
     ${params.section === 'followups' ? html`<p class="muted small" data-followups-moved>My follow-ups are now the tasks on CRM Home ("My Open Tasks").</p>` : ''}
     ${reminders.length ? html`<p class="card" data-reminders>${pill('Reminder', 'warn')} ${reminders.length} task reminder(s) due: ${reminders.map((t, i) => html`${i ? ', ' : ''}<a href="#/crm/tasks/${t.id}">${subj(cfg, t.subject)}</a>`)} <span class="muted small">(shown in the portal only; never emailed)</span></p>` : ''}
     ${callRem.length ? html`<p class="card" data-call-reminders>${pill('Reminder', 'warn')} ${callRem.length} call reminder(s) due: ${callRem.map((a, i) => html`${i ? ', ' : ''}<a href="#/crm/calls/${a.id}" data-call-reminder-link="${a.id}">${a.subject}</a> <span class="muted small">(${String(a.callStart || '').replace('T', ' ')})</span>`)} <span class="muted small">(shown in the portal only; nothing is sent)</span></p>` : ''}
@@ -53,19 +55,96 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
   };
   const chartCard = (c) => html`<div class="card" data-home-chart="${c.id}" data-source-name="${c.sourceName || ''}" style="width:100%;box-sizing:border-box">
     <h3 style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center"><span class="dash-drag" data-drag-handle>${c.name}</span>
-      <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ghost" data-home-refresh="${c.id}">Refresh</button> <button type="button" class="ghost" data-home-rename="${c.id}">Rename</button> <button type="button" class="ghost" data-home-remove="${c.id}">Remove</button></span></h3>
+      <span style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="ghost" data-home-up="${c.id}" hidden aria-label="Move ${c.name} up">Move up</button> <button type="button" class="ghost" data-home-down="${c.id}" hidden aria-label="Move ${c.name} down">Move down</button> <button type="button" class="ghost" data-home-refresh="${c.id}">Refresh</button> <button type="button" class="ghost" data-home-rename="${c.id}">Rename</button> <button type="button" class="ghost" data-home-remove="${c.id}">Remove</button></span></h3>
     <div data-comp-body>${chartBody(c)}</div></div>`;
   const cssId = (id) => (globalThis.CSS && CSS.escape ? CSS.escape(id) : String(id).replace(/[^A-Za-z0-9_-]/g, ''));
+  let chartBox = null;
+  let rootEl = null;
+  const chartIds = (box) => [...box.querySelectorAll('[data-home-chart]')].map((el) => el.dataset.homeChart);
+  function setReorderOffer(mode) {
+    const scope = rootEl || document;
+    const btn = $('[data-home-reorder]', scope);
+    const note = $('[data-home-reorder-note]', scope);
+    if (btn) btn.disabled = mode !== 'ready';
+    if (!note) return;
+    note.hidden = mode === 'ready' || mode === 'pending';
+    if (mode === 'empty') note.textContent = 'There are no charts on Home to reorder.';
+    if (mode === 'error') note.textContent = 'Charts could not be loaded. Refresh the page and try again.';
+  }
+  function syncMoveEnds() {
+    if (!chartBox) return;
+    const nodes = [...chartBox.querySelectorAll('[data-home-chart]')];
+    nodes.forEach((node, i) => {
+      const up = node.querySelector('[data-home-up]');
+      const down = node.querySelector('[data-home-down]');
+      if (up) up.disabled = i === 0;
+      if (down) down.disabled = i === nodes.length - 1;
+    });
+  }
+  function placeIds(box, ids) {
+    const byId = new Map([...box.querySelectorAll('[data-home-chart]')].map((node) => [node.dataset.homeChart, node]));
+    ids.forEach((id) => { const node = byId.get(id); if (node) box.appendChild(node); });
+  }
+  function stopReorder() {
+    const scope = rootEl || document;
+    const menu = $('[data-home-menu]', scope);
+    if (menu) menu.hidden = false;
+    const done = $('[data-home-reorder-done]', scope);
+    if (done) done.hidden = true;
+    if (chartBox) chartBox.querySelectorAll('[data-home-up], [data-home-down]').forEach((b) => { b.hidden = true; });
+    if (chartBox) chartBox.removeAttribute('data-home-reordering');
+  }
+  function startReorder() {
+    const scope = rootEl || document;
+    const offer = $('[data-home-reorder]', scope);
+    if (!chartBox || !chartBox.querySelector('[data-home-chart]') || (offer && offer.disabled)) return;
+    const menu = $('[data-home-menu]', scope);
+    if (menu) { menu.open = false; menu.hidden = true; }
+    const done = $('[data-home-reorder-done]', scope);
+    if (done) done.hidden = false;
+    chartBox.querySelectorAll('[data-home-up], [data-home-down]').forEach((b) => { b.hidden = false; });
+    chartBox.setAttribute('data-home-reordering', '1');
+    syncMoveEnds();
+  }
+  async function persistOrder(box, next, previous) {
+    try {
+      await api.reorderCrmHomeCharts(next);
+      writeProbe(pageSession(), 'on', me.id);
+      toast('Order saved');
+      syncMoveEnds();
+    } catch (err) {
+      placeIds(box, previous);
+      syncMoveEnds();
+      toast(homeChartMessage(err), 'err');
+    }
+  }
+  async function moveChart(id, dir) {
+    if (!chartBox) return;
+    const previous = chartIds(chartBox);
+    const i = previous.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= previous.length) return;
+    const nodes = [...chartBox.querySelectorAll('[data-home-chart]')];
+    if (dir < 0) chartBox.insertBefore(nodes[i], nodes[j]);
+    else chartBox.insertBefore(nodes[j], nodes[i]);
+    syncMoveEnds();
+    await persistOrder(chartBox, chartIds(chartBox), previous);
+  }
   function paintHomeCharts(root, charts) {
     let box = $('[data-home-charts]', root);
     if (!box) { box = document.createElement('div'); box.setAttribute('data-home-charts', ''); root.appendChild(box); }
     box.innerHTML = toText(charts.map((c) => chartCard(c)));
+    chartBox = box;
     wireHomeCharts(box, charts);
+    setReorderOffer('ready');
   }
   function wireHomeCharts(box, charts) {
     const byId = new Map(charts.map((c) => [c.id, c]));
-    const order = () => [...box.querySelectorAll('[data-home-chart]')].map((el) => el.dataset.homeChart);
+    const order = () => chartIds(box);
     box.addEventListener('click', guard(async (e) => {
+      const upBtn = e.target.closest('[data-home-up]');
+      const downBtn = e.target.closest('[data-home-down]');
+      if ((upBtn || downBtn) && !(upBtn || downBtn).hidden) { await moveChart(upBtn ? upBtn.dataset.homeUp : downBtn.dataset.homeDown, upBtn ? -1 : 1); return; }
       const refreshBtn = e.target.closest('[data-home-refresh]');
       const renameBtn = e.target.closest('[data-home-rename]');
       const removeBtn = e.target.closest('[data-home-remove]');
@@ -89,32 +168,48 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
       const node = box.querySelector(`[data-home-chart="${cssId(id)}"]`); if (node) node.remove();
       byId.delete(id);
       toast('Removed from Home. The dashboard chart is unchanged.');
-      if (!box.querySelector('[data-home-chart]')) { writeProbe(pageSession(), 'empty', me.id); box.remove(); }
+      if (!box.querySelector('[data-home-chart]')) {
+        writeProbe(pageSession(), 'empty', me.id);
+        stopReorder(); box.remove(); chartBox = null; setReorderOffer('empty');
+      } else syncMoveEnds();
     }));
     let card = null; let before = '';
+    const chartUnder = (e, skip) => {
+      const list = document.elementsFromPoint ? document.elementsFromPoint(e.clientX, e.clientY) : [];
+      for (const el of list) {
+        const hit = el && el.closest ? el.closest('[data-home-chart]') : null;
+        if (hit && hit !== skip && box.contains(hit)) return hit;
+      }
+      const under = document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null;
+      const target = under && under.closest ? under.closest('[data-home-chart]') : null;
+      if (!target || target === skip || !box.contains(target)) return null;
+      return target;
+    };
     box.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('button, a, input, select, textarea')) return;
-      const handle = e.target.closest('[data-drag-handle]');
+      const from = e.target && e.target.closest ? e.target : (e.target && e.target.parentElement);
+      if (!from || !from.closest) return;
+      if (from.closest('button, a, input, select, textarea, summary')) return;
+      const handle = from.closest('[data-drag-handle]');
       if (!handle || !box.contains(handle)) return;
       card = handle.closest('[data-home-chart]'); if (!card) return;
       before = order().join('|'); card.classList.add('is-dragging');
       try { if (e.pointerId != null && card.setPointerCapture) card.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer has no capture */ }
+      card.style.pointerEvents = 'none';
       e.preventDefault();
     });
     box.addEventListener('pointermove', (e) => {
       if (!card) return;
-      const under = document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null;
-      const target = under && under.closest ? under.closest('[data-home-chart]') : null;
-      if (!target || target === card || !box.contains(target)) return;
+      const target = chartUnder(e, card);
+      if (!target) return;
       const rect = target.getBoundingClientRect();
       box.insertBefore(card, e.clientY < rect.top + rect.height / 2 ? target : target.nextSibling);
     });
     const finish = async () => {
       if (!card) return;
-      card.classList.remove('is-dragging'); const next = order(); card = null;
-      if (next.join('|') === before) return;
-      try { await api.reorderCrmHomeCharts(next); writeProbe(pageSession(), 'on', me.id); toast('Order saved'); }
-      catch (err) { toast(homeChartMessage(err), 'err'); if (typeof refresh === 'function') refresh(); }
+      card.classList.remove('is-dragging'); card.style.pointerEvents = '';
+      const next = order(); const previous = before.split('|').filter(Boolean); card = null;
+      if (next.join('|') === previous.join('|')) return;
+      await persistOrder(box, next, previous);
     };
     box.addEventListener('pointerup', finish); box.addEventListener('pointercancel', finish);
   }
@@ -136,18 +231,21 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
     });
   }
   function loadHomeCharts(root) {
-    if (homeChartsSkip(pageSession(), me.id)) return Promise.resolve();
-    if (!api || typeof api.listCrmHomeCharts !== 'function') return Promise.resolve();
+    if (homeChartsSkip(pageSession(), me.id)) { setReorderOffer('empty'); return Promise.resolve(); }
+    if (!api || typeof api.listCrmHomeCharts !== 'function') { setReorderOffer('empty'); return Promise.resolve(); }
     return api.listCrmHomeCharts().then((pack) => {
-      if (!pack || pack.available === false) { writeProbe(pageSession(), 'off', me.id); return; }
+      if (!pack || pack.available === false) { writeProbe(pageSession(), 'off', me.id); setReorderOffer('empty'); return; }
       const charts = Array.isArray(pack.charts) ? pack.charts : [];
-      if (!charts.length) { writeProbe(pageSession(), 'empty', me.id); return; }
+      if (!charts.length) { writeProbe(pageSession(), 'empty', me.id); setReorderOffer('empty'); return; }
       writeProbe(pageSession(), 'on', me.id);
       paintHomeCharts(root, charts);
-    }).catch(() => { /* a failed read leaves Home as it was */ });
+    }).catch(() => { setReorderOffer('error'); });
   }
   let chartsReady = Promise.resolve();
   return { title: 'CRM Home', crumbs: crumbs('Home'), body, chartsReady: () => chartsReady, mount(root) {
+    rootEl = root;
+    const reorderBtn = $('[data-home-reorder]', root); if (reorderBtn) reorderBtn.addEventListener('click', () => startReorder());
+    const doneBtn = $('[data-home-reorder-done]', root); if (doneBtn) doneBtn.addEventListener('click', () => stopReorder());
     const fsel = $('[data-task-filter]', root); fsel.value = HOME_TASK_FILTERS.includes(SS('filter')) ? SS('filter') : HOME_TASK_DEFAULT;
     let [sk, sd] = (SS('sort') || 'dueDate:asc').split(':');
     const draw = () => { SS('filter', fsel.value); SS('sort', `${sk}:${sd}`);
