@@ -11,7 +11,7 @@ import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611247700';
 import { planDocumentBatch } from './document-batch.js?v=202611247700';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611248400';
+import { accountingSupabase } from './supabase-accounting.js?v=202611270010';
 import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611247700';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611247900';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611247900';
@@ -26,18 +26,18 @@ import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611247700
 import { callItemsSupabase } from './supabase-callitems.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
 import { runsOrders as runsOrdersCI } from './constants.js?v=202611247700';
-import { crmSupabase } from './supabase-crm.js?v=202611247000';
+import { crmSupabase } from './supabase-crm.js?v=202611249700';
 import { hrSupabase } from './supabase-hr.js?v=202611247700';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611247700';
 import { officesSupabase } from './supabase-offices.js?v=202611247700';
-import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1)
+import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611269910';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611247700';
 import { tcSupabase } from './supabase-tc.js?v=202611247700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611247700';
 import { gmailSupabase } from './supabase-gmail.js?v=202611247700';
 import { nov5Supabase } from './supabase-nov5.js?v=202611247700';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611247700';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611247700';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611249900';
 import { staffSupabase } from './supabase-staff.js?v=202611247700';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
@@ -45,11 +45,12 @@ import { CLOSER_STAFF_ROLES } from './closer.js?v=202611247700';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611247700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
 import { propertyAddressOf } from './nov5-rules.js?v=202611247700';
-import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611247700';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611269900';
 import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611247700';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES } from './party-task-completion.js?v=202611241000';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow, contactTypeSaveError } from './contact-insert.js?v=202611247700';
+import { existingContactByEmail, isUniqueEmailError, normContactEmail } from './contact-reuse.js?v=202611249950';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
 import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611247700';
 import { fileTitleOf } from './party-name.js?v=202611102000';
@@ -60,7 +61,7 @@ import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
 import { nameDocSenders, sendersToLookUp } from './doc-senders.js?v=202611191500';
 import { readThreadPeople, roleText, withThreadPeople } from './portal-threads.js?v=202611162200';
-import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611191100';
+import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611249900';
 import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
 import { resetRedirect } from './reset-redirect.js?v=202611161900';
 import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
@@ -592,10 +593,35 @@ export async function createSupabaseAdapter(cfg) {
       if (!saved || !saved.id) throw new Error('Order not found.');
       dropFileReads();
       return a.getDeal(id); },
-    // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
+    // contacts: unique email (contacts_email_uq). An existing email is reused (CONTACT-REUSE-1); no login or invite is sent.
+    async findContactByEmail(email) {
+      const want = normContactEmail(email);
+      if (!want) return null;
+      let rows = [];
+      try { rows = camel(ok(await sb.from('contacts').select('*').eq('email', want))) || []; }
+      catch (e) { rows = []; }
+      let hit = existingContactByEmail(rows, want);
+      if (hit) return hit;
+      try { rows = camel(ok(await sb.rpc('contact_directory', { p_search: want }))) || []; }
+      catch (e) { rows = []; }
+      return existingContactByEmail(rows, want);
+    },
     async createContact(input) {
-      try { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); }
-      catch (e) { const mapped = contactTypeSaveError(e); if (mapped) throw mapped; throw e; }
+      const row = contactInsertRow(input);
+      const email = normContactEmail(row.email);
+      if (email) {
+        const existing = await a.findContactByEmail(email);
+        if (existing) return existing;
+      }
+      try { return camel(ok(await sb.from('contacts').insert(row).select().single())); }
+      catch (e) {
+        const mapped = contactTypeSaveError(e); if (mapped) throw mapped;
+        if (email && isUniqueEmailError(e)) {
+          const existing = await a.findContactByEmail(email);
+          if (existing) return existing;
+        }
+        throw e;
+      }
     },
     async updateContact(id, patch) {
       if (!id) throw new Error('This contact was not saved. Nothing was changed.');

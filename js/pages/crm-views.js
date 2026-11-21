@@ -2,7 +2,9 @@
  * "New Custom View" = criteria + columns + sharing, and "Save filter" chips with counts). Routes: #/crm/views/<id> (a view), #/crm/views/new/<module>,
  * #/crm/views/<id>/edit. The adapter decides which rows a person may see; a view only narrows them. Function first, minimal styling. */
 import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611161500';
-import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_DEFAULT_COLUMNS, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611247700';
+import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611247700';
+import { startingViewColumns } from '../data/crm-all-columns.js?v=202611249850';
+import { columnOrderItem, wireColumnDrag } from './crm-columns.js?v=202611249870';
 import { criteriaEditor } from './crm-criteria.js?v=202611247700';
 import { tabs, head } from './crm-kit.js?v=202611247100';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
@@ -83,8 +85,8 @@ export async function viewPage(c) {
 async function editorPage(c, v0, module) {
   const { api, me, cfg } = c; if (!VIEW_MODULE_LABEL[module]) throw new Error('Pick Clients, Leads, Companies or Deals.');
   const fields = viewModuleFields(module, cfg); const targets = await api.listCrmShareTargets(); const users = criteriaUserList(targets.users).map((u) => ({ id: u.id, name: u.role ? `${u.name} (${u.role})` : u.name })); const nk = VIEW_NAME_KEY[module];
-  const s = v0 ? JSON.parse(JSON.stringify(v0)) : { name: '', criteria: [], logic: 'and', columns: [...VIEW_DEFAULT_COLUMNS[module]], sortField: nk, sortDir: 'asc', visibility: 'me', shareUsers: [], pinned: true };
-  s.columns = placeNameColumn(module, s.columns);
+  const s = v0 ? JSON.parse(JSON.stringify(v0)) : { name: '', criteria: [], logic: 'and', columns: [], sortField: nk, sortDir: 'asc', visibility: 'me', shareUsers: [], pinned: true };
+  s.columns = v0 ? placeNameColumn(module, s.columns) : await startingViewColumns({ api, userId: me && me.id, module, cfg, fields });
   const lab = (k) => (fields.find((f) => f.key === k) || { label: k }).label;
   const ce = criteriaEditor('view', fields, s.criteria, { logic: s.logic || 'and', cfg, users });
   const body = html`${head(v0 ? `Edit view: ${v0.name}` : `New Custom View: ${VIEW_MODULE_LABEL[module]}`, me)}${tabs(module)}
@@ -93,7 +95,7 @@ async function editorPage(c, v0, module) {
       <fieldset class="span2" data-view-criteria><legend>Specify Criteria</legend>${ce.body}</fieldset>
       <fieldset class="span2" data-view-columns><legend>Choose Columns</legend><div style="display:flex;gap:16px;flex-wrap:wrap">
         <div><strong>Available</strong><p><input type="search" data-vcol-q placeholder="Search fields"></p><select data-vcol-avail multiple size="10" style="min-width:220px"></select><p><button type="button" class="ghost small" data-vcol-add>Add &rarr;</button></p></div>
-        <div><strong>Selected</strong> <span class="muted small">(${lab(nk)} stays selected; use the arrows to move it)</span><ol data-vcol-list></ol></div></div></fieldset>
+        <div><strong>Selected</strong> <span class="muted small">(${lab(nk)} stays selected. Drag a column to change the order.)</span><div class="col-chooser" data-view-col-order style="display:block;margin:6px 0 0"><ol data-col-order data-vcol-list></ol></div></div></div></fieldset>
       <label>Sort by<select name="sortField" data-view-sort>${fields.map((f) => html`<option value="${f.key}" ${f.key === s.sortField ? raw('selected') : ''}>${f.label}</option>`)}</select></label>
       <label>Order<select name="sortDir"><option value="asc" ${s.sortDir !== 'desc' ? raw('selected') : ''}>Ascending</option><option value="desc" ${s.sortDir === 'desc' ? raw('selected') : ''}>Descending</option></select></label>
       <fieldset class="span2" data-view-share><legend>Share this with</legend>${VIEW_VISIBILITY.map(([k, l]) => html`<label><input type="radio" name="visibility" value="${k}" ${k === s.visibility ? raw('checked') : ''} ${k !== 'me' && !me.canEdit ? raw('disabled') : ''}> ${l}</label> `)}
@@ -104,14 +106,20 @@ async function editorPage(c, v0, module) {
     const f = $('[data-view-form]', root); const crit = ce.mount(root); const av = $('[data-vcol-avail]', root); const ol = $('[data-vcol-list]', root);
     const draw = () => { s.columns = placeNameColumn(module, s.columns);
       av.innerHTML = toText(fields.filter((z) => !s.columns.includes(z.key)).map((z) => html`<option value="${z.key}">${z.label}</option>`));
-      ol.innerHTML = toText(s.columns.map((k, i) => { const up = html`<button type="button" class="linkish" data-vcol-up="${i}" ${i === 0 ? raw('disabled') : ''}>&uarr;</button>`;
-        const down = html`<button type="button" class="linkish" data-vcol-down="${i}" ${i === s.columns.length - 1 ? raw('disabled') : ''}>&darr;</button>`;
+      ol.innerHTML = toText(s.columns.map((k) => {
         const remove = k === nk ? '' : html` <button type="button" class="linkish" data-vcol-x="${k}" aria-label="Remove ${lab(k)}">&times;</button>`;
-        return html`<li data-vcol="${k}">${lab(k)} ${up}${down}${remove}</li>`; })); };
+        return columnOrderItem(k, lab(k), remove);
+      })); };
     $('[data-vcol-q]', root).addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); $$('option', av).forEach((o) => { o.hidden = q && !o.textContent.toLowerCase().includes(q); }); });
     $('[data-vcol-add]', root).addEventListener('click', () => { const add = [...av.selectedOptions].map((o) => o.value); if (!add.length) return; s.columns = [...s.columns, ...add]; draw(); });
-    ol.addEventListener('click', (e) => { const t = e.target.dataset; if (t.vcolX) { if (t.vcolX === nk) return; s.columns = s.columns.filter((k) => k !== t.vcolX); draw(); return; }
-      const i = t.vcolUp != null ? +t.vcolUp : t.vcolDown != null ? +t.vcolDown : null; if (i == null || Number.isNaN(i)) return; const j = t.vcolUp != null ? i - 1 : i + 1; if (j < 0 || j >= s.columns.length) return; [s.columns[i], s.columns[j]] = [s.columns[j], s.columns[i]]; draw(); });
+    ol.addEventListener('click', (e) => {
+      const el = e.target.closest ? e.target : e.target.parentElement;
+      const btn = el && el.closest ? el.closest('[data-vcol-x]') : null;
+      if (!btn || !ol.contains(btn) || btn.dataset.vcolX === nk) return;
+      s.columns = s.columns.filter((k) => k !== btn.dataset.vcolX);
+      draw();
+    });
+    wireColumnDrag(ol, { getOrder: () => s.columns.slice(), setOrder: (next) => { s.columns = placeNameColumn(module, next); draw(); } });
     $$('[name=visibility]', f).forEach((r) => r.addEventListener('change', () => { const on = f.querySelector('[name=visibility]:checked'); $('[data-view-users]', f).hidden = !on || on.value !== 'custom'; }));
     $('[data-view-save]', root).addEventListener('click', guard(async () => { const cr = crit.get();
       const field = (name) => $(`[name="${name}"]`, f);

@@ -49,6 +49,8 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it |
 | TB-4 | Email actions with templates and "send as" |
 | TB-5 | Drag-and-drop flowchart screen |
+| TB-6 | Client requests: request an intake form from a party, completes itself, reminders, one email per person (John, Nov 20) |
+| TB-7 | Email step (saved template or written message with merge fields) and the File closed trigger (John, Nov 20) |
 
 ## TB-1 as built
 
@@ -76,3 +78,29 @@ John: turning a flow on with a hundred open orders gives no safe way to test it.
 - **Turn on** asks which files: **New files only** (the default) = files opened after the flow was turned on; **Existing open files too** = also the open files already there. Turning it off and on again starts "from now" again. An "Order opened" flow only ever runs on new orders, so it asks nothing. The list shows the choice under On, and History records it.
 - Flows already On before this change keep running on existing files.
 - Migration `20261122010000_task_flow_try_and_scope.sql` (after TB-2's), rollback in `supabase/rollbacks/`.
+
+## TB-6: Client requests (John, Nov 20 2026)
+
+John: build Qualia-style client requests into Task Builder. Each request says who it goes to, which form, and when it is sent. It completes itself when the party answers. Reminders are a setting. **Each person gets ONE email listing everything still needed, not one email per request.** Built by Claude (John: "build it because Grok's too slow"); John waived rule 18 for this PR.
+
+- **New step "Request a form from a party"**: **Form** (one of the portal's intake forms: Upload identification, Personal information, Title vesting, Lender information, Confirm HOA Information, Outstanding Mortgage Information, Home warranty, Commission information, Forwarding address, How you want your proceeds), **Send to** (buyer, seller, buyer's agent, listing agent, narrowed to who fills that form in), **Due in** 0–60 days, **Remind every** 0–14 days (0 = no reminders) and **Remind up to** 1–10 times. **When** it is sent is its place in the flow: right after what starts the flow, or after a wait or other steps.
+- **The request is the party's own form task.** When the party already has an open copy of that form on the file (most do: forms are added when a party is added), the request uses it and keeps its due date; otherwise it adds a new copy of the current form version, due as the step says. A form the party already submitted is not asked again; a switched-off or retired form is not requested. The run history says why in each case. It completes itself when the party submits the form, the same as any form task.
+- **One email per person and file.** When a flow requests forms, each person gets one email listing everything still needed from them on that file, soonest due first ("2 items still needed for MD-26-…"). Reminders work the same way: one email listing everything still open, not just the item that came due, and never two reminder emails to the same person on the same file within 20 hours. A form comes off the list as soon as it is submitted; reminders stop once the set number is used up.
+- Emails are queued in the **outbox only**, from the file's processor, like every reminder today (nothing is sent automatically from TEST). Like every reminder, they go to people with a portal account. A party who has not accepted their portal invite yet keeps their request waiting, and it goes out in the first email after they have an account. The run history says so.
+- **Try on one file** runs request steps too: it adds the form tasks (marked "Test run") but **emails nobody**.
+- A flow can be turned on with only request steps. **Check files now** also says how many request emails it queued.
+- **Hosted:** migration `20261126010000_task_flow_client_requests.sql` (after TB-2 and TB-2b's files) adds `task_flow_requests` (one row per requested task: reminder setting, emails sent, next reminder) and the email step; the 15-minute check sends the reminders that are due. Rollback in `supabase/rollbacks/` takes request steps out of saved flows and turns off any flow left with no task step. Tests: `test/test-client-requests.js` (rules, demo portal, editor) and `test/test-task-flow-requests-sql.sh` (database).
+- **Not yet:** one email across several files for an agent on many orders (today it is one email per person per file, sent as that file's processor); a request for a document upload that is not an intake form; editing the email wording (TB-4).
+
+## TB-7: Email step and File closed (John, Nov 20 2026)
+
+John: flows should also send emails that are not chasing anything, for example a thank-you after closing: "file closed, two days after, send email", from a saved template or written on the step, with the buyer's first name and the property address filled in. It sends for real once the flow is on; there must be a way to test it first ("I'll test it and turn it on when I feel ready").
+
+- **New step "Send an email"**: **Send to** (buyer, seller, buyer's agent, listing agent, transaction coordinator, lender) and **Email**: a saved shared template from Admin > Email Templates, or **Write my own** (subject up to 200 characters, message up to 5,000). Both use the file template merge fields, listed under the message: {{buyer_first_name}}, {{property_address}}, {{recipient_first_name}}, {{closing_date}}, {{processor_line}} and the rest. A field that is not on the list is caught when saving ("{{nickname}} is not a merge field"). Fields fill in from the file when the email goes; a blank one is left out ("Hi ," becomes "Hi there,").
+- **Who gets it:** everyone on the file with that role who has an email address, portal account or not, each with their own copy ({{recipient_first_name}} is theirs). Nobody with that role, or no email address, is skipped and the run history says so. A template that was turned off sends nothing and the history says so.
+- **New trigger "File closed"**: starts when the file's status becomes Closed (on the demo portal, also the last stage, funds disbursed). A File closed flow keeps running on its closed file through its waits; every other flow still stops when a file is no longer open. Turning it on asks nothing: it runs on any file that closes from now on, including files opened before it was turned on.
+- **Sending:** emails are queued in the outbox from the file's processor, like every portal email, and go out once the portal's mail switch is on. Flows start Off, so nothing is queued for a client until an Admin turns the flow on.
+- **Testing (John):** **Try on one file** fills in that file's real names and address but sends the email **only to the admin trying it**, with "[Test]" in the subject and a first line saying who the real email would go to. A File closed flow can be tried on an open or closed file.
+- **Hosted:** migration `20261127010000_task_flow_email_step.sql` (after TB-6's): the email step and its merge fields in SQL, the File closed trigger (status on deals), `task_flow_runs.trial_to`, and outbox kind `task_flow_email` allowed for a party with no portal account (email and name needed). Rollback in `supabase/rollbacks/`. Tests: `test/test-flow-email.js` and `test/test-task-flow-email-sql.sh`.
+- **Not yet:** HTML formatting in flow emails (a saved template is sent as plain text, the outbox carries text); attachments; an entity buyer or seller shows the person's name rather than the entity's; "Funds disbursed" as its own trigger (closing a file covers it today).
+

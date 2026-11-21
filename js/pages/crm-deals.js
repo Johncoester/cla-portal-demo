@@ -2,16 +2,17 @@
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611161500';
 import { crmSort } from '../data/crm.js?v=202611247700';
-import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
+import { DEAL_COLS } from '../data/crm-deal-cols.js?v=202611070139';
 import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } from '../data/crm-analytics.js?v=202611247700';
 import { runsOrders } from '../data/constants.js?v=202611247700';
-import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
-import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611161500';
+import { crmDealName, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
+import { allListCatalogKeys, allListDefaultKeys, allListFirstPaint } from '../data/crm-all-columns.js?v=202611249850';
+import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611249870';
 import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611247100';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
-import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611247200';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611247100';
+import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611249600';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611249870';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611160300';
@@ -25,12 +26,6 @@ export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsLis
 // see every deal and filter by Deal Owner and Client; a Sales Person sees ONLY their own deals and filters by Source. Everyone can filter by Status
 // (Open by default) and Source, search, sort and hide columns.
 const arrows = html`<span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>`;
-function dealColumnState(storage, userId, known) {
-  try { if (storage && storage.getItem(columnKey(userId, 'deals'))) return loadColumns(storage, userId, 'deals', { known, defaults: known }); } catch (e) { /* use the older hide-list */ }
-  const hidden = new Set(loadHidden(storage, userId));
-  const legacy = DEAL_COLS.map(([k]) => k).filter((k) => known.includes(k) && !hidden.has(k));
-  return normalizeColumns(legacy.length ? legacy : known.filter((k) => !DEFAULT_HIDDEN.includes(k)), known, known);
-}
 async function dealsList(c) {
   const { api, me, cfg = {} } = c; const fl = await api.listCrmDealFilters(); const all = fl.scope === 'all';
   const canBulk = me.canEdit || me.isAdmin || ['Processor', 'Preprocessor'].includes(me.role);
@@ -43,9 +38,10 @@ async function dealsList(c) {
   const dealFields = moduleFields('deals', cfg);
   const have = new Set(DEAL_COLS.map(([k]) => k));
   const extra = dealFields.filter((f) => !have.has(f.key) && !(f.labelKey && have.has(f.labelKey))).map((f) => [f.key, f.label]);
-  const catalog = [...DEAL_COLS, ...extra];
+  const built = [...DEAL_COLS, ...extra];
+  const catalog = allListCatalogKeys('deals', cfg).map((k) => built.find((c) => c[0] === k)).filter(Boolean);
   const known = catalog.map(([k]) => k);
-  let visible = dealColumnState(storage, me.id || fl.me.id, known);
+  let visible = allListFirstPaint('deals', cfg, storage, me.id || fl.me.id);
   const useCols = () => visible.map((k) => catalog.find((c) => c[0] === k)).filter(Boolean);
   const sel = (name, label, list, value, blank) => html`<label>${label}<select name="${name}" data-deal-filter="${name}" aria-label="${label}">${blank ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(value) ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
   // Deals have created_at, open_date, and closing_date. Last activity is the latest crm_activities row. There is no modified_at, so Modified Time is not offered here.
@@ -108,7 +104,7 @@ async function dealsList(c) {
         const next = '#/crm/deals' + (p.toString() ? '?' + p.toString() : ''); if (location.hash === next) { f.q.value = o.q || ''; apply(); } else location.hash = next; },
       count: (o) => { const same = (o.status || 'Open') === cur.status && (o.owner || '') === cur.ownerId && (o.client || '') === cur.clientId && (o.source || '') === cur.source;
         if (!same) return '·'; const words = String(o.q || '').toLowerCase().split(/\s+/).filter(Boolean); return rows.filter((r) => { const hay = [r.name, r.fileNumber, r.propertyAddress, r.clientName, r.contactName, r.ownerName, r.salesReps, r.sourceText].join(' ').toLowerCase(); return words.every((w) => hay.includes(w)); }).length; } });
-    const defaults = normalizeColumns(DEAL_COLS.map(([k]) => k).filter((k) => !DEFAULT_HIDDEN.includes(k)), known, known);
+    const defaults = allListDefaultKeys('deals', cfg);
     const dealUser = me.id || fl.me.id;
     const wiredCols = wireColumnChooser(root, { module: 'deals', userId: dealUser, fields: catalog.map(([k, l]) => ({ key: k, label: l })), visible, defaults, known, storage, api, onChange: (next) => { visible = next; apply(); } });
     if (api && typeof api.getUserUiPrefs === 'function') {

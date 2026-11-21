@@ -3,11 +3,15 @@
  * (create tasks, send emails, wait, check again). Builds on the Task Templates work (PR 141).
  * TB-1: the page, who can use it, and the list of flows with a name, a trigger and an On / Off switch.
  * TB-2: conditions, steps (create a task, phone call task, wait, stop if EMD received) and the engine that runs them. Admins and Super admins only.
+ * TB-6 (Nov 20): "Request a form from a party" steps (client requests; js/data/client-requests.js).
+ * TB-7 (Nov 20): "Send an email" steps (js/data/flow-email.js) and the "File closed" trigger, for emails after closing.
  * Shared by the mock adapter (mock-part-task-builder.js), the Supabase adapter (supabase-task-builder.js) and the page. */
 
+import { cleanRequestStep, requestStepText, formTitle } from './client-requests.js?v=202611261000';
+import { cleanEmailStep, emailStepText } from './flow-email.js?v=202611269910';
 export const TASK_BUILDER_ADMIN_ONLY = 'Only an Admin or Super admin can use Task Builder.';
 export const FLOWS_RUN_NOTE = 'Flows that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. A flow starts once per file (a closing date change can start it again). Use Try on one file to see a flow work on a single order first.';
-export const TRIAL_NOTE = 'Runs every step on this one file now, even while the flow is Off. Waits are skipped so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the flow\'s real run on this file.';
+export const TRIAL_NOTE = 'Runs every step on this one file now, even while the flow is Off. Waits are skipped so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the flow\'s real run on this file. A test run emails no client: form requests are added as tasks but not emailed, and an email step sends its test copy only to you.';
 
 // What starts a flow. `days` = the trigger needs a number of days (1 to 60).
 export const TRIGGERS = [
@@ -18,6 +22,7 @@ export const TRIGGERS = [
   { code: 'commitment_received', label: 'Title commitment received' },
   { code: 'closing_date_set', label: 'Closing date set or changed' },
   { code: 'days_before_closing', label: 'Days before closing', days: 'days before the closing date' },
+  { code: 'file_closed', label: 'File closed' },   // TB-7: the file's status becomes Closed (funds disbursed)
 ];
 export const triggerOf = (code) => TRIGGERS.find((t) => t.code === code) || null;
 export const triggerNeedsDays = (code) => !!(triggerOf(code) || {}).days;
@@ -70,7 +75,9 @@ export const DUPLICATE_NAME = 'Another flow already has that name. Use a differe
  * Tasks go to everyone on the file who holds the chosen role. A named person, a backup person and "who can see it" come in TB-3.
  * The engine below is the one the demo portal runs; the database runs the same rules (migration 20261121010000_task_flow_engine.sql). */
 
-export const RUNNABLE_TRIGGERS = ['order_opened', 'emd_received', 'emd_not_received', 'closing_date_set', 'days_before_closing'];
+export const RUNNABLE_TRIGGERS = ['order_opened', 'emd_received', 'emd_not_received', 'closing_date_set', 'days_before_closing', 'file_closed'];
+// triggers that only ever start on something happening from now on, so turning the flow on asks no "which files" question
+export const FROM_NOW_TRIGGERS = ['order_opened', 'file_closed'];
 export const triggerRuns = (code) => RUNNABLE_TRIGGERS.includes(code);
 export const TRIGGER_NOT_RUNNING = 'Flows that start on "Contract received" or "Title commitment received" can be saved but cannot be turned on yet. Those two triggers come in a later step.';
 
@@ -87,7 +94,7 @@ export const ASSIGN_ROLES = [['Processor', 'Processor'], ['Preprocessor', 'Pre-p
   ['Listing Agent', 'Listing agent'], ['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Transaction Coordinator', 'Transaction coordinator'], ['Lender', 'Lender']];
 export const roleLabel = (r) => (ASSIGN_ROLES.find(([v]) => v === r) || [r, r])[1];
 
-export const STEP_TYPES = [['create_task', 'Create a task'], ['call_task', 'Create a phone call task'], ['wait', 'Wait'], ['stop_if_emd_received', 'Stop if the EMD has been received']];
+export const STEP_TYPES = [['create_task', 'Create a task'], ['call_task', 'Create a phone call task'], ['client_request', 'Request a form from a party'], ['send_email', 'Send an email'], ['wait', 'Wait'], ['stop_if_emd_received', 'Stop if the EMD has been received']];
 export const STEP_MAX = 20;
 export const TITLE_MAX = 120;
 export const DUE_MAX = 60;
@@ -97,6 +104,8 @@ export function stepText(s) {
     const due = Number(s.dueDays) === 0 ? 'due the same day' : `due in ${s.dueDays} ${Number(s.dueDays) === 1 ? 'day' : 'days'}`;
     return `${s.type === 'call_task' ? 'Phone call task' : 'Task'} for the ${roleLabel(s.assignTo).toLowerCase()}: "${s.title}", ${due}`;
   }
+  if (s.type === 'client_request') return requestStepText(s);
+  if (s.type === 'send_email') return emailStepText(s);
   if (s.type === 'wait') return `Wait ${s.days} ${Number(s.days) === 1 ? 'day' : 'days'}`;
   if (s.type === 'stop_if_emd_received') return 'Stop if the EMD has been received';
   return 'Unknown step';
@@ -119,6 +128,8 @@ export function cleanSteps(steps) {
       if (dueDays == null) throw new Error(`${n}: due in must be a whole number of days from 0 to ${DUE_MAX}.`);
       return { type, title, assignTo: s.assignTo, dueDays };
     }
+    if (type === 'client_request') return cleanRequestStep(s, n);
+    if (type === 'send_email') return cleanEmailStep(s, n);
     if (type === 'wait') {
       const days = intIn(s.days, DAYS_MIN, DAYS_MAX);
       if (days == null) throw new Error(`${n}: wait must be a whole number of days from ${DAYS_MIN} to ${DAYS_MAX}.`);
@@ -127,8 +138,8 @@ export function cleanSteps(steps) {
     return { type };
   });
 }
-export const hasTaskStep = (steps) => (steps || []).some((s) => s.type === 'create_task' || s.type === 'call_task');
-export const NO_TASK_STEP = 'Add at least one "Create a task" or "Create a phone call task" step before turning the flow on.';
+export const hasTaskStep = (steps) => (steps || []).some((s) => ['create_task', 'call_task', 'client_request', 'send_email'].includes(s.type));
+export const NO_TASK_STEP = 'Add at least one step that creates a task, requests a form or sends an email before turning the flow on.';
 
 export function cleanConditions(c = {}) {
   const pick = (v, ok) => [...new Set((Array.isArray(v) ? v : []).map(String))].filter(ok);
@@ -161,6 +172,8 @@ export const addDays = (iso, n) => new Date(new Date(iso).getTime() + n * DAY).t
 export const dateOnly = (iso) => String(iso).slice(0, 10);
 const dayDiff = (a, b) => Math.round((Date.parse(dateOnly(a) + 'T00:00:00Z') - Date.parse(dateOnly(b) + 'T00:00:00Z')) / DAY);
 export const dealRuns = (deal) => !!deal && (deal.status || 'Open') === 'Open';
+// a "File closed" flow runs on its closed file (a thank-you email after closing); every other flow only on open files
+export const dealRunsFor = (flow, deal) => dealRuns(deal) || (!!flow && flow.trigger === 'file_closed' && !!deal && deal.status === 'Closed');
 
 /* NEW FILES ONLY or EXISTING FILES TOO (John, Nov 14 2026): chosen when a flow is turned on. "New files only" (the default) means files
  * opened after the flow was turned on, so turning a flow on never sweeps the open files already there. Turning it off and on again
@@ -169,7 +182,7 @@ export const SCOPES = [['new', 'New files only (opened from now on)'], ['all', '
 export const scopeText = (f) => (f && f.scope === 'all' ? 'New and existing open files' : 'New files only');
 export const cleanScope = (v) => (v === 'all' ? 'all' : 'new');
 export function inScope(flow, deal) {
-  if (!flow || flow.scope === 'all' || !flow.activatedAt) return true;
+  if (!flow || flow.scope === 'all' || !flow.activatedAt || flow.trigger === 'file_closed') return true;   // File closed: any file that closes from now on
   const made = Date.parse((deal && deal.createdAt) || '');
   return Number.isFinite(made) && made >= Date.parse(flow.activatedAt);
 }
@@ -201,7 +214,7 @@ export function advanceRun(run, flow, ctx) {
   const out = [];
   if (run.status !== 'waiting' || !flow || (!flow.active && !run.trial) || Date.parse(run.nextAt) > Date.parse(ctx.nowIso)) return out;
   const end = (status, text) => { run.status = status; run.finishedAt = ctx.nowIso; run.log.push({ at: ctx.nowIso, text }); };
-  if (!dealRuns(ctx.deal)) { end('stopped', 'Stopped: the file is no longer open.'); return out; }
+  if (!dealRunsFor(flow, ctx.deal)) { end('stopped', 'Stopped: the file is no longer open.'); return out; }
   if (!run.checked) {
     run.checked = true;
     if (!flowMatches(flow.conditions, ctx.deal, ctx.salesIds || [])) { end('skipped', 'Skipped: this file does not match the flow\'s conditions.'); return out; }
@@ -214,6 +227,12 @@ export function advanceRun(run, flow, ctx) {
     if (s.type === 'create_task' || s.type === 'call_task') {
       out.push({ step: run.stepIndex, title: s.title, assignTo: s.assignTo, call: s.type === 'call_task', dueDate: dateOnly(addDays(ctx.nowIso, s.dueDays)) });
       run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: ${stepText(s)}` });
+    } else if (s.type === 'client_request') {
+      out.push({ step: run.stepIndex, request: true, formCode: s.formCode, title: formTitle(s.formCode), assignTo: s.sendTo, dueDate: dateOnly(addDays(ctx.nowIso, s.dueDays)), remindEvery: s.remindEvery, remindTimes: s.remindTimes });
+      run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: ${stepText(s)}` });
+    } else if (s.type === 'send_email') {
+      out.push({ step: run.stepIndex, email: true, assignTo: s.sendTo, templateId: s.templateId || null, subject: s.subject || '', body: s.body || '', templateName: s.templateName || '' });
+      run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: ${stepText(s)}${run.trial ? ' (test run: sent only to you)' : ''}` });
     } else if (s.type === 'wait' && run.trial) {
       run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: wait ${s.days} ${s.days === 1 ? 'day' : 'days'} (skipped in a test run)` });
     } else if (s.type === 'wait') {

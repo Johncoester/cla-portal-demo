@@ -56,6 +56,8 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   await expect(side(page, 'listing').locator('[data-af-admin]')).toContainText('$395');
 
   // Edit order details no longer takes a commission: it points to the Agent fees box
+  // E2E-FIX-D: the Edit order details button is on File Overview, not Tasks (same fix FF-101c made in order-entry.spec.js)
+  await gotoHash(page, `#/deals/${id}`);
   await page.locator('#editdeal').click();
   await expect(page.locator('#edf [data-agent-fees-pointer]')).toBeVisible();
   await expect(page.locator('#edf input[name="commissionPercent"]')).toHaveCount(0);
@@ -108,8 +110,10 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   await expect(page.locator('.toast', { hasText: 'Agent fees saved' }).last()).toBeVisible();
   await expect(side(page, 'listing').locator('[data-af-admin]')).toContainText('$400');
   await expect(side(page, 'listing').locator('.af-side-head')).toContainText('then changed by CLA staff');
-  await page.locator('[data-af-history-btn]').click();
-  await expect(page.locator('[data-af-history-table]')).toContainText('admin fee corrected');
+  // E2E-FIX-F: since FF-101c each side has its own Agent fees card and Change history button, so open the listing side's
+  const listingCard = page.locator('[data-agent-fees][data-agent-fees-side="listing"]');
+  await listingCard.locator('[data-af-history-btn]').click();
+  await expect(listingCard.locator('[data-af-history-table]')).toContainText('admin fee corrected');
 
   // 4. the buyer never sees agent fees or a commission
   await switchTo(page, 'buyer');

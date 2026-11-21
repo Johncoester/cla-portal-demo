@@ -14,6 +14,7 @@ import { dealStageOf } from './crm-analytics.js?v=202611247700';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611247700';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611247000';
 import { contactTypeSaveError } from './contact-insert.js?v=202611247700';
+import { propertyAddressOf } from './nov5-rules.js?v=202611247700';
 
 export function crmSupabase({ sb, ok, camel, me, flags }) {
   const on = () => { if (!flags.crm) throw new Error(CRM_OFF); };
@@ -46,23 +47,31 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     leadSource: l.source, relationshipStatus: l.status, description: l.notes, accountId: l.account_id || null, accountName: l.account_id ? l.company : '', companyText: l.account_id ? '' : l.company });
   const contactRow = (c) => ({ ...c, stageLabel: crmStageLabel(c.stage) });
   const linkOf = (e, id) => (e === 'opportunity' ? '#/crm/pipeline' : `#/crm/${e === 'lead' ? 'leads' : e === 'contact' ? 'contacts' : 'accounts'}/${id}`);
-  // Home My Tasks (Janine, Feedback 29 item 5). Related To and Contact Name are the lead or client the task was created under.
+  // Home My Tasks (Janine, Feedback 29). Contact Name is the record the task was created under: lead, client, company, or deal.
   // The activity row stores that id, not the name, and entity_id is not a foreign key, so the activities read cannot embed it.
-  // One primary-key read per table this list actually uses. A lead-only list is one extra read. A mixed list is one read for leads and one for clients. Never one read per task.
-  const PARTY_TABLE = { lead: 'crm_leads', contact: 'contacts' };
+  // One primary-key read per table this list actually uses. A lead-only list is one extra read. Never one read per task.
+  const personName = (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim();
+  const PARTY_READ = {
+    lead: { table: 'crm_leads', cols: 'id, first_name, last_name', name: personName },
+    contact: { table: 'contacts', cols: 'id, first_name, last_name', name: personName },
+    account: { table: 'crm_accounts', cols: 'id, name', name: (r) => String(r.name || '').trim() },
+    deal: { table: 'deals', cols: 'id, street, city, state, zip', name: (r) => propertyAddressOf(r) },
+  };
+  const taskRecordLink = (e, id) => (e === 'deal' ? `#/crm/deals/${id}` : (e === 'lead' || e === 'contact' || e === 'account') ? linkOf(e, id) : '');
   const taskPartyNames = async (raw) => {
     const want = new Map();
-    (raw || []).forEach((a) => { const table = PARTY_TABLE[a.entity]; if (!table || !a.entity_id) return; if (!want.has(a.entity)) want.set(a.entity, new Set()); want.get(a.entity).add(a.entity_id); });
+    (raw || []).forEach((a) => { if (!PARTY_READ[a.entity] || !a.entity_id) return; if (!want.has(a.entity)) want.set(a.entity, new Set()); want.get(a.entity).add(a.entity_id); });
     const names = new Map();
     await Promise.all([...want.entries()].map(async ([entity, ids]) => {
+      const spec = PARTY_READ[entity];
       try {
-        const found = ok(await sb.from(PARTY_TABLE[entity]).select('id, first_name, last_name').in('id', [...ids])) || [];
-        found.forEach((r) => { const name = `${r.first_name || ''} ${r.last_name || ''}`.trim(); if (r.id && name) names.set(entity + ':' + r.id, name); });
+        const found = ok(await sb.from(spec.table).select(spec.cols).in('id', [...ids])) || [];
+        found.forEach((r) => { const name = spec.name(r); if (r.id && name) names.set(entity + ':' + r.id, name); });
       } catch { /* a missed name leaves the cell blank; the task list still opens */ }
     }));
     return names;
   };
-  const taskWithParty = (t, names) => { const name = names.get(t.entity + ':' + t.entityId) || ''; if (!name) return t; const link = linkOf(t.entity, t.entityId); return { ...t, relatedTo: name, relatedLink: link, contactName: name, contactLink: link }; };
+  const taskWithParty = (t, names) => { const name = names.get(t.entity + ':' + t.entityId) || ''; if (!name) return t; const link = taskRecordLink(t.entity, t.entityId); if (!link) return t; return { ...t, relatedTo: name, relatedLink: link, contactName: name, contactLink: link }; };
   const actOut = (a, ppl) => { const now = localStamp(); const r = camel(a);
     return { ...r, ownerName: nameOf(ppl, r.ownerId), createdByName: nameOf(ppl, r.createdBy), modifiedByName: nameOf(ppl, r.modifiedBy), hostName: nameOf(ppl, r.hostId),
       startsAt: r.startsAt ? String(r.startsAt).slice(0, r.allDay ? 10 : 16) : null, endsAt: r.endsAt ? String(r.endsAt).slice(0, r.allDay ? 10 : 16) : null,

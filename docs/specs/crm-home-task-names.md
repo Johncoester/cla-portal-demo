@@ -6,6 +6,8 @@
 
 **Status:** In progress. Pull request [340](https://github.com/Johncoester/cla-portal-demo/pull/340). Not merged. Not Live. No database file.
 
+Janine later asked to remove the Related To column from this list. That follow-up is [crm-home-tasks-related-to.md](crm-home-tasks-related-to.md). This file describes the earlier request.
+
 ## What the user sees
 
 On CRM Home, My Tasks (and every other choice in that same menu) fills Related To and Contact Name.

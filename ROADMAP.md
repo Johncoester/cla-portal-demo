@@ -691,7 +691,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Place Order buyer and seller rows take a name, email, and phone (and the entity fields that were already there). The search box remains for an existing contact. A typed name no longer stops on "pick a person from the list."
 - Buyer's agent, listing agent, and lender: a list of saved companies and agents or loan officers, plus boxes to type a person and a company.
 - The same entry is on the file's Parties buttons and on Contacts → Add contact.
-- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten.
+- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten. If the typed email already belongs to a contact, that contact is used (CONTACT-REUSE-1).
 
 **What's still missing**
 
@@ -795,30 +795,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged (PR 263, Nov 14); not Live until its database file is applied on TEST. TB-2b (Try on one file, new files only) pull request open.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged ([PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263), Nov 14); engine file already applied on TEST as 20261114143634. TB-2b merged ([PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265)); try-and-scope file already applied on TEST as 20261114170335. TB-6 Live on TEST ([PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389), Nov 20).**
 
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
-| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265) open. Not Live until `20261122010000_task_flow_try_and_scope.sql` is applied on TEST, after TB-2's file |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Database file already applied on TEST as `task_flow_engine` version 20261114143634 (repo file `20261121010000_task_flow_engine.sql`). |
+| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | Merged, [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265). Database file already applied on TEST as `task_flow_try_and_scope` version 20261114170335 (repo file `20261122010000_task_flow_try_and_scope.sql`). |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
+| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
+| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
 
 **What's built**
 
 - TB-1: **Admin > Task Builder**, its own menu item, for Admins and Super admins only (everyone else gets "Not authorized"). It lists flows with name, description, what starts it, On / Off, and who changed it last. **+ New flow** and **Edit** take a name, what starts it, days (for "EMD not received" and "Days before closing") and a description. New flows start Off; Turn on / Turn off switch them; nothing is deleted. A History card shows every change.
 - TB-2: each flow says **which files** it applies to (transaction type: purchase, cash purchase or refinance; state; sales person — blank means any) and has **steps** run in order: create a task, create a phone call task, wait a number of days, or stop if the EMD has been received. A task goes to everyone on the file with the chosen role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). The page shows each flow's steps, recent runs (flow, file, status, latest step) and a **Check files now** button. A flow needs at least one task step before it can be turned on. The database starts flows when an order is opened, the EMD is marked received, or the closing date is set or changed, and every 15 minutes checks the day-based triggers and waits. Nothing in it can stop an order from saving.
+- TB-6 (John, Nov 20): a **Request a form from a party** step: which intake form, who it goes to, due in, and reminders (every N days, up to M times). The request is the party's own form task, so it is done when they submit it. Each person gets **one email per file** listing everything still needed from them, and reminder emails go at most once a day, listing what is still open (outbox only). A test run adds the tasks but emails nobody. Spec: TB-6 in [docs/specs/task-builder.md](docs/specs/task-builder.md).
+- TB-7 (John, Nov 20): a **Send an email** step (a saved template from Admin > Email Templates, or a subject and message written on the step, with merge fields like {{buyer_first_name}} and {{property_address}}) and a **File closed** trigger, so a flow can send a thank-you two days after closing. Emails wait in the outbox until the mail switch is on; Try on one file sends the test copy only to the admin trying it. Spec: TB-7 in [docs/specs/task-builder.md](docs/specs/task-builder.md).
 - TB-2b (John, Nov 14): **Try on one file** runs a flow once on a chosen open file, now, even while the flow is Off, with waits skipped so every step shows at once. Its tasks are real tasks on that file marked "Test run", and it never counts as the flow's real run there. **Turn on** asks which files: **New files only** (the default: files opened after it was turned on) or **Existing open files too**, so turning a flow on never sweeps the open files already there by surprise. An "Order opened" flow only ever runs on new orders. The list and History show which was picked.
 
 **What's still missing**
 
-- TB-2 and TB-2b are not Live: apply `20261121010000_task_flow_engine.sql`, then `20261122010000_task_flow_try_and_scope.sql`, on TEST (they need TB-1's file, already applied, and pg_cron, already on TEST). John wants to try it himself before Grok tests it.
+- TB-2, TB-2b and TB-6 database files are applied on TEST. John tests the TB-6 flow himself before Grok tests it.
 - "Contract received" and "Title commitment received" can be saved but not turned on yet.
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
 - Clients and agents can see tasks assigned to them but only staff mark them done (open question for John).
+- TB-6: request emails go to people with a portal account (a party's request waits until they accept their invite); one email per person per file, not one across all their files.
 
 **Links**
 
@@ -827,7 +832,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. Still open: whether clients and agents can tick off tasks.
+- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. John, Nov 20: client requests in Task Builder, with one email per person listing everything still needed, not one email per request. John, Nov 20: an email step and a File closed trigger; flows stay Off until he has tested them and turns them on. Still open: whether clients and agents can tick off tasks.
 
 ---
 
@@ -1309,7 +1314,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not Live until `supabase/migrations/20261124170000_agent_tc_role_check.sql` is applied on TEST. Until then, typing a coordinator creates the order, leaves the coordinator off, and stays on Place Order.
-- Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
+- Nothing for the invite: since Nov 20 2026 Invite to portal is offered on these two roles (TC-INVITE-1, below). A person who already has an outside login can still be picked.
 
 **Links**
 
@@ -1322,6 +1327,98 @@ This file lists the portal's major features: how each one should work, how far a
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
 - The staff rule stays for a row already saved under the old role name: only an active staff login can be stored as that role. TC-1 takes that name off Add contact. See Transaction coordinator on Add contact (TC-1).
 - The Nov 16 file did not add the two roles to the people-role list. That list has to allow them, or Place Order creates the file and does not open it.
+- Nov 20 2026, 10:41 AM ET: John reversed "no invite for these two roles" in chat ("yes of course a TC needs an invite"). See TC portal invite (TC-INVITE-1).
+
+---
+
+## TC portal invite (TC-INVITE-1)
+
+**How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 10:41 AM ET, from his screenshot of Order Contacts on MD-26-97260. Tracker item TC-INVITE-1. Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387). Not Live until `supabase/migrations/20261125360000_tc_portal_invite.sql` is applied on TEST.
+
+**What's built**
+
+- Order Contacts shows Invite to portal on a coordinator row with no login. The dialog calls the role Transaction coordinator.
+- Share Files can invite a coordinator with no login, the same way.
+- The database file lets the portal invite and the Share Files invite accept the two coordinator roles. Everything else in both is unchanged.
+
+**What's still missing**
+
+- Changing a coordinator's email does not send a new invite by itself. That automatic invite still covers buyers, sellers and agents only.
+- The invite email does not name the coordinator's role. It greets them and names the property.
+
+**Links**
+
+- Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md) (Portal invite)
+- Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387)
+- Source: John Coester, chat, Nov 20 2026, 10:41 AM ET. Tracker item TC-INVITE-1.
+
+**Decisions**
+
+- This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
+- A coordinator gets the short client login, not the agent account.
+- A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+
+---
+
+## TC sees what their agent sees (TC-VIS-1)
+
+**How it should work.** A transaction coordinator sees everything their agent sees on the file: the agent's open and closed tasks, commissions and other agent fees. A TC is one person on many files, working with several agents. On a file, the TC acts for that side's agent when they are on the file as that side's coordinator, or when they are linked to the agent.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026 (standing rule) and Nov 21 2026 (TC rules). Tracker item TC-VIS-1. Rule 9 waived by John for this fix, Nov 21 2026, 11:19 AM ET. Not Live until `supabase/migrations/20261126990000_tc_sees_agent_file.sql` is applied on TEST.
+
+**What's built**
+
+- The database treats a coordinator on the file (Buyer Agent TC or Listing Agent TC) like a linked one: the agent's tasks on that side, open and closed, on open and closed files; the agent's answers; filling in and finishing the agent's forms and tasks on the agent's behalf; the agent fees for that side.
+- A CLA staff Transaction Coordinator gets the agent fees for the side where they are that side's coordinator, or linked to that side's agent.
+- The file Tasks tab: the TC's My Tasks lists the agent's tasks, marked "your agent". The cross-file My Tasks list includes them too.
+- The per-file check keeps its plan between calls. Outside users' task lists are about 5 times faster on a local copy.
+
+**What's still missing**
+
+- Assigning a TC to an agent from the admin screen, the TC's contact and the file, both ways, with the TC put on all of the agent's files. That is TC-ASSIGN-1.
+- Documents and messages are not part of this change.
+
+**Links**
+
+- Spec: [docs/specs/tc-sees-agent-file.md](docs/specs/tc-sees-agent-file.md)
+- Source: John Coester, chat, Nov 20-21 2026. Tracker item TC-VIS-1.
+
+**Decisions**
+
+- Nothing is stored or moved. Only read and permission checks change.
+- The other side's agent tasks and fees, and the buyer's and seller's own tasks, stay hidden from the TC.
+
+---
+
+## Reuse a contact by email (CONTACT-REUSE-1)
+
+**How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 11:33 AM ET, after the error toast when adding TC Portal Jc (tcportaljc@gmail.com) to DC-26-78512. Tracker item CONTACT-REUSE-1. Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388). This is a bug fix, not a new feature, so rule 9 does not block it. Not Live until this is on TEST. No database file.
+
+**What's built**
+
+- Order Contacts → Add contact, and File Overview party buttons, use the existing contact when the typed email already belongs to someone. A short note says that person was already a contact.
+- Saving a new contact in the background does the same thing, so Place Order and other add-person screens also reuse the existing record instead of failing.
+- Editing a contact and changing its email to one already used still fails in plain words.
+
+**What's still missing**
+
+- Proof on TEST after this is merged. Not Live until then.
+
+**Links**
+
+- Spec: [docs/specs/contact-reuse.md](docs/specs/contact-reuse.md)
+- Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388)
+- Source: John Coester, chat, Nov 20 2026, 11:33 AM ET. Tracker item CONTACT-REUSE-1.
+
+**Decisions**
+
+- One contact per email stays. The fix is to link that contact to the file, not to allow a second record.
+- The saved name, phone, and company are not overwritten when the typed details differ.
+- Assigning a TC to agents (admin, contact record, or file) so they automatically appear on every one of those agents' files is a later item, not this fix.
 
 ---
 
@@ -1993,13 +2090,13 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Custom view name column can move
 
-**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. The arrows move it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
+**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. Drag it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
 
 **Status: In progress.** Janine, Feedback 30 item 2, confirmed before this change. No database file. Not Live until this is merged and someone checks it on TEST.
 
 **What's built**
 
-- The name column can move up and down on Leads, Clients, Companies, and Deals, and it cannot be removed.
+- The name column can be dragged on Leads, Clients, Companies, and Deals, and it cannot be removed.
 - The saved order is the order of the list. A missing name position stays first.
 - The criteria user list from pull request 309 stays. Both work on the same custom view.
 
@@ -2015,6 +2112,59 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Janine asked to move the name, not to drop it. It stays required and it can sit in any selected position.
 - An older view with no stored name position keeps the name first. A view that already stored a position keeps that position.
+
+## New custom view starts with the All list columns
+
+**How it should work.** On Leads, Clients, Companies, and Deals, New Custom View opens with the same columns, in the same order, as All Leads, All Clients, All Companies, or All Deals. A person's own column choice on that All list is the starting point. They can still add, remove, and reorder columns before saving. A view that is already saved keeps its own columns. The record name stays selected, in the place the All list already gave it, or first when the All list is not showing it.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 2, confirmed by email Nov 19, 2026, 6:30 PM ET. Pull request: [PR 385](https://github.com/Johncoester/cla-portal-demo/pull/385). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- New Custom View for all four lists starts from the All list's columns, including a column choice saved on that login.
+- Edit of a saved view still shows that view's columns.
+- The name column can still move, and it cannot be removed. A list column the view cannot store, such as Source on Deals, is left out. Companies City on the All list is the City field on the view.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- A column change on the All list that has not been saved to the login yet is not copied if New Custom View is opened in that same moment.
+
+**Links**
+
+- Spec: [docs/specs/crm-new-view-all-columns.md](docs/specs/crm-new-view-all-columns.md)
+
+**Decisions**
+
+- No database file. The All list already stores a person's column choice.
+- The All list and New Custom View share one column list, so the two cannot drift.
+- The shell cache stamp is 202611249850, above main's 202611249800.
+
+## Custom view columns drag like the All list
+
+**How it should work.** On New Custom View and Edit view, Choose Columns, the selected columns move the same way as Manage columns on All Leads, All Clients, All Companies, and All Deals. Drag a selected column to a new place. The row has the same border and grab cursor as that list. Arrow keys move the focused row one place. Add and remove stay. The record name stays selected and can sit in any place. The order you leave is the order the view saves and the order that view's list shows.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 3, confirmed by email Nov 19, 2026, 6:30 PM ET ("Yes"). Pull request: [PR 386](https://github.com/Johncoester/cla-portal-demo/pull/386). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- Selected columns on Leads, Clients, Companies, and Deals use the All list's drag row. The up and down arrows are gone.
+- Add, remove, and the record-name rule stay. A blank view name does not throw away the order.
+- The saved column order is the order the view list shows.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-column-drag.md](docs/specs/crm-view-column-drag.md)
+
+**Decisions**
+
+- Reuse the All list's column row and its drag and arrow-key controls. Do not keep a second set of arrow buttons.
+- No database file. The view already stores column order.
+- The shell cache stamp is 202611249870, above main's 202611249850.
 
 ## Page load retry (LOAD-RETRY-1)
 
@@ -2448,6 +2598,37 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
 - The disbursement date uses the existing column. Blank means the automatic date.
 
+## File Overview layout (FF-105)
+
+**How it should work.** On the staff File Overview, the blue tasks bar stays above a row of four boxes (Transaction Type, Open Date, Close Date, Purchase Price) and a Closing Team row. Each Closing Team card shows initials, the person's name, then the role: Processor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person. A missing person leaves the name blank. Parties is one compact list in the picture's order: Buyer, Seller, Lender, Loan Officer (only when that name is already on the lender contact), Selling Agency, Selling Agent, Selling Agent TC, Listing Agency, Listing Agent, Listing Agent TC, Title Abstractor, and Underwriter. Processor, Title Company, the sales rep, Preprocessor, and anyone else already on the file stay under that list. Call, Email, copy, Source of business, All contacts, Notes, Automation, and Configuration stay. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
+
+**Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- Staff File Overview shows the four boxes (value, then the label) and the Closing Team cards (initials, name, then the role).
+- Parties follows the picture's order and labels. Selling Agent, Selling Agent TC, Listing Agent TC, and Title Abstractor are display words. The stored roles stay Buyer Agent, Buyer Agent TC, Listing Agent TC, and Abstractor.
+- A Loan Officer row appears only when the lender contact is already a loan officer.
+- Processor, Title Company, sales rep, Preprocessor, Notes, Automation, and the existing buttons stay.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Licensed Settlement Agent has no saved field, so the card title shows and the name stays blank. Closer is unchanged.
+- The staff tracker shows "Wire/Cash to Close Acknowledge" and "Funding Auth". Reports and the database still use the old stage names.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-layout.md](docs/specs/file-overview-layout.md)
+- Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375)
+
+**Decisions**
+
+- Layout only. No new database column and no removed field.
+- Licensed Settlement Agent is not the Closer.
+- A blank name means nobody is assigned. The role title stays.
+- More than one salesperson means more than one Sales Person card.
+
 ## CRM report grouping without fiscal buckets
 
 **How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.
@@ -2511,14 +2692,14 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a Lead, Client, Deal, or Company, a panel on the left starts with Clients, Leads, Deals, Task, Meeting, Call. Janine set that order on Nov 18 2026, 5:23 PM ET. If the record already has that section, a click moves down the page to it. If it does not, the shortcut opens that module's list. After those six, Notes, Open Activities, Closed Activities, Emails, and Attachments stay in that order, and only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
 
-**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). No database file. Not Live until someone checks a record on TEST.
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opens the Calls list in [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368). No database file. Not Live until someone checks a record on TEST.
 
 **What's built**
 
 - The panel on Lead, Client, Company, and Deal records.
 - The first six are always Clients, Leads, Deals, Task, Meeting, Call.
 - Clients scrolls to the company's client list. Deals scrolls to the orders already on a client or company. Task, Meeting, and Call scroll to Open Tasks, Open Meetings, and Open Calls when those columns are on the record.
-- A lead has no clients, leads, or deals section, so those three open the Clients, Leads, and Deals lists. A deal has none of the six sections. Task opens CRM Home (My Open Tasks). Clients, Leads, and Deals open their lists. Meeting and Call on a deal are grey text, "Coming soon", because those list pages are not on main.
+- A lead has no clients, leads, or deals section, so those three open the Clients, Leads, and Deals lists. A deal has none of the six sections. Task opens CRM Home (My Open Tasks). Clients, Leads, and Deals open their lists. Call on a deal opens the Calls list. Meeting on a deal stays grey text, "Coming soon".
 - Notes, Open Activities, Closed Activities, Emails, and Attachments follow, in that order, only when the section is on the page. A deal still shows Emails and leaves the other four off.
 - The lists of leads, clients, companies, and deals do not get the panel.
 - The panel does not load anything extra.
@@ -2527,17 +2708,19 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Not checked on TEST yet. Do not mark Live before that.
 - The orders card still says Orders in the portal. The shortcut that jumps there says Deals.
-- There is no Meetings list, and the Calls list is not on main. On a Deal those two stay in the order as grey "Coming soon" text. A later pull request can link them once each list page exists.
+- There is no Meetings list. On a Deal, Meeting stays grey "Coming soon" text. Call opens the Calls list. That list has no way to show only one deal's calls, so the list is every call this person can already see.
 
 **Links**
 
 - Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
 - First panel: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
 - Order change: [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360)
+- Call opens the Calls list: [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368)
 
 **Decisions**
 
 - No database change. The panel does not add rows. It points at a section already on the record, or at the module's existing list.
+- Call on a deal opens `#/crm/calls`. The Calls list does not read a deal filter, so the shortcut does not invent one. Meeting stays unlinked until a Meetings list exists.
 - The older shortcuts stay after the six, in the same order they had before Deals moved up.
 
 ---
@@ -2599,6 +2782,39 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
 - A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
+- Janine later asked to drop the Related To column. That follow-up is the next section. It is not part of PR 340.
+
+---
+
+## CRM Home My Tasks drops Related To (Feedback 29 follow-up)
+
+**How it should work.** On CRM Home, My Tasks no longer has a Related To column. Contact Name is the name of the record the task belongs to, and it is a link. A lead opens that lead. A client opens that client. A company opens that company. A deal opens that deal, using the property address as the name. Due Date, Subject, Status, Priority, and Edit stay as they are. A task with no name still shows, with a blank Contact Name. The task page itself still has Related To.
+
+**Status: In progress.** Janine Santos, Nov 18 2026, asked to remove Related To because it showed the same information as Contact Name, as long as Contact Name shows for tasks from every module. She confirmed on Nov 19 2026, 6:28 PM ET, with "Feedback 29 - Home tab tasks: Yes." No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- The Home task list no longer has Related To. The other columns on that list are unchanged.
+- Contact Name links to the lead, client, company, or deal.
+- The list asks once for each of those tables that the list actually uses. It does not ask once per task.
+- A name the read does not return stays blank, and the rest of the list still shows.
+- Opening one task is unchanged. That page still shows Related To.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- A task under a pipeline opportunity still has a blank Contact Name. An opportunity does not have its own page.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-tasks-related-to.md](docs/specs/crm-home-tasks-related-to.md)
+- Pull request: [PR 383](https://github.com/Johncoester/cla-portal-demo/pull/383)
+
+**Decisions**
+
+- No database change. The task already stores which record it belongs to.
+- The deal name is the property address, the same name the deal page uses.
+- Related To stays on the task page. Only the Home list drops that column.
 
 ---
 
@@ -2656,4 +2872,63 @@ This file lists the portal's major features: how each one should work, how far a
 - A hidden chart is not copied. Restore it on the original first if it should be included.
 - No database change. The list uses the calls already stored. It does not add a table or a query.
 - The full Calls module is not part of this change. The menu opens the short list so the link is not a dead end.
+
+---
+
+## Document folders (FF-104)
+
+**How it should work.** On an order, Documents keeps All files, Received, and Sent. A fourth tab, Folders, lists that order's folders and how many files are in each one. CLA staff can add a folder and move a document into a folder. Buyers, sellers, and agents do not see the tab. A new closing order gets eight folders (100 Processing through 700 Recorded Documents and Policies) instead of the five older names. Orders that already exist keep the folders and files they have.
+
+**Status: In progress.** FF-104a (the Folders tab) is [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376). FF-104b (the eight folders on new orders) is [PR 377](https://github.com/Johncoester/cla-portal-demo/pull/377). The database file is not applied on TEST. Not Live.
+
+**What's built**
+
+- FF-104a: the Folders tab, the file count, Add folder, and Move, for Processor, Preprocessor, Transaction Coordinator, Admin, and Super admin. Sales can open the tab and see the counts. They cannot add or move.
+- FF-104b: a new closing order gets the eight folders. An order that already exists keeps the folders it has. Title does not add a second copy of a folder name the order already has. "450 Final Closing Documents" and Title's "450 Prior Closing Documents" are both kept.
+
+**What's still missing**
+
+- Apply `supabase/migrations/20261125350000_order_default_folders.sql` on TEST. Do not mark Live before that, and not before someone checks a new order there.
+- Master Template Library, Generate, Search Packages, a Word editor, Download Word, Download PDF, the Merge / Delete / Rename / Refresh / Download / Print / Send / eSign toolbar, and Drafts. John has not decided the eSign provider, the Word editor, or Delete / retention.
+- A photo-ID upload on a new order no longer has an "IDs & personal" folder, so it is filed as Unfiled. Older orders still have that folder.
+
+**Links**
+
+- Spec: [docs/specs/document-folders.md](docs/specs/document-folders.md)
+- Pull request: [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376) (FF-104a) and [PR 377](https://github.com/Johncoester/cla-portal-demo/pull/377) (FF-104b)
+- Source: Francis Santos, Nov 19 2026, 1:15 PM ET, confirmed Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Tracker FF-104a and FF-104b.
+
+**Decisions**
+
+- Phase 1 is the tab, then the default folders. Nothing else from the picture is built in this phase.
+- The Title module keeps its own extra folder names. "450 Final Closing Documents" and "450 Prior Closing Documents" are different folders.
+
+---
+
+## CRM Companies column sort (Feedback 30 follow-up item 1)
+
+**How it should work.** On CRM, then Companies, each column header sorts the All Companies list. The first click sorts up. The second click sorts down. The same arrow used on Leads, Clients, and Deals shows the direction. Search, filters, and pages stay in effect.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 1, confirmed by email Nov 19 2026, 6:30 PM ET ("Yes"). Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- Companies uses the same header sort as Leads and Clients. The Sort menu is no longer on that list.
+- The list still opens on Company Name, A to Z. A sort already saved on the login is kept.
+- Search, Company Owner, Type, Archived, and the three time filters limit which companies are sorted. The next page continues that order.
+- Blank city, owner, and times stay at the bottom. Clients, Orders, and Volume sort as amounts.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-companies-sort.md](docs/specs/crm-companies-sort.md)
+- Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384)
+
+**Decisions**
+
+- No database file. The company list is already loaded, then sorted in the browser, the same way Leads and Clients sort after their list is loaded.
+- Cache stamp 202611249800, so a saved copy of the Companies page is not reused.
 

@@ -45,6 +45,7 @@ const api = {
   getCrmContact: count(async () => ({ ...person, salesReps: [], tags: [], orders: [{ dealId: 'd1', fileNumber: 'FAKE-1', address: '1 Main St', roles: ['Buyer'], people: [], canOpen: false, openDate: '2026-11-01', status: 'Open', purchasePrice: 1000 }], totals, opportunities: [], hasLogin: false, lastContactedOn: '' })),
   getCrmAccount: count(async () => ({ id: 'co-1', name: 'Harbor Realty (fake)', kind: 'brokerage', city: 'Rockville', state: 'MD', ownerName: 'Ada Admin', contactList: [], orders: [{ dealId: 'd1', fileNumber: 'FAKE-1', address: '1 Main St', roles: [], people: ['Casey Sample (Buyer)'], canOpen: false, openDate: '2026-11-01', status: 'Open', purchasePrice: 1000 }], totals, opportunities: [], activities: [], invitedMeetings: [], attachments: [] })),
   getCrmDeal: count(async () => ({ id: 'd1', name: '1 Main St', fileNumber: 'FAKE-1', propertyAddress: '1 Main St', amount: 1000, stage: 'Opened', status: 'Open', people: [], emails: [] })),
+  listCrmModuleRows: count(async (module) => (module === 'calls' ? [{ id: 'call-1', subject: 'Intro call with Casey Sample', callType: 'Outbound', callStart: '2026-11-18T15:00', callStatus: 'Scheduled', ownerName: 'Ada Admin' }] : [])),
 };
 
 async function open(section, id, { mount = true } = {}) {
@@ -122,12 +123,15 @@ ok(item(deal.host, 'task').tagName === 'A' && item(deal.host, 'task').getAttribu
 function comingSoon(el) {
   return el && el.tagName === 'SPAN' && el.classList.contains('crm-shortcut-soon') && el.getAttribute('title') === 'Coming soon' && el.getAttribute('aria-disabled') === 'true' && !el.getAttribute('href') && !el.querySelector('a, button');
 }
-ok(comingSoon(item(deal.host, 'meeting')) && comingSoon(item(deal.host, 'call')), 'Meeting and Call stay in place on a deal as grey Coming soon text');
+ok(comingSoon(item(deal.host, 'meeting')), 'Meeting stays in place on a deal as grey Coming soon text');
+const dealCall = item(deal.host, 'call');
+ok(dealCall && dealCall.tagName === 'A' && dealCall.getAttribute('href') === '#/crm/calls' && !dealCall.classList.contains('crm-shortcut-soon') && !dealCall.getAttribute('href').includes('?'), 'Call on a deal opens the Calls list, not a filtered address');
 ok(deal.host.querySelector('#crm-shortcut-css').textContent.includes('.crm-shortcut-soon') && deal.host.querySelector('#crm-shortcut-css').textContent.includes('var(--ink-4)'), 'Coming soon uses the portal grey');
 scrolls.length = 0;
 deal.host.querySelector('[data-crm-jump="meeting"]').click();
+ok(scrolls.length === 0 && !item(deal.host, 'meeting').hasAttribute('aria-current'), 'Coming soon Meeting does not scroll and is not a current shortcut');
 deal.host.querySelector('[data-crm-jump="call"]').click();
-ok(scrolls.length === 0 && !item(deal.host, 'meeting').hasAttribute('aria-current') && !item(deal.host, 'call').hasAttribute('aria-current'), 'Coming soon does not scroll and is not a current shortcut');
+ok(scrolls.length === 0 && !item(deal.host, 'call').hasAttribute('aria-current'), 'the Call link does not scroll the deal');
 scrolls.length = 0;
 deal.host.querySelector('[data-crm-jump="emails"]').click();
 ok(scrolls.length === 1 && scrolls[0].opts.behavior === 'smooth' && deal.host.querySelector('[data-emails-list]').id === 'crm-section-emails', 'Emails smooth-scrolls to the emails section');
@@ -135,7 +139,9 @@ ok(scrolls.length === 1 && scrolls[0].opts.behavior === 'smooth' && deal.host.qu
 const partial = document.createElement('div');
 partial.innerHTML = '<div data-crm-record class="crm-record has-shortcuts"><nav data-crm-shortcuts></nav><div data-crm-record-main><div data-notes></div></div></div>';
 ok(wireShortcuts(partial).join(',') === 'clients,leads,deals,task,meeting,call,notes' && !partial.querySelector('[data-crm-jump="emails"]'), 'a section that is not on the page is left out; the six modules stay');
-ok(comingSoon(partial.querySelector('[data-crm-jump="meeting"]')) && comingSoon(partial.querySelector('[data-crm-jump="call"]')), 'Meeting and Call with no section and no list page are Coming soon');
+ok(comingSoon(partial.querySelector('[data-crm-jump="meeting"]')), 'Meeting with no section and no list page is Coming soon');
+const partialCall = partial.querySelector('[data-crm-jump="call"]');
+ok(partialCall && partialCall.tagName === 'A' && partialCall.getAttribute('href') === '#/crm/calls', 'Call with no section opens the Calls list');
 const empty = document.createElement('div');
 empty.innerHTML = '<div data-crm-record class="crm-record has-shortcuts"><nav data-crm-shortcuts></nav><div data-crm-record-main><p>No related lists.</p></div></div>';
 ok(wireShortcuts(empty).join(',') === 'clients,leads,deals,task,meeting,call' && empty.querySelector('[data-crm-shortcuts]').hidden === false && empty.querySelector('[data-crm-record]').classList.contains('has-shortcuts'), 'with no record sections, the six modules stay in order');
@@ -153,7 +159,16 @@ for (const href of hrefs) {
   if (text.includes('That CRM page does not exist.')) missing.push(href);
 }
 ok(missing.length === 0, 'every clickable panel link opens a page that exists' + (missing.length ? ': ' + missing.join(', ') : ''));
-ok(!pages.some((host) => [...host.querySelectorAll('[data-crm-shortcuts] a')].some((a) => /\/crm\/(meetings|calls)\/?$/.test(a.getAttribute('href') || ''))), 'Meeting and Call lists are not links while those pages are missing');
+ok(!pages.some((host) => [...host.querySelectorAll('[data-crm-shortcuts] a')].some((a) => /\/crm\/meetings\/?$/.test(a.getAttribute('href') || ''))), 'the Meetings list is not a link while that page is missing');
+ok(hrefs.includes('#/crm/calls'), 'Call is a working route on the panel');
+const callsView = await render({ api, me, params: { section: 'calls' }, refresh() {}, go() {} });
+const callsHtml = toText(callsView.body);
+ok(callsView.title === 'CRM Calls' && callsHtml.includes('data-calls-list') && callsHtml.includes('href="#/crm/calls/call-1"') && callsHtml.includes('Intro call with Casey Sample'), 'opening Call shows the Calls list');
+const meetingsView = await render({ api, me, params: { section: 'meetings' }, refresh() {}, go() {} });
+ok(toText(meetingsView.body).includes('That CRM page does not exist.'), 'there is still no Meetings list');
+const callsSrc = read('js/pages/crm-calls.js');
+const listFn = callsSrc.slice(callsSrc.indexOf('export async function callsList'), callsSrc.indexOf('export async function callPage'));
+ok(listFn.includes("listCrmModuleRows('calls')") && !/URLSearchParams|location\.hash|searchParams|dealId|relatedId/.test(listFn), 'the Calls list has no deal filter, so the shortcut opens the whole list');
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -179,10 +194,10 @@ for (const file of walk(path.join(root, 'js')).concat(readdirSync(root).filter((
 const dual = [...hits.entries()].filter(([, stamps]) => stamps.size > 1);
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.map(([t, s]) => t + ' ' + [...s].join(',')).join('; ') : ''));
 const chain = [
-  ['js/pages/crm-shortcuts.js', '202611247200'],
-  ['js/pages/crm-deals.js', '202611247100'],
-  ['js/pages/crm.js', '202611247100'],
-  ['js/app.js', '202611248300', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
+  ['js/pages/crm-shortcuts.js', '202611249600'],
+  ['js/pages/crm-deals.js', '202611249870'],
+  ['js/pages/crm.js', '202611261050'],
+  ['js/app.js', '202611269910'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -191,8 +206,8 @@ for (const [target, stamp] of chain) {
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 const appFrom = [...(hits.get('js/app.js') || [])];
-ok(read('index.html').includes('js/app.js?v=202611248300') && appFrom.length === 1 && appFrom[0] === '202611248300', 'index.html loads the shell at 202611248300');
-ok(!read('js/data/adapter.js').includes('202611247100') && !read('js/app.js').includes('adapter.js?v=202611247200'), 'the shortcut stamp does not move the shared adapter');
+ok(read('index.html').includes('js/app.js?v=202611269910') && appFrom.length === 1 && appFrom[0] === '202611269910', 'index.html loads the shell at 202611269910');
+ok(read('js/app.js').includes('adapter.js?v=202611269910'), 'the shell loads the adapter at 202611269910 so Home reads company and deal names');
 
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);

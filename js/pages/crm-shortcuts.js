@@ -2,6 +2,8 @@
 // Janine, Nov 18 2026, 5:23 PM ET: Clients, Leads, Deals, Task, Meeting, Call come first, in that order.
 // A module with a section already on the record scrolls to it. Otherwise it opens that module's list.
 // A list that has no page yet stays in the order as grey text, "Coming soon", and does not open a missing page.
+// The Calls list (#/crm/calls) is a real page and does not filter to one deal, so Call opens that whole list.
+// There is no Meetings list, so Meeting stays grey.
 // The older shortcuts stay after those six, in the same order, and only when that section is on the page.
 // No extra reads: the panel only looks at sections the record page already drew.
 import { html, raw, toText } from '../ui.js?v=202611161500';
@@ -62,14 +64,14 @@ function specs() {
   return [...MODULE_SHORTCUTS, ...SHORTCUTS];
 }
 
-// Pages the CRM router already opens. Tasks, Meetings, and Calls open only when the address has a record id.
-// A list shortcut whose address is not in this set is shown, not linked.
+// Pages the CRM router already opens. A task or a meeting opens only when the address has a record id.
+// The Calls list (#/crm/calls) has no record id and is a real page. A list shortcut whose address is not in this set is shown, not linked.
 function listReady(href) {
   const seg = String(href || '').replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
   if (seg[0] !== 'crm') return false;
   const section = seg[1] || 'home';
   const id = seg[2] || '';
-  if ((section === 'tasks' || section === 'meetings' || section === 'calls') && !id) return false;
+  if ((section === 'tasks' || section === 'meetings') && !id) return false;
   return ['home', 'followups', 'settings', 'new', 'import', 'leads', 'contacts', 'accounts', 'tasks', 'meetings', 'calls', 'pipeline', 'reports', 'dashboards', 'deals', 'search', 'views', 'templates', 'signature'].includes(section);
 }
 

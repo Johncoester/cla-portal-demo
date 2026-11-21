@@ -8,7 +8,7 @@ import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202
 import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611247700';
-import { taskOpenHref } from '../data/task-actions.js?v=202611247700';
+import { taskOpenHref } from '../data/task-actions.js?v=202611269900';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=202611247700';
 
@@ -22,8 +22,8 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611248400')).render(ctx);
-  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611247700');
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611270010')).render(ctx);
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611249900');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
   // FF-101a: agents (and a TC acting as them) always see only their own tasks — the general Tasks list is gone for them.
@@ -78,11 +78,13 @@ export async function render(ctx) {
   const row = (t) => html`<tr class="${toneOf(t)}" data-task-row="${t.id}" data-task-tone="${toneOf(t)}" data-mine="${t.mine ? '1' : '0'}">
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
       <td><div class="task-line"><strong>${taskOpenHref(t) ? html`<a href="${taskOpenHref(t)}">${t.title}</a>` : t.title}</strong>${t.notYours ? html` <span class="muted small" data-not-yours>Not yours to open</span>` : ''}${t.taskGroup ? html` <span class="pill" data-task-group>${t.taskGroup}</span>` : ''}${dense ? html` ${kindBit(t, true)}` : ''}</div>${t.description ? (dense ? html`<div class="task-desc muted">${t.description}</div>` : html`<br><span class="muted">${t.description}</span>`) : ''}${t.switchedOff ? html` <span class="pill warn" data-switched-off title="Switched off on Task Templates > Task switches: kept, hidden from everyone except Admin / Super admin">Switched off (admins only)</span>` : ''}${dense ? '' : kindBit(t, false)}${answerList(t)}${dense && intakeSide(t) ? html`<div class="intake-slot" data-intake-slot="${t.id}" hidden></div>` : ''}</td>
-      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}</td>
+      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(t.forAgent ? 'your agent' : user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}</td>
       <td class="task-due ${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(partyTaskStillOpen(t) && t.status === 'done' ? t.partyProgress.label : LABEL[t.status], partyTaskStillOpen(t) && t.status === 'done' ? 'info' : CLS[t.status])}${partyTaskStillOpen(t) ? html`<br><span class="muted small" data-party-progress="${t.id}">${t.partyProgress.label}${t.partyProgress.remainingLabel ? html` · ${t.partyProgress.remainingLabel}` : ''}</span>` : ''}${!partyTaskStillOpen(t) && t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
       <td class="nowrap">${actions(t)}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
-  const shown = mineOnly ? tasksForViewer(user, mineFirst) : mineFirst;
+  // E2E-FIX-C (John, Nov 19): an agent's My Tasks lists only that agent's own copies. A second agent on the same side
+  // has their own copy of a per-person form; it was showing here as "Not yours to open". Staff and TCs are unchanged.
+  const shown = mineOnly ? tasksForViewer(user, mineFirst).filter((t) => manage || !fileAgent || t.mine) : mineFirst;
   // FF-101c: Agent fees under buyer-agent / listing-agent task sections (same roles that saw them on File Overview)
   const fees = pure ? { bySide: {}, mount() {} } : await agentFeesPanel(ctx, deal);
   const feeHtmlForBox = (boxKey) => {
@@ -120,7 +122,7 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611248400');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611270010');
       const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611247700');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
