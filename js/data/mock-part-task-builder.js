@@ -9,9 +9,13 @@
  * chosen file as a test run (On or Off, waits skipped, tasks marked "Test run").
  * TB-6 (John, Nov 20): "Request a form from a party" steps (client requests). The request is the party's own intake form task (the
  * existing copy when the file already has one, else a new copy), so it completes itself when they submit it. Reminder state is kept in
- * d.taskFlowRequests, and every email is ONE digest per person and file listing everything still needed (outbox only). */
+ * d.taskFlowRequests, and every email is ONE digest per person and file listing everything still needed (outbox only).
+ * TB-7 (John, Nov 20): "Send an email" steps (a saved file template or a written message, with merge fields) and the "File closed"
+ * trigger. Emails are queued in the outbox; a test run sends the email only to the admin trying it. */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611261000';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611269910';
+import { renderFlowEmail, testCopy, EMAIL_ROLES } from './flow-email.js?v=202611269910';
+import { SEED_SHARED } from './file-email-templates.js?v=202611247700';
 import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';
 import { senderFor } from './email-senders.js?v=202611247700';
 import { taskEnabled } from './task-switches.js?v=202611247700';
@@ -102,10 +106,40 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
     });
     return n;
   }
+  // ---------- emails (TB-7) ----------
+  // the demo portal's shared file templates (the same list and ids as Admin > Email Templates in the demo, supabase-gmail.js gmailMock)
+  const templateOf = (id) => { const i = SEED_SHARED.findIndex((_, k) => `fet-seed-${k + 1}` === id); return i < 0 ? null : SEED_SHARED[i]; };
+  const dealForMail = (d, deal) => { const pr = (d.profiles || []).find((z) => z.id === deal.processorId) || null;
+    return { ...deal, processorName: pr ? `${pr.firstName || ''} ${pr.lastName || ''}`.trim() : '', processorEmail: pr ? pr.email || '' : '',
+      participants: d.participants.filter((p) => p.dealId === deal.id && !p.removed).map((p) => ({ role: p.role, contact: d.contacts.find((c) => c.id === p.contactId) || null })) }; };
+  const sendEmails = (d, flow, run, deal, t, at, notes) => {
+    let src = t.templateId ? templateOf(t.templateId) : { subject: t.subject, body: t.body };
+    if (!src) { notes.push({ at, text: `The "${t.templateName || 'saved'}" template was not found or is turned off, so no email was sent.` }); return; }
+    const people = d.participants.filter((p) => p.dealId === deal.id && !p.removed && p.role === t.assignTo)
+      .map((p) => d.contacts.find((c) => c.id === p.contactId)).filter(Boolean);
+    const withEmail = people.filter((c) => String(c.email || '').trim());
+    const who = ((EMAIL_ROLES.find(([v]) => v === t.assignTo) || [t.assignTo, t.assignTo])[1]).toLowerCase();
+    if (!people.length) { notes.push({ at, text: `No ${who} on this file, so the email was not sent.` }); return; }
+    if (!withEmail.length) { notes.push({ at, text: `The ${who} on this file has no email address, so the email was not sent.` }); return; }
+    const mailDeal = dealForMail(d, deal); const today = at.slice(0, 10);
+    const queue = (toProfileId, toEmail, toName, mail) => { const ob = { id: nid('ob'), channel: 'email', status: 'queued', kind: 'task_flow_email', toProfileId, toEmail, toName,
+      subject: mail.subject, body: mail.body, taskId: null, dealId: deal.id, createdBy: run.trialTo || null, createdAt: at, sentAt: null, templateKey: 'task_flow_email', flowId: flow.id, runId: run.id };
+      Object.assign(ob, senderFor(d, 'processor', deal.id)); d.outbox.push(ob); };
+    if (run.trial) {   // test copy: the real names and address, sent only to the admin trying it
+      const me = (d.profiles || []).find((z) => z.id === run.trialTo); if (!me || !me.email) return;
+      const first = renderFlowEmail(mailDeal, { email: String(withEmail[0].email).trim().toLowerCase() }, src, { today });
+      queue(me.id, me.email, `${me.firstName || ''} ${me.lastName || ''}`.trim() || me.email, testCopy(first, withEmail.map((c) => `${c.firstName || ''} ${c.lastName || ''}`.trim() + ` <${c.email}>`).join(', ')));
+      notes.push({ at, text: `Test copy queued for you (${me.email}).` }); return;
+    }
+    withEmail.forEach((c) => { const to = String(c.email).trim().toLowerCase();
+      queue(c.profileId || null, to, `${c.firstName || ''} ${c.lastName || ''}`.trim() || to, renderFlowEmail(mailDeal, { email: to }, src, { today })); });
+    if (withEmail.length < people.length) notes.push({ at, text: `${people.length - withEmail.length} ${who} on this file has no email address and was skipped.` });
+  };
   const makeTasks = (d, flow, run, deal, specs, at) => {
     let made = 0; const notes = [];
     specs.forEach((t) => {
       if (t.request) { made += makeRequests(d, flow, run, deal, t, at, notes); return; }
+      if (t.email) { sendEmails(d, flow, run, deal, t, at, notes); return; }
       const people = holdersOf(d, deal, t.assignTo);
       if (!people.length) { notes.push({ at, text: `No ${t.assignTo} on this file, so "${t.title}" was not created.` }); return; }
       people.forEach((p) => {
@@ -131,7 +165,7 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
   // an event on a file: start the flows it triggers. A new order's runs move on at the next check, after Place Order has added the people;
   // an EMD or closing date change moves them on straight away.
   function onEvent(dealId, event) {
-    const d = db(); const deal = d.deals.find((x) => x.id === dealId); if (!dealRuns(deal)) return 0; const at = now(); let n = 0;
+    const d = db(); const deal = d.deals.find((x) => x.id === dealId); if (!dealRuns(deal) && !(event === 'file_closed' && deal && deal.status === 'Closed')) return 0; const at = now(); let n = 0;
     flowsForEvent(d.taskFlows, event, deal).forEach((f) => { if (mayStart(f, d.taskFlowRuns.filter((r) => r.dealId === dealId))) { start(d, f, deal, at); n++; } });
     if (!n) return 0;
     save(); lastTick = 0;
@@ -179,11 +213,11 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
       if (on) { f.scope = cleanScope(scope); f.activatedAt = now(); }
       f.active = on; f.updatedAt = now(); f.updatedBy = u.id; log(d, u, f, on ? 'turned on' : 'turned off', on ? `${scopeText(f)}.` : ''); save(); return view(f); },
     // Try on one file (John, Nov 14): one test run of this flow on one open file, now
-    async tryTaskFlowOnFile(id, dealId) { admin(); const d = db(); const f = one(d, id);
+    async tryTaskFlowOnFile(id, dealId) { const u = admin(); const d = db(); const f = one(d, id);
       if (!hasTaskStep(f.steps)) fail(NO_TASK_STEP);
       const deal = d.deals.find((x) => x.id === dealId); if (!deal) fail('Choose a file to try the flow on.');
-      if (!dealRuns(deal)) fail('That file is not open. Choose an open file.');
-      const at = now(); const run = start(d, f, deal, at); run.trial = true;
+      if (!dealRunsFor(f, deal)) fail(f.trigger === 'file_closed' ? 'That file is cancelled or on hold. Choose an open or closed file.' : 'That file is not open. Choose an open file.');
+      const at = now(); const run = start(d, f, deal, at); run.trial = true; run.trialTo = u.id;
       const tasks = step(d, run, at); save();
       return { runId: run.id, status: run.status, tasks, log: [...run.log], fileNumber: deal.fileNumber || '' }; },
     // Admin button: check every file now instead of waiting for the next check
@@ -197,12 +231,13 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
 // Watch the calls that open a file, change its closing date or mark the EMD received, and fire the matching events afterwards.
 export function watchTaskFlowEvents(api, load) {
   const event = api._taskFlowEvent; const lazyTick = api._taskFlowTick;   // the plain functions, taken before the adapter wraps every call
-  const snap = (id) => { const deal = (load().deals || []).find((x) => x.id === id); return deal ? { emd: !!deal.emdReceived, closing: deal.closingDate || null } : null; };
+  const snap = (id) => { const deal = (load().deals || []).find((x) => x.id === id); return deal ? { emd: !!deal.emdReceived, closing: deal.closingDate || null, status: deal.status || 'Open' } : null; };
   const fire = (id, before) => { const after = snap(id); if (!after) return;
     try {
       if (!before) event(id, 'order_opened');
       if (after.emd && !(before && before.emd)) event(id, 'emd_received');
       if (after.closing && after.closing !== (before && before.closing)) event(id, 'closing_date_set');
+      if (before && after.status === 'Closed' && before.status !== 'Closed') event(id, 'file_closed');
     } catch (e) { /* a flow problem never stops saving an order */ } };
   const wrap = (name, idOf) => { const fn = api[name]; if (typeof fn !== 'function') return;
     api[name] = async function (...args) { const id0 = idOf(args); const before = id0 ? snap(id0) : null; const r = await fn.apply(this, args);
@@ -210,6 +245,8 @@ export function watchTaskFlowEvents(api, load) {
   wrap('createDeal', () => null);
   wrap('updateDeal', (a) => a[0]);
   wrap('updateEmdAlta', (a) => a[0]);
+  wrap('setStage', (a) => a[0]);   // the last stage closes the file (funds disbursed)
+  wrap('setDealStatus', (a) => a[0]);
   ['getDeal', 'listTasks'].forEach((name) => { const fn = api[name]; if (typeof fn !== 'function') return;
     api[name] = async function (...args) { lazyTick(); return fn.apply(this, args); }; });
 }

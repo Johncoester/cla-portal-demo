@@ -3,10 +3,14 @@
  * TB-2: which files a flow applies to (conditions), its steps (task, phone call task, wait, stop if EMD received), recent runs,
  * and "Check files now". Flows that are On run on open files; the hosted portal checks about every 15 minutes.
  * Nov 14 (John): Turn on asks "new files only" or "existing open files too"; "Try on one file" runs a flow once on one chosen file.
- * TB-6 (John, Nov 20): "Request a form from a party" steps (client requests): who, which form, due in, and reminders. */
+ * TB-6 (John, Nov 20): "Request a form from a party" steps (client requests): who, which form, due in, and reminders.
+ * TB-7 (John, Nov 20): "Send an email" steps (a saved template or a written message with merge fields) and the "File closed" trigger. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep } from '../data/task-builder.js?v=202611261000';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS } from '../data/task-builder.js?v=202611269910';
+import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611269910';
+import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611247700';
+const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you.';
 import { REQUEST_FORMS, REQUEST_ROLES, formRoles, REMIND_EVERY_MAX, REMIND_TIMES_MAX, REQUEST_DUE_MAX } from '../data/client-requests.js?v=202611261000';
 const REQUEST_NOTE = 'The party gets the form as a task on the file. It is done when they submit it. Each person gets ONE email per file listing everything still needed from them, and at most one reminder email a day.';
 
@@ -17,6 +21,7 @@ export async function render(ctx) {
   if (!canManageTaskBuilder(user) || !api.listTaskFlows) throw new Error('That page does not exist.');
   const { flows, log, runs = [] } = await api.listTaskFlows();
   let sales = []; try { sales = (await api.listSalesStaff()) || []; } catch (e) { sales = []; }
+  let templates = []; try { templates = api.listFileEmailTemplates ? ((await api.listFileEmailTemplates()) || []).filter((t) => t.active !== false && (t.scope || 'shared') === 'shared') : []; } catch (e) { templates = []; }
   // The picker is Sales Person and Sales Team. A flow can already name someone who is no longer on that list
   // (for example a Processor saved when every staff role was offered). Keep that person's name.
   const known = new Map();
@@ -81,28 +86,30 @@ export async function render(ctx) {
 
     // Turn on: which files (John, Nov 14). New files only is the default, so turning a flow on never sweeps the open files already there.
     function turnOnModal(f) {
-      const onlyNew = f.trigger === 'order_opened';
+      const onlyNew = FROM_NOW_TRIGGERS.includes(f.trigger); const closedFlow = f.trigger === 'file_closed';
       const m = modal(`Turn on: ${f.name}`, html`<form id="tbon" class="form-grid" data-tb-on-form>
-        ${onlyNew ? html`<p class="span2">This flow starts when an order is opened, so it runs on orders placed from now on. Open orders already there are not touched.</p>`
+        ${closedFlow ? html`<p class="span2">This flow starts when a file is closed, so it runs on files closed from now on. Files already closed are not touched.</p>`
+          : onlyNew ? html`<p class="span2">This flow starts when an order is opened, so it runs on orders placed from now on. Open orders already there are not touched.</p>`
           : html`<fieldset class="span2" data-tb-scope-pick><legend>Run it on</legend>
             ${SCOPES.map(([v, l], i) => html`<label class="chk"><input type="radio" name="scope" value="${v}" data-tb-scope-opt="${v}" ${i === 0 ? raw('checked') : ''}> ${l}</label><br>`)}
             <p class="muted small" data-tb-scope-hint>New files only: files opened after you turn it on. Existing open files too: the open files already there also get the flow if they match. Try it on one file first if you're not sure.</p></fieldset>`}
         <p class="span2 err-text" data-tb-on-err hidden></p>
         <div class="span2"><button class="m-btn" type="submit" data-tb-on-save>Turn on</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       $('#tbon', m).addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-tb-on-err]', m); err.hidden = true;
-        const pick = $$('[data-tb-scope-opt]', m).find((x) => x.checked); const scope = onlyNew ? 'new' : (pick ? pick.value : 'new');
+        const pick = $$('[data-tb-scope-opt]', m).find((x) => x.checked); const scope = closedFlow ? 'all' : onlyNew ? 'new' : (pick ? pick.value : 'new');
         try { await api.setTaskFlowActive(f.id, true, { scope }); closeModal();
-          toast(scope === 'all' ? 'Turned on for new and existing open files.' : 'Turned on for new files only.'); refresh();
+          toast(closedFlow ? 'Turned on. It runs on files closed from now on.' : scope === 'all' ? 'Turned on for new and existing open files.' : 'Turned on for new files only.'); refresh();
         } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not turn the flow on. Try again.'; } });
     }
 
     // Try on one file (John, Nov 14): run the flow once on one open file, now, to see how it works
     async function tryModal(f) {
       let files = []; try { files = ((await api.listDeals({ status: 'Open' })) || []).filter((d) => (d.status || 'Open') === 'Open'); } catch (e) { files = []; }
+      if (f.trigger === 'file_closed') { try { files = files.concat(((await api.listDeals({ status: 'Closed' })) || []).filter((d) => d.status === 'Closed')); } catch (e) { /* open files still listed */ } }
       const m = modal(`Try on one file: ${f.name}`, html`<form id="tbtry" class="form-grid" data-tb-try-form>
         <p class="span2 notice info">${TRIAL_NOTE}</p>
-        <label class="span2">File *<select name="dealId" required data-tb-try-file><option value="">Choose an open file…</option>
-          ${files.map((d) => html`<option value="${d.id}">${d.fileNumber || d.id} · ${[d.street, d.city, d.state].filter(Boolean).join(', ')}</option>`)}</select></label>
+        <label class="span2">File *<select name="dealId" required data-tb-try-file><option value="">Choose ${f.trigger === 'file_closed' ? 'a' : 'an open'} file…</option>
+          ${files.map((d) => html`<option value="${d.id}">${d.fileNumber || d.id} · ${[d.street, d.city, d.state].filter(Boolean).join(', ')}${d.status === 'Closed' ? ' (closed)' : ''}</option>`)}</select></label>
         ${files.length ? '' : html`<p class="span2 muted">No open files found.</p>`}
         <p class="span2 err-text" data-tb-try-err hidden></p>
         <div class="span2" data-tb-try-result hidden></div>
@@ -172,6 +179,15 @@ export async function render(ctx) {
           <label>Remind every (days, 0 = no reminders)<input data-tb-step-field="remindEvery" type="number" min="0" max="${REMIND_EVERY_MAX}" step="1" inputmode="numeric" value="${s.remindEvery != null ? s.remindEvery : ''}"></label>
           <label>Remind up to (times)<input data-tb-step-field="remindTimes" type="number" min="0" max="${REMIND_TIMES_MAX}" step="1" inputmode="numeric" value="${s.remindTimes != null ? s.remindTimes : ''}"></label>
           <p class="muted small">${REQUEST_NOTE}</p>`
+        : s.type === 'send_email' ? html`
+          <label>Send to<select data-tb-step-field="sendTo"><option value="">Choose…</option>${EMAIL_ROLES.map(([v, l]) => html`<option value="${v}" ${s.sendTo === v ? raw('selected') : ''}>${l}</option>`)}</select></label>
+          <label>Email<select data-tb-email-tpl><option value="">Write my own</option>${templates.map((t) => html`<option value="${t.id}" ${s.templateId === t.id ? raw('selected') : ''}>Template: ${t.name}</option>`)}
+            ${s.templateId && !templates.some((t) => t.id === s.templateId) ? html`<option value="${s.templateId}" selected>Template: ${s.templateName || 'saved template'}</option>` : ''}</select></label>
+          ${s.templateId ? '' : html`
+          <label class="span2">Subject<input data-tb-step-field="subject" maxlength="${EMAIL_SUBJECT_MAX}" value="${s.subject || ''}" placeholder="Thank you for closing with CLA Title & Escrow"></label>
+          <label class="span2">Message<textarea data-tb-step-field="body" rows="6" maxlength="${EMAIL_BODY_MAX}" placeholder="Hi {{buyer_first_name}},&#10;&#10;Thank you so much for closing on {{property_address}}. Enjoy your new home!">${s.body || ''}</textarea></label>
+          <p class="muted small span2" data-tb-merge-list>Merge fields: ${FILE_TEMPLATE_FIELDS.map(([k]) => `{{${k}}}`).join(' ')}</p>`}
+          <p class="muted small">${EMAIL_NOTE}</p>`
         : s.type === 'wait' ? html`<label>Wait (days)<input data-tb-step-field="days" type="number" min="${DAYS_MIN}" max="${DAYS_MAX}" step="1" inputmode="numeric" value="${s.days != null ? s.days : ''}"></label>`
         : html`<p class="muted">If the EMD is marked received on the file, the flow stops here. If not, it goes on to the next step.</p>`}</div>`;
       const draw = () => { list.innerHTML = steps.length ? steps.map((s, i) => toText(stepRow(s, i))).join('') : '<p class="muted small">No steps yet.</p>';
@@ -180,7 +196,11 @@ export async function render(ctx) {
           $('[data-tb-step-type]', box).addEventListener('change', (e) => { const v = e.target.value;
             steps[i] = { type: v, ...(v === 'wait' ? { days: 1 } : v === 'stop_if_emd_received' ? {}
               : v === 'client_request' ? { formCode: '', sendTo: '', dueDays: steps[i].dueDays != null ? steps[i].dueDays : 3, remindEvery: 2, remindTimes: 3 }
+              : v === 'send_email' ? { sendTo: '', templateId: '', subject: '', body: '' }
               : { title: steps[i].title || '', assignTo: steps[i].assignTo || '', dueDays: steps[i].dueDays != null ? steps[i].dueDays : 1 }) }; draw(); });
+          const tpl = $('[data-tb-email-tpl]', box);   // a saved template, or write my own: redraw the subject and message boxes
+          if (tpl) tpl.addEventListener('change', () => { const t = templates.find((x) => x.id === tpl.value);
+            steps[i].templateId = tpl.value; steps[i].templateName = t ? t.name : ''; draw(); });
           const reqForm = $('[data-tb-req-form]', box);   // a form decides who can be asked: redraw the Send to list
           if (reqForm) reqForm.addEventListener('change', () => { const roles = formRoles(reqForm.value); steps[i].formCode = reqForm.value;
             if (!roles.includes(steps[i].sendTo)) steps[i].sendTo = roles.length === 1 ? roles[0] : ''; draw(); });

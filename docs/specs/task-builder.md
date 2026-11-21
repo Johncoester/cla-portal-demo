@@ -50,6 +50,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 | TB-4 | Email actions with templates and "send as" |
 | TB-5 | Drag-and-drop flowchart screen |
 | TB-6 | Client requests: request an intake form from a party, completes itself, reminders, one email per person (John, Nov 20) |
+| TB-7 | Email step (saved template or written message with merge fields) and the File closed trigger (John, Nov 20) |
 
 ## TB-1 as built
 
@@ -90,4 +91,16 @@ John: build Qualia-style client requests into Task Builder. Each request says wh
 - A flow can be turned on with only request steps. **Check files now** also says how many request emails it queued.
 - **Hosted:** migration `20261126010000_task_flow_client_requests.sql` (after TB-2 and TB-2b's files) adds `task_flow_requests` (one row per requested task: reminder setting, emails sent, next reminder) and the email step; the 15-minute check sends the reminders that are due. Rollback in `supabase/rollbacks/` takes request steps out of saved flows and turns off any flow left with no task step. Tests: `test/test-client-requests.js` (rules, demo portal, editor) and `test/test-task-flow-requests-sql.sh` (database).
 - **Not yet:** one email across several files for an agent on many orders (today it is one email per person per file, sent as that file's processor); a request for a document upload that is not an intake form; editing the email wording (TB-4).
+
+## TB-7: Email step and File closed (John, Nov 20 2026)
+
+John: flows should also send emails that are not chasing anything, for example a thank-you after closing: "file closed, two days after, send email", from a saved template or written on the step, with the buyer's first name and the property address filled in. It sends for real once the flow is on; there must be a way to test it first ("I'll test it and turn it on when I feel ready").
+
+- **New step "Send an email"**: **Send to** (buyer, seller, buyer's agent, listing agent, transaction coordinator, lender) and **Email**: a saved shared template from Admin > Email Templates, or **Write my own** (subject up to 200 characters, message up to 5,000). Both use the file template merge fields, listed under the message: {{buyer_first_name}}, {{property_address}}, {{recipient_first_name}}, {{closing_date}}, {{processor_line}} and the rest. A field that is not on the list is caught when saving ("{{nickname}} is not a merge field"). Fields fill in from the file when the email goes; a blank one is left out ("Hi ," becomes "Hi there,").
+- **Who gets it:** everyone on the file with that role who has an email address, portal account or not, each with their own copy ({{recipient_first_name}} is theirs). Nobody with that role, or no email address, is skipped and the run history says so. A template that was turned off sends nothing and the history says so.
+- **New trigger "File closed"**: starts when the file's status becomes Closed (on the demo portal, also the last stage, funds disbursed). A File closed flow keeps running on its closed file through its waits; every other flow still stops when a file is no longer open. Turning it on asks nothing: it runs on any file that closes from now on, including files opened before it was turned on.
+- **Sending:** emails are queued in the outbox from the file's processor, like every portal email, and go out once the portal's mail switch is on. Flows start Off, so nothing is queued for a client until an Admin turns the flow on.
+- **Testing (John):** **Try on one file** fills in that file's real names and address but sends the email **only to the admin trying it**, with "[Test]" in the subject and a first line saying who the real email would go to. A File closed flow can be tried on an open or closed file.
+- **Hosted:** migration `20261127010000_task_flow_email_step.sql` (after TB-6's): the email step and its merge fields in SQL, the File closed trigger (status on deals), `task_flow_runs.trial_to`, and outbox kind `task_flow_email` allowed for a party with no portal account (email and name needed). Rollback in `supabase/rollbacks/`. Tests: `test/test-flow-email.js` and `test/test-task-flow-email-sql.sh`.
+- **Not yet:** HTML formatting in flow emails (a saved template is sent as plain text, the outbox carries text); attachments; an entity buyer or seller shows the person's name rather than the entity's; "Funds disbursed" as its own trigger (closing a file covers it today).
 
