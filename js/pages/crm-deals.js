@@ -12,7 +12,7 @@ import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611289980';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611289980';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611290320';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611160300';
