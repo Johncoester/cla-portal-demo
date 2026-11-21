@@ -8,7 +8,7 @@
  * Shared by the mock adapter (mock-part-task-builder.js), the Supabase adapter (supabase-task-builder.js) and the page. */
 
 import { cleanRequestStep, requestStepText, formTitle } from './client-requests.js?v=202611261000';
-import { cleanEmailStep, emailStepText } from './flow-email.js?v=202611271000';
+import { cleanEmailStep, emailStepText } from './flow-email.js?v=202611281000';
 export const TASK_BUILDER_ADMIN_ONLY = 'Only an Admin or Super admin can use Task Builder.';
 export const FLOWS_RUN_NOTE = 'Flows that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. A flow starts once per file (a closing date change can start it again). Use Try on one file to see a flow work on a single order first.';
 export const TRIAL_NOTE = 'Runs every step on this one file now, even while the flow is Off. Waits are skipped so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the flow\'s real run on this file. A test run emails no client: form requests are added as tasks but not emailed, and an email step sends its test copy only to you.';
@@ -243,4 +243,40 @@ export function advanceRun(run, flow, ctx) {
     }
   }
   end('done', 'Finished.'); return out;
+}
+
+/* ---------- PLAIN TIMING (John, Nov 21 2026) ----------
+ * "Something simple like 'create this task 2 days after the order opens, due 1 day later'." Each step says when it happens, counted
+ * from what starts the flow, adding up the Wait steps before it. Shown under every step in the form and in the flow list. */
+const ANCHOR = { order_opened: 'the order opens', contract_received: 'the contract comes in', emd_received: 'the EMD is received',
+  emd_not_received: 'the order opens', commitment_received: 'the title commitment comes in', closing_date_set: 'the closing date is set',
+  days_before_closing: 'closing', file_closed: 'the file closes' };
+const dayWord = (n) => `${n} ${n === 1 ? 'day' : 'days'}`;
+// when something happens, `offset` days after the start (for "days before closing": counted from the closing date)
+export function whenText(trigger, triggerDays, offset = 0) {
+  const anchor = ANCHOR[trigger]; if (!anchor) return '';
+  if (trigger === 'days_before_closing') {
+    const d = offset - (Number(triggerDays) || 0);
+    return d < 0 ? `${dayWord(-d)} before closing` : d === 0 ? 'On the closing date' : `${dayWord(d)} after closing`;
+  }
+  const d = offset + (trigger === 'emd_not_received' ? (Number(triggerDays) || 0) : 0);
+  return d === 0 ? `As soon as ${anchor}` : `${dayWord(d)} after ${anchor}`;
+}
+const dueLater = (n) => (Number(n) === 0 ? 'due the same day' : `due ${dayWord(Number(n))} later`);
+// one plain line per step: "2 days after the order opens: create this task, due 1 day later"
+export function stepTimeline(trigger, triggerDays, steps) {
+  let offset = 0;
+  return (steps || []).map((s) => {
+    const at = whenText(trigger, triggerDays, offset);
+    const pre = at ? `${at}: ` : '';
+    if (!s) return '';
+    if (s.type === 'create_task') return `${pre}create this task, ${dueLater(s.dueDays || 0)}.`;
+    if (s.type === 'call_task') return `${pre}create this phone call task, ${dueLater(s.dueDays || 0)}.`;
+    if (s.type === 'client_request') return `${pre}send this request, ${dueLater(s.dueDays || 0)}.`;
+    if (s.type === 'send_email') return `${pre}send this email.`;
+    if (s.type === 'stop_if_emd_received') return `${pre}stop here if the EMD has been received.`;
+    if (s.type === 'wait') { const n = Number(s.days) || 0; offset += n; const next = whenText(trigger, triggerDays, offset);
+      return `Wait ${dayWord(n)}.${next ? ` The next step happens ${next.charAt(0).toLowerCase()}${next.slice(1)}.` : ''}`; }
+    return '';
+  });
 }

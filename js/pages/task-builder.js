@@ -7,8 +7,8 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved template or a written message with merge fields) and the "File closed" trigger. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS } from '../data/task-builder.js?v=202611271000';
-import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611271000';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline } from '../data/task-builder.js?v=202611281000';
+import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611281000';
 import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611247700';
 const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you.';
 import { REQUEST_FORMS, REQUEST_ROLES, formRoles, REMIND_EVERY_MAX, REMIND_TIMES_MAX, REQUEST_DUE_MAX } from '../data/client-requests.js?v=202611261000';
@@ -20,10 +20,12 @@ export async function render(ctx) {
   const { api, user, refresh } = ctx;
   if (!canManageTaskBuilder(user) || !api.listTaskFlows) throw new Error('That page does not exist.');
   const { flows, log, runs = [] } = await api.listTaskFlows();
-  let sales = []; try { sales = (await api.listSalesStaff()) || []; } catch (e) { sales = []; }
+  // Sales person (John, Nov 21): every active staff member, not only sales logins. Being the sales person is set on the file, so an
+  // Admin who also sells (John) or a processor with their own clients can be picked. Type a name to narrow the list.
+  let sales = []; try { sales = (await (api.listActiveStaff ? api.listActiveStaff() : api.listSalesStaff())) || []; } catch (e) { sales = []; }
+  if (!sales.length && api.listSalesStaff) { try { sales = (await api.listSalesStaff()) || []; } catch (e) { sales = []; } }
   let templates = []; try { templates = api.listFileEmailTemplates ? ((await api.listFileEmailTemplates()) || []).filter((t) => t.active !== false && (t.scope || 'shared') === 'shared') : []; } catch (e) { templates = []; }
-  // The picker is Sales Person and Sales Team. A flow can already name someone who is no longer on that list
-  // (for example a Processor saved when every staff role was offered). Keep that person's name.
+  // A flow can name someone who is no longer an active staff member. Keep that person's name.
   const known = new Map();
   const remember = (p) => {
     if (!p || !p.id || known.has(p.id)) return;
@@ -34,7 +36,7 @@ export async function render(ctx) {
   if (savedIds.some((id) => !known.has(id)) && api.listActiveStaff) {
     try { ((await api.listActiveStaff()) || []).forEach(remember); } catch (e) { /* the saved id still has a plain fallback */ }
   }
-  const salesName = (id) => known.get(id) || 'a sales person no longer active';
+  const salesName = (id) => known.get(id) || 'a staff member no longer active';
   const whichFiles = (c) => { const parts = [];
     if ((c.transactionTypes || []).length) parts.push(c.transactionTypes.join(' or '));
     if ((c.states || []).length) parts.push(c.states.join(' or '));
@@ -42,7 +44,7 @@ export async function render(ctx) {
     return parts.length ? parts.join('; ') : 'All open files'; };
   const row = (f) => html`<tr data-tb-row="${f.id}" data-tb-active="${f.active ? 'yes' : 'no'}">
     <td><strong data-tb-name>${f.name}</strong>${f.description ? html`<br><span class="muted small">${f.description}</span>` : ''}
-      ${(f.steps || []).length ? html`<ol class="small muted" data-tb-steps>${f.steps.map((s) => html`<li>${s.text}</li>`)}</ol>` : html`<br><span class="muted small" data-tb-no-steps>No steps yet.</span>`}</td>
+      ${(f.steps || []).length ? html`<ol class="small muted" data-tb-steps>${f.steps.map((s, k) => html`<li>${s.text}<br><span data-tb-when>${stepTimeline(f.trigger, f.triggerDays, f.steps)[k]}</span></li>`)}</ol>` : html`<br><span class="muted small" data-tb-no-steps>No steps yet.</span>`}</td>
     <td data-tb-trigger>${f.triggerText}${f.runsNow ? '' : html`<br><span class="muted small">Doesn't run yet</span>`}</td>
     <td class="small" data-tb-which>${whichFiles(f.conditions || {})}</td>
     <td>${f.active ? html`${pill('On', 'ok')}<br><span class="muted small" data-tb-scope>${f.scopeText || 'New files only'}</span>` : pill('Off', '')}</td>
@@ -148,7 +150,7 @@ export async function render(ctx) {
         <fieldset class="span2" data-tb-conds><legend>Which files <span class="muted small">(leave a group blank for "any")</span></legend>
           <p class="small"><strong>Transaction type:</strong> ${checks('transactionTypes', TX_KINDS, cond.transactionTypes || [])}</p>
           <p class="small"><strong>State:</strong> ${checks('states', STATES.map((s) => [s, s]), cond.states || [])}</p>
-          <p class="small"><strong>Sales person:</strong> ${(() => { const chosenSales = cond.salesPeople || []; const salesChoices = sales.map((s) => [s.id, salesName(s.id)]); chosenSales.filter((id) => !sales.some((s) => s.id === id)).forEach((id) => salesChoices.push([id, salesName(id)])); return salesChoices.length ? checks('salesPeople', salesChoices, chosenSales) : html`<span class="muted">No sales people found.</span>`; })()}</p>
+          <p class="small" data-tb-sales-box><strong>Sales person:</strong> <input type="search" class="small" data-tb-sales-search placeholder="Type a name" aria-label="Find a sales person"> ${(() => { const chosenSales = cond.salesPeople || []; const salesChoices = sales.map((s) => [s.id, salesName(s.id)]); chosenSales.filter((id) => !sales.some((s) => s.id === id)).forEach((id) => salesChoices.push([id, salesName(id)])); return salesChoices.length ? checks('salesPeople', salesChoices, chosenSales) : html`<span class="muted">No staff found.</span>`; })()}<br><span class="muted small">Any staff member can be the sales person on a file, including admins who also sell.</span></p>
         </fieldset>
         <fieldset class="span2" data-tb-steps-box><legend>Steps <span class="muted small">(run in order)</span></legend>
           <div data-tb-step-list></div>
@@ -168,14 +170,15 @@ export async function render(ctx) {
           <button type="button" class="ghost small" data-tb-step-up ${i === 0 ? raw('disabled') : ''} aria-label="Move step ${i + 1} up">↑</button>
           <button type="button" class="ghost small" data-tb-step-down ${i === steps.length - 1 ? raw('disabled') : ''} aria-label="Move step ${i + 1} down">↓</button>
           <button type="button" class="ghost small" data-tb-step-remove>Remove</button></p>
+        <p class="small" data-tb-step-when><strong></strong></p>
         ${s.type === 'create_task' || s.type === 'call_task' ? html`
           <label>Task name<input data-tb-step-field="title" maxlength="${TITLE_MAX}" value="${s.title || ''}" placeholder="${s.type === 'call_task' ? 'Call the buyer\'s agent about the EMD' : 'Chase the EMD'}"></label>
           <label>For<select data-tb-step-field="assignTo"><option value="">Choose…</option>${ASSIGN_ROLES.map(([v, l]) => html`<option value="${v}" ${s.assignTo === v ? raw('selected') : ''}>${l}</option>`)}</select></label>
-          <label>Due in (days)<input data-tb-step-field="dueDays" type="number" min="0" max="${DUE_MAX}" step="1" inputmode="numeric" value="${s.dueDays != null ? s.dueDays : ''}"></label>`
+          <label>Due (days after it's created)<input data-tb-step-field="dueDays" type="number" min="0" max="${DUE_MAX}" step="1" inputmode="numeric" value="${s.dueDays != null ? s.dueDays : ''}"></label>`
         : s.type === 'client_request' ? html`
           <label>Form<select data-tb-step-field="formCode" data-tb-req-form><option value="">Choose…</option>${REQUEST_FORMS.map(([v, l]) => html`<option value="${v}" ${s.formCode === v ? raw('selected') : ''}>${l}</option>`)}</select></label>
           <label>Send to<select data-tb-step-field="sendTo"><option value="">Choose…</option>${REQUEST_ROLES.filter(([v]) => !s.formCode || formRoles(s.formCode).includes(v)).map(([v, l]) => html`<option value="${v}" ${s.sendTo === v ? raw('selected') : ''}>${l}</option>`)}</select></label>
-          <label>Due in (days)<input data-tb-step-field="dueDays" type="number" min="0" max="${REQUEST_DUE_MAX}" step="1" inputmode="numeric" value="${s.dueDays != null ? s.dueDays : ''}"></label>
+          <label>Due (days after it's sent)<input data-tb-step-field="dueDays" type="number" min="0" max="${REQUEST_DUE_MAX}" step="1" inputmode="numeric" value="${s.dueDays != null ? s.dueDays : ''}"></label>
           <label>Remind every (days, 0 = no reminders)<input data-tb-step-field="remindEvery" type="number" min="0" max="${REMIND_EVERY_MAX}" step="1" inputmode="numeric" value="${s.remindEvery != null ? s.remindEvery : ''}"></label>
           <label>Remind up to (times)<input data-tb-step-field="remindTimes" type="number" min="0" max="${REMIND_TIMES_MAX}" step="1" inputmode="numeric" value="${s.remindTimes != null ? s.remindTimes : ''}"></label>
           <p class="muted small">${REQUEST_NOTE}</p>`
@@ -190,6 +193,10 @@ export async function render(ctx) {
           <p class="muted small">${EMAIL_NOTE}</p>`
         : s.type === 'wait' ? html`<label>Wait (days)<input data-tb-step-field="days" type="number" min="${DAYS_MIN}" max="${DAYS_MAX}" step="1" inputmode="numeric" value="${s.days != null ? s.days : ''}"></label>`
         : html`<p class="muted">If the EMD is marked received on the file, the flow stops here. If not, it goes on to the next step.</p>`}</div>`;
+      // the plain "when" line under every step, kept up to date as days, waits or the trigger change
+      const showWhen = () => { const lines = stepTimeline(sel.value, $('[data-tb-days-input]', m).value, steps);
+        $$('[data-tb-step]', list).forEach((box) => { const el = $('[data-tb-step-when] strong', box); if (el) el.textContent = lines[Number(box.dataset.tbStep)] || ''; }); };
+      sel.addEventListener('change', () => showWhen()); $('[data-tb-days-input]', m).addEventListener('input', () => showWhen());
       const draw = () => { list.innerHTML = steps.length ? steps.map((s, i) => toText(stepRow(s, i))).join('') : '<p class="muted small">No steps yet.</p>';
         addBtn.hidden = steps.length >= STEP_MAX;
         $$('[data-tb-step]', list).forEach((box) => { const i = Number(box.dataset.tbStep);
@@ -204,12 +211,15 @@ export async function render(ctx) {
           const reqForm = $('[data-tb-req-form]', box);   // a form decides who can be asked: redraw the Send to list
           if (reqForm) reqForm.addEventListener('change', () => { const roles = formRoles(reqForm.value); steps[i].formCode = reqForm.value;
             if (!roles.includes(steps[i].sendTo)) steps[i].sendTo = roles.length === 1 ? roles[0] : ''; draw(); });
-          $$('[data-tb-step-field]', box).forEach((el) => el.addEventListener('input', () => { steps[i][el.dataset.tbStepField] = el.value; }));
-          $$('[data-tb-step-field]', box).forEach((el) => el.addEventListener('change', () => { steps[i][el.dataset.tbStepField] = el.value; }));
+          $$('[data-tb-step-field]', box).forEach((el) => el.addEventListener('input', () => { steps[i][el.dataset.tbStepField] = el.value; showWhen(); }));
+          $$('[data-tb-step-field]', box).forEach((el) => el.addEventListener('change', () => { steps[i][el.dataset.tbStepField] = el.value; showWhen(); }));
           $('[data-tb-step-up]', box).addEventListener('click', () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; draw(); });
           $('[data-tb-step-down]', box).addEventListener('click', () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; draw(); });
-          $('[data-tb-step-remove]', box).addEventListener('click', () => { steps.splice(i, 1); draw(); }); }); };
+          $('[data-tb-step-remove]', box).addEventListener('click', () => { steps.splice(i, 1); draw(); }); }); showWhen(); };
       addBtn.addEventListener('click', () => { steps.push({ type: 'create_task', title: '', assignTo: '', dueDays: 1 }); draw(); });
+      const find = $('[data-tb-sales-search]', m);   // type a name: hide the others (ticked people always stay visible)
+      if (find) find.addEventListener('input', () => { const q = find.value.trim().toLowerCase();
+        $$('[data-tb-cond="salesPeople"]', m).forEach((c) => { const lab = c.closest('label'); if (lab) lab.hidden = !!q && !c.checked && !lab.textContent.toLowerCase().includes(q); }); });
       draw();
 
       $('#tbf', m).addEventListener('submit', async (e) => {

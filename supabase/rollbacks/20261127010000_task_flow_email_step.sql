@@ -259,6 +259,7 @@ drop function if exists private.task_flow_join_names(text[]);
 drop function if exists private.task_flow_html_text(text);
 drop function if exists private.task_flow_clean_email(jsonb, int);
 drop function if exists private.task_flow_merge_keys();
+drop function if exists private.task_flow_is_recipient(uuid, text, uuid, text);
 drop function if exists private.task_flow_email_role(text);
 alter table public.task_flow_runs drop column if exists trial_to;
 

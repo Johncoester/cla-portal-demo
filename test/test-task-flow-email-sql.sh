@@ -48,6 +48,7 @@ create table public.email_templates (id uuid primary key default gen_random_uuid
 insert into public.email_templates (id, name, subject, body_html) values ('60000000-0000-0000-0000-000000000001', 'Closing thank you', 'Thank you, {{buyer_first_name}}!',
   '<p>Hi {{recipient_first_name}},</p><p>Thank you for closing on {{property_address}} &amp; welcome home.</p><p>{{processor_line}}</p>');
 create table public.notices (owners uuid[], title text);
+create table public.deal_business_sources (deal_id uuid primary key, source text not null default '', set_by uuid, set_at timestamptz default now());
 create function private.effective_uid() returns uuid language sql stable as $$ select nullif(current_setting('app.uid', true), '')::uuid $$;
 create function private.is_admin() returns boolean language sql stable as $$ select coalesce((select admin from public.profiles where id = private.effective_uid()), false) $$;
 create function private.person_name(uuid) returns text language sql stable as $$ select first_name || ' ' || last_name from public.profiles where id = $1 $$;
@@ -121,6 +122,35 @@ q -c "update public.deals set status = 'Closed' where id = '$D'" -c "update publ
 val "set app.uid = '$A'; select public.try_task_flow_on_file('40000000-0000-0000-0000-000000000001', '$D')" >/dev/null
 ok "$(val "select count(*) from public.task_flow_runs r, jsonb_array_elements(r.log) l where r.trial and l ->> 'text' like 'The \"Closing thank you\" template was not found or is turned off%'")" '1' 'a turned-off template sends nothing and the history says why'
 ok "$(val "select count(*) from public.task_flow_runs r, jsonb_array_elements(r.log) l where r.trial and l ->> 'text' like 'The buyer on this file has no email address%'")" '1' 'a party with no email is skipped and the history says why'
+
+# non-referring agents (John, Nov 21): the intro email goes to the agents who did not refer the file
+q <<'SQL' >/dev/null
+insert into public.contacts (id, first_name, last_name, email) values ('10000000-0000-0000-0000-0000000000a1', 'Rita', 'Referrer', 'rita@agents.test'),
+  ('10000000-0000-0000-0000-0000000000a2', 'Lou', 'Listing', 'lou@agents.test'), ('10000000-0000-0000-0000-0000000000a3', 'Ben', 'Buyerside', 'ben@agents.test');
+insert into public.deals (id, file_number, street, city, state, zip, processor_id) values ('20000000-0000-0000-0000-0000000000a0', 'MD-26-90009', '9 Oak Rd', 'Laurel', 'MD', '20707', '00000000-0000-0000-0000-0000000000ff');
+insert into public.deal_participants (deal_id, contact_id, role) values ('20000000-0000-0000-0000-0000000000a0', '10000000-0000-0000-0000-0000000000a1', 'Buyer Agent'),
+  ('20000000-0000-0000-0000-0000000000a0', '10000000-0000-0000-0000-0000000000a2', 'Listing Agent'), ('20000000-0000-0000-0000-0000000000a0', '10000000-0000-0000-0000-00000000000b', 'Client-Buyer');
+insert into public.deal_business_sources (deal_id, source) values ('20000000-0000-0000-0000-0000000000a0', 'buyer_agent:10000000-0000-0000-0000-0000000000a1');
+SQL
+N=20000000-0000-0000-0000-0000000000a0
+R() { val "select string_agg(c.first_name, ',' order by c.first_name) from public.deal_participants dp join public.contacts c on c.id = dp.contact_id where dp.deal_id = '$N' and private.task_flow_is_recipient(dp.deal_id, dp.role, dp.contact_id, 'non_referring_agents')"; }
+ok "$(R)" 'Lou' 'the buyer agent who referred the file is left out; the listing agent gets the intro'
+q -c "insert into public.deal_participants (deal_id, contact_id, role) values ('$N', '10000000-0000-0000-0000-0000000000a3', 'Buyer Agent');" >/dev/null
+ok "$(R)" 'Ben,Lou' 'a second buyer agent who did not refer it gets it too'
+q -c "update public.deal_business_sources set source = 'listing_agent' where deal_id = '$N';" >/dev/null
+ok "$(R)" 'Ben,Rita' 'a listing-agent source with no person: every listing agent is the referrer'
+q -c "update public.deal_business_sources set source = 'buyer' where deal_id = '$N';" >/dev/null
+ok "$(R)" 'Ben,Lou,Rita' 'the buyer referred it: every agent gets the intro'
+q -c "delete from public.deal_business_sources where deal_id = '$N';" >/dev/null
+ok "$(R)" 'Ben,Lou,Rita' 'no source on the file: every agent gets it'
+ok "$(val "select (private.task_flow_clean_steps('[{\"type\":\"send_email\",\"sendTo\":\"non_referring_agents\",\"subject\":\"Hello from CLA\",\"body\":\"Hi {{recipient_first_name}}\"}]') -> 0 ->> 'sendTo')")" 'non_referring_agents' 'an email step can go to the non-referring agents'
+q -c "update public.deal_business_sources set source = 'buyer_agent:10000000-0000-0000-0000-0000000000a1' where deal_id = '$N';" >/dev/null 2>&1
+q -c "insert into public.deal_business_sources (deal_id, source) values ('$N', 'buyer_agent:10000000-0000-0000-0000-0000000000a1') on conflict (deal_id) do update set source = excluded.source;" >/dev/null
+FI=$(val "set app.uid = '$A'; select public.save_task_flow_v2(null, 'Owner intro', '', 'order_opened', null, '{}', '[{\"type\":\"send_email\",\"sendTo\":\"non_referring_agents\",\"subject\":\"Welcome from CLA Title\",\"body\":\"Hi {{recipient_first_name}}, I am John, the owner. Call me anytime.\"}]')" | tail -1)
+before=$(val "select count(*) from public.outbox")
+val "set app.uid = '$A'; select public.try_task_flow_on_file('$FI', '$N')" >/dev/null
+ok "$(val "select count(*) - $before from public.outbox")" '1' 'Try on one file sends one test copy'
+ok "$(val "select (body like '%Ben Buyerside <ben@agents.test>%' and body like '%Lou Listing <lou@agents.test>%' and body not like '%rita@%')::text from public.outbox where subject = '[Test] Welcome from CLA Title'")" 'true' 'the test copy lists the two non-referring agents, not the referrer'
 
 # rollback
 q -f "$ROOT/supabase/rollbacks/20261127010000_task_flow_email_step.sql" >/dev/null

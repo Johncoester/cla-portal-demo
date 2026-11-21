@@ -40,7 +40,24 @@ alter table public.outbox add constraint outbox_recipient_check check ((to_profi
 create or replace function private.task_flow_email_role(p text) returns text
 language sql immutable set search_path to pg_catalog as $$
   select case p when 'Client-Buyer' then 'buyer' when 'Client-Seller' then 'seller' when 'Buyer Agent' then 'buyer''s agent' when 'Listing Agent' then 'listing agent'
-    when 'Transaction Coordinator' then 'transaction coordinator' when 'Lender' then 'lender' else lower(p) end $$;
+    when 'Transaction Coordinator' then 'transaction coordinator' when 'Lender' then 'lender' when 'non_referring_agents' then 'non-referring agent' else lower(p) end $$;
+
+-- who an email step goes to (same rule as emailRecipients / isNonReferringAgent in js/data/flow-email.js). John, Nov 21: "non-referring
+-- agents" = the buyer's and listing agents on the file except the one in the file's Source of business (deal_business_sources.source,
+-- e.g. 'buyer_agent:<contact id>'). A source naming an agent side but no person: that whole side is the referrer. Any other source: none.
+create or replace function private.task_flow_is_recipient(p_deal uuid, p_role text, p_contact uuid, p_send_to text) returns boolean
+language plpgsql stable security definer set search_path to pg_catalog, public, extensions as $$
+declare v_src text; v_code text; v_who text;
+begin
+  if p_send_to is distinct from 'non_referring_agents' then return p_role = p_send_to; end if;
+  if p_role not in ('Buyer Agent', 'Listing Agent') then return false; end if;
+  select btrim(coalesce(source, '')) into v_src from public.deal_business_sources where deal_id = p_deal;
+  v_code := split_part(coalesce(v_src, ''), ':', 1);
+  v_who := case when position(':' in coalesce(v_src, '')) > 0 then split_part(v_src, ':', 2) else '' end;
+  if v_code not in ('buyer_agent', 'listing_agent') then return true; end if;
+  if v_who <> '' then return coalesce(p_contact::text, '') <> v_who; end if;
+  return p_role <> case v_code when 'buyer_agent' then 'Buyer Agent' else 'Listing Agent' end;
+end $$;
 
 -- the file template merge fields (js/data/file-email-templates.js FILE_TEMPLATE_FIELDS)
 create or replace function private.task_flow_merge_keys() returns text[]
@@ -54,7 +71,7 @@ create or replace function private.task_flow_clean_email(s jsonb, i int) returns
 language plpgsql immutable set search_path to pg_catalog as $$
 declare v_subject text; v_body text; v_tpl text; bad text;
 begin
-  if coalesce(s ->> 'sendTo', '') not in ('Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Transaction Coordinator', 'Lender') then
+  if coalesce(s ->> 'sendTo', '') not in ('Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'non_referring_agents', 'Transaction Coordinator', 'Lender') then
     raise exception 'Step %: choose who the email goes to.', i using errcode = 'P0001'; end if;
   v_tpl := btrim(coalesce(s ->> 'templateId', ''));
   if v_tpl <> '' then
@@ -155,7 +172,7 @@ begin
   select count(*), string_agg(btrim(concat_ws(' ', c.first_name, c.last_name)) || ' <' || lower(btrim(c.email)) || '>', ', ') filter (where btrim(coalesce(c.email, '')) <> ''),
       min(lower(btrim(c.email))) filter (where btrim(coalesce(c.email, '')) <> '')
     into n_people, v_list, v_first
-    from public.deal_participants dp join public.contacts c on c.id = dp.contact_id where dp.deal_id = r.deal_id and dp.role = s ->> 'sendTo';
+    from public.deal_participants dp join public.contacts c on c.id = dp.contact_id where dp.deal_id = r.deal_id and private.task_flow_is_recipient(r.deal_id, dp.role, dp.contact_id, s ->> 'sendTo');
   if n_people = 0 then return jsonb_build_object('notes', jsonb_build_array('No ' || private.task_flow_email_role(s ->> 'sendTo') || ' on this file, so the email was not sent.')); end if;
   if v_list is null then return jsonb_build_object('notes', jsonb_build_array('The ' || private.task_flow_email_role(s ->> 'sendTo') || ' on this file has no email address, so the email was not sent.')); end if;
   if r.trial then
@@ -171,7 +188,7 @@ begin
   end if;
   for p in select c.profile_id, lower(btrim(c.email)) as email, coalesce(nullif(btrim(concat_ws(' ', c.first_name, c.last_name)), ''), lower(btrim(c.email))) as nm
       from public.deal_participants dp join public.contacts c on c.id = dp.contact_id
-      where dp.deal_id = r.deal_id and dp.role = s ->> 'sendTo' and btrim(coalesce(c.email, '')) <> '' loop
+      where dp.deal_id = r.deal_id and private.task_flow_is_recipient(r.deal_id, dp.role, dp.contact_id, s ->> 'sendTo') and btrim(coalesce(c.email, '')) <> '' loop
     v := private.task_flow_merge_values(r.deal_id, p.email);
     insert into public.outbox (kind, to_profile_id, to_email, to_name, subject, body, deal_id, created_by, sender_type, template_key)
       values ('task_flow_email', p.profile_id, p.email, p.nm, btrim(regexp_replace(private.task_flow_render(v_subject, v), '\s+', ' ', 'g')),
@@ -427,7 +444,7 @@ drop trigger if exists zz_task_flow_events on public.deals;
 create trigger zz_task_flow_events after insert or update of emd_received, closing_date, status on public.deals
   for each row execute function private.trg_task_flow_deal_events();
 
-revoke all on function private.task_flow_email_role(text), private.task_flow_merge_keys(), private.task_flow_clean_email(jsonb, int), private.task_flow_html_text(text),
+revoke all on function private.task_flow_email_role(text), private.task_flow_is_recipient(uuid, text, uuid, text), private.task_flow_merge_keys(), private.task_flow_clean_email(jsonb, int), private.task_flow_html_text(text),
   private.task_flow_join_names(text[]), private.task_flow_merge_values(uuid, text), private.task_flow_render(text, jsonb),
   private.task_flow_send_email(public.task_flow_runs, public.task_flows, jsonb) from public, anon, authenticated;
 
