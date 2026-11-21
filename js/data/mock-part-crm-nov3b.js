@@ -14,7 +14,7 @@ import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611247700';
 import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611247700';
 import { crmReadOnly } from './crm.js?v=202611247700';
-import { canOwnCrmRecords } from './crm-owner.js?v=202611241300';
+import { crmOwnerOption } from './crm-owner.js?v=202611289960';
 import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { roleAllowed } from './role-access.js?v=202611100100';
 import { referralLabel, REFERRALS } from './place-order.js?v=202611247700';
@@ -278,7 +278,7 @@ export function crmNov3bPart(x, h) {
     // the filter choices for the viewer: Deal Owner and Client only for the 'all' scope (a Sales Person filters by Source); Source = the Lead Source list
     // (active options, plus a retired one still on a visible deal)
     async listCrmDealFilters() { const u = crmUser(); const scope = dealScope(u); const rows = rowsOf(u, 'deals'); const d = db(); const cfg = cfgFor(u);
-      const owners = scope === 'all' ? d.profiles.filter((p) => canOwnCrmRecords(p))
+      const owners = scope === 'all' ? d.profiles.filter((p) => crmOwnerOption(p))
         .map((p) => ({ id: p.id, name: nameOf(p.id), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)) : [];
       const clients = scope === 'all' ? [...new Set(rows.flatMap((r) => r.clientIds))].map((id) => d.contacts.find((c) => c.id === id)).filter(Boolean)
         .map((c) => ({ id: c.id, name: fullName(c) })).sort((a, b) => a.name.localeCompare(b.name)) : [];
