@@ -156,7 +156,9 @@ document.querySelector('[data-tb-edit]').click();
 const boxes = [...document.querySelectorAll('[data-tb-cond="salesPeople"]')];
 const procBox = boxes.find((b) => b.value === 'u-proc');
 ok(!!procBox && (procBox.checked || procBox.hasAttribute('checked')) && /Paula Processor/.test((procBox.parentElement || procBox).textContent), 'editing the flow still shows that saved person by name, already chosen');
-ok(boxes.some((b) => b.value === 'u-sp') && !boxes.some((b) => b.value === 'u-admin'), 'new Task Builder sales choices are Sales Person and Sales Team only');
+// John, Nov 21: Task Builder's Sales person choice lists every active staff member (an Admin who also sells, a processor with their own clients).
+// Place Order and the file keep Janine's Nov 18 rule (Sales Person and Sales Team only).
+ok(boxes.some((b) => b.value === 'u-sp') && boxes.some((b) => b.value === 'u-admin'), 'Task Builder sales choices list every staff member, admins included');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('sales multi passed');
