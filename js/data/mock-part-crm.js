@@ -11,12 +11,12 @@ import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
   canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611247700';
-import { canOwnCrmRecords } from './crm-owner.js?v=202611241300';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611247700';
+import { crmOwnerOption } from './crm-owner.js?v=202611270200';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611270200';
 import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611247700';
 import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611247700';
 import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611070139';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611247000';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611270200';
 import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611247700';
 import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611247700';
 import { crmCallsPart } from './mock-part-crm-calls.js?v=202611247700';
@@ -68,7 +68,7 @@ export function crmPart(x, flags) {
   // blank owner = unassigned; on CREATE a salesperson's record defaults to themselves. A Sales Person assigns to themselves only. (= private.crm_owner_check)
   const owner = (u, v, current = null, create = false) => { let s = str(v, 60) || null;
     if (!s && create && isSales(u)) s = u.id;
-    if (s && s !== current && !canOwnCrmRecords(prof(s))) fail('The owner must be an active user who can own CRM records.');
+    if (s && s !== current && !crmOwnerOption(prof(s))) fail('The owner must be an active user who can own CRM records.');
     if (u.role === 'Sales Person' && !u.isAdmin && s !== current && s !== u.id) fail('A Sales Person can only assign records to themselves.');
     return s; };
   // task owner / meeting host: an active Sales Person, Sales Team or Admin login (default: me). A Sales Person assigns only to themselves.
@@ -309,7 +309,7 @@ export function crmPart(x, flags) {
   }
   const api = {
     async crmMe() { const u = crmUser(); return { email: (prof(u.id) || {}).email || '', canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: nameOf(u.id), scope: seesAllCrm(u) ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
-    async listCrmOwners() { crmUser(); return db().profiles.filter((p) => canOwnCrmRecords(p)).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
+    async listCrmOwners() { crmUser(); return db().profiles.filter((p) => crmOwnerOption(p)).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
     // task owners / meeting hosts (Sales Person, Sales Team, Admins) and the "Users" a meeting can include (active CLA staff)
     async listCrmAssignees() { crmUser(); return db().profiles.filter(assignable).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
     async listCrmUsers() { crmUser(); return db().profiles.filter((p) => p.status === 'active' && !C.isOutside(p.role)).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },

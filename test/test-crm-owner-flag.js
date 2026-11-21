@@ -1,4 +1,6 @@
-/* CRM-OWNER-1. Fake data only. A user can own CRM records only when an Admin or Super admin turns it on. */
+/* CRM-OWNER-1. Fake data only. A user can own CRM records when an Admin or Super admin turns the tick on.
+ * F35 row 415: an active Sales Person is also an owner choice, without the tick. The tick still adds everyone else.
+ * Those picker assertions changed because the owner list changed, not to hide a failure. */
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { canOwnCrmRecords } from '../js/data/crm-owner.js';
 import { toText } from '../js/ui.js';
@@ -18,9 +20,11 @@ const api = createMockAdapter({ storage, sessionStorage: mem() });
 await api.signInDev('u-admin');
 const users = await api.adminListUsers();
 ok(users.length > 0 && users.every((u) => u.canOwnCrm !== true), 'every user starts unticked, including admins');
-ok((await api.listCrmOwners()).length === 0, 'the owner picker is empty until someone is ticked');
+const beforeTick = await api.listCrmOwners();
+ok(beforeTick.length === 1 && beforeTick[0].id === 'u-sp' && beforeTick[0].role === 'Sales Person', 'an active Sales Person is in the owner picker before anyone is ticked');
+ok(!beforeTick.some((o) => o.id === 'u-team' || o.id === 'u-admin' || o.id === 'u-adam'), 'Sales Team and an unticked admin are not added by role');
 const filters = await api.listCrmDealFilters();
-ok(filters.scope === 'all' && filters.owners.length === 0, 'the deal owner picker is empty until someone is ticked');
+ok(filters.scope === 'all' && filters.owners.length === 1 && filters.owners[0].id === 'u-sp', 'the deal owner picker lists the active Sales Person before anyone is ticked');
 const harbor = (await api.listCrmAccounts()).find((a) => a.id === 'acc-harbor');
 ok(harbor && harbor.ownerId === 'u-sp' && harbor.ownerName.includes('Sam'), 'a record keeps the name of an owner who is not ticked');
 
@@ -31,9 +35,9 @@ await api.adminUpdateUser('u-proc', { canOwnCrm: true });
 await api.adminUpdateUser('u-bagent', { canOwnCrm: true });
 const owners = await api.listCrmOwners();
 ok(owners.some((o) => o.id === 'u-proc' && o.role === 'Processor') && owners.some((o) => o.id === 'u-bagent' && o.role === 'Outside user'), 'a ticked user of any role is in the picker');
-ok(!owners.some((o) => o.id === 'u-sp' || o.id === 'u-admin' || o.id === 'u-adam'), 'an unticked salesperson or admin is not in the picker');
+ok(owners.some((o) => o.id === 'u-sp' && o.role === 'Sales Person') && !owners.some((o) => o.id === 'u-admin' || o.id === 'u-adam'), 'the active salesperson stays in the picker and an unticked admin does not');
 const dealOwners = (await api.listCrmDealFilters()).owners.map((o) => o.id);
-ok(dealOwners.includes('u-proc') && dealOwners.includes('u-bagent') && !dealOwners.includes('u-sp'), 'the deal owner picker uses the same tick');
+ok(dealOwners.includes('u-proc') && dealOwners.includes('u-bagent') && dealOwners.includes('u-sp') && !dealOwners.includes('u-team'), 'the deal owner picker keeps the tick and the active salesperson');
 
 const log = await api.listActivity(null, {});
 const turnedOn = log.items.find((a) => a.action === 'user.crm_owner' && a.entityId === 'u-proc' && /from no to yes/.test(a.detail));
@@ -42,8 +46,11 @@ ok(turnedOn && turnedOn.actorId === 'u-admin' && turnedOn.entity === 'user' && t
 const lead = (await api.listCrmLeads()).find((l) => !l.archived && !l.converted);
 const saved = await api.updateCrmLead(lead.id, { ownerId: 'u-proc' });
 ok(saved.ownerId === 'u-proc' && saved.ownerName.includes('Paula'), 'mass-update style owner save accepts a ticked user and keeps the name');
-ok(/can own CRM records/.test(await aerr(api.updateCrmLead(lead.id, { ownerId: 'u-sp' }))), 'an unticked salesperson cannot be saved as the owner');
-ok(saved.ownerName.includes('Paula') && (await api.getCrmLead(lead.id)).ownerId === 'u-proc', 'the lead still has the ticked owner');
+const asSam = await api.updateCrmLead(lead.id, { ownerId: 'u-sp' });
+ok(asSam.ownerId === 'u-sp' && asSam.ownerName.includes('Sam'), 'an active salesperson can be saved as the owner without the tick');
+await api.updateCrmLead(lead.id, { ownerId: 'u-proc' });
+ok(/can own CRM records/.test(await aerr(api.updateCrmLead(lead.id, { ownerId: 'u-preproc' }))), 'an unticked user who is not a Sales Person cannot be saved as the owner');
+ok((await api.getCrmLead(lead.id)).ownerId === 'u-proc', 'the lead still has the ticked owner');
 
 const imported = await api.runCrmImport({
   module: 'leads',
@@ -186,7 +193,7 @@ ok(box.checked === false && codeToast && /Refresh the page and try again/.test(c
 
 const css = await import('node:fs');
 ok(css.readFileSync('css/portal.css', 'utf8').includes('.user-list-scroll .crm-owner-tick { min-width: 44px; min-height: 44px; }'), 'a phone can tap the CRM owner box');
-ok(css.readFileSync('js/app.js', 'utf8').includes("pages/users.js?v=202611248300") && css.readFileSync('index.html', 'utf8').includes('js/app.js?v=202611270100'), 'the User List uses cache stamp 202611248300 and the shell 202611270100');
+ok(css.readFileSync('js/app.js', 'utf8').includes("pages/users.js?v=202611248300") && css.readFileSync('index.html', 'utf8').includes('js/app.js?v=202611270200'), 'the User List uses cache stamp 202611248300 and the shell 202611270200');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('crm owner flag passed');
