@@ -4,7 +4,7 @@
 
 **Tracker:** CRM Feedback 31 item 1.
 
-**Status:** In progress. Pull request [359](https://github.com/Johncoester/cla-portal-demo/pull/359) added the charts. Reorder (F31b, row 414) is a follow-up. Not merged. Not Live. A database file is included and has not been applied.
+**Status:** In progress. Pull request [359](https://github.com/Johncoester/cla-portal-demo/pull/359) added the charts. Reorder (F31b, row 414) is pull request [393](https://github.com/Johncoester/cla-portal-demo/pull/393). Not merged. Not Live. A database file is included and has not been applied.
 
 ## What the user sees
 

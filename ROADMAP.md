@@ -2845,7 +2845,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On CRM Home, a **...** button at the top right opens a small menu with **Reorder**. Reorder shows **Move up** and **Move down** on each Home chart, plus **Done**. The new order is saved for that person and is still there after they leave Home and come back. Another person does not see or change it. Refresh, Rename, and Remove keep working. When Home has no charts, Reorder is disabled and the menu says there is nothing to reorder.
 
-**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. No new database file. Not Live.
+**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393). No new database file. Not Live.
 
 **What's built**
 
@@ -2864,6 +2864,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
+- Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393)
 - Earlier pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359)
 
 **Decisions**
