@@ -1361,6 +1361,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## TC sees what their agent sees (TC-VIS-1)
+
+**How it should work.** A transaction coordinator sees everything their agent sees on the file: the agent's open and closed tasks, commissions and other agent fees. A TC is one person on many files, working with several agents. On a file, the TC acts for that side's agent when they are on the file as that side's coordinator, or when they are linked to the agent.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026 (standing rule) and Nov 21 2026 (TC rules). Tracker item TC-VIS-1. Rule 9 waived by John for this fix, Nov 21 2026, 11:19 AM ET. Not Live until `supabase/migrations/20261126990000_tc_sees_agent_file.sql` is applied on TEST.
+
+**What's built**
+
+- The database treats a coordinator on the file (Buyer Agent TC or Listing Agent TC) like a linked one: the agent's tasks on that side, open and closed, on open and closed files; the agent's answers; filling in and finishing the agent's forms and tasks on the agent's behalf; the agent fees for that side.
+- A CLA staff Transaction Coordinator gets the agent fees for the side where they are that side's coordinator, or linked to that side's agent.
+- The file Tasks tab: the TC's My Tasks lists the agent's tasks, marked "your agent". The cross-file My Tasks list includes them too.
+- The per-file check keeps its plan between calls. Outside users' task lists are about 5 times faster on a local copy.
+
+**What's still missing**
+
+- Assigning a TC to an agent from the admin screen, the TC's contact and the file, both ways, with the TC put on all of the agent's files. That is TC-ASSIGN-1.
+- Documents and messages are not part of this change.
+
+**Links**
+
+- Spec: [docs/specs/tc-sees-agent-file.md](docs/specs/tc-sees-agent-file.md)
+- Source: John Coester, chat, Nov 20-21 2026. Tracker item TC-VIS-1.
+
+**Decisions**
+
+- Nothing is stored or moved. Only read and permission checks change.
+- The other side's agent tasks and fees, and the buyer's and seller's own tasks, stay hidden from the TC.
+
+---
+
 ## Reuse a contact by email (CONTACT-REUSE-1)
 
 **How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
