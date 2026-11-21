@@ -1496,7 +1496,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from. Order Contacts does not offer a Transaction coordinators button.
 
-**Status: In progress.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Not applied on TEST. Not Live.
+**Status: Live.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. `20261125240000_agent_tc_links.sql` is applied on TEST (recorded as `agent_tc_links`, v20261118182129, Nov 18 2026 1:21 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied.
 
 **What's built**
 
@@ -1531,7 +1531,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
 
-**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back, so nothing from this file is on TEST. The database file is corrected in place. Not applied on TEST. Not Live.
+**Status: Live.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back; the corrected file `20261125250000_agent_tc_on_file.sql` is applied on TEST (v20261119021738, Nov 18 2026 9:17 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied. Since Nov 21, TC-VIS-1 (PR 392) lets a coordinator on the file see and work their agent's tasks and fees, and TC-ASSIGN-1 (PR 394) puts a linked coordinator on all of the agent's files, from either side or from the file.
 
 **What's built**
 
@@ -2976,4 +2976,34 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database file. The company list is already loaded, then sorted in the browser, the same way Leads and Clients sort after their list is loaded.
 - Cache stamp 202611249800, so a saved copy of the Companies page is not reused.
+
+---
+
+## CRM owner lists include Sales Person users (F35)
+
+**How it should work.** In the CRM, every owner dropdown and owner filter lists Unassigned, every active person who already has Can own CRM records turned on, and every active user with the Sales Person role. A disabled or removed person is not listed. Sales Team is not added by role. An admin who is not ticked stays off the list, the same as before. A salesperson can still change only a record they own, and can still assign a record only to themselves.
+
+**Status: In progress.** Tracker F35, row 415. Janine Santos, Nov 19 2026 Feedback 35 video, confirmed Nov 20 2026, 12:40 PM ET ("yes, that's it"). The database file is not applied on TEST. Not Live until that file is applied and someone checks the Clients Owner filter on TEST.
+
+**What's built**
+
+- One owner rule for the picker and for saving an owner: an active Sales Person, or an active user with the tick.
+- Lead Owner, Client Owner, Company Owner, and Deal Owner use that list: filters, Change owner, and the Add and Edit forms.
+- The tick on User List is unchanged. A salesperson still cannot change a record they do not own.
+
+**What's still missing**
+
+- Apply `supabase/migrations/20261127020000_crm_sales_person_owners.sql` on TEST. Do not mark Live before that. Then sign in, open CRM, then Clients, and check that the Owner filter and the Client Owner field list the active Sales Person users plus the people who were already there.
+- Spreadsheet import still matches an owner by the tick. Zoho sync is unchanged.
+
+**Links**
+
+- Spec: [docs/specs/crm-sales-owners.md](docs/specs/crm-sales-owners.md)
+- Source: Janine Santos, Nov 19 2026 Feedback 35 video, and her Nov 20 2026, 12:40 PM ET "yes, that's it". Tracker F35, row 415.
+
+**Decisions**
+
+- The database file is required. A Sales Person cannot read every other salesperson's profile, so the existing owner list (a database function) is the one place that can show the full list. The pull request does not apply it.
+- Sales Team is not added by role. Inactive users stay off the list.
+- Cache stamp 202611289970, above main's 202611289960, so a saved copy of the shell is not reused.
 
