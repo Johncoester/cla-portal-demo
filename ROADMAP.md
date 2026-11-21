@@ -2977,3 +2977,33 @@ This file lists the portal's major features: how each one should work, how far a
 - No database file. The company list is already loaded, then sorted in the browser, the same way Leads and Clients sort after their list is loaded.
 - Cache stamp 202611249800, so a saved copy of the Companies page is not reused.
 
+---
+
+## CRM owner lists include Sales Person users (F35)
+
+**How it should work.** In the CRM, every owner dropdown and owner filter lists Unassigned, every active person who already has Can own CRM records turned on, and every active user with the Sales Person role. A disabled or removed person is not listed. Sales Team is not added by role. An admin who is not ticked stays off the list, the same as before. A salesperson can still change only a record they own, and can still assign a record only to themselves.
+
+**Status: In progress.** Tracker F35, row 415. Janine Santos, Nov 19 2026 Feedback 35 video, confirmed Nov 20 2026, 12:40 PM ET ("yes, that's it"). The database file is not applied on TEST. Not Live until that file is applied and someone checks the Clients Owner filter on TEST.
+
+**What's built**
+
+- One owner rule for the picker and for saving an owner: an active Sales Person, or an active user with the tick.
+- Lead Owner, Client Owner, Company Owner, and Deal Owner use that list: filters, Change owner, and the Add and Edit forms.
+- The tick on User List is unchanged. A salesperson still cannot change a record they do not own.
+
+**What's still missing**
+
+- Apply `supabase/migrations/20261127020000_crm_sales_person_owners.sql` on TEST. Do not mark Live before that. Then sign in, open CRM, then Clients, and check that the Owner filter and the Client Owner field list the active Sales Person users plus the people who were already there.
+- Spreadsheet import still matches an owner by the tick. Zoho sync is unchanged.
+
+**Links**
+
+- Spec: [docs/specs/crm-sales-owners.md](docs/specs/crm-sales-owners.md)
+- Source: Janine Santos, Nov 19 2026 Feedback 35 video, and her Nov 20 2026, 12:40 PM ET "yes, that's it". Tracker F35, row 415.
+
+**Decisions**
+
+- The database file is required. A Sales Person cannot read every other salesperson's profile, so the existing owner list (a database function) is the one place that can show the full list. The pull request does not apply it.
+- Sales Team is not added by role. Inactive users stay off the list.
+- Cache stamp 202611289970, above main's 202611289960, so a saved copy of the shell is not reused.
+
