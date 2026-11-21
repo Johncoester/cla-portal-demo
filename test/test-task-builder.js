@@ -20,7 +20,7 @@ const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 ok(TRIGGERS.map((t) => t.code).join() === 'order_opened,contract_received,emd_received,emd_not_received,commitment_received,closing_date_set,days_before_closing,file_closed', 'the list of triggers (File closed added for TB-7)');
 ok(triggerNeedsDays('emd_not_received') && triggerNeedsDays('days_before_closing') && !triggerNeedsDays('order_opened'), 'only the two day-based triggers need days');
 ok(triggerText('emd_not_received', 2) === 'EMD not received, 2 days after the order was opened' && triggerText('days_before_closing', 1) === 'Days before closing, 1 day before the closing date', 'trigger text reads in plain words');
-ok(/Give the flow a name/.test(err(() => cleanFlow({ name: '  ', trigger: 'order_opened' }))), 'a blank name is refused in plain words');
+ok(/Give the template a name/.test(err(() => cleanFlow({ name: '  ', trigger: 'order_opened' }))), 'a blank name is refused in plain words');
 ok(/too short/.test(err(() => cleanFlow({ name: 'ab', trigger: 'order_opened' }))), 'a two-letter name is refused');
 ok(/Choose what starts/.test(err(() => cleanFlow({ name: 'EMD reminder' }))), 'a missing trigger is refused');
 ok(/not on the list/.test(err(() => cleanFlow({ name: 'EMD reminder', trigger: 'drop table' }))), 'an unknown trigger is refused');
