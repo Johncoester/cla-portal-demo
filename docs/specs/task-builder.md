@@ -112,3 +112,12 @@ John: flows should also send emails that are not chasing anything, for example a
 - **Email the agents who didn't refer the file.** A Send an email step can go to "Agents who didn't refer the file": the buyer's and listing agents on the file except the one in the file's Source of business (the referral field). If the source names an agent side but no person, that whole side counts as the referrer; any other source (buyer, lender, a lead source, blank) means every agent gets it. Example: Order opened → email the non-referring agents John's owner intro with {{recipient_first_name}}.
 - Emails still send from the file's processor (as all flow emails do). Sending as a named person, such as John, is not built.
 - Database: `20261128010000_task_flow_non_referring_agents.sql` (after TB-7's file); rollback in `supabase/rollbacks/`.
+
+## TB-9: easier to build (John, Nov 21 2026, second voice pass)
+
+John, trying TB-8 on TEST: "it's a little still confusing."
+- **Templates, not flows.** "Name... should be called template name." The page says templates everywhere ("+ New template", "Template name", "Create template"); one template holds one step or up to 20. Saved email choices now read "Saved email: <name>" so they aren't mixed up with Task Builder templates. (Admin > Task Templates, PR 141, is a different page and keeps its name.)
+- **Limit to certain files (optional).** "What happens if we need to create a task that's not a salesperson?" Which files sits behind a closed "Limit to certain files" link (open when the template already uses it). It says that it only picks which files run; who gets each task is set on the step.
+- **A When box on each step.** "Where do I put in here when to send this email?" Each step has "When: [N] days after it starts" (0 = right away), with the plain sentence above it ("2 days after the order opens: email the buyer."). There is no Wait step to choose any more. Saving sorts the steps by day and puts Waits between days; opening a saved template turns its Waits back into days, so the engine, the database and older templates are unchanged. A new step starts on the same day as the one before it.
+- **Insert field.** "Pretty difficult here to have to copy and paste that." Under the email's subject and message, an Insert field list in plain words ("Buyer first name", "Property address"...). Choosing one drops the {{field}} where the cursor is, in the message unless the subject was clicked last.
+- No database change.
