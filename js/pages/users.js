@@ -5,12 +5,13 @@
 // Super admin (only a Super admin grants/removes it or deletes/suspends/changes a Super admin).
 import { html, raw, $, $$, guard, formData, pill, toast, fmtDate, options, plainError } from '../ui.js?v=202611161500';
 import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611247700';
-import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
+import { ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, OUTSIDE, isAdminRole, isSuperAdmin, isSalesRole, roleLabel, CONTACT_TYPES, contactTypeLabel, outsideTypeLabel, AGENT_TC_TYPE_NOTE, AGENT_TC_TYPE } from '../data/constants.js?v=202611247700';
 // contact type (John, Nov 2): outside users only (agents, clients, lenders); staff have none
 const ctypeSel = (sel, dis = '') => html`<label data-ctype-field>Contact type <span class="muted small">(outside users; for reporting)</span><select name="contactType" ${dis}><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select><span class="field-hint">${AGENT_TC_TYPE_NOTE}</span></label>`;
 import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611247700';
 import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611248300';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
+import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611289960';
 const acct = (r) => (r === OUTSIDE ? 'Realtor / Client (role set per order)' : r);   // display only (live40): the stored value stays 'Outside user'
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it
@@ -59,6 +60,12 @@ export async function render({ api, user, params, refresh, go }) {
       const found = (people || []).find((c) => c.profileId === u.id) || null;
       if (found && isRealEstateAgent(found, u.files || [])) agentContact = found;
     }
+    // TC-ASSIGN-1: an outside coordinator (contact type or a coordinator role on a file) gets "Agents this coordinator works with".
+    let tcContact = null;
+    if (u.role === OUTSIDE && api.listContacts && api.listTcAgents && (u.contactType === AGENT_TC_TYPE || (u.files || []).some((f) => f.role === 'Buyer Agent TC' || f.role === 'Listing Agent TC'))) {
+      const people = await api.listContacts().catch(() => []);
+      tcContact = (people || []).find((c) => c.profileId === u.id) || null;
+    }
     const body = html`<div class="box-title"><h2><span class="h-ico"></span>Edit User</h2></div>
       <form id="euf" class="card form-grid" data-user="${u.id}">
         <label>First name *<input name="firstName" required maxlength="80" value="${u.firstName}" ${gone ? raw('disabled') : ''}></label><label>Last name<input name="lastName" maxlength="80" value="${u.lastName}" ${gone ? raw('disabled') : ''}></label>
@@ -76,9 +83,10 @@ export async function render({ api, user, params, refresh, go }) {
           <p class="muted small">A client can have any number of salespeople, and a salesperson any number of clients. Untick to remove a link. Linking does not change who can see a file.</p></fieldset>`
         : isSalesRole(u.role) ? html`<div class="span2" data-clients><strong>Linked clients:</strong> ${(u.clients || []).length ? u.clients.map((c) => c.name).join(', ') : html`<span class="muted">none</span>`} <span class="muted small">(edit links from the client's page)</span></div>` : ''}
         <div class="span2">${gone ? '' : html`<button class="m-btn" type="submit">Save</button> `}<a class="ghost" href="#/users">Back to User List</a></div></form>
-      ${agentContact ? agentTcSectionHtml({ canEdit: !gone }) : ''}`;
+      ${agentContact ? agentTcSectionHtml({ canEdit: !gone }) : ''}${tcContact ? tcAgentsSectionHtml({ canEdit: !gone }) : ''}`;
     return { title: 'Edit User', crumbs: [['User List', '#/users'], [fullName(u)]], body, mount(root) {
       if (agentContact) mountAgentTcSection(root, { api, agentContactId: agentContact.id, canEdit: !gone });
+      if (tcContact) mountTcAgentsSection(root, { api, tcContactId: tcContact.id, canEdit: !gone });
       const f = $('#euf', root); if (gone) return;
       f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const fd = formData(e.target); const patch = { firstName: fd.firstName, lastName: fd.lastName, phone: fd.phone }; if ('contactType' in fd) patch.contactType = fd.contactType;
         if (!dis) { patch.role = fd.role; patch.status = fd.status; }
