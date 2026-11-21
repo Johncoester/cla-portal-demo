@@ -23,8 +23,12 @@ const mailCell = (n) => {
   return html`<span class="bell-cell" data-new-mail="${n}" title="${label}"><img src="assets/img/bell_new.png" alt="New message"><span class="count">${n}</span></span>`;
 };
 
+// TC-NEW-TASKS-PAGE-1 (John, Nov 21 2026): Open Tasks (#/orders?view=tasks, its own left-menu item) lists every open task across the
+// person's files in this page's table look. Outside users and agents only; anyone else gets Open Orders as before.
+export const openTasksFor = (user) => !!user && (isOutside(user.role) || isAgent(user.role));
 export async function render({ api, user }) {
   const q = new URLSearchParams((location.hash.split('?')[1]) || ''); const tab = TABS.some((t) => t[0] === q.get('s')) ? q.get('s') : 'Open';
+  if (q.get('view') === 'tasks' && openTasksFor(user)) return (await import('./open-tasks.js?v=202611289995')).render({ api, user });
   // The unread counts start with the order list. One open_order_mail read when that function exists.
   // If it fails, keep the portal count already on the deal (mock).
   const mailPromise = api.orderMailUnread ? api.orderMailUnread().catch(() => null) : Promise.resolve(null);
