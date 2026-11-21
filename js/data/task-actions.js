@@ -11,6 +11,8 @@ export function camelHosted(o) {
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camelHosted(v)])) : o;
 }
 
+const TC_AGENT_ROLE = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
+
 export function shapeListedTask(t, user, opts = {}) {
   if (!t) return t;
   const owner = t.ownerProfileId || t.ownerId || null;
@@ -20,7 +22,12 @@ export function shapeListedTask(t, user, opts = {}) {
   const held = new Set([...roles, ...fileRoles].filter(Boolean));
   const mineIds = opts.myParticipantIds || [];
   const ownsCopy = !!(t.participantId && mineIds.includes(t.participantId) && (!owner || owner === user.id));
-  const mine = !!(user && (owner === user.id || ownsCopy || (!t.participantId && held.has(t.assignedRole))));
+  const ownMine = !!(user && (owner === user.id || ownsCopy || (!t.participantId && held.has(t.assignedRole))));
+  // TC-VIS-1 (John, Nov 20-21): a transaction coordinator on the file sees and works their agent's tasks, open and closed.
+  // The database only returns the agent's tasks on the coordinator's side, so the side check here is enough.
+  const actsFor = new Set(fileRoles.map((r) => TC_AGENT_ROLE[r]).filter(Boolean));
+  const forAgent = !!(user && !ownMine && owner !== user.id && actsFor.has(t.assignedRole));
+  const mine = ownMine || forAgent;
   const manager = !!(user && (runsOrders(user) || user.role === 'Transaction Coordinator'));
   const kind = t.kind || (t.templateId ? 'form' : 'simple');
   const readOnly = viewOnly(user);
@@ -34,6 +41,7 @@ export function shapeListedTask(t, user, opts = {}) {
     ...t,
     kind,
     mine,
+    forAgent,
     canFill,
     canComplete,
     canTick,
