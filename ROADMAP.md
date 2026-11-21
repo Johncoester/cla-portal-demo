@@ -1390,6 +1390,15 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Assign agents and coordinators (TC-ASSIGN-1)
+
+**Status: In progress.** John Coester, chat, Nov 21 2026 (TC rules). Tracker item TC-ASSIGN-1. Rule 9 waived by John for the TC fixes, Nov 21 2026. Not Live until `supabase/migrations/20261127990000_tc_assign_agents.sql` is applied on TEST.
+
+- An agent and a transaction coordinator are linked from User List > Edit user (either person), from either person's CRM contact record, or within a file (Order Contacts: adding a coordinator next to that side's agent, or an agent next to that side's coordinator).
+- One link, both ways. The coordinator then goes on every file that agent is on (open, closed, on hold or cancelled), on the agent's side. Refinances are left out.
+- Removing a link takes nobody off a file. A CLA staff login is never linked. A coordinator placed by a link is not linked onward to other agents on that file.
+- Spec: [docs/specs/tc-assign-agents.md](docs/specs/tc-assign-agents.md).
+
 ## Reuse a contact by email (CONTACT-REUSE-1)
 
 **How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.

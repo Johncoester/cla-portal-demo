@@ -2,7 +2,9 @@
 // tasks/<id>, meetings/<id>, calls (the list) and calls/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES } from '../data/constants.js?v=202611247700';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES, AGENT_TC_TYPE } from '../data/constants.js?v=202611247700';
+import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611269920';
+import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611247700';
 import { canChangeCrmRecord } from '../data/crm-visibility.js?v=202611247100';
 import { display, moduleFields } from '../data/crm-analytics.js?v=202611247700';
@@ -217,11 +219,15 @@ async function contactPage({ api, me, owners, assignees, params, refresh, cfg })
       <p data-record-actions>${sendEmailBtn('contact', c.id, me)} ${editControl(me, c, 'data-edit-contact')} ${moreMenu(archiveControl(me, c, 'contact', c.id, c.archived), ' ', composeBtn('contact', c.id))} ${lockNote(me, c)} ${nav} <a class="ghost" href="#/crm/contacts">Back to clients</a></p>
       <span hidden data-contact-account>${c.accountId ? c.accountName : ''}</span></div>
     ${personView('contact', c, extra, cfg)}
+    ${c.contactType === AGENT_TC_TYPE ? tcAgentsSectionHtml({ canEdit: !!me.canEdit }) : c.contactType === 'realtor' ? agentTcSectionHtml({ canEdit: !!me.canEdit }) : ''}
     ${relatedHtml(c, { entity: 'contact', entityId: c.id, me, cfg })}
     ${ordersCard(c.orders, c.totals)}${emailsCard(emails)}
     <div class="card" data-contact-opps><h3>Pipeline</h3>${c.opportunities.length ? html`<ul>${c.opportunities.map((o) => html`<li>${o.name}: <strong>${lbl(cfg, 'oppStage', o.stage)}</strong> (${o.ownerName || 'unassigned'})</li>`)}</ul>` : html`<p class="muted">No opportunities.</p>`}<a href="#/crm/pipeline">Open the pipeline</a></div>`)}`;
   return { title: 'Client ' + c.name, crumbs: crumbs('Clients', ['#/crm/contacts', c.name]), body, mount(root) {
     wireShortcuts(root);
+    // TC-ASSIGN-1: a coordinator's record lists their agents; an agent's record lists their coordinators (the same link, both ways).
+    if (c.contactType === AGENT_TC_TYPE) mountTcAgentsSection(root, { api, tcContactId: c.id, canEdit: !!me.canEdit });
+    else if (c.contactType === 'realtor') mountAgentTcSection(root, { api, agentContactId: c.id, canEdit: !!me.canEdit });
     wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireCfFiles(root, api, refresh); wireArchive(root, api, refresh); wireCompose(root, api, me, refresh); wireRelated(root, api, refresh, { entity: 'contact', entityId: c.id, parentName: c.name, me, assignees, cfg, rec: c });
     const e = $('[data-edit-contact]', root); if (e) e.addEventListener('click', () => personModal('contact', c, { owners, accounts, me, edit: true, cfg }, (v) => api.updateCrmContact(c.id, v), () => refresh())); } };
 }
