@@ -3,11 +3,13 @@
  * (create tasks, send emails, wait, check again). Builds on the Task Templates work (PR 141).
  * TB-1: the page, who can use it, and the list of flows with a name, a trigger and an On / Off switch.
  * TB-2: conditions, steps (create a task, phone call task, wait, stop if EMD received) and the engine that runs them. Admins and Super admins only.
+ * TB-6 (Nov 20): "Request a form from a party" steps (client requests; js/data/client-requests.js).
  * Shared by the mock adapter (mock-part-task-builder.js), the Supabase adapter (supabase-task-builder.js) and the page. */
 
+import { cleanRequestStep, requestStepText, formTitle } from './client-requests.js?v=202611261000';
 export const TASK_BUILDER_ADMIN_ONLY = 'Only an Admin or Super admin can use Task Builder.';
 export const FLOWS_RUN_NOTE = 'Flows that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. A flow starts once per file (a closing date change can start it again). Use Try on one file to see a flow work on a single order first.';
-export const TRIAL_NOTE = 'Runs every step on this one file now, even while the flow is Off. Waits are skipped so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the flow\'s real run on this file.';
+export const TRIAL_NOTE = 'Runs every step on this one file now, even while the flow is Off. Waits are skipped so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the flow\'s real run on this file. A test run emails nobody: form requests are added as tasks but not emailed.';
 
 // What starts a flow. `days` = the trigger needs a number of days (1 to 60).
 export const TRIGGERS = [
@@ -87,7 +89,7 @@ export const ASSIGN_ROLES = [['Processor', 'Processor'], ['Preprocessor', 'Pre-p
   ['Listing Agent', 'Listing agent'], ['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Transaction Coordinator', 'Transaction coordinator'], ['Lender', 'Lender']];
 export const roleLabel = (r) => (ASSIGN_ROLES.find(([v]) => v === r) || [r, r])[1];
 
-export const STEP_TYPES = [['create_task', 'Create a task'], ['call_task', 'Create a phone call task'], ['wait', 'Wait'], ['stop_if_emd_received', 'Stop if the EMD has been received']];
+export const STEP_TYPES = [['create_task', 'Create a task'], ['call_task', 'Create a phone call task'], ['client_request', 'Request a form from a party'], ['wait', 'Wait'], ['stop_if_emd_received', 'Stop if the EMD has been received']];
 export const STEP_MAX = 20;
 export const TITLE_MAX = 120;
 export const DUE_MAX = 60;
@@ -97,6 +99,7 @@ export function stepText(s) {
     const due = Number(s.dueDays) === 0 ? 'due the same day' : `due in ${s.dueDays} ${Number(s.dueDays) === 1 ? 'day' : 'days'}`;
     return `${s.type === 'call_task' ? 'Phone call task' : 'Task'} for the ${roleLabel(s.assignTo).toLowerCase()}: "${s.title}", ${due}`;
   }
+  if (s.type === 'client_request') return requestStepText(s);
   if (s.type === 'wait') return `Wait ${s.days} ${Number(s.days) === 1 ? 'day' : 'days'}`;
   if (s.type === 'stop_if_emd_received') return 'Stop if the EMD has been received';
   return 'Unknown step';
@@ -119,6 +122,7 @@ export function cleanSteps(steps) {
       if (dueDays == null) throw new Error(`${n}: due in must be a whole number of days from 0 to ${DUE_MAX}.`);
       return { type, title, assignTo: s.assignTo, dueDays };
     }
+    if (type === 'client_request') return cleanRequestStep(s, n);
     if (type === 'wait') {
       const days = intIn(s.days, DAYS_MIN, DAYS_MAX);
       if (days == null) throw new Error(`${n}: wait must be a whole number of days from ${DAYS_MIN} to ${DAYS_MAX}.`);
@@ -127,8 +131,8 @@ export function cleanSteps(steps) {
     return { type };
   });
 }
-export const hasTaskStep = (steps) => (steps || []).some((s) => s.type === 'create_task' || s.type === 'call_task');
-export const NO_TASK_STEP = 'Add at least one "Create a task" or "Create a phone call task" step before turning the flow on.';
+export const hasTaskStep = (steps) => (steps || []).some((s) => s.type === 'create_task' || s.type === 'call_task' || s.type === 'client_request');
+export const NO_TASK_STEP = 'Add at least one "Create a task", "Create a phone call task" or "Request a form from a party" step before turning the flow on.';
 
 export function cleanConditions(c = {}) {
   const pick = (v, ok) => [...new Set((Array.isArray(v) ? v : []).map(String))].filter(ok);
@@ -213,6 +217,9 @@ export function advanceRun(run, flow, ctx) {
     run.stepIndex += 1;
     if (s.type === 'create_task' || s.type === 'call_task') {
       out.push({ step: run.stepIndex, title: s.title, assignTo: s.assignTo, call: s.type === 'call_task', dueDate: dateOnly(addDays(ctx.nowIso, s.dueDays)) });
+      run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: ${stepText(s)}` });
+    } else if (s.type === 'client_request') {
+      out.push({ step: run.stepIndex, request: true, formCode: s.formCode, title: formTitle(s.formCode), assignTo: s.sendTo, dueDate: dateOnly(addDays(ctx.nowIso, s.dueDays)), remindEvery: s.remindEvery, remindTimes: s.remindTimes });
       run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: ${stepText(s)}` });
     } else if (s.type === 'wait' && run.trial) {
       run.log.push({ at: ctx.nowIso, text: `Step ${run.stepIndex}: wait ${s.days} ${s.days === 1 ? 'day' : 'days'} (skipped in a test run)` });

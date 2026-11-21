@@ -689,7 +689,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Place Order buyer and seller rows take a name, email, and phone (and the entity fields that were already there). The search box remains for an existing contact. A typed name no longer stops on "pick a person from the list."
 - Buyer's agent, listing agent, and lender: a list of saved companies and agents or loan officers, plus boxes to type a person and a company.
 - The same entry is on the file's Parties buttons and on Contacts → Add contact.
-- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten.
+- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten. If the typed email already belongs to a contact, that contact is used (CONTACT-REUSE-1).
 
 **What's still missing**
 
@@ -793,30 +793,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged (PR 263, Nov 14); not Live until its database file is applied on TEST. TB-2b (Try on one file, new files only) pull request open.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged ([PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263), Nov 14); engine file already applied on TEST as 20261114143634. TB-2b merged ([PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265)); try-and-scope file already applied on TEST as 20261114170335. TB-6 Live on TEST ([PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389), Nov 20).**
 
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
-| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265) open. Not Live until `20261122010000_task_flow_try_and_scope.sql` is applied on TEST, after TB-2's file |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Database file already applied on TEST as `task_flow_engine` version 20261114143634 (repo file `20261121010000_task_flow_engine.sql`). |
+| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | Merged, [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265). Database file already applied on TEST as `task_flow_try_and_scope` version 20261114170335 (repo file `20261122010000_task_flow_try_and_scope.sql`). |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
+| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
 
 **What's built**
 
 - TB-1: **Admin > Task Builder**, its own menu item, for Admins and Super admins only (everyone else gets "Not authorized"). It lists flows with name, description, what starts it, On / Off, and who changed it last. **+ New flow** and **Edit** take a name, what starts it, days (for "EMD not received" and "Days before closing") and a description. New flows start Off; Turn on / Turn off switch them; nothing is deleted. A History card shows every change.
 - TB-2: each flow says **which files** it applies to (transaction type: purchase, cash purchase or refinance; state; sales person — blank means any) and has **steps** run in order: create a task, create a phone call task, wait a number of days, or stop if the EMD has been received. A task goes to everyone on the file with the chosen role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). The page shows each flow's steps, recent runs (flow, file, status, latest step) and a **Check files now** button. A flow needs at least one task step before it can be turned on. The database starts flows when an order is opened, the EMD is marked received, or the closing date is set or changed, and every 15 minutes checks the day-based triggers and waits. Nothing in it can stop an order from saving.
+- TB-6 (John, Nov 20): a **Request a form from a party** step: which intake form, who it goes to, due in, and reminders (every N days, up to M times). The request is the party's own form task, so it is done when they submit it. Each person gets **one email per file** listing everything still needed from them, and reminder emails go at most once a day, listing what is still open (outbox only). A test run adds the tasks but emails nobody. Spec: TB-6 in [docs/specs/task-builder.md](docs/specs/task-builder.md).
 - TB-2b (John, Nov 14): **Try on one file** runs a flow once on a chosen open file, now, even while the flow is Off, with waits skipped so every step shows at once. Its tasks are real tasks on that file marked "Test run", and it never counts as the flow's real run there. **Turn on** asks which files: **New files only** (the default: files opened after it was turned on) or **Existing open files too**, so turning a flow on never sweeps the open files already there by surprise. An "Order opened" flow only ever runs on new orders. The list and History show which was picked.
 
 **What's still missing**
 
-- TB-2 and TB-2b are not Live: apply `20261121010000_task_flow_engine.sql`, then `20261122010000_task_flow_try_and_scope.sql`, on TEST (they need TB-1's file, already applied, and pg_cron, already on TEST). John wants to try it himself before Grok tests it.
+- TB-2, TB-2b and TB-6 database files are applied on TEST. John tests the TB-6 flow himself before Grok tests it.
 - "Contract received" and "Title commitment received" can be saved but not turned on yet.
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
 - Clients and agents can see tasks assigned to them but only staff mark them done (open question for John).
+- TB-6: request emails go to people with a portal account (a party's request waits until they accept their invite); one email per person per file, not one across all their files.
 
 **Links**
 
@@ -825,7 +828,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. Still open: whether clients and agents can tick off tasks.
+- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. John, Nov 20: client requests in Task Builder, with one email per person listing everything still needed, not one email per request. Still open: whether clients and agents can tick off tasks.
 
 ---
 
@@ -1307,7 +1310,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not Live until `supabase/migrations/20261124170000_agent_tc_role_check.sql` is applied on TEST. Until then, typing a coordinator creates the order, leaves the coordinator off, and stays on Place Order.
-- Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
+- Nothing for the invite: since Nov 20 2026 Invite to portal is offered on these two roles (TC-INVITE-1, below). A person who already has an outside login can still be picked.
 
 **Links**
 
@@ -1320,6 +1323,68 @@ This file lists the portal's major features: how each one should work, how far a
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
 - The staff rule stays for a row already saved under the old role name: only an active staff login can be stored as that role. TC-1 takes that name off Add contact. See Transaction coordinator on Add contact (TC-1).
 - The Nov 16 file did not add the two roles to the people-role list. That list has to allow them, or Place Order creates the file and does not open it.
+- Nov 20 2026, 10:41 AM ET: John reversed "no invite for these two roles" in chat ("yes of course a TC needs an invite"). See TC portal invite (TC-INVITE-1).
+
+---
+
+## TC portal invite (TC-INVITE-1)
+
+**How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 10:41 AM ET, from his screenshot of Order Contacts on MD-26-97260. Tracker item TC-INVITE-1. Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387). Not Live until `supabase/migrations/20261125360000_tc_portal_invite.sql` is applied on TEST.
+
+**What's built**
+
+- Order Contacts shows Invite to portal on a coordinator row with no login. The dialog calls the role Transaction coordinator.
+- Share Files can invite a coordinator with no login, the same way.
+- The database file lets the portal invite and the Share Files invite accept the two coordinator roles. Everything else in both is unchanged.
+
+**What's still missing**
+
+- Changing a coordinator's email does not send a new invite by itself. That automatic invite still covers buyers, sellers and agents only.
+- The invite email does not name the coordinator's role. It greets them and names the property.
+
+**Links**
+
+- Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md) (Portal invite)
+- Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387)
+- Source: John Coester, chat, Nov 20 2026, 10:41 AM ET. Tracker item TC-INVITE-1.
+
+**Decisions**
+
+- This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
+- A coordinator gets the short client login, not the agent account.
+- A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+
+---
+
+## Reuse a contact by email (CONTACT-REUSE-1)
+
+**How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 11:33 AM ET, after the error toast when adding TC Portal Jc (tcportaljc@gmail.com) to DC-26-78512. Tracker item CONTACT-REUSE-1. Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388). This is a bug fix, not a new feature, so rule 9 does not block it. Not Live until this is on TEST. No database file.
+
+**What's built**
+
+- Order Contacts → Add contact, and File Overview party buttons, use the existing contact when the typed email already belongs to someone. A short note says that person was already a contact.
+- Saving a new contact in the background does the same thing, so Place Order and other add-person screens also reuse the existing record instead of failing.
+- Editing a contact and changing its email to one already used still fails in plain words.
+
+**What's still missing**
+
+- Proof on TEST after this is merged. Not Live until then.
+
+**Links**
+
+- Spec: [docs/specs/contact-reuse.md](docs/specs/contact-reuse.md)
+- Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388)
+- Source: John Coester, chat, Nov 20 2026, 11:33 AM ET. Tracker item CONTACT-REUSE-1.
+
+**Decisions**
+
+- One contact per email stays. The fix is to link that contact to the file, not to allow a second record.
+- The saved name, phone, and company are not overwritten when the typed details differ.
+- Assigning a TC to agents (admin, contact record, or file) so they automatically appear on every one of those agents' files is a later item, not this fix.
 
 ---
 

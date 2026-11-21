@@ -186,7 +186,7 @@ ok(box.checked === false && codeToast && /Refresh the page and try again/.test(c
 
 const css = await import('node:fs');
 ok(css.readFileSync('css/portal.css', 'utf8').includes('.user-list-scroll .crm-owner-tick { min-width: 44px; min-height: 44px; }'), 'a phone can tap the CRM owner box');
-ok(css.readFileSync('js/app.js', 'utf8').includes("pages/users.js?v=202611248300") && css.readFileSync('index.html', 'utf8').includes('js/app.js?v=202611249870'), 'the User List uses cache stamp 202611248300 and the shell 202611249870');
+ok(css.readFileSync('js/app.js', 'utf8').includes("pages/users.js?v=202611248300") && css.readFileSync('index.html', 'utf8').includes('js/app.js?v=202611261050'), 'the User List uses cache stamp 202611248300 and the shell 202611261050');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('crm owner flag passed');

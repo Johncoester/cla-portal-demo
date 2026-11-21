@@ -6,14 +6,21 @@
  * day-based triggers are checked whenever the demo portal reads a file or task list (the hosted portal checks every 15 minutes).
  * Tasks a flow makes go to everyone on the file with the chosen role, like template copies (staff mark them done).
  * Nov 14 (John): turning a flow on asks "new files only" (default) or "existing open files too"; "Try on one file" runs a flow once on a
- * chosen file as a test run (On or Off, waits skipped, tasks marked "Test run"). */
+ * chosen file as a test run (On or Off, waits skipped, tasks marked "Test run").
+ * TB-6 (John, Nov 20): "Request a form from a party" steps (client requests). The request is the party's own intake form task (the
+ * existing copy when the file already has one, else a new copy), so it completes itself when they submit it. Reminder state is kept in
+ * d.taskFlowRequests, and every email is ONE digest per person and file listing everything still needed (outbox only). */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611221100';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611261000';
+import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';
+import { senderFor } from './email-senders.js?v=202611247700';
+import { taskEnabled } from './task-switches.js?v=202611247700';
 
 export function ensureTaskFlows(d) {
   if (!Array.isArray(d.taskFlows)) d.taskFlows = [];
   if (!Array.isArray(d.taskFlowLog)) d.taskFlowLog = [];
   if (!Array.isArray(d.taskFlowRuns)) d.taskFlowRuns = [];
+  if (!Array.isArray(d.taskFlowRequests)) d.taskFlowRequests = [];
   d.taskFlows.forEach((f) => { if (!f.conditions) f.conditions = { transactionTypes: [], states: [], salesPeople: [] }; if (!Array.isArray(f.steps)) f.steps = []; });
   return d;
 }
@@ -42,9 +49,63 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
     if (people.length || !ORDER_FIELD[role] || !deal[ORDER_FIELD[role]]) return people;
     return [{ participantId: null, profileId: deal[ORDER_FIELD[role]] }];
   };
+  // ---------- client requests (TB-6) ----------
+  const currentTemplate = (d, code) => (taskEnabled(d, code) ? (d.taskTemplates || []) : []).filter((t) => t.code === code && t.active && !t.retiredAt).sort((a, b) => b.version - a.version)[0] || null;
+  const contactOf = (d, participantId) => { const p = d.participants.find((z) => z.id === participantId); return p ? d.contacts.find((c) => c.id === p.contactId) || null : null; };
+  // who gets a request's email: the party's portal account, worked out when the email goes (like every reminder, only portal accounts are
+  // emailed; a party who has not accepted their invite yet keeps the request waiting until they have one)
+  const recipientOf = (d, task) => {
+    const c = task.participantId ? contactOf(d, task.participantId) : null; const pr = c && c.profileId ? (d.profiles || []).find((z) => z.id === c.profileId) : null;
+    if (!pr || pr.status !== 'active' || !pr.email) return null;
+    return { key: pr.id, profileId: pr.id, email: pr.email, firstName: pr.firstName || '', name: `${pr.firstName || ''} ${pr.lastName || ''}`.trim() || pr.email };
+  };
+  const makeRequests = (d, flow, run, deal, t, at, notes) => {
+    const parts = d.participants.filter((p) => p.dealId === deal.id && !p.removed && p.role === t.assignTo);
+    if (!parts.length) { notes.push({ at, text: `No ${t.assignTo} on this file, so "${t.title}" was not requested.` }); return 0; }
+    const tp = currentTemplate(d, t.formCode); let made = 0;
+    parts.forEach((p) => {
+      let task = d.tasks.find((z) => z.participantId === p.id && z.templateCode === t.formCode && z.status !== 'cancelled');
+      if (task && task.status === 'done') { notes.push({ at, text: `"${t.title}" was already submitted by ${nameOfPart(d, p)}, so it was not requested again.` }); return; }
+      if (!task) {
+        if (!tp) { notes.push({ at, text: `The "${t.title}" form is switched off or retired, so it was not requested.` }); return; }
+        task = { id: nid('t'), dealId: deal.id, participantId: p.id, templateId: tp.id, templateCode: tp.code, templateVersion: tp.version, kind: 'form', title: tp.title,
+          description: `${run.trial ? 'Test run. ' : ''}Requested by the "${flow.name}" flow (Task Builder). ${tp.description || ''}`.trim(), assignedRole: p.role, status: 'todo', dueDate: t.dueDate, dueOverridden: false,
+          formData: {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: null, createdAt: at, lane: tp.lane || null, audiences: tp.audiences ? [...tp.audiences] : null,
+          flowId: flow.id, flowRunId: run.id };
+        d.tasks.push(task); made++;
+      }
+      if (run.trial) return;   // a test run makes the task but emails nobody
+      if (d.taskFlowRequests.some((r) => r.taskId === task.id)) return;   // already requested by another flow: one set of reminders
+      if (!recipientOf(d, task)) notes.push({ at, text: `${nameOfPart(d, p)} has no portal account yet, so the "${t.title}" email waits until they accept their invite.` });
+      d.taskFlowRequests.push({ id: nid('tfq'), flowId: flow.id, runId: run.id, ...newRequestState(task.id, deal.id, null, t, at) });
+    });
+    return made;
+  };
+  const nameOfPart = (d, p) => { const c = d.contacts.find((z) => z.id === p.contactId); return c ? `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'the party' : 'the party'; };
+  // ONE email per person and file, listing everything still needed from them there
+  function sendDigests(d, at) {
+    const rows = d.taskFlowRequests.map((r) => { const task = d.tasks.find((t) => t.id === r.taskId) || null; const who = task && recipientOf(d, task);
+      return { ...r, task, recipientKey: who ? who.key : null }; });
+    rows.forEach((r) => { if (r.task && !['todo', 'in_progress', 'blocked'].includes(r.task.status) && r.nextAt) d.taskFlowRequests.find((z) => z.id === r.id).nextAt = null; });
+    const last = (key, dealId) => { const o = d.outbox.filter((z) => z.templateKey === 'client_request_digest' && z.recipientKey === key && z.dealId === dealId).map((z) => z.createdAt).sort().pop(); return o || null; };
+    let n = 0;
+    digestsDue(rows.filter((r) => r.recipientKey), at, last).forEach((g) => {
+      const deal = d.deals.find((z) => z.id === g.dealId); if (!deal || !dealRuns(deal)) return;
+      const who = recipientOf(d, g.items[0].task); if (!who) return;
+      const isReminder = !g.due.some((r) => r.sent === 0);
+      const { subject, body } = digestEmail({ firstName: who.firstName, fileNumber: deal.fileNumber, address: [deal.street, deal.city].filter(Boolean).join(', '), items: g.items, isReminder });
+      const ob = { id: nid('ob'), channel: 'email', status: 'queued', toProfileId: who.profileId, toEmail: who.email, toName: who.name, subject, body, taskId: null, dealId: deal.id,
+        createdBy: null, createdAt: at, sentAt: null, templateKey: 'client_request_digest', recipientKey: who.key, requestTaskIds: g.items.map((r) => r.taskId) };
+      Object.assign(ob, senderFor(d, 'processor', deal.id)); d.outbox.push(ob); n++;
+      g.items.forEach((r) => { const st = d.taskFlowRequests.find((z) => z.id === r.id); if (st.nextAt && Date.parse(st.nextAt) <= Date.parse(at)) afterSent(st, at); });
+      if (who.profileId && notify) notify([who.profileId], { kind: 'reminder', dealId: deal.id, title: subject, link: `#/deals/${deal.id}/tasks` }, null);
+    });
+    return n;
+  }
   const makeTasks = (d, flow, run, deal, specs, at) => {
     let made = 0; const notes = [];
     specs.forEach((t) => {
+      if (t.request) { made += makeRequests(d, flow, run, deal, t, at, notes); return; }
       const people = holdersOf(d, deal, t.assignTo);
       if (!people.length) { notes.push({ at, text: `No ${t.assignTo} on this file, so "${t.title}" was not created.` }); return; }
       people.forEach((p) => {
@@ -62,7 +123,9 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
     const flow = d.taskFlows.find((f) => f.id === run.flowId); const deal = d.deals.find((x) => x.id === run.dealId);
     if (!flow || !deal) return 0;
     const specs = advanceRun(run, flow, { deal, salesIds: salesOn(d, deal.id), emdReceived: !!deal.emdReceived, nowIso: at });
-    return specs.length ? makeTasks(d, flow, run, deal, specs, at) : 0;
+    const made = specs.length ? makeTasks(d, flow, run, deal, specs, at) : 0;
+    if (specs.some((t) => t.request) && !run.trial) sendDigests(d, at);   // new requests go out straight away, in one email per person
+    return made;
   };
   const start = (d, flow, deal, at) => { const r = { id: nid('tfr'), ...newRun(flow, deal.id, at) }; d.taskFlowRuns.push(r); return r; };
   // an event on a file: start the flows it triggers. A new order's runs move on at the next check, after Place Order has added the people;
@@ -81,8 +144,9 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
     d.taskFlows.filter((f) => f.active && ['emd_not_received', 'days_before_closing'].includes(f.trigger) && !canRun(f)).forEach((f) => {
       d.deals.forEach((deal) => { if (timeTriggerMet(f, deal, today) && mayStart(f, d.taskFlowRuns.filter((r) => r.dealId === deal.id))) { start(d, f, deal, at); started++; } }); });
     d.taskFlowRuns.filter((r) => r.status === 'waiting' && Date.parse(r.nextAt) <= Date.parse(at)).forEach((r) => { made += step(d, r, at); });
-    if (started || made || d.taskFlowRuns.some((r) => r.finishedAt === at)) save();
-    return { started, tasks: made };
+    const emails = sendDigests(d, at);   // reminders that are due, one email per person and file
+    if (started || made || emails || d.taskFlowRuns.some((r) => r.finishedAt === at)) save();
+    return { started, tasks: made, emails };
   }
   let lastTick = 0;
   const lazyTick = () => { const t = Date.now(); if (t - lastTick < 5000) return; lastTick = t; try { tick(); } catch (e) { /* a flow problem never stops the page */ } };

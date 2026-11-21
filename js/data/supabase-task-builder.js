@@ -5,7 +5,7 @@
  * Every read and write goes through the database functions (Admin / Super admin only); nobody reads the tables directly.
  * Nov 14 (migration 20261122010000_task_flow_try_and_scope.sql): new files only / existing files too, and Try on one file.
  * Until a migration is applied on TEST, the page says so in plain words instead of showing a database error. */
-import { cleanFlow, triggerText, stepText, conditionsText, triggerRuns, cleanConditions, cleanScope, scopeText } from './task-builder.js?v=202611221100';
+import { cleanFlow, triggerText, stepText, conditionsText, triggerRuns, cleanConditions, cleanScope, scopeText } from './task-builder.js?v=202611261000';
 
 export const NOT_SET_UP = 'Task Builder is not set up on this site yet. Its database file has to be applied first.';
 const plainErr = (e) => {
@@ -38,6 +38,6 @@ export function taskBuilderSupabase({ sb, ok }) {
     async setTaskFlowActive(id, active, { scope } = {}) { await call('set_task_flow_active_scoped', { p_id: id, p_active: !!active, p_scope: cleanScope(scope) }); return (await all()).flows.find((f) => f.id === id) || null; },
     async tryTaskFlowOnFile(id, dealId) { const r = (await call('try_task_flow_on_file', { p_flow: id, p_deal: dealId })) || {};
       return { runId: r.run_id, status: r.status, tasks: Number(r.tasks) || 0, log: Array.isArray(r.log) ? r.log : [], fileNumber: r.file_number || '' }; },
-    async runTaskFlowsNow() { const r = (await call('run_task_flows_now', {})) || {}; return { started: Number(r.started) || 0, tasks: Number(r.tasks) || 0 }; },
+    async runTaskFlowsNow() { const r = (await call('run_task_flows_now', {})) || {}; return { started: Number(r.started) || 0, tasks: Number(r.tasks) || 0, emails: Number(r.emails) || 0 }; },
   };
 }

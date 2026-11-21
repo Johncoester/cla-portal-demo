@@ -3,7 +3,7 @@
  * as a buyer, seller, buyer's agent, or listing agent, then the existing Share Files path invites
  * them and holds the message. This file does not send anything by itself. */
 import { contactTypeForRole } from './constants.js?v=202611247700';
-import { noLoginContactId, SHARE_INVITE_ROLES } from './share-invite.js?v=202611191100';
+import { noLoginContactId } from './share-invite.js?v=202611249900';
 
 export const TYPED_ROLES = [
   ['Client-Buyer', 'Buyer'],
@@ -43,7 +43,8 @@ const sameId = (row, id) => String((row && (row.contactId || (row.contact && row
 /* Add a typed person to this file when they are not already on it, then return the recipient row
  * the conversation list uses. inviteContactId is set only when they have no portal login. */
 export async function addTypedRecipient(api, deal, typed, role) {
-  if (!SHARE_INVITE_ROLES.includes(role)) throw new Error("Pick how this person is on the file: buyer, seller, buyer's agent, or listing agent.");
+  // the four choices this window offers (TC-INVITE-1 added the coordinators to SHARE_INVITE_ROLES, not to this picker)
+  if (!TYPED_ROLES.some(([r]) => r === role)) throw new Error("Pick how this person is on the file: buyer, seller, buyer's agent, or listing agent.");
   if (!api || typeof api.listMessageRecipients !== 'function' || typeof api.addParticipant !== 'function') throw new Error('The portal was updated while this page was open. Reload the page (Ctrl+Shift+R) and try again.');
   const mail = typed.email;
   let rows = [];

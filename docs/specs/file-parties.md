@@ -12,7 +12,7 @@ On an open file, Parties has Add buyer, Add seller, Add buyer's agent, Add listi
 
 ## What is saved
 
-A typed person is saved as a contact with no portal login, then linked to the file the same way a picked contact is. An existing contact that is picked is not rewritten. Nothing is invited. Who can see the file does not change, because a contact with no login cannot open it.
+A typed person is saved as a contact with no portal login, then linked to the file the same way a picked contact is. An existing contact that is picked is not rewritten. If the typed email already belongs to a contact, that contact is used and is not rewritten (see [contact-reuse.md](contact-reuse.md)). Nothing is invited. Who can see the file does not change, because a contact with no login cannot open it.
 
 ## What this does not change
 

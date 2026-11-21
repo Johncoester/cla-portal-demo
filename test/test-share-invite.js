@@ -20,7 +20,8 @@ ok(noLoginContactId({ id: 'c-buyer' }, parts) === '', 'a contact that is linked 
 ok(noLoginContactId({ id: 'c-gone' }, parts) === '', 'a contact removed from the file is not matched');
 ok(noLoginContactId({ id: 'p-staff' }, parts) === '' && noLoginContactId(null, parts) === '' && noLoginContactId({ id: 'c-agent' }) === '', 'an id that is not on the file, or no file contacts at all, matches nobody');
 ok(noLoginContactId({ id: 'contact:c9' }, []) === 'c9', 'the demo data marks these people "contact:<id>"');
-ok(SHARE_INVITE_ROLES.join('|') === 'Client-Buyer|Client-Seller|Buyer Agent|Listing Agent', 'the same four file roles as Invite to portal can be invited');
+// TC-INVITE-1 (John, Nov 20 2026): the agents' coordinators were added to Invite to portal, so Share Files lists them too.
+ok(SHARE_INVITE_ROLES.join('|') === 'Client-Buyer|Client-Seller|Buyer Agent|Listing Agent|Buyer Agent TC|Listing Agent TC', 'the same file roles as Invite to portal can be invited');
 
 // who can be invited from Share Files
 const lender = [{ id: 'dp9', contactId: 'c-lender', role: 'Lender', contact: { id: 'c-lender', profileId: null } }];
