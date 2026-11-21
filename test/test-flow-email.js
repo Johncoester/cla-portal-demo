@@ -93,5 +93,60 @@ fire(m.querySelector('#tbf'), 'submit'); await settle();
 const errBox = m.querySelector('[data-tb-err]');
 ok(!errBox.hidden && /Step 2: \{\{nickname\}\} is not a merge field/.test(errBox.textContent) && !!document.getElementById('modal'), 'a wrong merge field is caught before saving and the window stays open');
 
+
+// ---------- Nov 21 (John): intro email to the agents who didn't refer the file; plain timing; every staff member as sales person ----------
+const { isNonReferringAgent, emailRecipients, EMAIL_ROLES: ER } = await import('../js/data/flow-email.js');
+const { stepTimeline, whenText } = await import('../js/data/task-builder.js');
+const ba = { role: 'Buyer Agent', contactId: 'c1' }; const ba2 = { role: 'Buyer Agent', contactId: 'c3' }; const la = { role: 'Listing Agent', contactId: 'c2' }; const buyer = { role: 'Client-Buyer', contactId: 'c9' };
+ok(ER.some(([v]) => v === 'non_referring_agents'), 'an email can go to the agents who did not refer the file');
+ok(emailRecipients([ba, la, buyer], 'non_referring_agents', 'buyer_agent:c1').map((p) => p.contactId).join() === 'c2', 'the referring buyer agent is left out');
+ok(emailRecipients([ba, ba2, la], 'non_referring_agents', 'buyer_agent:c1').map((p) => p.contactId).join() === 'c3,c2', 'another buyer agent who did not refer it still gets it');
+ok(emailRecipients([ba, ba2, la], 'non_referring_agents', 'listing_agent').map((p) => p.contactId).join() === 'c1,c3', 'a listing-agent source with no person: the listing side is the referrer');
+ok(emailRecipients([ba, la, buyer], 'non_referring_agents', 'buyer').length === 2 && emailRecipients([ba, la], 'non_referring_agents', '').length === 2 && emailRecipients([ba, la], 'non_referring_agents', 'zillow').length === 2, 'any other source, or none: every agent gets it');
+ok(!isNonReferringAgent(buyer, '') && emailRecipients([ba, la, buyer], 'Client-Buyer', 'buyer_agent:c1').length === 1, 'only agents count, and the other recipients are unchanged');
+ok(cleanEmailStep({ sendTo: 'non_referring_agents', subject: 'Welcome from CLA', body: 'Hi {{recipient_first_name}}' }).sendTo === 'non_referring_agents' && /non-referring agent/.test(emailStepText({ sendTo: 'non_referring_agents', subject: 'Welcome' })), 'the step saves and reads in plain words');
+
+ok(stepTimeline('order_opened', null, [{ type: 'wait', days: 2 }, { type: 'create_task', dueDays: 1 }]).join(' | ') === 'Wait 2 days. The next step happens 2 days after the order opens. | 2 days after the order opens: create this task, due 1 day later.', 'each step says when it happens: "2 days after the order opens: create this task, due 1 day later"');
+ok(stepTimeline('order_opened', null, [{ type: 'send_email' }])[0] === 'As soon as the order opens: send this email.', 'with no wait, it happens as soon as the order opens');
+ok(stepTimeline('emd_not_received', 2, [{ type: 'create_task', dueDays: 0 }])[0] === '2 days after the order opens: create this task, due the same day.', 'EMD not received counts from the order opening');
+ok(stepTimeline('days_before_closing', 3, [{ type: 'wait', days: 3 }, { type: 'call_task', dueDays: 1 }])[1] === 'On the closing date: create this phone call task, due 1 day later.' && whenText('days_before_closing', 3, 5) === '2 days after closing', 'days before closing counts toward and past the closing date');
+ok(stepTimeline('file_closed', null, [{ type: 'wait', days: 2 }, { type: 'send_email' }])[1] === '2 days after the file closes: send this email.', 'the thank-you example reads plainly');
+
+// the demo portal: the intro goes to the non-referring agent only
+{ const api2 = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+  await api2.signInDev('u-proc');
+  const dl = await api2.getDeal('deal-1'); const ag = dl.participants.filter((p) => ['Buyer Agent', 'Listing Agent'].includes(p.role));
+  const ref = ag.find((p) => p.role === 'Buyer Agent');
+  await api2.updateDeal('deal-1', { sourceOfBusiness: `buyer_agent:${ref.contactId}` });
+  await api2.signInDev('u-admin');
+  const fl = await api2.createTaskFlow({ name: 'Owner intro', trigger: 'order_opened', steps: [{ type: 'send_email', sendTo: 'non_referring_agents', subject: 'Welcome from CLA Title', body: 'Hi {{recipient_first_name}}, I am John, the owner of CLA. Call me anytime.' }] });
+  const res = await api2.tryTaskFlowOnFile(fl.id, 'deal-1');
+  ok(res && res.log.some((l) => /Test copy queued for you/.test(l.text)), 'Try on one file queues a test copy of the intro');
+  const box = ((await api2.listOutbox()) || []).find((o) => /^\[Test\] Welcome from CLA Title/.test(o.subject || ''));
+  const others = ag.filter((p) => p.contactId !== ref.contactId && p.contact && p.contact.email).map((p) => p.contact.email.toLowerCase());
+  ok(!!box && others.length > 0 && others.every((e) => box.body.toLowerCase().includes(e)) && !(ref.contact && ref.contact.email && box.body.toLowerCase().includes(`<${ref.contact.email.toLowerCase()}>`)), 'the test copy lists the non-referring agents and leaves out the one who referred the file'); }
+
+// the form: timing under each step, staff list with search
+{ const api3 = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+  await api3.signInDev('u-admin');
+  const app3 = document.getElementById('app'); const v3 = await render({ api: api3, user: { id: 'u-admin', role: 'Super admin', isAdmin: true, status: 'active' }, refresh() {} });
+  app3.innerHTML = toText(v3.body); v3.mount(app3);
+  app3.querySelector('[data-tb-new]').click();
+  const m3 = document.getElementById('modal');
+  const salesLabels = [...m3.querySelectorAll('[data-tb-cond="salesPeople"]')].map((c) => c.closest('label').textContent.trim());
+  ok(salesLabels.some((t) => /King John/.test(t)) && salesLabels.some((t) => /Adam/.test(t)) && salesLabels.length >= 4, 'the sales person list shows every staff member, admins included');
+  const findBox = m3.querySelector('[data-tb-sales-search]'); findBox.value = 'king'; findBox.dispatchEvent(new window.Event('input', { bubbles: true }));
+  const shown = [...m3.querySelectorAll('[data-tb-cond="salesPeople"]')].filter((c) => !c.closest('label').hidden).map((c) => c.closest('label').textContent.trim());
+  ok(shown.length === 1 && /King John/.test(shown[0]), 'typing a name narrows the list');
+  const trig = m3.querySelector('[data-tb-trigger-input]'); trig.value = 'order_opened'; trig.dispatchEvent(new window.Event('change', { bubbles: true }));
+  const addB = m3.querySelector('[data-tb-add-step]'); addB.click(); addB.click();
+  const w = m3.querySelector('[data-tb-step="0"] [data-tb-step-type]'); w.value = 'wait'; w.dispatchEvent(new window.Event('change', { bubbles: true }));
+  const wd = m3.querySelector('[data-tb-step="0"] [data-tb-step-field="days"]'); wd.value = '2'; wd.dispatchEvent(new window.Event('input', { bubbles: true }));
+  ok(/2 days after the order opens: create this task, due 1 day later\./.test(m3.querySelector('[data-tb-step="1"] [data-tb-step-when]').textContent), 'the second step says "2 days after the order opens: create this task, due 1 day later"');
+  const dd = m3.querySelector('[data-tb-step="1"] [data-tb-step-field="dueDays"]'); dd.value = '0'; dd.dispatchEvent(new window.Event('input', { bubbles: true }));
+  ok(/due the same day/.test(m3.querySelector('[data-tb-step="1"] [data-tb-step-when]').textContent) && /Due \(days after it's created\)/.test(m3.querySelector('[data-tb-step="1"]').textContent), 'the line updates as you type, and the due box says days after it is created');
+  const em = m3.querySelector('[data-tb-step="1"] [data-tb-step-type]'); em.value = 'send_email'; em.dispatchEvent(new window.Event('change', { bubbles: true }));
+  ok([...m3.querySelectorAll('[data-tb-step="1"] [data-tb-step-field="sendTo"] option')].some((o) => o.getAttribute('value') === 'non_referring_agents' && /didn't refer/.test(o.textContent)), 'the email step can be sent to the agents who did not refer the file'); }
+
 console.log(fail ? `${fail} failed` : 'all passed');
 process.exit(fail ? 1 : 0);
