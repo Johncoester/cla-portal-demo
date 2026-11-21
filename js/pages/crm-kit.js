@@ -26,13 +26,26 @@ export function wireRowOpen(tb, hrefFor) {
 }
 
 // Nov 2 (Zoho): Home is the CRM landing page; Contacts are shown as Clients and Accounts as Companies (routes keep their internal names); My follow-ups -> Home tasks
-export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
+// Janine, Feedback 36 (Nov 20 2026): Tasks, Meetings, and Calls sit with the modules already on this row.
+// Existing tabs keep their order. Tasks, Meetings, and Calls are added after Deals: Tasks, then Meetings, then Calls.
+// Tasks opens CRM Home (My Open Tasks), the same place the old Task shortcut opened. Meetings has no list yet.
+export const SECTIONS = [['home', 'Home'], ['leads', 'Leads'], ['contacts', 'Clients'], ['accounts', 'Companies'], ['deals', 'Deals'], ['tasks', 'Tasks'], ['meetings', 'Meetings'], ['calls', 'Calls'], ['pipeline', 'Pipeline'], ['dashboards', 'Dashboards'], ['reports', 'Reports'], ['templates', 'Templates']];   // Nov 3 (b): Deals (the portal's orders), Dashboards (video 9);   // Nov 3: Templates (email templates, every CRM user; Processor read-only)
 // Settings tab: Admin / Super admin only (crm.js calls setCrmAdmin on every CRM page load; the adapter refuses everyone else anyway)
 let ADMIN = false; export const setCrmAdmin = (v) => { ADMIN = !!v; };
-const TAB_MODULE = { deals: 'crm-deals' };
+const TAB_MODULE = { deals: 'crm-deals', calls: 'calls' };
+const TAB_HREF = { tasks: '#/crm' };   // #/crm/tasks without a record has no page; Home lists My Open Tasks
+const TAB_SOON = new Set(['meetings']);
+const TAB_SOON_CSS = `.nav-tabs .crm-tab-soon { display: block; padding: 9px 14px; font-weight: 600; font-size: var(--fs-sm); color: var(--ink-4); cursor: default; border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: var(--r-sm) var(--r-sm) 0 0; }
+.nav-tabs .crm-tab-soon:hover { color: var(--ink-4); background: transparent; }`;
 // Janine, Nov 5: the "+" Create New menu sits in the global header, beside Search CRM. The tab row no longer repeats it.
 let ME = null; export const setCrmMe = (me) => { ME = me || null; };
-export const tabs = (cur) => html`<div class="crm-tabs-row" data-crm-user="${(ME && ME.id) || ''}"><ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].filter(([k]) => !TAB_MODULE[k] || modOn(TAB_MODULE[k])).map(([k, l]) => html`<li><a class="${k === cur ? 'active' : ''}" href="#/crm/${k}" data-crm-tab="${k}">${l}${TAB_MODULE[k] && modBeta(TAB_MODULE[k]) ? html` <span class="beta-badge" data-beta-badge="${TAB_MODULE[k]}" title="${BETA_LABEL}">Beta</span>` : ''}</a></li>`)}</ul></div>`;
+const tabItem = (k, l, cur) => {
+  if (TAB_SOON.has(k)) return html`<li><span class="crm-tab-soon" data-crm-tab="${k}" title="Coming soon" aria-disabled="true">${l}</span></li>`;
+  const href = TAB_HREF[k] || `#/crm/${k}`;
+  const badge = TAB_MODULE[k] && modBeta(TAB_MODULE[k]) ? html` <span class="beta-badge" data-beta-badge="${TAB_MODULE[k]}" title="${BETA_LABEL}">Beta</span>` : '';
+  return html`<li><a class="${k === cur ? 'active' : ''}" href="${href}" data-crm-tab="${k}">${l}${badge}</a></li>`;
+};
+export const tabs = (cur) => html`<div class="crm-tabs-row" data-crm-user="${(ME && ME.id) || ''}"><ul class="nav-tabs" data-crm-tabs>${[...SECTIONS, ...(ADMIN ? [['settings', 'Settings']] : [])].filter(([k]) => !TAB_MODULE[k] || modOn(TAB_MODULE[k])).map(([k, l]) => tabItem(k, l, cur))}</ul></div><style id="crm-tab-soon-css">${raw(TAB_SOON_CSS)}</style>`;
 export const head = (title, me, extra = '') => html`<div class="box-title crm-page-head"><h2><span class="h-ico"></span>${title}</h2><div class="crm-head-actions">${extra}</div></div>
   ${me.canEdit ? '' : html`<p class="muted" data-readonly>You can change a record you own. Only the owner or an admin can change any other record.</p>`}`;
 export const sel = (name, list, cur, blank) => html`<select name="${name}">${blank != null ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(cur ?? '') ? raw('selected') : ''}>${l}</option>`)}</select>`;
