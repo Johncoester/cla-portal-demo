@@ -9,8 +9,27 @@
 import { FILE_TEMPLATE_FIELD_KEYS, mergeValues, renderMerge } from './file-email-templates.js?v=202611247700';
 
 export const EMAIL_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', "Buyer's agent"], ['Listing Agent', 'Listing agent'],
-  ['Transaction Coordinator', 'Transaction coordinator'], ['Lender', 'Lender']];
-const roleName = (r) => (EMAIL_ROLES.find(([v]) => v === r) || [r, r])[1];
+  ['non_referring_agents', "Agents who didn't refer the file"], ['Transaction Coordinator', 'Transaction coordinator'], ['Lender', 'Lender']];
+const roleName = (r) => (r === 'non_referring_agents' ? 'non-referring agent' : (EMAIL_ROLES.find(([v]) => v === r) || [r, r])[1]);
+export const emailRoleName = roleName;
+
+/* NON-REFERRING AGENTS (John, Nov 21 2026): "if a non-referring agent is on a deal, I want to introduce myself as the owner of the company".
+ * The file's Source of business (the referral field) says who sent the order: e.g. "buyer_agent:<contact id>" or "listing_agent".
+ * The non-referring agents are the buyer's and listing agents on the file except that one. When the source names an agent side but no
+ * person, every agent on that side counts as referring. When the source is not an agent (the buyer, a lender, a lead source, or blank),
+ * every agent on the file is non-referring. participants: [{ role, contactId }]. Same rule in SQL: private.task_flow_is_recipient. */
+export const AGENT_ROLES = ['Buyer Agent', 'Listing Agent'];
+const SIDE_ROLE = { buyer_agent: 'Buyer Agent', listing_agent: 'Listing Agent' };
+export function isNonReferringAgent(p, source) {
+  if (!p || !AGENT_ROLES.includes(p.role)) return false;
+  const raw = String(source || '').trim(); const cut = raw.indexOf(':');
+  const code = cut === -1 ? raw : raw.slice(0, cut); const who = cut === -1 ? '' : raw.slice(cut + 1);
+  if (!SIDE_ROLE[code]) return true;
+  if (who) return String(p.contactId || '') !== who;
+  return p.role !== SIDE_ROLE[code];
+}
+// who an email step goes to: everyone on the file with that role, or the non-referring agents
+export const emailRecipients = (participants, sendTo, source) => (participants || []).filter((p) => (sendTo === 'non_referring_agents' ? isNonReferringAgent(p, source) : p.role === sendTo));
 export const EMAIL_SUBJECT_MAX = 200;
 export const EMAIL_BODY_MAX = 5000;
 const TOKEN_RE = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;

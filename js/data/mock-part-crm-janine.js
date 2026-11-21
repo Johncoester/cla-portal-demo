@@ -13,7 +13,7 @@ import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH, EMAIL_RECIPI
 import { appendCrmNote, noteStamp } from './crm-bulk.js?v=202611160300';
 import { ensureSettings } from './crm-config.js?v=202611247700';
 import { companyKey } from './crm.js?v=202611247700';
-import { canOwnCrmRecords } from './crm-owner.js?v=202611270200';
+import { canOwnCrmRecords } from './crm-owner.js?v=202611281300';
 import { US_STATE_NAMES } from './constants.js?v=202611247700';
 
 const seenData = new WeakSet();

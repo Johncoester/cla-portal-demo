@@ -281,12 +281,12 @@ const chain = [
   ['js/pages/crm-forms.js', '202611247100'],
   ['js/pages/crm-home.js', '202611261100'],
   ['js/pages/crm.js', '202611261100'],
-  ['js/data/mock-part-crm.js', '202611270200'],
-  ['js/data/mock-adapter.js', '202611270200', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
+  ['js/data/mock-part-crm.js', '202611281300'],
+  ['js/data/mock-adapter.js', '202611281300', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
   ['js/data/supabase-crm.js', '202611249700'],
-  ['js/data/supabase-adapter.js', '202611269910'],
-  ['js/data/adapter.js', '202611270200', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
-  ['js/app.js', '202611270200', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
+  ['js/data/supabase-adapter.js', '202611281200'],
+  ['js/data/adapter.js', '202611281300', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
+  ['js/app.js', '202611281300', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -294,7 +294,7 @@ for (const [target, stamp] of chain) {
   if (stamps.length !== 1 || stamps[0] !== stamp) issues.push(target + ' ' + (stamps.join(',') || 'none'));
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(read('index.html').includes('js/app.js?v=202611270200'), 'index.html loads the shell at 202611270200');
+ok(read('index.html').includes('js/app.js?v=202611281300'), 'index.html loads the shell at 202611281300');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log(fail ? fail + ' failed' : 'crm note files passed');

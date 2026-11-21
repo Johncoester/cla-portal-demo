@@ -104,3 +104,11 @@ John: flows should also send emails that are not chasing anything, for example a
 - **Hosted:** migration `20261127010000_task_flow_email_step.sql` (after TB-6's): the email step and its merge fields in SQL, the File closed trigger (status on deals), `task_flow_runs.trial_to`, and outbox kind `task_flow_email` allowed for a party with no portal account (email and name needed). Rollback in `supabase/rollbacks/`. Tests: `test/test-flow-email.js` and `test/test-task-flow-email-sql.sh`.
 - **Not yet:** HTML formatting in flow emails (a saved template is sent as plain text, the outbox carries text); attachments; an entity buyer or seller shows the person's name rather than the entity's; "Funds disbursed" as its own trigger (closing a file covers it today).
 
+
+## TB-8: easier steps (John, Nov 21 2026, by voice)
+
+- **Plain timing.** Every step shows one line saying when it happens, counted from what starts the flow and adding up the Wait steps before it: "2 days after the order opens: create this task, due 1 day later", "On the closing date: create this phone call task", "2 days after the file closes: send this email". The due boxes say "Due (days after it's created)" / "(days after it's sent)". The flow list shows the same lines.
+- **Sales person = any staff member.** The "Which files" Sales person choice lists every active staff member, with a box to type a name. John: "I'm an admin but I also do sales… I will be a salesperson from the file level." It matches the sales people on the file. Open: Place Order and the file only offer Sales Person and Sales Team logins (Janine, Nov 18).
+- **Email the agents who didn't refer the file.** A Send an email step can go to "Agents who didn't refer the file": the buyer's and listing agents on the file except the one in the file's Source of business (the referral field). If the source names an agent side but no person, that whole side counts as the referrer; any other source (buyer, lender, a lead source, blank) means every agent gets it. Example: Order opened → email the non-referring agents John's owner intro with {{recipient_first_name}}.
+- Emails still send from the file's processor (as all flow emails do). Sending as a named person, such as John, is not built.
+- Database: `20261128010000_task_flow_non_referring_agents.sql` (after TB-7's file); rollback in `supabase/rollbacks/`.
