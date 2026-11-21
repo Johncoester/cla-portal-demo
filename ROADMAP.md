@@ -224,6 +224,8 @@ This file lists the portal's major features: how each one should work, how far a
 - Excess deposit ([PR 290](https://github.com/Johncoester/cla-portal-demo/pull/290), Nov 15 2026, built by Claude, not merged yet). When someone other than CLA holds the deposit and has already paid it to the seller, the processor types that amount under Accounting, Contract figures, Earnest money, in "Deposit already paid to the seller". It shows as Excess Deposit on CD line N.01, on the ALTA and on the fee ledger, comes off the seller's proceeds, and is not counted as money CLA receives. The buyer still gets credit for the whole deposit. On the Qualia file this makes seller proceeds $51,475.00, the same as Qualia. It is saved with "EMD held by" on the order, so no database file is needed. It cannot be more than the deposit.
 - A test (`test/test-qualia-scenario.js`) enters the purchase the way a processor does and checks every figure against Qualia's. It runs with the other tests on every pull request.
 
+- Loan page (QFLOW-3, Nov 19 2026, built by Claude, [PR 379](https://github.com/Johncoester/cla-portal-demo/pull/379), merged 54847d76 Nov 21 2026 2:18 PM ET, Live; no database file). On TEST the Closing Disclosure's page 1 showed dashes for loan term, product, loan type and interest rate. The only place to type them was the long "CD details & escrow" form, and "Loan" in the file menu opened Title's loan check. General > Loan now opens a short Loan page: the order's loan amount and lender on top, then loan ID, type, purpose, product, term, MIC, interest rate, monthly payment and the "can it change" answers. They are the same saved values the Closing Disclosure prints, and saving them keeps everything else on CD details. Title's Loan check is still a step inside the Title tab. No database file.
+
 **What's still missing**
 
 - The Title tab's Schedule A, Requirements and Policy info start blank. Qualia fills the proposed insured, the commitment number, the policy amounts and the standard requirements from the file.
@@ -804,8 +806,8 @@ This file lists the portal's major features: how each one should work, how far a
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
 | TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
-| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
-| TB-8 | Easier steps (John, Nov 21, by voice): each step says in plain words when it happens; Sales person lists every staff member with a search box; an email step can go to the agents who didn't refer the file (owner intro) (Owner: Claude) | [PR 395](https://github.com/Johncoester/cla-portal-demo/pull/395) open. Not Live until `20261128010000_task_flow_non_referring_agents.sql` is applied on TEST |
+| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | **Live.** [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) merged d104c0ff (Nov 21 2026, 12:40 PM ET); `20261127010000_task_flow_email_step.sql` applied on TEST Nov 21 |
+| TB-8 | Easier steps (John, Nov 21, by voice): each step says in plain words when it happens; Sales person lists every staff member with a search box; an email step can go to the agents who didn't refer the file (owner intro) (Owner: Claude) | **Live.** [PR 395](https://github.com/Johncoester/cla-portal-demo/pull/395) merged db09aa3d (Nov 21 2026, 1:50 PM ET); `20261128010000_task_flow_non_referring_agents.sql` applied on TEST Nov 21, 1:51 PM ET (v20261121185110). No flows created or turned on |
 | TB-9 | Easier to build (John, Nov 21, by voice): flows are called templates ("Template name", "+ New template"); Which files is behind an optional "Limit to certain files" link; each step has its own When box (days after it starts) instead of a separate Wait step; an Insert field list for the email (Owner: Claude) | [PR 398](https://github.com/Johncoester/cla-portal-demo/pull/398) open. No database change |
 
 **What's built**
@@ -1393,6 +1395,15 @@ This file lists the portal's major features: how each one should work, how far a
 - The other side's agent tasks and fees, and the buyer's and seller's own tasks, stay hidden from the TC.
 
 ---
+
+## Assign agents and coordinators (TC-ASSIGN-1)
+
+**Status: In progress.** John Coester, chat, Nov 21 2026 (TC rules). Tracker item TC-ASSIGN-1. Rule 9 waived by John for the TC fixes, Nov 21 2026. Not Live until `supabase/migrations/20261127990000_tc_assign_agents.sql` is applied on TEST.
+
+- An agent and a transaction coordinator are linked from User List > Edit user (either person), from either person's CRM contact record, or within a file (Order Contacts: adding a coordinator next to that side's agent, or an agent next to that side's coordinator).
+- One link, both ways. The coordinator then goes on every file that agent is on (open, closed, on hold or cancelled), on the agent's side. Refinances are left out.
+- Removing a link takes nobody off a file. A CLA staff login is never linked. A coordinator placed by a link is not linked onward to other agents on that file.
+- Spec: [docs/specs/tc-assign-agents.md](docs/specs/tc-assign-agents.md).
 
 ## Reuse a contact by email (CONTACT-REUSE-1)
 

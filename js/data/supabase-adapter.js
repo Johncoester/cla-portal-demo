@@ -11,7 +11,7 @@ import { clientActivityFrom } from './client-activity.js?v=202611102100';
 import { assertRecipients, messageText } from './portal-message.js?v=202611247700';
 import { planDocumentBatch } from './document-batch.js?v=202611247700';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611247900';
+import { accountingSupabase } from './supabase-accounting.js?v=202611289950';
 import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611247700';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611247900';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611247900';
@@ -30,7 +30,7 @@ import { crmSupabase } from './supabase-crm.js?v=202611249700';
 import { hrSupabase } from './supabase-hr.js?v=202611247700';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611247700';
 import { officesSupabase } from './supabase-offices.js?v=202611247700';
-import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611281400';   // John, Nov 13: Admin > Task Builder (TB-1)
+import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611289970';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611247700';
 import { tcSupabase } from './supabase-tc.js?v=202611247700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611247700';
@@ -724,6 +724,12 @@ export async function createSupabaseAdapter(cfg) {
     async unlinkAgentTc(agentContactId, tcContactId) {
       ok(await sb.rpc('unlink_agent_tc', { p_agent: agentContactId, p_tc: tcContactId }));
       return true;
+    },
+    // TC-ASSIGN-1: the agents a coordinator works with (the coordinator's contact record and User List > Edit user).
+    // Adding or removing from that side uses link_agent_tc / unlink_agent_tc with the agent and the coordinator.
+    async listTcAgents(tcContactId) {
+      if (!tcContactId) throw new Error('That person was not found. Pick someone from the list, or enter their name.');
+      return camel(ok(await sb.rpc('tc_agents', { p_tc: tcContactId }))) || [];
     },
     async listContacts(search = '') {
       const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))) || [];
