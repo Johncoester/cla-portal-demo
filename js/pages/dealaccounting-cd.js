@@ -6,7 +6,7 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
 import { TEST_MARK } from '../data/accounting.js?v=202611247900';
 import { summaryScreens } from '../data/qualia-charges.js?v=202611243300';
-import { CD_DETAIL_GROUPS, LOAN_PAGE_GROUPS, loanPageInput } from '../data/cd-pages.js?v=202611270010';
+import { CD_DETAIL_GROUPS, LOAN_PAGE_GROUPS, loanPageInput } from '../data/cd-pages.js?v=202611289950';
 import { partyNames, brokerOf } from '../data/statement-parties.js?v=202611222900';
 import { cdBrokerCells } from '../data/lender-file.js?v=202611247700';
 import { fmtPhone } from '../data/constants.js?v=202611247700';

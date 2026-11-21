@@ -807,6 +807,7 @@ This file lists the portal's major features: how each one should work, how far a
 | TB-5 | Drag-and-drop flowchart screen | Planned |
 | TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
 | TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
+| TB-8 | Easier steps (John, Nov 21, by voice): each step says in plain words when it happens; Sales person lists every staff member with a search box; an email step can go to the agents who didn't refer the file (owner intro) (Owner: Claude) | [PR 395](https://github.com/Johncoester/cla-portal-demo/pull/395) open. Not Live until `20261128010000_task_flow_non_referring_agents.sql` is applied on TEST |
 
 **What's built**
 
@@ -833,6 +834,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. John, Nov 20: client requests in Task Builder, with one email per person listing everything still needed, not one email per request. John, Nov 20: an email step and a File closed trigger; flows stay Off until he has tested them and turns them on. Still open: whether clients and agents can tick off tasks.
+- John, Nov 21: each step says in plain words when it happens ("2 days after the order opens: create this task, due 1 day later"); Task Builder's Sales person choice lists every staff member with a search box (being the sales person is set on the file); a Send an email step can go to the agents who didn't refer the file, using the file's Source of business, for his owner intro email. Open: Place Order and the file still offer only Sales Person and Sales Team as salespeople (Janine, Nov 18), so an Admin who sells can't be added there yet.
 
 ---
 
@@ -2822,7 +2824,7 @@ This file lists the portal's major features: how each one should work, how far a
 ## Clone a CRM dashboard copies its charts
 ## CRM Calls menu link (Feedback 32 item 3)
 
-**How it should work.** Each chart on a CRM dashboard has Add to Home. The chart then shows on that person's CRM Home, with Refresh, Rename, and Remove. Dragging changes the order on Home. Rename and Remove do not change the chart on the dashboard. Remove only takes it off Home. There is no resize. Each person has their own Home charts.
+**How it should work.** Each chart on a CRM dashboard has Add to Home. The chart then shows on that person's CRM Home, with Refresh, Rename, and Remove. The ... menu on Home has Reorder, with Move up and Move down (F31b, row 414). Dragging can also change the order. Rename and Remove do not change the chart on the dashboard. Remove only takes it off Home. There is no resize. Each person has their own Home charts.
 **How it should work.** Clone on a CRM dashboard makes a new dashboard named like "Lead dashboard (copy)". Every chart comes with it: the same settings, filters, order, and size. The original dashboard stays as it was. A hidden chart is not copied. The copy is Only me.
 **How it should work.** Calls in the CRM menu opens a list of calls already saved on a lead, client, or company. The subject opens that call. If there are no calls, the page says so. It is not the full Calls module.
 
@@ -2833,7 +2835,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - Add to Home on every chart of a dashboard the person can open.
-- Home shows those charts after the rest of the page, with Refresh, Rename, Remove, and drag to reorder.
+- Home shows those charts after the rest of the page, with Refresh, Rename, Remove, and Reorder (Move up and Move down) from the ... menu. Dragging by the title can also change the order.
 - The Home name and the Home order are stored for that person only. The dashboard chart is unchanged.
 - If the person has no Home charts, Home does not ask again during that browser tab, and it does not load chart numbers.
 - If the database file is not applied yet, Add to Home is hidden.
@@ -2872,6 +2874,40 @@ This file lists the portal's major features: how each one should work, how far a
 - A hidden chart is not copied. Restore it on the original first if it should be included.
 - No database change. The list uses the calls already stored. It does not add a table or a query.
 - The full Calls module is not part of this change. The menu opens the short list so the link is not a dead end.
+
+---
+
+## Reorder charts on CRM Home (F31b, row 414)
+
+**How it should work.** On CRM Home, a **...** button at the top right opens a small menu with **Reorder**. Reorder shows **Move up** and **Move down** on each Home chart, plus **Done**. The new order is saved for that person and is still there after they leave Home and come back. Another person does not see or change it. Refresh, Rename, and Remove keep working. When Home has no charts, Reorder is disabled and the menu says there is nothing to reorder.
+
+**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393). No new database file. Not Live.
+
+**What's built**
+
+- The ... menu on CRM Home, with Reorder.
+- Move up, Move down, and Done. The order is stored on that person's existing Home chart rows.
+- Leaving Home and coming back shows the same order. Another person's Home is separate.
+- Refresh, Rename, and Remove still work.
+- An empty Home disables Reorder and shows a short note.
+- Dragging by the title can still change the order. It is not the only way.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Home chart table from PR 359 is still not applied on TEST. Reorder uses that table and does not add one.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
+- Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393)
+- Earlier pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359)
+
+**Decisions**
+
+- No new database file. The order is the position already stored for that person.
+- The menu has Reorder only. Zoho also shows Add Component and View in Full Screen. Those are not part of this change.
+- Move up and Move down are the way to reorder. Dragging stays as an extra.
 
 ---
 

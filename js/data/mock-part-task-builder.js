@@ -13,8 +13,8 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved file template or a written message, with merge fields) and the "File closed"
  * trigger. Emails are queued in the outbox; a test run sends the email only to the admin trying it. */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611269910';
-import { renderFlowEmail, testCopy, EMAIL_ROLES } from './flow-email.js?v=202611269910';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611281200';
+import { renderFlowEmail, testCopy, emailRecipients, emailRoleName } from './flow-email.js?v=202611281200';
 import { SEED_SHARED } from './file-email-templates.js?v=202611247700';
 import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';
 import { senderFor } from './email-senders.js?v=202611247700';
@@ -115,10 +115,10 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
   const sendEmails = (d, flow, run, deal, t, at, notes) => {
     let src = t.templateId ? templateOf(t.templateId) : { subject: t.subject, body: t.body };
     if (!src) { notes.push({ at, text: `The "${t.templateName || 'saved'}" template was not found or is turned off, so no email was sent.` }); return; }
-    const people = d.participants.filter((p) => p.dealId === deal.id && !p.removed && p.role === t.assignTo)
+    const people = emailRecipients(d.participants.filter((p) => p.dealId === deal.id && !p.removed), t.assignTo, deal.sourceOfBusiness)
       .map((p) => d.contacts.find((c) => c.id === p.contactId)).filter(Boolean);
     const withEmail = people.filter((c) => String(c.email || '').trim());
-    const who = ((EMAIL_ROLES.find(([v]) => v === t.assignTo) || [t.assignTo, t.assignTo])[1]).toLowerCase();
+    const who = emailRoleName(t.assignTo).toLowerCase();
     if (!people.length) { notes.push({ at, text: `No ${who} on this file, so the email was not sent.` }); return; }
     if (!withEmail.length) { notes.push({ at, text: `The ${who} on this file has no email address, so the email was not sent.` }); return; }
     const mailDeal = dealForMail(d, deal); const today = at.slice(0, 10);
