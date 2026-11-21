@@ -3,7 +3,7 @@
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
 import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES, AGENT_TC_TYPE } from '../data/constants.js?v=202611247700';
-import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611269920';
+import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611289960';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611247700';
 import { canChangeCrmRecord } from '../data/crm-visibility.js?v=202611247100';
@@ -16,7 +16,7 @@ import { optSel, lbl, fopts, hiddenField, cfInputs, cfRows, cfCols, cfFilters, c
 import { settingsPage } from './crm-settings.js?v=202611247100';
 import { personModal, personView, relatedHtml, wireRelated, taskModal, meetingModal } from './crm-forms.js?v=202611247100';
 import { pipelinePage, reportsPage } from './crm-more.js?v=202611247100';
-import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611249700';
+import { homePage, taskPage, meetingPage } from './crm-home.js?v=202611261100';
 import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-templates.js?v=202611247100';
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
 import { searchPage } from './crm-search.js?v=202611247100';

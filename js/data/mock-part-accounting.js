@@ -8,7 +8,7 @@ import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK,
 import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED, mergeOtherChargeDetails, otherChargeDetailsChanged } from './contract-terms.js?v=202611247900';
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611246500';
 // Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
-import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611070139';
+import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611289950';
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.

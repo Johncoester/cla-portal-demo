@@ -11,7 +11,7 @@ const ctypeSel = (sel, dis = '') => html`<label data-ctype-field>Contact type <s
 import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/user-filter.js?v=202611247700';
 import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611248300';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
-import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611269920';
+import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611289960';
 const acct = (r) => (r === OUTSIDE ? 'Realtor / Client (role set per order)' : r);   // display only (live40): the stored value stays 'Outside user'
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it
