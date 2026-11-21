@@ -3068,5 +3068,5 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database file. The existing mass update and mass email already accept the ids of the rows to change. A view's criteria are not the All list's filters, so Select all matching sends those ids, one page at a time, instead of asking for a new database function.
 - The checkbox is not stored as a column, so the drag order from the column chooser is unchanged.
-- Cache stamp 202611290320, above main's 202611290310, so a saved copy of the shell is not reused.
+- Cache stamp 202611290610, above main's 202611290600, so a saved copy of the shell is not reused.
 

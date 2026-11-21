@@ -46,7 +46,7 @@ const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611249900')),
   dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611290300')),
-  orders: () => loadRoute(() => import('./pages/orders.js?v=202611290200')),
+  orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611248300')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611289950')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611289960')),
@@ -62,7 +62,7 @@ const pages = {
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611247700')),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => loadRoute(() => import('./pages/crm.js?v=202611290320')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => loadRoute(() => import('./pages/crm.js?v=202611290610')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611247700')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611249900')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
@@ -138,6 +138,7 @@ export function navFor(u, dealId, unread, features = {}, ws = 'everything', demo
   const add = (id, label, href, cls) => items.push({ id, label, href, cls });
   if (!isClientOnlyUser(u)) add('dashboard', dashLabel(u), '#/dashboard', 'orders');   // live40: no "My files" item for clients
   add('orders', u.role === 'Transaction Coordinator' ? 'Orders' : 'Open Orders', '#/orders', 'orders');
+  if (isOutside(u.role) || isAgent(u.role)) add('open-tasks', 'Open Tasks', '#/orders?view=tasks', 'task');   // TC-NEW-TASKS-PAGE-1: my open tasks across files (orders.js)
   if ((u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && modOn('tasks')) add('tasks', 'All Tasks', '#/tasks', 'task');
   if (canOpenTaskSetup(u, demo) && modOn('task-grid')) add('task-grid', 'Task Grid', '#/task-grid', 'task');
   if (u.isAdmin) { add('users/new', 'Create User', '#/users/new', 'documents'); add('users', 'User List', '#/users', 'documents'); add('teams', 'Teams', '#/teams', 'contact-us'); add('offices', 'Offices', '#/offices', 'contact-us'); }   // John, Nov 4: Admin > Offices (Admin / Super admin)
@@ -184,7 +185,8 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   const lbl = (id, label) => (tc ? html`${icon(ICO[id] || id)}<span class="nav-label">${label}</span>` : label); const tip = (label, beta) => (tc || beta ? raw(` title="${esc(label)}${beta ? ` (${BETA_LABEL})` : ''}"`) : '');
   const betaTag = (id) => html`<span class="beta-badge" data-beta-badge="${id}" title="${BETA_LABEL}">Beta</span>`;
   const hrTip = (n) => (/^hr-/.test(n.id) ? raw(` title="${esc(n.label)}${n.beta ? ` (${BETA_LABEL})` : ''}" aria-label="${esc(n.label)}" data-tip="${esc(n.label)}" data-hr-nav="${n.id}"`) : tip(n.label, n.beta));   // John, Nov 4: HR icons get hover labels
-  const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders') ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
+  const tasksView = new URLSearchParams((location.hash || '').split('?')[1] || '').get('view') === 'tasks';   // Open Tasks lives on the orders route
+  const core = navFor(u, null, 0, api.features || {}, ws, DEMO_VIEW).map((n) => html`<li class="nav-item"><a class="nav-link ${n.cls} ${n.id === cur || (n.id === 'orders' && route.page === 'orders' && !tasksView) || (n.id === 'open-tasks' && route.page === 'orders' && tasksView) ? 'active' : ''}" href="${n.href}"${hrTip(n)}${n.beta ? raw(' data-beta-nav') : ''}>${lbl(n.id, n.label)}${n.beta ? betaTag(n.id) : ''}</a></li>`);
   const t = route.params.tab;
   const mineNav = typeof location !== 'undefined' && /(?:\?|&)mine=1(?:&|$)/.test(location.hash || '');
   // FF-101a: buyer / listing agents (and a TC acting as them) get My Tasks only — no general Tasks tab.
