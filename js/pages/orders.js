@@ -32,7 +32,7 @@ const mailCell = (n) => {
 export const openTasksFor = (user) => !!user && (isOutside(user.role) || isAgent(user.role));
 export async function render({ api, user }) {
   const q = new URLSearchParams((location.hash.split('?')[1]) || ''); const tab = TABS.some((t) => t[0] === q.get('s')) ? q.get('s') : 'Open';
-  if (q.get('view') === 'tasks' && openTasksFor(user)) return (await import('./open-tasks.js?v=202611290400')).render({ api, user });
+  if (q.get('view') === 'tasks' && openTasksFor(user)) return (await import('./open-tasks.js?v=202611290600')).render({ api, user });
   // The unread counts start with the order list. One open_order_mail read when that function exists.
   // If it fails, keep the portal count already on the deal (mock).
   const mailPromise = api.orderMailUnread ? api.orderMailUnread().catch(() => null) : Promise.resolve(null);

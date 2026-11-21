@@ -46,7 +46,7 @@ const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611249900')),
   dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611290300')),
-  orders: () => loadRoute(() => import('./pages/orders.js?v=202611290400')),
+  orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611248300')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611289950')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611289960')),
@@ -62,7 +62,7 @@ const pages = {
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611247700')),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => loadRoute(() => import('./pages/crm.js?v=202611289960')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => loadRoute(() => import('./pages/crm.js?v=202611289980')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611247700')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611249900')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
@@ -685,7 +685,7 @@ function wireChrome(u) {
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
-    import('./pages/crm-search.js?v=202611247100').then((m) => m.wireHeaderSearch(api));
+    import('./pages/crm-search.js?v=202611289980').then((m) => m.wireHeaderSearch(api));
     import('./pages/crm-janine.js?v=202611247700').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
