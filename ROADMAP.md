@@ -2699,40 +2699,73 @@ This file lists the portal's major features: how each one should work, how far a
 - The filter is the same for every CRM user, including an admin and a processor.
 - Reports and dashboards still load the tasks that person is allowed to see. Only the Home task list is limited to the assignee.
 
-## CRM record shortcuts (Feedback 28 item 3)
+## CRM record shortcuts (Feedback 28 item 3, updated by Feedback 36)
 
-**How it should work.** On a Lead, Client, Deal, or Company, a panel on the left starts with Clients, Leads, Deals, Task, Meeting, Call. Janine set that order on Nov 18 2026, 5:23 PM ET. If the record already has that section, a click moves down the page to it. If it does not, the shortcut opens that module's list. After those six, Notes, Open Activities, Closed Activities, Emails, and Attachments stay in that order, and only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
+**How it should work.** On a Lead, Client, Deal, or Company, the left panel lists only that record's own shortcuts, and only when the section is already on the page: Notes, Deals, Open Activities, Closed Activities, Emails, Attachments. A click moves down the page to that section. Attachments is the only shortcut with a count. An empty list shows no number. More than 10 shows 10+. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top. The module links (Clients, Leads, Deals, Tasks, Meetings, Calls) are top tabs. See the next section.
 
-**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opens the Calls list in [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368). No database file. Not Live until someone checks a record on TEST.
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opened the Calls list in [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368). Feedback 36 (Janine, Nov 20 2026, 12:40 PM ET, tracker F36 row 416) moves the modules off this panel. No database file. Not Live until someone checks a record on TEST.
 
 **What's built**
 
 - The panel on Lead, Client, Company, and Deal records.
-- The first six are always Clients, Leads, Deals, Task, Meeting, Call.
-- Clients scrolls to the company's client list. Deals scrolls to the orders already on a client or company. Task, Meeting, and Call scroll to Open Tasks, Open Meetings, and Open Calls when those columns are on the record.
-- A lead has no clients, leads, or deals section, so those three open the Clients, Leads, and Deals lists. A deal has none of the six sections. Task opens CRM Home (My Open Tasks). Clients, Leads, and Deals open their lists. Call on a deal opens the Calls list. Meeting on a deal stays grey text, "Coming soon".
-- Notes, Open Activities, Closed Activities, Emails, and Attachments follow, in that order, only when the section is on the page. A deal still shows Emails and leaves the other four off.
+- Notes, Open Activities, Closed Activities, Emails, and Attachments, only when that section is on the page.
+- Deals, only when the record already lists orders (a client or a company). It jumps to that list. The orders card still says Orders in the portal.
+- A lead has no orders list, so Deals is not on a lead. A deal shows Emails only.
+- Attachments shows the number of files already on the page. Empty shows no number. More than 10 shows 10+. No other shortcut shows a count.
 - The lists of leads, clients, companies, and deals do not get the panel.
 - The panel does not load anything extra.
+- Clients, Leads, Task, Meeting, and Call are no longer on this panel.
 
 **What's still missing**
 
 - Not checked on TEST yet. Do not mark Live before that.
 - The orders card still says Orders in the portal. The shortcut that jumps there says Deals.
-- There is no Meetings list. On a Deal, Meeting stays grey "Coming soon" text. Call opens the Calls list. That list has no way to show only one deal's calls, so the list is every call this person can already see.
+- There is no Meetings list. That tab stays grey "Coming soon". The Calls list has no way to show only one deal's calls.
 
 **Links**
 
 - Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Module tabs: [docs/specs/crm-module-tabs.md](docs/specs/crm-module-tabs.md)
 - First panel: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
 - Order change: [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360)
 - Call opens the Calls list: [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368)
+- Modules moved to the top tabs: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
 
 **Decisions**
 
-- No database change. The panel does not add rows. It points at a section already on the record, or at the module's existing list.
-- Call on a deal opens `#/crm/calls`. The Calls list does not read a deal filter, so the shortcut does not invent one. Meeting stays unlinked until a Meetings list exists.
-- The older shortcuts stay after the six, in the same order they had before Deals moved up.
+- No database change. The panel does not add rows. It points at a section already on the record.
+- Feedback 33 counts are not built here except Attachments. Empty shows no number. More than 10 shows 10+.
+- Module links live on the top tabs, not on this panel.
+
+## CRM module tabs (Feedback 36)
+
+**How it should work.** The CRM top tabs keep their existing order and add Tasks, Meetings, and Calls after Deals: Home, Leads, Clients, Companies, Deals, Tasks, Meetings, Calls, then Pipeline, Dashboards, Reports, and Templates. Tasks opens CRM Home (My Open Tasks). Calls opens the Calls list. Meetings is grey "Coming soon" and is not a link. The left menu, Reports, Email Templates, and Home keep working.
+
+**Status: In progress.** Janine Santos, Feedback 36, confirmed Nov 20 2026, 12:40 PM ET. Tracker F36, row 416. No database file. Not Live until someone checks a record on TEST.
+
+**What's built**
+
+- Tasks, Meetings, and Calls on the CRM top tab row, after Deals and before Pipeline.
+- Tasks opens `#/crm` (CRM Home). Calls opens `#/crm/calls`. Meetings is grey text with "Coming soon" and does not open a page.
+- A switched-off Calls module hides that tab. A Calls module in testing keeps the beta badge.
+- The record's left panel no longer lists those modules.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- There is no Meetings list page.
+
+**Links**
+
+- Spec: [docs/specs/crm-module-tabs.md](docs/specs/crm-module-tabs.md)
+- Record shortcuts: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Pull request: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
+
+**Decisions**
+
+- No database change. The existing tab order is kept. Tasks, Meetings, and Calls are inserted after Deals, in that order.
+- Meetings is shown and disabled until a Meetings list exists. It is not a broken link.
+- The CRM menu is unchanged.
 
 ---
 

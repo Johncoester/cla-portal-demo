@@ -6,12 +6,12 @@ import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611160300';
 import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
 import { schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
-import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611247100';
+import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611289980';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611247100';
 import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611247700';
 import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611247700';
-import { wireCompose } from './crm-templates.js?v=202611247100';
+import { wireCompose } from './crm-templates.js?v=202611289980';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];
 const q = () => new URLSearchParams(location.hash.split('?')[1] || '');
