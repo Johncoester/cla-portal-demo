@@ -53,7 +53,7 @@ import { titlePart, ensureTitle } from './mock-part-title.js?v=202611247700';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611247700';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611247700';
-import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611271000';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
+import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611269910';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611247700';
 import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611247700';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
@@ -226,6 +226,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // role (the wider of the two: an agent already sees everything on its side) and `roles` lists both, so their own client copies,
   // client-assigned tasks and the union of both roles apply. Mirrored by private.deal_roles(deal) / private.file_roles_of in SQL.
   // TC-3: the coordinator is treated as their agent on this file (Buyer Agent or Listing Agent).
+  const TC_AGENT_ROLE = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
   function linkedAgentRoles(profileId, dealId) {
     const c = contactOf(profileId); if (!c || !dealId) return [];
     const d = load(); const roles = [];
@@ -235,6 +236,12 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
         if (p.dealId === dealId && p.contactId === l.agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent') && !roles.includes(p.role)) roles.push(p.role);
       });
     });
+    // TC-VIS-1: on this file as that side's coordinator, and that side has an agent (private.linked_agent_roles).
+    d.participants.forEach((x) => {
+      const role = TC_AGENT_ROLE[x.role];
+      if (!role || x.dealId !== dealId || x.contactId !== c.id || roles.includes(role)) return;
+      if (d.participants.some((a) => a.dealId === dealId && a.role === role)) roles.push(role);
+    });
     return roles;
   }
   function tcForAgent(actorId, agentProfileId, dealId, role) {
@@ -243,8 +250,11 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const tc = contactOf(actorId); const agent = contactOf(agentProfileId);
     if (!tc || !agent) return null;
     const d = load();
-    if (!(d.agentTcLinks || []).some((l) => l.tcContactId === tc.id && l.agentContactId === agent.id)) return null;
     if (!d.participants.some((p) => p.dealId === dealId && p.contactId === agent.id && p.role === role)) return null;
+    // TC-VIS-1: linked to the agent, or on this file as that side's coordinator (private.tc_for_agent).
+    const linked = (d.agentTcLinks || []).some((l) => l.tcContactId === tc.id && l.agentContactId === agent.id);
+    const onFile = d.participants.some((x) => x.dealId === dealId && x.contactId === tc.id && x.role === `${role} TC`);
+    if (!linked && !onFile) return null;
     return { agentProfileId, role, roleLabel: 'Transaction coordinator' };
   }
   // When an agent is added, or a link is saved, put each linked coordinator on that side.

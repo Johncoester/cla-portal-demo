@@ -793,17 +793,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged (PR 263, Nov 14); not Live until its database file is applied on TEST. TB-2b (Try on one file, new files only) pull request open.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged ([PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263), Nov 14); engine file already applied on TEST as 20261114143634. TB-2b merged ([PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265)); try-and-scope file already applied on TEST as 20261114170335. TB-6 Live on TEST ([PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389), Nov 20).**
 
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
-| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265) open. Not Live until `20261122010000_task_flow_try_and_scope.sql` is applied on TEST, after TB-2's file |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Database file already applied on TEST as `task_flow_engine` version 20261114143634 (repo file `20261121010000_task_flow_engine.sql`). |
+| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | Merged, [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265). Database file already applied on TEST as `task_flow_try_and_scope` version 20261114170335 (repo file `20261122010000_task_flow_try_and_scope.sql`). |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
-| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Pull request open. Not Live until `20261126010000_task_flow_client_requests.sql` is applied on TEST, after TB-2 and TB-2b's files |
+| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
 | TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) open. Not Live until `20261127010000_task_flow_email_step.sql` is applied on TEST, after TB-6's file |
 
 **What's built**
@@ -816,7 +816,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- TB-2 and TB-2b are not Live: apply `20261121010000_task_flow_engine.sql`, then `20261122010000_task_flow_try_and_scope.sql`, on TEST (they need TB-1's file, already applied, and pg_cron, already on TEST). John wants to try it himself before Grok tests it.
+- TB-2, TB-2b and TB-6 database files are applied on TEST. John tests the TB-6 flow himself before Grok tests it.
 - "Contract received" and "Title commitment received" can be saved but not turned on yet.
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
@@ -1357,6 +1357,36 @@ This file lists the portal's major features: how each one should work, how far a
 - This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
 - A coordinator gets the short client login, not the agent account.
 - A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+
+---
+
+## TC sees what their agent sees (TC-VIS-1)
+
+**How it should work.** A transaction coordinator sees everything their agent sees on the file: the agent's open and closed tasks, commissions and other agent fees. A TC is one person on many files, working with several agents. On a file, the TC acts for that side's agent when they are on the file as that side's coordinator, or when they are linked to the agent.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026 (standing rule) and Nov 21 2026 (TC rules). Tracker item TC-VIS-1. Rule 9 waived by John for this fix, Nov 21 2026, 11:19 AM ET. Not Live until `supabase/migrations/20261126990000_tc_sees_agent_file.sql` is applied on TEST.
+
+**What's built**
+
+- The database treats a coordinator on the file (Buyer Agent TC or Listing Agent TC) like a linked one: the agent's tasks on that side, open and closed, on open and closed files; the agent's answers; filling in and finishing the agent's forms and tasks on the agent's behalf; the agent fees for that side.
+- A CLA staff Transaction Coordinator gets the agent fees for the side where they are that side's coordinator, or linked to that side's agent.
+- The file Tasks tab: the TC's My Tasks lists the agent's tasks, marked "your agent". The cross-file My Tasks list includes them too.
+- The per-file check keeps its plan between calls. Outside users' task lists are about 5 times faster on a local copy.
+
+**What's still missing**
+
+- Assigning a TC to an agent from the admin screen, the TC's contact and the file, both ways, with the TC put on all of the agent's files. That is TC-ASSIGN-1.
+- Documents and messages are not part of this change.
+
+**Links**
+
+- Spec: [docs/specs/tc-sees-agent-file.md](docs/specs/tc-sees-agent-file.md)
+- Source: John Coester, chat, Nov 20-21 2026. Tracker item TC-VIS-1.
+
+**Decisions**
+
+- Nothing is stored or moved. Only read and permission checks change.
+- The other side's agent tasks and fees, and the buyer's and seller's own tasks, stay hidden from the TC.
 
 ---
 
@@ -2058,13 +2088,13 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Custom view name column can move
 
-**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. The arrows move it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
+**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. Drag it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
 
 **Status: In progress.** Janine, Feedback 30 item 2, confirmed before this change. No database file. Not Live until this is merged and someone checks it on TEST.
 
 **What's built**
 
-- The name column can move up and down on Leads, Clients, Companies, and Deals, and it cannot be removed.
+- The name column can be dragged on Leads, Clients, Companies, and Deals, and it cannot be removed.
 - The saved order is the order of the list. A missing name position stays first.
 - The criteria user list from pull request 309 stays. Both work on the same custom view.
 
@@ -2107,6 +2137,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database file. The All list already stores a person's column choice.
 - The All list and New Custom View share one column list, so the two cannot drift.
 - The shell cache stamp is 202611249850, above main's 202611249800.
+
+## Custom view columns drag like the All list
+
+**How it should work.** On New Custom View and Edit view, Choose Columns, the selected columns move the same way as Manage columns on All Leads, All Clients, All Companies, and All Deals. Drag a selected column to a new place. The row has the same border and grab cursor as that list. Arrow keys move the focused row one place. Add and remove stay. The record name stays selected and can sit in any place. The order you leave is the order the view saves and the order that view's list shows.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 3, confirmed by email Nov 19, 2026, 6:30 PM ET ("Yes"). Pull request: [PR 386](https://github.com/Johncoester/cla-portal-demo/pull/386). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- Selected columns on Leads, Clients, Companies, and Deals use the All list's drag row. The up and down arrows are gone.
+- Add, remove, and the record-name rule stay. A blank view name does not throw away the order.
+- The saved column order is the order the view list shows.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-column-drag.md](docs/specs/crm-view-column-drag.md)
+
+**Decisions**
+
+- Reuse the All list's column row and its drag and arrow-key controls. Do not keep a second set of arrow buttons.
+- No database file. The view already stores column order.
+- The shell cache stamp is 202611249870, above main's 202611249850.
 
 ## Page load retry (LOAD-RETRY-1)
 

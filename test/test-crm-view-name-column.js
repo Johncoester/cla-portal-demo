@@ -70,12 +70,16 @@ for (const [module, label, extra] of MODULES) {
   const li = (key) => root.querySelector(`[data-vcol="${key}"]`);
   ok(keys()[0] === 'name', label + ' new view still starts with the name column');
   const nameLi = li('name');
-  ok(nameLi.querySelector('[data-vcol-up]').disabled && !nameLi.querySelector('[data-vcol-down]').disabled && !nameLi.querySelector('[data-vcol-x]'), label + ' name column can move down and cannot be removed');
-  const second = li(keys()[1]);
-  ok(second && !second.querySelector('[data-vcol-up]').disabled, label + ' the next column can move above the name');
+  const drag = (fromKey, toKey) => {
+    li(fromKey).dispatchEvent(new window.Event('dragstart', { bubbles: true }));
+    li(toKey).dispatchEvent(new window.Event('dragover', { bubbles: true, cancelable: true }));
+    li(toKey).dispatchEvent(new window.Event('drop', { bubbles: true, cancelable: true }));
+  };
+  ok(!root.querySelector('[data-vcol-up]') && !root.querySelector('[data-vcol-down]'), label + ' the up and down arrows are gone');
+  ok(nameLi.getAttribute('draggable') === 'true' && !nameLi.querySelector('[data-vcol-x]'), label + ' the name column drags and cannot be removed');
+  ok(li(keys()[1]) && li(keys()[1]).getAttribute('draggable') === 'true', label + ' the next column drags above the name');
   ok(![...root.querySelectorAll('[data-vcol-avail] option')].some((o) => o.value === 'name'), label + ' name stays out of the available list');
-  let guard = 0;
-  while (keys()[0] !== 'ownerId' && guard < 12) { li('ownerId').querySelector('[data-vcol-up]').click(); guard += 1; }
+  if (keys()[0] !== 'ownerId') drag('ownerId', keys()[0]);
   ok(keys()[0] === 'ownerId' && keys().includes('name') && !li('name').querySelector('[data-vcol-x]'), label + ' owner can be placed first and the name column stays selected');
   const beforeBlank = keys().join();
   root.querySelector('[data-view-name]').value = '';

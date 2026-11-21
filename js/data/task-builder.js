@@ -8,7 +8,7 @@
  * Shared by the mock adapter (mock-part-task-builder.js), the Supabase adapter (supabase-task-builder.js) and the page. */
 
 import { cleanRequestStep, requestStepText, formTitle } from './client-requests.js?v=202611261000';
-import { cleanEmailStep, emailStepText } from './flow-email.js?v=202611271000';
+import { cleanEmailStep, emailStepText } from './flow-email.js?v=202611269910';
 export const TASK_BUILDER_ADMIN_ONLY = 'Only an Admin or Super admin can use Task Builder.';
 export const FLOWS_RUN_NOTE = 'Flows that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. A flow starts once per file (a closing date change can start it again). Use Try on one file to see a flow work on a single order first.';
 export const TRIAL_NOTE = 'Runs every step on this one file now, even while the flow is Off. Waits are skipped so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the flow\'s real run on this file. A test run emails no client: form requests are added as tasks but not emailed, and an email step sends its test copy only to you.';
