@@ -195,9 +195,9 @@ const dual = [...hits.entries()].filter(([, stamps]) => stamps.size > 1);
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.map(([t, s]) => t + ' ' + [...s].join(',')).join('; ') : ''));
 const chain = [
   ['js/pages/crm-shortcuts.js', '202611249600'],
-  ['js/pages/crm-deals.js', '202611249850'],
-  ['js/pages/crm.js', '202611249850'],
-  ['js/app.js', '202611271000'],
+  ['js/pages/crm-deals.js', '202611249870'],
+  ['js/pages/crm.js', '202611261050'],
+  ['js/app.js', '202611261050'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -206,8 +206,8 @@ for (const [target, stamp] of chain) {
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 const appFrom = [...(hits.get('js/app.js') || [])];
-ok(read('index.html').includes('js/app.js?v=202611271000') && appFrom.length === 1 && appFrom[0] === '202611271000', 'index.html loads the shell at 202611271000');
-ok(read('js/app.js').includes('adapter.js?v=202611271000'), 'the shell loads the adapter at 202611271000 so Home reads company and deal names');
+ok(read('index.html').includes('js/app.js?v=202611261050') && appFrom.length === 1 && appFrom[0] === '202611261050', 'index.html loads the shell at 202611261050');
+ok(read('js/app.js').includes('adapter.js?v=202611261000'), 'the shell loads the adapter at 202611261000 so Home reads company and deal names');
 
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);

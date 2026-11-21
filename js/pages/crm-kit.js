@@ -4,7 +4,7 @@ import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, pi
 import { CONTACT_TYPES, contactTypeLabel, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
 import { crmFilter, crmSort, toCsv } from '../data/crm.js?v=202611247700';
 import { modOn, modBeta, BETA_LABEL } from '../data/modules.js?v=202611247700';   // module switches: Deals hidden when not Live (beta badge for Admins)
-import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611161500';
+import { columnChooserHtml, columnState, wireColumnChooser } from './crm-columns.js?v=202611249870';
 import { beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { pageOf, selectionState, selectPage, loadPageSize, normalizePageSize, PAGE_SIZE_OPTIONS } from '../data/crm-bulk.js?v=202611160300';
