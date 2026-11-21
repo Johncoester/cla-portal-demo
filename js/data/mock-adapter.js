@@ -13,7 +13,7 @@ import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611247700';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611249300';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611249950';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611289960';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611247700';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
@@ -44,7 +44,7 @@ import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.j
 import { underwriterPart } from './mock-part-underwriter.js?v=202611247900';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611247700';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611249900';
-import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611248300';
+import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611289960';
 import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
 import { gmailMock } from './supabase-gmail.js?v=202611247700';
@@ -258,7 +258,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     return { agentProfileId, role, roleLabel: 'Transaction coordinator' };
   }
   // When an agent is added, or a link is saved, put each linked coordinator on that side.
-  // dealId set: that file only (any status except a refinance). dealId empty: open files only.
+  // dealId set: that file only. dealId empty: every file the agent is on (TC-ASSIGN-1: open, closed, on hold). Never a refinance.
   // Removing the agent does not remove the coordinator.
   function placeAgentTcs(d, agentContactId, dealId, actorId) {
     const links = (d.agentTcLinks || []).filter((l) => l.agentContactId === agentContactId && l.tcContactId !== agentContactId);
@@ -267,15 +267,40 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     d.participants.filter((p) => p.contactId === agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent') && (!dealId || p.dealId === dealId)).forEach((p) => {
       const deal = d.deals.find((z) => z.id === p.dealId);
       if (!deal || deal.transactionType === 'Refinance') return;
-      if (!dealId && deal.status !== 'Open') return;
       const role = p.role === 'Listing Agent' ? 'Listing Agent TC' : 'Buyer Agent TC';
       links.forEach((l) => {
         if (d.participants.some((x) => x.dealId === p.dealId && x.contactId === l.tcContactId && x.role === role)) return;
+        if (d.participants.some((x) => x.dealId === p.dealId && x.role === p.role && samePerson(d, x.contactId, l.tcContactId))) return;
         d.participants.push({ id: nid('dp'), dealId: p.dealId, contactId: l.tcContactId, role, createdAt: now() });
         const tc = d.contacts.find((c) => c.id === l.tcContactId);
         log(p.dealId, actorId || null, 'participant.added', 'contact', l.tcContactId, `${tc ? `${tc.firstName} ${tc.lastName}`.trim() : 'Coordinator'} added as ${role}`);
         n += 1;
       });
+    });
+    return n;
+  }
+  function samePerson(d, a, b) {
+    if (a === b) return true;
+    const x = d.contacts.find((c) => c.id === a); const y = d.contacts.find((c) => c.id === b);
+    const ex = String((x && x.email) || '').trim().toLowerCase();
+    return !!(ex && ex === String((y && y.email) || '').trim().toLowerCase());
+  }
+  // TC-ASSIGN-1 (private.link_tcs_from_file): someone added within a file links a coordinator and that side's agent, then the
+  // coordinator goes on all of the agent's files. A CLA staff login is never linked. Coordinators placed by a link do not link onward.
+  function linkFromFile(d, dealId, contactId, role, actorId) {
+    const deal = d.deals.find((z) => z.id === dealId);
+    if (!deal || deal.transactionType === 'Refinance') return 0;
+    const tcRole = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
+    const staff = (cid) => { const c = d.contacts.find((z) => z.id === cid); const p = c && c.profileId && d.profiles.find((z) => z.id === c.profileId); return !!(p && p.status !== 'removed' && p.role !== 'Outside user'); };
+    let pairs = [];
+    if (tcRole[role]) { if (staff(contactId)) return 0; pairs = d.participants.filter((x) => x.dealId === dealId && x.role === tcRole[role]).map((x) => [x.contactId, contactId]); }
+    else if (role === 'Buyer Agent' || role === 'Listing Agent') pairs = d.participants.filter((x) => x.dealId === dealId && x.role === `${role} TC` && !staff(x.contactId)).map((x) => [contactId, x.contactId]);
+    if (!Array.isArray(d.agentTcLinks)) d.agentTcLinks = [];
+    let n = 0;
+    pairs.forEach(([agentId, tcId]) => {
+      if (samePerson(d, agentId, tcId) || d.agentTcLinks.some((l) => l.agentContactId === agentId && l.tcContactId === tcId)) return;
+      d.agentTcLinks.push({ id: nid('atc'), agentContactId: agentId, tcContactId: tcId, createdBy: actorId || null, createdAt: now() });
+      n += placeAgentTcs(d, agentId, null, actorId);
     });
     return n;
   }
@@ -468,7 +493,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   }
 
   const api = { mode: 'mock', features: { ...flags } };
-  const ctx = { api, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName, placeAgentTcs, tcForAgent, linkedAgentRoles,
+  const ctx = { api, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName, placeAgentTcs, linkFromFile, tcForAgent, linkedAgentRoles,
     folderOf, docVisible, wireAllowed, isWireDoc, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, pureBuyer, pureSeller, pureClientSide, hiddenFromBuyer, hiddenFromClient, EMD_RECEIPT, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
     forget() { db = null; },   // drop the in-memory copy; the next call reloads the last SAVED state (CRM import preview, Janine Nov 3)
     reset() { store.removeItem(KEY); PREV_KEYS.forEach(([k]) => store.removeItem(k)); db = null; if (files) files.clearAll().catch(() => {}); load(); },

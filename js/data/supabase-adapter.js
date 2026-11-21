@@ -725,6 +725,12 @@ export async function createSupabaseAdapter(cfg) {
       ok(await sb.rpc('unlink_agent_tc', { p_agent: agentContactId, p_tc: tcContactId }));
       return true;
     },
+    // TC-ASSIGN-1: the agents a coordinator works with (the coordinator's contact record and User List > Edit user).
+    // Adding or removing from that side uses link_agent_tc / unlink_agent_tc with the agent and the coordinator.
+    async listTcAgents(tcContactId) {
+      if (!tcContactId) throw new Error('That person was not found. Pick someone from the list, or enter their name.');
+      return camel(ok(await sb.rpc('tc_agents', { p_tc: tcContactId }))) || [];
+    },
     async listContacts(search = '') {
       const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))) || [];
       const u = await me();
