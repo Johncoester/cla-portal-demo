@@ -11,7 +11,7 @@ export const OPEN_STATUS = 'Open';
 export const OTHER_STATUSES = ['Closed', 'On Hold', 'Cancelled'];
 export const OPEN_TASK_STATUSES = ['todo', 'in_progress', 'blocked'];
 
-export const DASHBOARD_DEAL_COLUMNS = 'id,file_number,status,street,city,state,zip,stage,closing_date,open_date,transaction_type,purchase_price,loan_amount,lender_name,lender_contact,lender_email,processor_id';
+export const DASHBOARD_DEAL_COLUMNS = 'id,file_number,status,street,city,state,zip,stage,closing_date,open_date,transaction_type,purchase_price,loan_amount,lender_name,lender_contact,lender_email,processor_id,emd_amount,emd_due_date,emd_holder,emd_received';
 export const DASHBOARD_TASK_COLUMNS = 'id,deal_id,title,status,due_date,kind,assigned_role,completed_at,participant_id,owner_profile_id,template_id,template_code,deals!inner(id,file_number,status,street,city,state,zip,closing_date)';
 
 const camel = (o) => Array.isArray(o) ? o.map(camel) : o && typeof o === 'object'
@@ -33,6 +33,7 @@ export function shapeDashboardDeal(row, extra = {}) {
     address, stage, stageName: STAGES[stage] || '', closingDate: d.closingDate || null, openDate: d.openDate || null,
     transactionType: d.transactionType || '', purchasePrice: d.purchasePrice == null ? null : Number(d.purchasePrice), loanAmount: d.loanAmount == null ? null : Number(d.loanAmount),
     lenderName: d.lenderName || '', lenderContact: d.lenderContact || '', lenderEmail: d.lenderEmail || '', processorId: d.processorId || null,
+    emdAmount: d.emdAmount == null || d.emdAmount === '' ? null : Number(d.emdAmount), emdDueDate: d.emdDueDate || null, emdHolder: d.emdHolder || '', emdReceived: !!d.emdReceived,
     processorName: named.processorName, processorUnassigned: named.processorUnassigned,
     fileTitle: extra.fileTitle || '', myRole: extra.myRole || null, myRoles: extra.myRoles || [], myRoleLabel: extra.myRoleLabel || '', selfRep: !!extra.selfRep,
     openTasks: extra.openTasks || 0, unread: extra.unread || 0, overdueTasks: extra.overdueTasks || 0,
