@@ -2691,6 +2691,23 @@ This file lists the portal's major features: how each one should work, how far a
 - A blank name means nobody is assigned. The role title stays.
 - More than one salesperson means more than one Sales Person card.
 
+## File reports in the CRM report builder (RPT)
+
+**How it should work.** Reports on files are built in the CRM's report builder, on the Deals report type (a Deal is a portal file). John's daily pre-closing report is the first target: processor, order number, open and close dates, the source of business with a contact, company, cell and email, key task dates, county, address, and each agent with a name, cell and email. Reports can then be emailed on a schedule. One report builder, not two.
+
+**Status: In progress.** John Coester, Nov 22 2026 ("check where the reporting in the CRM is at, maybe it would be easier just to report it from there", then "Do all 3"), assigned to Claude. Three pull requests, one at a time.
+
+**What's built**
+
+- RPT-1 ([PR 407](https://github.com/Johncoester/cla-portal-demo/pull/407), built by Claude, not merged). A Deals report offers 23 more columns: State, Zip Code, Contract Date, File Step, Processor, Pre-processor, Transaction Coordinator, Closer, Buyer, Seller, Source of Business with its contact, company, phone and email, and the Buyer Agent and Listing Agent each with company, phone and email. They can be shown, filtered, sorted and grouped like any other column. The phone is the mobile when there is one. They are on reports only; the Deals list and its column picker are unchanged. A person sees the same files in a report as on the Deals list. Database file `20261129010000_crm_deal_report_fields.sql` adds one read-only function and changes nothing that exists. Until it is applied on TEST the report still runs and says the file columns are blank. Not Live until that file is applied and a report is checked on TEST.
+
+**What's still missing**
+
+- RPT-2: task dates as columns (due and completed date for each task on the file, such as EMD receipt and clear to close).
+- RPT-3: reports emailed on a schedule to chosen people.
+- Reports live inside the CRM, so only people with CRM access can open them. A processor's own pre-closing list is not reachable from the portal side yet.
+- The Lender column on a Deals report is blank on TEST unless the file columns are loaded (the hosted Deals row has no lender name). RPT-1 fills it on reports.
+
 ## CRM report grouping without fiscal buckets
 
 **How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.
