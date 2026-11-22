@@ -30,7 +30,7 @@ import { crmSupabase } from './supabase-crm.js?v=202611249700';
 import { hrSupabase } from './supabase-hr.js?v=202611247700';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611247700';
 import { officesSupabase } from './supabase-offices.js?v=202611247700';
-import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611289970';   // John, Nov 13: Admin > Task Builder (TB-1)
+import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611290700';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611247700';
 import { tcSupabase } from './supabase-tc.js?v=202611247700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611247700';
@@ -102,7 +102,8 @@ export async function createSupabaseAdapter(cfg) {
   // roles = all I hold there, label = 'Buyer + Buyer's Agent' for an agent buying for themselves. Outside users get the roles/labels across files.
   const loadFileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
   const fileRoles = () => sessionCache('roles', loadFileRoles);
-  const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
+  // TC-PROFILE-1: 'Transaction Coordinator' is the label (never a role) for an outside coordinator on a file through their agent
+  const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller', 'Transaction Coordinator'];
   const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
   // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
   const loadParties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };

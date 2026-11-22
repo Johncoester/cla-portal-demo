@@ -1,6 +1,6 @@
 // Orders list: tabs Open / Close / On Hold / Cancelled / All, search box. Same columns as the old portal.
 import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js?v=202611161500';
-import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES } from '../data/constants.js?v=202611247700';
+import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES, STAGES } from '../data/constants.js?v=202611247700';
 import { filterDeals, sortDeals, DEAL_SORT_DIR } from '../data/task-board.js?v=202611247700';
 import { isUnassigned } from '../data/processor-assign.js?v=202611091600';
 import { orderMailCount } from '../data/file-email-unread.js?v=202611140900';
@@ -14,6 +14,10 @@ const SIDE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent'
 // Matt, Nov 3: sorting moved to the column headers (click = sort, click again = reverse; the lit arrow shows the direction). Replaces the Sort by / Order dropdowns.
 const COLS = [['openDate', 'Open Date'], ['closingDate', 'Closing Date'], ['fileNumber', 'File No'], ['role', 'Your Role'], ['address', 'Property Address'], ['tasks', 'Task Pending'], ['txType', 'Transaction Type'], ['status', 'Stage']];
 // John, Nov 9: staff see which files still need a Processor (assign one from Edit order details on the file)
+// TC-OPENORDERS-1: an outside coordinator on the file through their agent reads 'Transaction Coordinator' (TC-PROFILE-1 label)
+const TC_LABEL = 'Transaction Coordinator';
+const roleCell = (d) => (d.selfRep || d.myRoleLabel === TC_LABEL ? d.myRoleLabel : SIDE[d.myRole] || '-');
+const OPEN_FOR_ME = ['todo', 'in_progress'];   // the same open statuses the mock counts for myOpenTasks
 const unassignedBadge = (d) => (isUnassigned(d) ? html` <span class="pill warn" data-unassigned title="No Processor assigned yet">Unassigned</span>` : '');
 const partyBadge = (d) => (d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party" title="${d.agentParties.map((p) => `${p.name}: ${p.label}`).join('; ')}">Agent is a party</span>` : '');
 
@@ -23,21 +27,32 @@ const mailCell = (n) => {
   return html`<span class="bell-cell" data-new-mail="${n}" title="${label}"><img src="assets/img/bell_new.png" alt="New message"><span class="count">${n}</span></span>`;
 };
 
+// TC-NEW-TASKS-PAGE-1 (John, Nov 21 2026): Open Tasks (#/orders?view=tasks, its own left-menu item) lists every open task across the
+// person's files in this page's table look. Outside users and agents only; anyone else gets Open Orders as before.
+export const openTasksFor = (user) => !!user && (isOutside(user.role) || isAgent(user.role));
 export async function render({ api, user }) {
   const q = new URLSearchParams((location.hash.split('?')[1]) || ''); const tab = TABS.some((t) => t[0] === q.get('s')) ? q.get('s') : 'Open';
+  if (q.get('view') === 'tasks' && openTasksFor(user)) return (await import('./open-tasks.js?v=202611290600')).render({ api, user });
   // The unread counts start with the order list. One open_order_mail read when that function exists.
   // If it fails, keep the portal count already on the deal (mock).
   const mailPromise = api.orderMailUnread ? api.orderMailUnread().catch(() => null) : Promise.resolve(null);
+  const showRole = isClient(user.role) || isAgent(user.role) || isOutside(user.role);   // outside users: their role differs per file
+  // TC-OPENORDERS-1 (John, Nov 21 2026): the hosted order list has no per-person task count, so for the people who see the
+  // Your Role column one my_task_list read runs alongside the list (the mock already counts myOpenTasks). A failed read leaves it blank.
+  const minePromise = showRole && api.listMyTasks ? api.listMyTasks({ fileStatus: tab }).catch(() => null) : Promise.resolve(null);
   const deals = await api.listDeals({ status: tab });
   const mailFlags = await mailPromise;
-  const showRole = isClient(user.role) || isAgent(user.role) || isOutside(user.role);   // outside users: their role differs per file
+  const myTasks = await minePromise;
+  if (myTasks) { const n = new Map(); myTasks.forEach((t) => { const id = t.dealId || (t.deal && t.deal.id); if (id && OPEN_FOR_ME.includes(t.status)) n.set(id, (n.get(id) || 0) + 1); });
+    deals.forEach((d) => { if (d.myOpenTasks == null) d.myOpenTasks = n.get(d.id) || 0; }); }
+  deals.forEach((d) => { if (!d.stageName) d.stageName = STAGES[Number(d.stage) || 0] || ''; });   // hosted rows carry the stage number only
   const pf = showRole ? '' : (['unassigned', 'assigned'].includes(q.get('p')) ? q.get('p') : ''); const unassigned = deals.filter(isUnassigned).length;   // ?p=unassigned (Work Queue link)
   const rows = deals.map((d) => html`<tr data-deal="${d.id}" data-search="${(d.fileNumber + ' ' + d.address + ' ' + (d.county || '') + ' ' + (d.fileTitle || '') + ' ' + d.transactionType + ' ' + (d.processorName || '')).toLowerCase()}">
     <td class="nowrap">${mailCell(orderMailCount(d, mailFlags))}</td>
-    <td>${fmtDate(d.openDate)}</td><td>${fmtDate(d.closingDate)}</td><td>${d.fileNumber}${d.fileTitle ? html` <br><span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}${partyBadge(d)}${showRole ? '' : unassignedBadge(d)}</td>${showRole ? html`<td>${d.selfRep ? d.myRoleLabel : SIDE[d.myRole] || '-'}</td>` : ''}
+    <td>${fmtDate(d.openDate)}</td><td>${fmtDate(d.closingDate)}</td><td>${d.fileNumber}${d.fileTitle ? html` <br><span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}${partyBadge(d)}${showRole ? '' : unassignedBadge(d)}</td>${showRole ? html`<td data-your-role>${roleCell(d)}</td>` : ''}
     <td>${d.street},<br>${d.city}, ${d.state}, ${d.zip}</td>
-    <td>${d.myOpenTasks ? html`<span class="action-req">Action Required</span>` : d.openTasks && !showRole ? html`<span class="muted">${d.openTasks} open task(s)</span>` : ''}${d.overdueTasks && !showRole ? html`<br>${pill(d.overdueTasks + ' overdue', 'bad')}` : ''}</td>
-    <td>${d.transactionType}</td><td>${d.stageName}${d.status !== 'Open' ? html`<br>${pill(d.status)}` : ''}<br><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`);
+    <td data-task-pending>${d.myOpenTasks ? html`<span class="action-req">Action Required</span>` : d.openTasks && !showRole ? html`<span class="muted">${d.openTasks} open task(s)</span>` : ''}${d.overdueTasks && !showRole ? html`<br>${pill(d.overdueTasks + ' overdue', 'bad')}` : ''}</td>
+    <td>${d.transactionType}</td><td data-stage>${d.stageName}${d.status !== 'Open' ? html`<br>${pill(d.status)}` : ''}<br><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`);
   const body = html`
     <div class="box-title"><h2 data-tab-title><span class="h-ico"></span>${user.role === 'Transaction Coordinator' && tab === 'Open' ? 'Orders' : HEAD[tab]}</h2>
       ${runsOrders(user) ? html`<a class="m-btn right" href="#/orders/new">+ Place Order</a>` : ''}</div>

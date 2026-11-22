@@ -1,32 +1,32 @@
 # CRM record shortcuts
 
-**Requested by:** Janine, CRM Feedback 28 item 3. Confirmed Nov 16 2026. Order updated by Janine on Nov 18 2026, 5:23 PM ET (reply on the Nov 18 portal update, item 5).
+**Requested by:** Janine, CRM Feedback 28 item 3. Confirmed Nov 16 2026. Order updated by Janine on Nov 18 2026, 5:23 PM ET. Feedback 36 (Janine, Nov 20 2026, 12:40 PM ET) moved the module links off this panel and onto the CRM top tabs. Tracker row F36, row 416.
 
-**Status:** In progress. The first panel was pull request [337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The order change is pull request [360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opens the Calls list in pull request [368](https://github.com/Johncoester/cla-portal-demo/pull/368). Not Live. No database file. See [ROADMAP.md](../../ROADMAP.md).
+**Status:** In progress. The first panel was pull request [337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The order change is pull request [360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opened the Calls list in pull request [368](https://github.com/Johncoester/cla-portal-demo/pull/368). Feedback 36 moves the modules to the top tabs. Not Live. No database file. See [ROADMAP.md](../../ROADMAP.md) and [crm-module-tabs.md](crm-module-tabs.md).
 
 ## What the user sees
 
 On a Lead, Client, Deal, or Company record, a shortcut panel sits on the left.
 
-The first six shortcuts are always, in this order: Clients, Leads, Deals, Task, Meeting, Call.
+The panel lists only that record's own shortcuts, and only when the section is already on the page. The order is Notes, Deals, Open Activities, Closed Activities, Emails, Attachments.
 
-If that record already has a section for the module, the shortcut moves down the page to it. If it does not, the shortcut opens that module's list. Nothing new is loaded, and no new rows are added to the record.
+A click moves down the page to that section. Nothing new is loaded.
 
-After those six, the older shortcuts stay in their previous order, and only when that section is already on the record: Notes, Open Activities, Closed Activities, Emails, Attachments.
+Attachments is the only shortcut with a count. The number is the files already shown on the record. An empty list shows no number. More than 10 shows 10+. Notes, Deals, and the activity shortcuts do not show a number.
 
 On a wide screen the panel stays in view while the record scrolls. On a narrow screen the shortcuts wrap across the top of the record instead of sitting in a side column.
 
 ## Which shortcuts each record shows
 
-- **Lead:** Clients, Leads, and Deals open their lists. Task, Meeting, and Call move to Open Tasks, Open Meetings, and Open Calls already on the lead. Then Notes, Open Activities, Closed Activities, Emails, and Attachments.
-- **Client:** Clients and Leads open their lists. Deals moves to the orders already listed for that client. Task, Meeting, and Call move to the open columns on the page. Then the same five older shortcuts. The orders card still says Orders in the portal.
-- **Company:** Clients moves to "Clients at {company}". Leads opens the Leads list. Deals moves to the orders already listed. Task, Meeting, and Call move to the open columns. Then the same five older shortcuts.
-- **Deal:** Clients, Leads, and Deals open their lists. Task opens CRM Home, where My Open Tasks is listed. Call opens the Calls list (`#/crm/calls`). That list does not filter to one deal, so it shows the calls this person can already see, not only this deal's calls. Meeting stays in that place as grey text, "Coming soon", and does not open a page. Then Emails. A deal has no Notes, activities, or Attachments section, so those stay off the panel.
+- **Lead:** Notes, Open Activities, Closed Activities, Emails, and Attachments. A lead has no orders list on the page, so Deals is not on the panel.
+- **Client:** Notes, then Deals (the orders already listed for that client), then Open Activities, Closed Activities, Emails, and Attachments. The orders card still says Orders in the portal.
+- **Company:** The same list as a client. Deals moves to the orders already listed. The clients at that company stay on the page. They are not a left-panel shortcut.
+- **Deal:** Emails only. A deal has no Notes, orders list, activities, or Attachments section, so those stay off the panel.
 
 The Leads, Clients, Companies, and Deals lists do not get this panel.
 
+Clients, Leads, Companies, Deals, Tasks, Meetings, and Calls are top tabs, not shortcuts on the record. See [crm-module-tabs.md](crm-module-tabs.md).
+
 ## What this does not change
 
-The sections themselves are unchanged. Nothing new is loaded for the panel. No email is sent. No database file.
-
-There is no Meetings list page. On a Deal, Meeting is shown in order and cannot be clicked. Call opens the Calls list that is already on main. A later change can turn Meeting into a link once that list page exists, and can limit Call to this deal once the Calls list can filter that way.
+The sections themselves are unchanged. Nothing new is loaded for the panel. No email is sent. No database file. No counts are added except the Attachments count.

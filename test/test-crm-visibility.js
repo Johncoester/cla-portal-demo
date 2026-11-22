@@ -1,6 +1,6 @@
 /* CRM visibility: an admin can change every record. Anyone else can change only a record they own. */
 import { canChangeCrmRecord, splitOwnedRecords, skippedLine, CRM_LOCK_NOTE } from '../js/data/crm-visibility.js?v=202611247100';
-import { editControl, archiveControl, lockNote } from '../js/pages/crm-kit.js?v=202611247100';
+import { editControl, archiveControl, lockNote } from '../js/pages/crm-kit.js?v=202611289980';
 import { toText } from '../js/ui.js?v=202611161500';
 
 let fail = 0;

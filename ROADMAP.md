@@ -1498,7 +1498,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from. Order Contacts does not offer a Transaction coordinators button.
 
-**Status: In progress.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Not applied on TEST. Not Live.
+**Status: Live.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. `20261125240000_agent_tc_links.sql` is applied on TEST (recorded as `agent_tc_links`, v20261118182129, Nov 18 2026 1:21 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied.
 
 **What's built**
 
@@ -1533,7 +1533,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
 
-**Status: In progress.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back, so nothing from this file is on TEST. The database file is corrected in place. Not applied on TEST. Not Live.
+**Status: Live.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back; the corrected file `20261125250000_agent_tc_on_file.sql` is applied on TEST (v20261119021738, Nov 18 2026 9:17 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied. Since Nov 21, TC-VIS-1 (PR 392) lets a coordinator on the file see and work their agent's tasks and fees, and TC-ASSIGN-1 (PR 394) puts a linked coordinator on all of the agent's files, from either side or from the file.
 
 **What's built**
 
@@ -2701,40 +2701,73 @@ This file lists the portal's major features: how each one should work, how far a
 - The filter is the same for every CRM user, including an admin and a processor.
 - Reports and dashboards still load the tasks that person is allowed to see. Only the Home task list is limited to the assignee.
 
-## CRM record shortcuts (Feedback 28 item 3)
+## CRM record shortcuts (Feedback 28 item 3, updated by Feedback 36)
 
-**How it should work.** On a Lead, Client, Deal, or Company, a panel on the left starts with Clients, Leads, Deals, Task, Meeting, Call. Janine set that order on Nov 18 2026, 5:23 PM ET. If the record already has that section, a click moves down the page to it. If it does not, the shortcut opens that module's list. After those six, Notes, Open Activities, Closed Activities, Emails, and Attachments stay in that order, and only when that section is already on the record. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top.
+**How it should work.** On a Lead, Client, Deal, or Company, the left panel lists only that record's own shortcuts, and only when the section is already on the page: Notes, Deals, Open Activities, Closed Activities, Emails, Attachments. A click moves down the page to that section. Attachments is the only shortcut with a count. An empty list shows no number. More than 10 shows 10+. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top. The module links (Clients, Leads, Deals, Tasks, Meetings, Calls) are top tabs. See the next section.
 
-**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opens the Calls list in [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368). No database file. Not Live until someone checks a record on TEST.
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opened the Calls list in [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368). Feedback 36 (Janine, Nov 20 2026, 12:40 PM ET, tracker F36 row 416) moves the modules off this panel. No database file. Not Live until someone checks a record on TEST.
 
 **What's built**
 
 - The panel on Lead, Client, Company, and Deal records.
-- The first six are always Clients, Leads, Deals, Task, Meeting, Call.
-- Clients scrolls to the company's client list. Deals scrolls to the orders already on a client or company. Task, Meeting, and Call scroll to Open Tasks, Open Meetings, and Open Calls when those columns are on the record.
-- A lead has no clients, leads, or deals section, so those three open the Clients, Leads, and Deals lists. A deal has none of the six sections. Task opens CRM Home (My Open Tasks). Clients, Leads, and Deals open their lists. Call on a deal opens the Calls list. Meeting on a deal stays grey text, "Coming soon".
-- Notes, Open Activities, Closed Activities, Emails, and Attachments follow, in that order, only when the section is on the page. A deal still shows Emails and leaves the other four off.
+- Notes, Open Activities, Closed Activities, Emails, and Attachments, only when that section is on the page.
+- Deals, only when the record already lists orders (a client or a company). It jumps to that list. The orders card still says Orders in the portal.
+- A lead has no orders list, so Deals is not on a lead. A deal shows Emails only.
+- Attachments shows the number of files already on the page. Empty shows no number. More than 10 shows 10+. No other shortcut shows a count.
 - The lists of leads, clients, companies, and deals do not get the panel.
 - The panel does not load anything extra.
+- Clients, Leads, Task, Meeting, and Call are no longer on this panel.
 
 **What's still missing**
 
 - Not checked on TEST yet. Do not mark Live before that.
 - The orders card still says Orders in the portal. The shortcut that jumps there says Deals.
-- There is no Meetings list. On a Deal, Meeting stays grey "Coming soon" text. Call opens the Calls list. That list has no way to show only one deal's calls, so the list is every call this person can already see.
+- There is no Meetings list. That tab stays grey "Coming soon". The Calls list has no way to show only one deal's calls.
 
 **Links**
 
 - Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Module tabs: [docs/specs/crm-module-tabs.md](docs/specs/crm-module-tabs.md)
 - First panel: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
 - Order change: [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360)
 - Call opens the Calls list: [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368)
+- Modules moved to the top tabs: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
 
 **Decisions**
 
-- No database change. The panel does not add rows. It points at a section already on the record, or at the module's existing list.
-- Call on a deal opens `#/crm/calls`. The Calls list does not read a deal filter, so the shortcut does not invent one. Meeting stays unlinked until a Meetings list exists.
-- The older shortcuts stay after the six, in the same order they had before Deals moved up.
+- No database change. The panel does not add rows. It points at a section already on the record.
+- Feedback 33 counts are not built here except Attachments. Empty shows no number. More than 10 shows 10+.
+- Module links live on the top tabs, not on this panel.
+
+## CRM module tabs (Feedback 36)
+
+**How it should work.** The CRM top tabs keep their existing order and add Tasks, Meetings, and Calls after Deals: Home, Leads, Clients, Companies, Deals, Tasks, Meetings, Calls, then Pipeline, Dashboards, Reports, and Templates. Tasks opens CRM Home (My Open Tasks). Calls opens the Calls list. Meetings is grey "Coming soon" and is not a link. The left menu, Reports, Email Templates, and Home keep working.
+
+**Status: In progress.** Janine Santos, Feedback 36, confirmed Nov 20 2026, 12:40 PM ET. Tracker F36, row 416. No database file. Not Live until someone checks a record on TEST.
+
+**What's built**
+
+- Tasks, Meetings, and Calls on the CRM top tab row, after Deals and before Pipeline.
+- Tasks opens `#/crm` (CRM Home). Calls opens `#/crm/calls`. Meetings is grey text with "Coming soon" and does not open a page.
+- A switched-off Calls module hides that tab. A Calls module in testing keeps the beta badge.
+- The record's left panel no longer lists those modules.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- There is no Meetings list page.
+
+**Links**
+
+- Spec: [docs/specs/crm-module-tabs.md](docs/specs/crm-module-tabs.md)
+- Record shortcuts: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Pull request: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
+
+**Decisions**
+
+- No database change. The existing tab order is kept. Tasks, Meetings, and Calls are inserted after Deals, in that order.
+- Meetings is shown and disabled until a Meetings list exists. It is not a broken link.
+- The CRM menu is unchanged.
 
 ---
 
@@ -2978,4 +3011,64 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database file. The company list is already loaded, then sorted in the browser, the same way Leads and Clients sort after their list is loaded.
 - Cache stamp 202611249800, so a saved copy of the Companies page is not reused.
+
+---
+
+## CRM owner lists include Sales Person users (F35)
+
+**How it should work.** In the CRM, every owner dropdown and owner filter lists Unassigned, every active person who already has Can own CRM records turned on, and every active user with the Sales Person role. A disabled or removed person is not listed. Sales Team is not added by role. An admin who is not ticked stays off the list, the same as before. A salesperson can still change only a record they own, and can still assign a record only to themselves.
+
+**Status: In progress.** Tracker F35, row 415. Janine Santos, Nov 19 2026 Feedback 35 video, confirmed Nov 20 2026, 12:40 PM ET ("yes, that's it"). The database file is not applied on TEST. Not Live until that file is applied and someone checks the Clients Owner filter on TEST.
+
+**What's built**
+
+- One owner rule for the picker and for saving an owner: an active Sales Person, or an active user with the tick.
+- Lead Owner, Client Owner, Company Owner, and Deal Owner use that list: filters, Change owner, and the Add and Edit forms.
+- The tick on User List is unchanged. A salesperson still cannot change a record they do not own.
+
+**What's still missing**
+
+- Apply `supabase/migrations/20261127020000_crm_sales_person_owners.sql` on TEST. Do not mark Live before that. Then sign in, open CRM, then Clients, and check that the Owner filter and the Client Owner field list the active Sales Person users plus the people who were already there.
+- Spreadsheet import still matches an owner by the tick. Zoho sync is unchanged.
+
+**Links**
+
+- Spec: [docs/specs/crm-sales-owners.md](docs/specs/crm-sales-owners.md)
+- Source: Janine Santos, Nov 19 2026 Feedback 35 video, and her Nov 20 2026, 12:40 PM ET "yes, that's it". Tracker F35, row 415.
+
+**Decisions**
+
+- The database file is required. A Sales Person cannot read every other salesperson's profile, so the existing owner list (a database function) is the one place that can show the full list. The pull request does not apply it.
+- Sales Team is not added by role. Inactive users stay off the list.
+- Cache stamp 202611289970, above main's 202611289960, so a saved copy of the shell is not reused.
+
+---
+
+## Custom view checkboxes and mass actions (F37)
+
+**How it should work.** A custom view on Leads, Clients, Companies, or Deals has the same row checkboxes as that module's All list: one in the header for the page, and one on each row. The selection bar and the mass actions are the same ones (Update a field, Email, Change owner or Change salesperson, Create task, and Select all matching when the page is not the whole list). They act on the rows in that view, including the search on the view. A salesperson still changes only records they own, and the result says how many were saved and how many were skipped. The checkbox is not a column they can choose or drag.
+
+**Status: In progress.** Tracker F37, row 417. Janine Santos, Feedback 37 video, confirmed Nov 20, 2026, 12:40 PM ET ("yes, that's it"). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- The custom view list uses the All list's selection bar and mass actions.
+- Select all matching uses the rows that match the view, including the search typed on the view.
+- Saved column order still shows. The checkbox stays in front and is not in Choose Columns.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- Update a field on Deals is still Notes, the same as All Deals. Closing date is not a mass-update field there.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-bulk.md](docs/specs/crm-view-bulk.md)
+- Source: Janine Santos, Feedback 37 video, and her Nov 20, 2026, 12:40 PM ET "yes, that's it". Tracker F37, row 417.
+
+**Decisions**
+
+- No database file. The existing mass update and mass email already accept the ids of the rows to change. A view's criteria are not the All list's filters, so Select all matching sends those ids, one page at a time, instead of asking for a new database function.
+- The checkbox is not stored as a column, so the drag order from the column chooser is unchanged.
+- Cache stamp 202611290610, above main's 202611290600, so a saved copy of the shell is not reused.
 
