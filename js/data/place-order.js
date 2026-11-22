@@ -1,4 +1,4 @@
-import { STAFF_ACCOUNT_ROLES } from './constants.js?v=202611101015';
+import { STAFF_ACCOUNT_ROLES, SALES_ROLES } from './constants.js?v=202611247700';
 /* Place Order helpers (John, Nov 6; party referral Nov 7). No network. Used by the wizard and by tests.
  * One order has one source-of-business text. A person on the file is "<code>:<contact id>".
  * Buyer and seller are separate codes. "homeowner" stays a legacy value and is never rewritten into either.
@@ -127,10 +127,13 @@ export function withoutHiddenProfiles(contacts, visibleProfileIds) {
   const ids = visibleProfileIds instanceof Set ? visibleProfileIds : new Set(visibleProfileIds || []);
   return (contacts || []).filter((c) => !c.profileId || ids.has(c.profileId));
 }
-/* File-level pickers (John, call + chat 3:07 PM ET Nov 13, ANYROLE-1): any active staff login
- * can be the file's Processor, salesperson or Transaction Coordinator. Account roles stay as they are. */
+/* File-level pickers. The Processor and the Transaction Coordinator can be any active staff login
+ * (John, call + chat 3:07 PM ET Nov 13, ANYROLE-1). Salespeople on an order are listed from
+ * Sales Person and Sales Team only (FF-092a, Janine, Nov 17 2026, 6:26 PM ET). A person already
+ * saved on a file still shows there. Saving still accepts any active staff login, or a user who
+ * can own CRM records. Account roles stay as they are. */
 export const PROCESSOR_PICK_ROLES = [...STAFF_ACCOUNT_ROLES];
-export const SALES_PICK_ROLES = [...STAFF_ACCOUNT_ROLES];
+export const SALES_PICK_ROLES = [...SALES_ROLES];
 export const FILE_STAFF_ROLES = [...STAFF_ACCOUNT_ROLES];
 export function tidyPersonName(p) {
   const first = String((p && (p.firstName || p.first_name)) || '').replace(/\s+/g, ' ').trim();

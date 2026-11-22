@@ -84,6 +84,11 @@ const orderForm = document.querySelector('#nof');
 Object.defineProperty(orderForm, 'elements', { configurable: true, get() { return orderForm.querySelectorAll('input, select, textarea, button'); } });
 ok(!document.querySelector('input[type="checkbox"][name="salesIds"]') && document.querySelector('[data-sales-multi] .picker-q'), 'Place Order has the search box and no salesperson checkboxes');
 ok(document.querySelector('[data-sales-picker] legend').textContent === 'Salespeople on this order', 'the field is still Salespeople on this order');
+const salesSearch = document.querySelector('[data-sales-multi] .picker-q');
+salesSearch.value = '';
+salesSearch.dispatchEvent(new window.Event('input', { bubbles: true }));
+const listed = [...document.querySelectorAll('#sales-people-list [data-id]')].map((el) => el.getAttribute('data-id'));
+ok(listed.includes('u-sp') && listed.includes('u-team') && !listed.includes('u-proc') && !listed.includes('u-admin'), 'Salespeople on this order lists Sales Person and Sales Team only (FF-092a) ' + listed.join(','));
 
 const setState = (value) => {
   const state = document.querySelector('[name="state"]');
@@ -119,6 +124,41 @@ document.querySelector('#nof').dispatchEvent(new window.Event('submit', { bubble
 await new Promise((r) => setTimeout(r, 400));
 const made = (await api.listDeals()).find((d) => d.street === '100 Sales Picker Lane');
 ok(!!made && (made.salesPeople || []).some((s) => s.id === 'u-sp') && !(made.salesPeople || []).some((s) => s.id === 'not-a-person'), 'the order saves Sam and nobody else' + (made ? ' (' + (made.salesPeople || []).map((s) => s.id).join(',') + ')' : ' (no order)'));
+
+const kept = await api.createDeal({ street: '200 Kept Sales Lane', city: 'Alexandria', state: 'VA', zip: '22314', processorId: 'u-proc', openDate: '2026-11-01', salesIds: ['u-proc'] });
+ok((kept.salesPeople || []).some((s) => s.id === 'u-proc' && s.name === 'Paula Processor'), 'a Processor can still be saved as a salesperson');
+const { render: renderDeal } = await import('../js/pages/deal.js');
+const overview = await renderDeal({ api, user, params: { id: kept.id, tab: 'overview' }, go() {}, refresh() {} });
+document.body.innerHTML = toText(overview.body);
+overview.mount(document.body);
+const shown = document.querySelector('[data-sales-person="u-proc"]');
+ok(!!shown && shown.textContent.includes('Paula Processor'), 'the file still shows a salesperson whose role is not in the list');
+const addOpts = [...document.querySelectorAll('#addsales option')].map((o) => o.getAttribute('value')).filter(Boolean);
+ok(addOpts.includes('u-sp') && addOpts.includes('u-team') && !addOpts.includes('u-admin') && !addOpts.includes('u-preproc'), 'Add a salesperson lists Sales Person and Sales Team only (' + addOpts.join(',') + ')');
+
+const { render: renderLegacy } = await import('../js/pages/deal-buyer-legacy.js');
+const legacy = await renderLegacy({ api, user, params: { id: kept.id, tab: 'overview' }, go() {}, refresh() {} });
+document.body.innerHTML = toText(legacy.body);
+legacy.mount(document.body);
+const legacyShown = document.querySelector('[data-sales-person="u-proc"]');
+ok(!!legacyShown && legacyShown.textContent.includes('Paula Processor'), 'the older file page still shows a salesperson whose role is not in the list');
+const legacyOpts = [...document.querySelectorAll('#addsales option')].map((o) => o.getAttribute('value')).filter(Boolean);
+ok(legacyOpts.includes('u-sp') && legacyOpts.includes('u-team') && !legacyOpts.includes('u-admin') && !legacyOpts.includes('u-preproc'), 'the older file page adds only Sales Person and Sales Team (' + legacyOpts.join(',') + ')');
+
+await api.signInDev('u-admin');
+await api.createTaskFlow({ name: 'Keep Paula', trigger: 'order_opened', conditions: { salesPeople: ['u-proc'] }, steps: [] });
+const { render: renderBuilder } = await import('../js/pages/task-builder.js');
+const built = await renderBuilder({ api, user: await api.getSession(), refresh() {} });
+document.body.innerHTML = toText(built.body);
+built.mount(document.body);
+ok(/Sales: Paula Processor/.test(document.body.textContent), 'Task Builder names a saved person who is not in the sales list');
+document.querySelector('[data-tb-edit]').click();
+const boxes = [...document.querySelectorAll('[data-tb-cond="salesPeople"]')];
+const procBox = boxes.find((b) => b.value === 'u-proc');
+ok(!!procBox && (procBox.checked || procBox.hasAttribute('checked')) && /Paula Processor/.test((procBox.parentElement || procBox).textContent), 'editing the flow still shows that saved person by name, already chosen');
+// John, Nov 21: Task Builder's Sales person choice lists every active staff member (an Admin who also sells, a processor with their own clients).
+// Place Order and the file keep Janine's Nov 18 rule (Sales Person and Sales Team only).
+ok(boxes.some((b) => b.value === 'u-sp') && boxes.some((b) => b.value === 'u-admin'), 'Task Builder sales choices list every staff member, admins included');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('sales multi passed');

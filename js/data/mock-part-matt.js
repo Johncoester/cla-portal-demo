@@ -7,9 +7,9 @@
  *    adopts it. Only the signer can sign (an agent cannot sign for a client). Provider seam: esign.js. */
 import { AGREEMENTS, agreementOf } from './agreements.js?v=202611070139';
 import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611070139';
-import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611101015';
-import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611101015';
-import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611101015';   // Admin > Offices (migration 57): the stored office list
+import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611247700';
+import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611247700';
+import { closingOfficeChoices, officeById, officeNameOf } from './mock-part-offices.js?v=202611247700';   // Admin > Offices (migration 57): the stored office list
 export function mattP2(x) {
   const { load, save, nid, needUser, isManager, notViewOnly, onDeal, scopeTo, holds, contactOf, isStaffView, personSide, docVisible, log, prof, nameOf, notify, dealProfileIds, clone, now, fail, str, localDate, C } = x;
   const d0 = () => load();
@@ -25,10 +25,11 @@ export function mattP2(x) {
   const locOk = (v) => { const s = str(v, 60); if (s !== 'Typed address' && !C.CLOSING_LOCATIONS.includes(s)) fail(`Pick where to sign: ${C.CLOSING_LOCATIONS.join(', ')}.`); return s; };
   // John, Nov 4 meeting (7:17), Matt: a 'CLA Title office' closing names WHICH office. It defaults to the closest office (straight-line distance, offices.js).
   // Another place (mobile notary / remote) has no office. Older callers that send no office get the nearest one (or none when nothing is near).
-  // Offices come from Admin > Offices (stored, mock-part-offices.js): only an ACTIVE office can be picked; a retired one stays on closings that already use it.
+  // Offices come from Admin > Offices: only an ACTIVE office used for settlements can be picked; a retired one stays on closings that already use it.
   const placeText = (location, officeId) => placeText0(location, officeId, officeNameOf(d0(), officeId));
-  const officeFor = (deal, location, officeId) => { if (location !== OFFICE_LOCATION) { if (officeId) fail('Only a CLA Title office closing names an office.'); return null; }
-    const id = str(officeId, 40); if (id) { const o = officeById(d0(), id); if (!o) fail('Pick one of the CLA Title offices.'); if (!o.active) fail(`${o.name} is retired: pick another office.`); return id; }
+  const officeFor = (deal, location, officeId, { keepExisting = false } = {}) => { if (location !== OFFICE_LOCATION) { if (officeId) fail('Only a CLA Title office closing names an office.'); return null; }
+    const id = str(officeId, 40); if (id) { const o = officeById(d0(), id); if (!o) fail('Pick one of the CLA Title offices.'); if (!o.active) fail(`${o.name} is retired: pick another office.`);
+      if (!o.usedForSettlements && !keepExisting) fail('Pick a CLA office used for settlements.'); return id; }
     return closingOfficeChoices(d0(), deal).officeId; };
   const reqOr404 = (id) => arr('signatureRequests').find((r) => r.id === id) || fail('Signature request not found.');
   const docName = (id) => (d0().documents.find((z) => z.id === id) || {}).name || 'document';
@@ -98,7 +99,9 @@ export function mattP2(x) {
       if (!isManager(u) && !agentRole) fail('Only the processor, coordinator or an agent on the file can schedule the closing.');
       const d = d0(); const deal = d.deals.find((z) => z.id === dealId); let p = null;
       if (proposalId) { p = arr('closingProposals').find((z) => z.id === proposalId && z.dealId === dealId && (!agentRole || z.side === C.sideOf(agentRole))) || fail('Proposal not found.'); }
-      const loc = locOk(location || (p && p.location)); const off = location ? officeFor(deal, loc, officeId) : p ? (p.officeId ? officeFor(deal, loc, p.officeId) : officeFor(deal, loc, null)) : officeFor(deal, loc, officeId);   // a proposal at a since-retired office cannot be confirmed as is
+      const loc = locOk(location || (p && p.location));
+      // Confirming a proposal keeps its office even when that office is no longer offered for new settlements (FF-101d).
+      const off = location ? officeFor(deal, loc, officeId) : p ? (p.officeId ? officeFor(deal, loc, p.officeId, { keepExisting: true }) : officeFor(deal, loc, null)) : officeFor(deal, loc, officeId);
       const sc = { at: whenOk(at || (p && p.at), 'The closing'), location: loc, officeId: off, note: str(note, 500), confirmedBy: u.id, confirmedByRole: agentRole || u.role, confirmedAt: now(), proposalId: p ? p.id : null, settlementId: null };
       const typedHere = (loc === 'Typed address' || loc === 'Mobile notary') && closingManualStreet;   // mirrors supabase-adapter confirmClosing: any other place clears the typed address
       deal.closingManualStreet = typedHere ? str(closingManualStreet, 120) : ''; deal.closingManualCity = typedHere ? str(closingManualCity, 80) : ''; deal.closingManualState = typedHere ? str(closingManualState, 2).toUpperCase() : ''; deal.closingManualZip = typedHere ? str(closingManualZip, 10) : '';

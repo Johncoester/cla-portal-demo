@@ -1,7 +1,7 @@
 /* crm-criteria.js : the filter rows used by dashboard components (Criteria) and reports (Filters): field, operator, value (date presets for date fields,
  * the picklist values for picklists, users for user fields). Rows are ANDed (dashboards) or AND / OR (reports). Function only. */
 import { html, raw, $, $$, toText } from '../ui.js?v=202611161500';
-import { opsFor, DATE_PRESETS, isDateType, NUMERIC, dealStageOf } from '../data/crm-analytics.js?v=202611242010';
+import { opsFor, DATE_PRESETS, presetKey, isDateType, NUMERIC, dealStageOf } from '../data/crm-analytics.js?v=202611247700';
 
 const optList = (f, cfg, users) => (f.type === 'boolean' ? [['yes', 'Yes'], ['no', 'No']] : f.type === 'user' ? users.map((u) => [u.id, u.name])
   : f.list ? ((cfg.picklists || {})[f.list] || []).map((o) => [o.value, o.retired ? `${o.label} (retired)` : o.label]) : f.options || []);
@@ -10,8 +10,8 @@ function valueHtml(f, c, cfg, users, which) {
   if (['empty', 'not_empty'].includes(c.op)) return '';
   if (which === 2 && !['between', 'not_between'].includes(c.op)) return '';
   if (['picklist', 'user', 'boolean'].includes(f.type)) return html`<select data-crit-${name}>${optList(f, cfg, users).map(([k, l]) => html`<option value="${k}" ${String(k) === String(v) ? raw('selected') : ''}>${l}</option>`)}</select>`;
-  if (isDateType(f.type)) { const preset = DATE_PRESETS.some(([k]) => k === v);
-    return html`<select data-crit-${name}-preset><option value="">(a date)</option>${DATE_PRESETS.map(([k, l]) => html`<option value="${k}" ${k === v ? raw('selected') : ''}>${l}</option>`)}</select><input type="date" data-crit-${name} value="${preset ? '' : String(v).slice(0, 10)}" ${preset ? raw('hidden') : ''}>`; }
+  if (isDateType(f.type)) { const shown = presetKey(v); const preset = DATE_PRESETS.some(([k]) => k === shown);
+    return html`<select data-crit-${name}-preset><option value="">(a date)</option>${DATE_PRESETS.map(([k, l]) => html`<option value="${k}" ${k === shown ? raw('selected') : ''}>${l}</option>`)}</select><input type="date" data-crit-${name} value="${preset ? '' : String(shown).slice(0, 10)}" ${preset ? raw('hidden') : ''}>`; }
   return html`<input type="${NUMERIC.includes(f.type) ? 'number' : 'text'}" step="any" data-crit-${name} value="${v}" maxlength="200">`;
 }
 function rowHtml(fields, c, cfg, users, i) {

@@ -30,12 +30,16 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   const pct = `2.${(Date.now() % 9) + 1}`;
 
   // 1. the Processor enters the listing agent's commission and admin fee
+  // FF-101c: Agent fees live under the buyer/listing agent task sections on Tasks (not File Overview)
   await signIn(page, 'processor');
   await openMockFile(page);
   const id = dealId(page);
-  await expect(page.locator('[data-agent-fees]')).toBeVisible();
+  await gotoHash(page, `#/deals/${id}/tasks`);
+  await expect(page.locator('[data-agent-fees]').first()).toBeVisible();
   await expect(side(page, 'listing')).toBeVisible();
   await expect(side(page, 'buyer')).toBeVisible();
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees-side="listing"]')).toBeVisible();
+  await expect(page.locator('[data-sidebox="buyer-agent"] [data-agent-fees-side="buyer"]')).toBeVisible();
   let form = await openEdit(page, 'listing');
   await expect(form.locator('[data-af-price]')).toContainText('$');
   await form.locator('input[name="commissionPercent"]').fill(pct);
@@ -52,6 +56,8 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   await expect(side(page, 'listing').locator('[data-af-admin]')).toContainText('$395');
 
   // Edit order details no longer takes a commission: it points to the Agent fees box
+  // E2E-FIX-D: the Edit order details button is on File Overview, not Tasks (same fix FF-101c made in order-entry.spec.js)
+  await gotoHash(page, `#/deals/${id}`);
   await page.locator('#editdeal').click();
   await expect(page.locator('#edf [data-agent-fees-pointer]')).toBeVisible();
   await expect(page.locator('#edf input[name="commissionPercent"]')).toHaveCount(0);
@@ -60,6 +66,7 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   // 2. the listing agent sees only their side, checks the "You're confirming" screen, and confirms
   await switchTo(page, 'listingAgent');
   await openMockFile(page);
+  await gotoHash(page, `#/deals/${id}/tasks`);
   await expect(side(page, 'listing')).toBeVisible();
   await expect(side(page, 'buyer')).toHaveCount(0);
   await expect(side(page, 'listing').locator('[data-af-percent]')).toContainText(`${pct}%`);
@@ -91,6 +98,7 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   // 3. the Processor changes the confirmed fee: blank reason is refused, then saved with a reason
   await switchTo(page, 'processor');
   await openMockFile(page);
+  await gotoHash(page, `#/deals/${id}/tasks`);
   form = await openEdit(page, 'listing');
   await expect(form.locator('textarea[name="reason"]')).toBeVisible();
   await form.locator('input[name="adminAmount"]').fill('400');
@@ -102,8 +110,10 @@ test('agent fees: staff enter them, the agent confirms, a staff change needs a r
   await expect(page.locator('.toast', { hasText: 'Agent fees saved' }).last()).toBeVisible();
   await expect(side(page, 'listing').locator('[data-af-admin]')).toContainText('$400');
   await expect(side(page, 'listing').locator('.af-side-head')).toContainText('then changed by CLA staff');
-  await page.locator('[data-af-history-btn]').click();
-  await expect(page.locator('[data-af-history-table]')).toContainText('admin fee corrected');
+  // E2E-FIX-F: since FF-101c each side has its own Agent fees card and Change history button, so open the listing side's
+  const listingCard = page.locator('[data-agent-fees][data-agent-fees-side="listing"]');
+  await listingCard.locator('[data-af-history-btn]').click();
+  await expect(listingCard.locator('[data-af-history-table]')).toContainText('admin fee corrected');
 
   // 4. the buyer never sees agent fees or a commission
   await switchTo(page, 'buyer');

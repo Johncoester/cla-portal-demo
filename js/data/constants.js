@@ -47,7 +47,7 @@ export const isClientOnlyUser = (u) => !!u && u.role === 'Outside user' && !u.ac
 // DISPLAY ONLY (John, Nov 5, live40: "it actually says realtor, listing agent, buyer agent"): the friendly type of an outside user. The stored account role stays 'Outside user' (OUTSIDE).
 // contact type realtor -> Realtor, buyer_seller -> Client, lender -> Lender; not set: inferred from the per-file roles; nothing known -> 'Realtor / Client'
 const AGENT_FILE_ROLES = ['Buyer Agent', 'Listing Agent']; const CLIENT_FILE_ROLES = ['Client-Buyer', 'Client-Seller'];
-export const outsideTypeLabel = (u) => { const ct = u && u.contactType; if (ct === 'realtor') return 'Realtor'; if (ct === 'buyer_seller') return 'Client'; if (ct === 'lender') return 'Lender';
+export const outsideTypeLabel = (u) => { const ct = u && u.contactType; if (ct === 'realtor') return 'Realtor'; if (ct === 'buyer_seller') return 'Client'; if (ct === 'lender') return 'Lender'; if (ct === 'agent_tc') return AGENT_TC_TYPE_LABEL;
   const rs = [...((u && u.fileRoles) || []), ...((u && u.files) || []).map((f) => f.role)];
   return rs.some((r) => AGENT_FILE_ROLES.includes(r)) ? 'Realtor' : rs.some((r) => CLIENT_FILE_ROLES.includes(r)) ? 'Client' : 'Realtor / Client'; };
 // "Realtor: Buyer Agent + Client-Buyer" (pickers) / staff: the role label
@@ -100,11 +100,21 @@ export const REFI_BLOCKED_FIELDS = [['purchasePrice', 'Purchase price'], ['emdAm
 export const refiRoleMsg = (role) => `A refinance has no ${role === 'Client-Seller' ? 'seller' : role === 'Transaction Coordinator' ? 'transaction coordinator' : 'realtor (' + role + ')'}. Its people are the borrower(s), salespeople, the Processor and the Lender.`;
 // CONTACT TYPE (John, Nov 2): a person-level reporting attribute that will flow into the CRM. Fixed list, stored as stable codes.
 // Separate from per-file roles: a Realtor stays a Realtor even when buying a home on one file. CLA staff have none.
-export const CONTACT_TYPES = [['realtor', 'Realtor'], ['lender', 'Lender'], ['buyer_seller', 'Buyer/Seller']];
+// TC-4 (John, Nov 18 2026): agent_tc is an outside assistant who works for one or more real estate agents.
+// It is not the CLA Title staff role "Transaction Coordinator". Existing rows are not rewritten.
+export const AGENT_TC_TYPE = 'agent_tc';
+/* TC-5b (John, Nov 18 2026, ~1:51 PM ET): the words on screen are exactly "Transaction coordinator".
+ * The longer label is only so a User List filter saved before this change still matches. */
+export const AGENT_TC_TYPE_LABEL = 'Transaction coordinator';
+export const AGENT_TC_TYPE_LABEL_SAVED = 'Transaction coordinator (outside, works for agents)';
+export const AGENT_TC_TYPE_NOTE = 'An outside assistant who works for one or more real estate agents. Not a CLA Title staff role.';
+export const CONTACT_TYPE_ERROR = 'Pick a contact type from the list (Realtor, Lender, Buyer/Seller, or Transaction coordinator).';
+export const CONTACT_TYPES = [['realtor', 'Realtor'], ['lender', 'Lender'], ['buyer_seller', 'Buyer/Seller'], [AGENT_TC_TYPE, AGENT_TC_TYPE_LABEL]];
 export const CONTACT_TYPE_CODES = CONTACT_TYPES.map(([c]) => c);
 export const contactTypeLabel = (code) => (CONTACT_TYPES.find(([c]) => c === code) || [null, ''])[1];
-// default contact type for a per-file role (Add new user, Contacts tab): agents -> realtor, clients -> buyer_seller, lender -> lender
-export const contactTypeForRole = (role) => ({ 'Buyer Agent': 'realtor', 'Listing Agent': 'realtor', 'Client-Buyer': 'buyer_seller', 'Client-Seller': 'buyer_seller', Lender: 'lender' })[role] || '';
+// default contact type for a per-file role (Add new user, Contacts tab): agents -> realtor, clients -> buyer_seller, lender -> lender,
+// the agents' coordinators -> agent_tc. The CLA staff role Transaction Coordinator has none.
+export const contactTypeForRole = (role) => ({ 'Buyer Agent': 'realtor', 'Listing Agent': 'realtor', 'Buyer Agent TC': AGENT_TC_TYPE, 'Listing Agent TC': AGENT_TC_TYPE, 'Client-Buyer': 'buyer_seller', 'Client-Seller': 'buyer_seller', Lender: 'lender' })[role] || '';
 // John, Nov 2: the order's State is picked from every US state + DC (alphabetical by name), no default. Any of these codes is valid on an order.
 export const US_STATE_NAMES = [['AL', 'Alabama'], ['AK', 'Alaska'], ['AZ', 'Arizona'], ['AR', 'Arkansas'], ['CA', 'California'], ['CO', 'Colorado'], ['CT', 'Connecticut'], ['DE', 'Delaware'],
   ['DC', 'District of Columbia'], ['FL', 'Florida'], ['GA', 'Georgia'], ['HI', 'Hawaii'], ['ID', 'Idaho'], ['IL', 'Illinois'], ['IN', 'Indiana'], ['IA', 'Iowa'], ['KS', 'Kansas'], ['KY', 'Kentucky'],

@@ -1,11 +1,12 @@
 /* mock adapter: contacts, participants, documents (deal files). NOTE: there is no delete for documents, for anyone (Admin included). */
-import { cleanEntity } from './mock-part-nov3b.js?v=202611221900';
-import { cleanLenderRole } from './lender-file.js?v=202611241600';
-import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611101015';
-import { STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcAlreadyMessage, agentTcRefiMessage, isAgentTcRole } from './agent-tc.js?v=202611241300';
+import { cleanEntity } from './mock-part-nov3b.js?v=202611247700';
+import { cleanLenderRole } from './lender-file.js?v=202611247700';
+import { isRefi, REFI_BLOCKED_ROLES, refiRoleMsg } from './constants.js?v=202611247700';
+import { STAFF_TC_MESSAGE, STAFF_TC_ROLE, agentTcAlreadyMessage, agentTcRefiMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611248300';
 import { acceptDocType } from './document-type.js?v=202611100945';
 import { assertContactSaved, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
-import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611221800';
+import { existingContactByEmail, normContactEmail } from './contact-reuse.js?v=202611249950';
+import { processorStaffError, clearProcessorParties } from './processor-party.js?v=202611247700';
 export function contactsTasksDocs(x) {
   const { load, save, nid, needUser, needProcessor, isManager, notViewOnly, seesAll, dealsFor, dealOr404, onDeal, fileRole, log, prof, nameOf, roleOf, fullName, folderOf, docVisible, participantsOf, notify, dealProfileIds, clone, now, fail, str, emailOk, C } = x;
   // u = the deal-scoped viewer (optional). A pure buyer never gets the name, role or id of another party who uploaded a file CLA staff shared with
@@ -25,7 +26,7 @@ export function contactsTasksDocs(x) {
       sellerShareable: sellerShareable(z, u, f),
       buyerShareable: !!u && !!z.dealId && x.isStaffView(u) && !staffLogin(z.uploadedBy) && !x.fileRoles(z.uploadedBy, z.dealId).includes('Client-Buyer') && z.visibility !== 'staff' && !(f && f.staffOnly) }; };
   // CONTACT TYPE (John, Nov 2): '' / null = not set; otherwise one of the fixed codes. A contact with a CLA staff login has none.
-  const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).');
+  const ctype = (v, login) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail(C.CONTACT_TYPE_ERROR);
     if (login && login.status !== 'removed' && !C.isOutside(login.role)) fail('CLA staff have no contact type.'); return s; };
   const ensureStaffContact = (profileId) => {
     const d = load();
@@ -66,8 +67,9 @@ export function contactsTasksDocs(x) {
         email: str(input.email, 200).toLowerCase(), phone: x.phone(input.phone), company: companyName, contactType: ctype(input.contactType), createdBy: u.id, createdAt: now() };
       try { c.lenderRole = cleanLenderRole(input.lenderRole, c.contactType); } catch (e) { fail(e.message); }
       if (c.email && !emailOk(c.email)) fail('Email is not valid.');
-      if (c.email && d.contacts.some((z) => z.email === c.email)) fail('A contact with this email already exists.');
-      if (c.email && d.profiles.some((z) => z.email === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
+      const existing = existingContactByEmail(d.contacts, c.email);
+      if (existing) return clone(existing);
+      if (c.email && d.profiles.some((z) => normContactEmail(z.email) === c.email && z.status !== 'removed')) fail('A user with this email already exists.');
       d.contacts.push(c); save(); return clone(c);
     },
     async updateContact(id, patch) {
@@ -89,6 +91,15 @@ export function contactsTasksDocs(x) {
       const rawId = String(contactId || '');
       if (rawId.startsWith('staff:')) contactId = ensureStaffContact(rawId.slice(6)).id;
       const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
+      if (isAgentTcRole(role)) {
+        const agentRole = role === 'Listing Agent TC' ? 'Listing Agent' : 'Buyer Agent';
+        const agents = d.participants.filter((p) => p.dealId === dealId && p.role === agentRole).map((p) => {
+          const who = d.contacts.find((z) => z.id === p.contactId) || {};
+          return { contactId: p.contactId, email: who.email || '', role: agentRole };
+        });
+        const self = selfTcOnOrderProblem({ contactId: c.id, email: c.email }, agents, [role]);
+        if (self) fail(self);
+      }
       const onFile = d.participants.filter((p) => p.dealId === dealId && p.role === role).map((p) => ({ role: p.role, contactId: p.contactId, contact: d.contacts.find((z) => z.id === p.contactId) || {} }));
       if (sameParty(onFile, c, role)) fail(isAgentTcRole(role) ? agentTcAlreadyMessage(c, role) : duplicatePartyMessage(c, role));
       // per-file roles: an outside user's login takes its permissions from this row, so keep it unambiguous
@@ -124,6 +135,8 @@ export function contactsTasksDocs(x) {
         if (login.id !== prev) log(dealId, u.id, 'deal.processor', 'deal', dealId, `Processor set to ${fullName(c)}`);
       }
       log(dealId, u.id, 'participant.added', 'contact', contactId, `${fullName(c)} added as ${role}`);
+      if ((role === 'Buyer Agent' || role === 'Listing Agent') && x.placeAgentTcs) x.placeAgentTcs(d, contactId, dealId, u.id);
+      if (x.linkFromFile) x.linkFromFile(d, dealId, contactId, role, u.id);   // TC-ASSIGN-1: a coordinator and that side's agent added within a file are linked
       const n = x.makeCopies(dealId, p, u.id); save(); return { ok: true, tasksCreated: n };
     },
     async removeParticipant(dealId, participantId) {   // removes the link to this order only; the contact, their documents and messages stay; their open task copies are cancelled

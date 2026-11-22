@@ -1,11 +1,11 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
-import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast } from '../ui.js?v=202611161500';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611162200';
-import { composeModal } from './compose.js?v=202611191600';
-import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611101015';
+import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast, plainError } from '../ui.js?v=202611161500';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
+import { composeModal } from './compose.js?v=202611249900';
+import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611247700';
 import { MISC_DOC_TYPE, orderedDocTypes, docTypeLabel, resolveDocType, docTypeEditorState } from '../data/document-type.js?v=202611100945';
 import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, checkedForVisibility, visibilityFromChecked, audienceSync } from '../data/document-audience.js?v=202611100945';
-import { uploadDocumentBatch } from '../data/document-batch.js?v=202611101015';
+import { uploadDocumentBatch } from '../data/document-batch.js?v=202611247700';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161800';
@@ -32,10 +32,15 @@ async function fileParties(api, dealId) {
 }
 
 export async function render({ api, user, deal, refresh }) {
-  const q = new URLSearchParams(location.hash.split('?')[1] || ''); const tab = ['received', 'sent', 'all'].includes(q.get('t')) ? q.get('t') : 'all';
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  // FF-104a: Folders is a fourth tab for CLA staff. Buyers, sellers, agents and other outside roles do not get it.
+  const seeFolders = !!user && !user.accountRole && user.role !== 'Outside user' && user.role !== 'Employee';
+  const asked = q.get('t');
+  const tab = asked === 'folders' && seeFolders ? 'folders' : (['received', 'sent', 'all'].includes(asked) ? asked : 'all');
   const folder = q.has('f') ? q.get('f') : null;
+  const listFolder = tab === 'folders' ? null : folder;   // the three file tabs still honor ?f=; Folders needs every file so one can be moved
   const [rawDocs, folders, sigs, ents] = await Promise.all([
-    api.listDocuments(deal.id, folder === null ? { senders: true } : { folderId: folder, senders: true }),   // MF-045: with who shared each one
+    api.listDocuments(deal.id, listFolder === null ? { senders: true } : { folderId: folder, senders: true }),   // MF-045: with who shared each one
     api.listDealFolders(deal.id),
     api.listSignatureRequests(deal.id),
     api.listEntityDocRequests(deal.id).catch(() => []),
@@ -68,6 +73,28 @@ export async function render({ api, user, deal, refresh }) {
   const chosenVisibility = (form) => visibilityFromChecked($$('input[name=audience]:checked', form).map((i) => i.value), choices, visOpts);
   if (keptView.dealId !== deal.id) keptView = { dealId: deal.id, q: '', sort: 'date', dir: 'desc' };
   const view = keptView;
+  const docTabs = [['all', 'All files'], ['received', 'Received'], ['sent', 'Sent']];
+  if (seeFolders) docTabs.push(['folders', 'Folders']);
+  const canChangeFolders = manage && !viewOnly(user);
+  const orderedFolders = [...realFolders].sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true }));
+  const unfiled = folders.find((f) => f.virtual) || { id: '', name: 'Unfiled', count: 0, virtual: true };
+  // Counts match the files this page can move. Sample rows stay in the store and are not listed.
+  const fileCount = (id) => portalDocs.filter((d) => (id ? d.folderId === id : !d.folderId)).length;
+  const folderRows = [...orderedFolders, unfiled].map((f) => ({ ...f, count: fileCount(f.virtual ? '' : f.id) }));
+  const moveChoices = portalDocs.map((d) => ({ id: d.id, label: `${d.name} (${d.folderName || 'Unfiled'})` }));
+  const folderPane = html`<div data-doc-folders>
+    <div class="box-title"><h2><span class="h-ico"></span>Document folders</h2>${canChangeFolders ? html`<button class="m-btn right" type="button" id="addfolder">Add folder</button>` : ''}</div>
+    <p class="muted small">Folders on this order. The number is how many files are in each folder.</p>
+    <div class="side-scroll"><table class="tbl striped" id="foldertable"><thead><tr><th>Folder</th><th>Files</th></tr></thead><tbody>
+      ${folderRows.map((f) => html`<tr data-folder-row="${f.virtual ? 'unfiled' : f.id}"><td data-folder-name>${f.name}</td><td data-folder-count="${f.virtual ? 'unfiled' : f.id}">${Number(f.count) || 0}</td></tr>`)}
+    </tbody></table></div>
+    ${canChangeFolders ? (moveChoices.length ? html`<form id="movefile" class="form-grid" novalidate>
+      <label class="span2">Document<select name="docId"><option value="">Choose a document</option>${options(moveChoices, '', (d) => d.label, (d) => d.id)}</select></label>
+      <label class="span2">Move into<select name="folderId"><option value="">Unfiled</option>${options(orderedFolders, '', (f) => f.name, (f) => f.id)}</select></label>
+      <p class="span2 err-text" data-move-err role="alert"></p>
+      <div class="span2"><button class="m-btn" type="submit">Move</button></div>
+    </form>` : html`<p class="muted" data-move-empty>No documents on this order yet. Upload a file from All files, then come back here to put it in a folder.</p>`) : ''}
+  </div>`;
   const sortHead = (k, label) => html`<th data-sort="${k}"><button type="button" class="th-sort" title="Sort by ${label}">${label} <span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span></button></th>`;
   const rows = (view.sort ? sortDocs(shown, view.sort, view.dir) : shown).map((d) => html`<tr data-doc-item="${d.id}"><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
     <td data-doc-row="${d.id}"${d.wireInstructions ? raw(' data-wire-doc') : ''}><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a>${d.wireInstructions ? html` ${pill('wire instructions - buyer only', 'warn')}` : ''}<br><span class="muted small">${d.docType ? html`<span data-doctype>${d.docType}</span> &middot; ` : ''}${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
@@ -78,8 +105,8 @@ export async function render({ api, user, deal, refresh }) {
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Documents &amp; Files</h2>${canUpload ? html`<button class="m-btn right" id="upbtn">Upload here</button> <button class="ghost right" id="sharefiles">Share Files</button>` : ''}</div>
     <div class="folder-bar" data-folder-bar hidden><a class="folder ${folder === null ? 'active' : ''}" href="${href(tab, null)}">All folders</a>${folders.map((f) => html`<a class="folder ${folder === f.id ? 'active' : ''}" href="${href(tab, f.id)}" data-fid="${f.id}">${f.name} <span class="muted">${f.count}</span></a>`)}
       ${manage ? html`<button class="ghost" id="newfolder">+ Folder</button>${folder ? html` <button class="ghost" id="renamefolder">Rename folder</button>` : ''}` : ''}</div>
-    <ul class="nav-tabs" data-doc-tabs>${[['all', 'All files'], ['received', 'Received'], ['sent', 'Sent']].map(([k, l]) => html`<li><a class="${k === tab ? 'active' : ''}" href="${href(k, folder)}" data-doc-tab="${k}">${l}</a></li>`)}</ul>
-    ${rows.length ? html`<div class="filter-bar" data-doc-tools><label>Search <input type="search" data-doc-search placeholder="File name, type, folder or sender" autocomplete="off" value="${view.q}"></label> <span class="muted small" data-doc-count role="status"></span></div>
+    <ul class="nav-tabs" data-doc-tabs>${docTabs.map(([k, l]) => html`<li><a class="${k === tab ? 'active' : ''}" href="${k === 'folders' ? href(k, null) : href(k, folder)}" data-doc-tab="${k}">${l}</a></li>`)}</ul>
+    ${tab === 'folders' ? folderPane : rows.length ? html`<div class="filter-bar" data-doc-tools><label>Search <input type="search" data-doc-search placeholder="File name, type, folder or sender" autocomplete="off" value="${view.q}"></label> <span class="muted small" data-doc-count role="status"></span></div>
     <table class="tbl striped" id="doctable"><thead><tr>${sortHead('type', 'File Type')}${sortHead('name', 'File Name')}${sortHead('folder', 'Folder')}${sortHead('date', 'Date')}${sortHead('from', 'From')}<th>Additional Instruction</th><th>Access</th><th></th></tr></thead><tbody>${rows}<tr data-doc-nomatch hidden><td colspan="8" class="muted center">No documents match your search.</td></tr></tbody></table>` : html`<p class="muted" data-docs-empty>No documents have been shared on this file yet.</p>`}
     <p class="muted small">Documents are kept permanently. They cannot be deleted.</p>${entBlock}
     ${sigs.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Signatures</h2></div><p class="muted small">Demo e-sign: not legally binding. A real provider (DocuSign / Dropbox Sign) plugs in at the same place.</p>
@@ -111,7 +138,37 @@ export async function render({ api, user, deal, refresh }) {
     $$('[data-sigcancel]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Cancel this signature request?')) return; await api.cancelSignatureRequest(b.dataset.sigcancel); toast('Request cancelled'); refresh(); })));
     const nf = $('#newfolder', root); if (nf) nf.addEventListener('click', guard(async () => { const n = prompt('New folder name'); if (!n) return; await api.createFolder({ scope: 'deal', dealId: deal.id, name: n }); toast('Folder created'); refresh(); }));
     const rf = $('#renamefolder', root); if (rf) rf.addEventListener('click', guard(async () => { const cur = folders.find((f) => f.id === folder); const n = prompt('Rename folder', cur ? cur.name : ''); if (!n) return; await api.renameFolder(folder, n); refresh(); }));
+    const addBtn = $('#addfolder', root); if (addBtn) addBtn.addEventListener('click', () => addFolder());
+    const moveForm = $('#movefile', root); if (moveForm) moveForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('[data-move-err]', moveForm); const btn = $('button[type=submit]', moveForm);
+      const docId = moveForm.elements.docId.value; const folderId = moveForm.elements.folderId.value || null;
+      if (!docId) { err.textContent = 'Choose a document to move.'; return; }
+      const doc = portalDocs.find((d) => d.id === docId);
+      if (doc && (doc.folderId || null) === folderId) { err.textContent = 'That document is already in this folder.'; return; }
+      err.textContent = ''; if (btn.disabled) return; btn.disabled = true;
+      try { await api.moveDocument(docId, folderId); toast('Document moved'); refresh(); }
+      catch (ex) { err.textContent = plainError(ex).text; toast(err.textContent, 'err'); btn.disabled = false; }
+    });
   } };
+
+  function addFolder() {
+    const m = modal('Add folder', html`<form id="aff" class="form-grid" novalidate>
+      <label class="span2">Folder name<input name="name" maxlength="120" autocomplete="off"></label>
+      <p class="span2 err-text" data-folder-err role="alert"></p>
+      <div class="span2"><button class="m-btn" type="submit">Add folder</button> <button type="button" class="ghost" data-close>Cancel</button></div>
+    </form>`);
+    const form = $('#aff', m); const err = $('[data-folder-err]', form);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = String(form.elements.name.value || '').trim();
+      if (!name) { err.textContent = 'Type a folder name.'; return; }
+      if (realFolders.some((f) => String(f.name).toLowerCase() === name.toLowerCase())) { err.textContent = 'A folder with this name already exists on this order. Use that folder or type a different name.'; return; }
+      const btn = $('button[type=submit]', form); err.textContent = ''; if (btn.disabled) return; btn.disabled = true;
+      try { await api.createFolder({ scope: 'deal', dealId: deal.id, name }); closeModal(); toast('Folder created'); refresh(); }
+      catch (ex) { err.textContent = plainError(ex).text; toast(err.textContent, 'err'); btn.disabled = false; }
+    });
+  }
 
   function upload() {
     let queue = [];

@@ -4,11 +4,11 @@
 // Reminders are RECORDED ONLY (shown in the portal; nothing is ever sent). The voice recording stays in this browser (nothing uploads anywhere).
 // Function first, minimal styling. Every rule is checked again by the adapter (and migration 33 in SQL).
 import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
-import { relatedLists, localStamp, entityLabel } from '../data/crm.js?v=202611130900';
-import { CALL_TYPE_CHOICES, CALL_REMINDERS, CALL_TO_TYPES, RELATED_TO_TYPES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT, durationText, durationWords, reminderLabel, defaultCallSubject } from '../data/crm-calls.js?v=202611070139';
-import { optSel, lbl } from './crm-custom.js?v=202611242010';
-import { ownerSel, tabs, head } from './crm-kit.js?v=202611161500';
-import { modOn } from '../data/modules.js?v=202611101015';   // module switches: Calls not Live = no call menu / call columns for regular users
+import { relatedLists, localStamp, entityLabel } from '../data/crm.js?v=202611247700';
+import { CALL_TYPE_CHOICES, CALL_REMINDERS, CALL_TO_TYPES, RELATED_TO_TYPES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT, durationText, durationWords, reminderLabel, defaultCallSubject } from '../data/crm-calls.js?v=202611247700';
+import { optSel, lbl } from './crm-custom.js?v=202611247700';
+import { ownerSel, tabs, head } from './crm-kit.js?v=202611289980';
+import { modOn } from '../data/modules.js?v=202611247700';   // module switches: Calls not Live = no call menu / call columns for regular users
 
 const v0 = (v) => (v == null ? '' : v);
 const when = (s) => (!s ? '' : s.length > 10 ? `${fmtDate(s.slice(0, 10))} ${s.slice(11, 16)}` : fmtDate(s));
@@ -141,6 +141,34 @@ export function wireCalls(root, api, refresh, ctx, { logEmail } = {}) {
   const le = $('[data-log-email]', root); if (le && logEmail) le.addEventListener('click', logEmail);
   $$('[data-mark-complete]', root).forEach((cb) => cb.addEventListener('change', guard(async () => { if (!cb.checked) return; cb.checked = false;
     const call = await api.getCrmCall(cb.dataset.markComplete); completeModal(api, call, () => refresh()); })));
+}
+
+// ---------- calls list (#/crm/calls) ----------
+// Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. The CRM menu linked to #/crm/calls, and only a single call
+// (#/crm/calls/<id>) had a page. This list is the calls already stored (one existing read). It is not a new Calls module.
+const CALL_ID = /^[A-Za-z0-9_-]{1,80}$/;
+export async function callsList({ api, me }) {
+  if (!api || typeof api.listCrmModuleRows !== 'function') throw new Error('Calls could not be loaded. Open CRM Home and try again.');
+  const rows = await api.listCrmModuleRows('calls');
+  const list = (Array.isArray(rows) ? rows : []).filter((a) => a && CALL_ID.test(String(a.id || ''))).sort((a, b) => {
+    const sa = String(a.callStart || a.occurredOn || a.createdAt || '');
+    const sb = String(b.callStart || b.occurredOn || b.createdAt || '');
+    return sb.localeCompare(sa) || String(a.subject || a.name || '').localeCompare(String(b.subject || b.name || ''));
+  });
+  const dash = html`<span class="muted">&mdash;</span>`;
+  const text = (v) => (v == null || v === '' ? dash : v);
+  const body = html`${head('CRM: Calls', me)}${tabs('calls')}
+    <p class="muted small">Calls already saved on a lead, client, or company. Open a call to see its details.</p>
+    <div class="card" data-calls-list style="overflow-x:auto">
+      <table class="tbl"><thead><tr><th>Subject</th><th>Call Type</th><th>Call Start Time</th><th>Status</th><th>Call Owner</th></tr></thead>
+      <tbody>${list.length ? list.map((a) => html`<tr data-call-row="${a.id}">
+        <td><a href="#/crm/calls/${a.id}" data-call-link="${a.id}">${a.subject || a.name || 'Call'}</a></td>
+        <td>${text(a.callType)}</td>
+        <td>${a.callStart || a.occurredOn ? when(a.callStart || a.occurredOn) : dash}</td>
+        <td data-call-status="${a.callStatus || ''}">${text(a.callStatus)}</td>
+        <td>${text(a.ownerName || a.createdByName)}</td>
+      </tr>`) : html`<tr data-calls-empty><td colspan="5" class="muted">No calls yet.</td></tr>`}</tbody></table></div>`;
+  return { title: 'CRM Calls', crumbs: [['CRM', '#/crm'], ['Calls']], body };
 }
 
 // ---------- call detail page (#/crm/calls/<id>) ----------

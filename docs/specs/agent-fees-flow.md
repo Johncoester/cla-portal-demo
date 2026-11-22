@@ -41,7 +41,7 @@ Answers from John, Nov 12 2026, 2:33 PM ET (chat t1544u):
 1. **Commission is % or $, always in sync.** The agent can enter the commission as a percent or a dollar amount. Changing the % recalculates the $ from the sales price, and changing the $ recalculates the %. They can never differ.
 2. **Fields for each agent side (listing agent and buyer's agent):**
    - Commission: % and $, kept in sync.
-   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file.
+   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file. Payable by is Buyer, Seller, or Split (Buyer and Seller). Split is half and half. See [admin-fee-payable-by.md](admin-fee-payable-by.md).
    - Other fees: a section with a + button, up to 5 fees, each with a typed description, an amount and who it's paid to (for example, the brokerage).
    - All of these post automatically to the correct Accounting lines.
 3. **A staff change to an agent-confirmed fee only notifies the agent.** There's no re-approval and no review step.
@@ -146,7 +146,7 @@ Migration `supabase/migrations/20261117100000_agent_fees.sql` (rollback in `supa
 Migration `supabase/migrations/20261118010000_agent_fee_sides.sql` adds `agent_fee_sides(deal)`: the sides the caller may see, with `read` or `edit` (none for buyers, sellers or a refinance).
 
 - `js/data/agent-fees.js`: the shared rules (% and $ from the sales price, payer defaults, other-fee checks, plain error messages). `js/data/supabase-agent-fees.js` calls the database functions; `js/data/mock-part-agent-fees.js` is the demo copy with the same rules.
-- `js/pages/agent-fees-box.js`: the box on the file overview (`js/pages/deal.js`), loaded alongside the overview's other reads. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
+- `js/pages/agent-fees-box.js`: reusable Agent fees cards. FF-101c (Francis Nov 18, confirmed by John): each side sits under that side's task section on Tasks (`js/pages/dealtasks.js`), not on File Overview. Accounting still uses the read-only summary. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
 - Tests: `test/test-agent-fees.js` (rules and the demo adapter), `test/test-agent-fees-sql.sh` (AF-1 and the sides function).
 
 ## AF-3 as built (agent and TC changes, notices to the CLA team)

@@ -57,8 +57,9 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - AF-1 (database only, nothing on screen yet): each file keeps, per agent side, a commission (% and $ always in step with the sales price), an admin fee with who pays it, and up to 5 other fees. Each fee records whether staff, the agent or a TC set it, and who confirmed it and when. A history keeps who, when, old value, new value, reason and source. Staff can't change a fee the agent or TC confirmed without a reason. When the sales price changes, each commission is worked out again and the change goes in the history.
-- AF-2: an **Agent fees** box on the file overview. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
-- AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC's own overview now has the Agent fees box. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
+- AF-2: an **Agent fees** box. Processors (and pre-processors on their files, and admins) see both agent sides and can edit them; other CLA staff on the file see them read only; each agent sees and edits only their own side; buyers and sellers never see it. In the edit window, typing the commission % fills in the $ (or the other way round) from the sales price. Admin fee with Paid by, up to 5 other fees (description, amount, paid to, paid by). When the agent confirmed the side, staff must type a reason before saving. A "Change history" button lists every change (when, who, was, now, reason). The box shows "Not confirmed by the agent yet", "Agent confirmed", "Confirmed by TC", or "Agent confirmed, then changed by CLA staff".
+- FF-101c (Francis Nov 18 11 AM meeting notes, confirmed by John Nov 18 2:13 PM ET): the Agent fees box is no longer on File Overview. The listing agent's commission sits under **Listing (Seller's) Agent tasks**, and the buyer's agent commission sits under **Buyer's Agent tasks**, for every role that used to see them on the overview (staff, agents, TCs). Accounting still shows a read-only summary. Commission fields are unchanged (broker fee / payout is FF-101b).
+- AF-3: when an agent (or a TC for the agent) saves, they first see "You're changing … from $A to $B" (or "You're confirming these fees as they are"), with "Yes, save and confirm" and "Go back" (which keeps what they typed). Saving marks the side "Agent confirmed" or "Confirmed by TC". The TC sees Agent fees under the agent task sections on Tasks. When an agent or TC changes or confirms fees, the file's processor, pre-processor and TC get a portal notice (who, the file, old and new values) and an email is queued for each. When a TC confirms, the side's agent is told too.
 - AF-4: when CLA staff change fees the agent (or TC) confirmed, the side's agent gets a portal notice and a queued email: who changed it (marked "CLA Title"), old and new values, and the reason. It says no re-approval is needed. Nobody else is told, and nothing is sent when staff change fees nobody has confirmed yet.
 - AF-5: every agent fee posts to the file's Accounting fee ledger by itself. Each fee is one line under ALTA "Commission" and CD section H, paid by the fee's payer. The payee is the agent's company (or "Buyer's Agent" / "Listing Agent" when it has none), or the other fee's "paid to". A line is kept in step when the fee or the sales price changes, and retired (never deleted) when the fee is removed. If a processor changes the line by hand on the Accounting tab, automatic posting leaves it alone from then on.
 - AF-6: Accounting's Closing Disclosure and Settlement Statement tabs stay, and each has a **Generate CD** / **Generate ALTA** button. It opens the print window with the file's document name filled in (for example "MD-26-97262 - Closing Disclosure - TEST") so it can be saved as a PDF. The agent fees appear in CD section H and the ALTA "Commission" section.
@@ -99,6 +100,40 @@ This file lists the portal's major features: how each one should work, how far a
 - Follow-ups (John, Nov 13): one place for commissions (the older commission boxes point to Agent fees instead of keeping a second copy), remove the fee questions from the agent's task, add a walkthrough test, AF-1 choices approved as written. Assigned to Claude; John waived rule 9 for this build (the walkthrough on main was failing for unrelated buyer/seller tests).
 - AF-1 choices (approved as written by John, Nov 13): a commission can't be saved until the file has a sales price, so % and $ can always be checked against it. The commission and other fees also record who pays them, with the same defaults as the admin fee (buyer for the buyer's agent, seller for the listing agent). When staff change a confirmed fee, the record of who confirmed it stays, so every later staff change still needs a reason. A fixed-$ commission bigger than a new, lower sales price switches to keeping its %. A TC can confirm the side of an agent on their team; the file's own TC can confirm either side. A refinance has no agent fees.
 - Nov 14: the list of old commission keys stays the same. A signed-in user can save an order that does not write those keys. Writing an old commission still shows the plain Agent fees message, not a permission error. AF-7 stays not Live until that permission fix is applied on TEST and Place Order is checked there.
+- FF-101c (Nov 18): move the existing Agent fees block under the agent task sections; do not change the commission fields in this item (FF-101b adds broker fee / total / payout).
+
+---
+
+## Commission under agent task sections (FF-101c)
+
+**How it should work.** On Tasks, the listing agent's commission and fees sit under the Listing Agent task section, and the buyer's agent commission and fees sit under the Buyer's Agent task section. File Overview no longer shows the Agent fees box. Staff, agents and TCs who already saw Agent fees still see the same fields in the new place. Accounting still shows commissions read only. Buyers and sellers never see them. Broker fee, total and payout methods are a separate item (FF-101b).
+
+**Status: In progress.** Tracker row FF-101c. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026 2:13 PM ET. Pull request: [PR 351](https://github.com/Johncoester/cla-portal-demo/pull/351). Not Live until checked on TEST and migration `20261125260000_ff101c_agent_fees_tasks_location.sql` is applied on TEST (message wording only).
+
+**What's built**
+
+- Agent fees removed from File Overview (staff and TC).
+- Each side's reusable Agent fees card sits under that side's task section on Tasks (`buyer-agent` / `listing-agent`).
+- Edit order details, Accounting pointers and the commission task note point to Tasks.
+- Accounting > Contract figures / Basic Info still shows the read-only commissions summary.
+- Walkthrough and unit tests look for Agent fees under the task sections.
+- Cache stamp `202611246500`.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Database file for refusal / note wording not applied on TEST yet.
+- FF-101b (broker fee, total, payout methods) is separate.
+
+**Links**
+
+- Spec: [docs/specs/agent-fees-flow.md](docs/specs/agent-fees-flow.md)
+- Source: Francis, Portal review Nov 18 2026 11 AM (Gmail 1a1ef9d3d862da08); John confirmed Nov 18 2:13 PM ET via Francis Feedback.
+
+**Decisions**
+
+- Move the existing block only; do not edit commission fields in this PR (avoid conflict with FF-101b).
+- Keep `data-agent-fees` / `data-agent-fee-side` so Accounting and the walkthrough keep working.
 
 ---
 
@@ -133,6 +168,72 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Accounting sidebar (FF-061)
+
+**How it should work.** On a file, the Closing menu stays as it is. Accounting is its own section below that menu. It lists Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding, in that order. The same six links sit in the accounting page's own section list, directly under Closing. Someone who cannot see Accounting today still does not see the section. Loan Funding opens the existing Funding page, and only for someone who could already open Funding.
+
+**Status: In progress.** Not on TEST yet. Pull request: [PR 323](https://github.com/Johncoester/cla-portal-demo/pull/323).
+
+**What's built**
+
+- The file sidebar keeps Scheduling Details and the buyer's Closing appointment. Accounting is a separate section under the file links, for the same people who could open Accounting before.
+- Ledger is the existing fee ledger. Receipts, Disbursements, Account Balances, and Balancing are pages on the same Accounting address, filled from that test ledger. They are not a bank balance, a deposit, a printed check, or a wire.
+- Loan Funding is the existing Funding page. It stays a separate Funding link for someone who can open Funding but cannot see Accounting.
+- The Closing charges list (sections A through N) is unchanged. Fee ledger is no longer under CLA tools. It is Ledger under Accounting.
+
+**What's missing**
+
+- Not checked on TEST yet. No database change.
+
+**Links**
+
+- Spec: [docs/specs/accounting-sidebar.md](docs/specs/accounting-sidebar.md).
+- Source: Francis Santos, Nov 12 2026, 1:53 PM ET (Gmail 1a1d11bd4bd135f8), confirmed Nov 17 2026, 1:55 PM ET (Gmail 1a1eaddb3dcfc5d6), tracker FF-061.
+
+**Decisions**
+
+- Routes stay `#/deals/:id/accounting` and `#/deals/:id/funding`. The new pages are `?v=receipts`, `?v=disbursements`, `?v=balances`, and `?v=balancing` on the accounting page that already exists.
+- The figures are the test ledger the file already has. Nothing is read from a bank, and nothing is written to TEST or production.
+- FF-103 moves this menu. Ledger, Receipts, Disbursements, Account Balances, and Balancing stay as tabs on the Accounting page. They are no longer separate rows in the file sidebar.
+
+---
+
+## File sidebar (FF-103)
+
+**How it should work.** Inside a file, a Processor or Super admin sees the left sidebar in this order: File Overview, Tasks, My Tasks, Inbox, Email, Documents, then ORDER (General and Title), then CLOSING (Charges), then one Accounting item, then PREVIEW (Closing Disclosure and Settlement Statement). General, Title, and Charges fold with a chevron. The second menu column inside the file is gone. Each page that column opened is still a direct sidebar link, except Ledger, Receipts, Disbursements, Account Balances, and Balancing, which stay as tabs on the Accounting page. The Accounting page itself, including the balance summary, is unchanged. A person who could not open a page still does not see it. A buyer or seller keeps the shorter menu.
+
+**Status: In progress.** Not on TEST yet. Tracker item FF-103. Not Live.
+
+**What's built**
+
+- The file sidebar for someone who can already open Accounting follows the order Francis confirmed.
+- General opens the existing Basic Info, Contacts, Loan check, Earnest & Commissions (the earnest block already on Basic Info), Taxes & Prorations, Payoffs, and Other Contacts.
+- Title opens the existing CPL, Policy Info & Rates, Commitment (Schedule A), and Final Policy pages.
+- Charges opens the existing charge sections A, B, C, E, F, G, H, J, K/M, and L/N.
+- Accounting is one sidebar item. It opens the ledger. Ledger, Receipts, Disbursements, Account Balances, Balancing, and Loan Funding (when that person could already open Funding) are tabs on that page.
+- Closing Disclosure, Settlement Statement, Prorations, CD details & escrow, Payment summary, and Edit history are sidebar links.
+- Scheduling Details, Agreements, Activity, Post-Closing, E-Recording, and Wires stay reachable.
+- Someone who cannot see Accounting keeps the previous shorter file menu, including Funding when they could already open it.
+
+**What's missing**
+
+- Not checked on TEST yet. No database file.
+- There is no Properties page today, so the menu does not add one. The address and parcel stay on File Overview.
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [Accounting sidebar (FF-061)](#accounting-sidebar-ff-061).
+
+**Decisions**
+
+- No new pages and no database change. Each label opens a page the portal already has.
+- Loan opens the existing Title loan check. Commitment opens the existing Schedule A page. Earnest & Commissions opens Basic Info, where earnest money and the commission summary already sit.
+- Other Contacts stays under General because that page already existed in the second column.
+- The shell cache stamp is 202611247600.
+
+---
+
 ## Title production numbers flow (Qualia scenario, QFLOW-1)
 
 **How it should work.** A processor opens a file and enters the contract, the loan, the deposit, the agent fees, the payoffs, the fees and the tax proration once. Every figure then lands where Qualia puts it: the fee ledger, the Closing Disclosure summaries (K, L, M, N), cash to close, the ALTA statement and the balance check. One fixed purchase, entered by Claude on Qualia's own test file on Nov 15 2026, is the standard: price $100,000, loan $50,000, deposit $5,000, 1% listing commission, payoff $40,000, buyer fees $2,375, seller fees $700, county tax $3,650 a year with a July 1 settlement. Qualia's answers: cash to close $45,550.00, paid out to others $44,075.00, balanced. Outside connections (CPL, final policy, e-recording, bank accounts) are not part of this.
@@ -146,6 +247,8 @@ This file lists the portal's major features: how each one should work, how far a
 - Fix: on TEST, the ALTA statement and the Closing Disclosure showed a dash for the buyer, the seller and the real estate brokers. Staff open Accounting from the light file header, which has no people. The two statements now read the people on the file, typed people included. The CD names each brokerage with its agent as the contact.
 - Excess deposit ([PR 290](https://github.com/Johncoester/cla-portal-demo/pull/290), Nov 15 2026, built by Claude, not merged yet). When someone other than CLA holds the deposit and has already paid it to the seller, the processor types that amount under Accounting, Contract figures, Earnest money, in "Deposit already paid to the seller". It shows as Excess Deposit on CD line N.01, on the ALTA and on the fee ledger, comes off the seller's proceeds, and is not counted as money CLA receives. The buyer still gets credit for the whole deposit. On the Qualia file this makes seller proceeds $51,475.00, the same as Qualia. It is saved with "EMD held by" on the order, so no database file is needed. It cannot be more than the deposit.
 - A test (`test/test-qualia-scenario.js`) enters the purchase the way a processor does and checks every figure against Qualia's. It runs with the other tests on every pull request.
+
+- Loan page (QFLOW-3, Nov 19 2026, built by Claude, [PR 379](https://github.com/Johncoester/cla-portal-demo/pull/379), merged 54847d76 Nov 21 2026 2:18 PM ET, Live; no database file). On TEST the Closing Disclosure's page 1 showed dashes for loan term, product, loan type and interest rate. The only place to type them was the long "CD details & escrow" form, and "Loan" in the file menu opened Title's loan check. General > Loan now opens a short Loan page: the order's loan amount and lender on top, then loan ID, type, purpose, product, term, MIC, interest rate, monthly payment and the "can it change" answers. They are the same saved values the Closing Disclosure prints, and saving them keeps everything else on CD details. Title's Loan check is still a step inside the Title tab. No database file.
 
 **What's still missing**
 
@@ -165,6 +268,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 - John, Nov 15 2026: checklists come later. First make the numbers flow through every module so a file can reach a finished CD, ALTA and balanced ledger. Claude builds this; Grok stays on the Connect feedback.
 - The Qualia figures above are the standard. A change that moves any of them has to say why.
+
+---
+
+## Prorations on the Closing Disclosure (FF-098)
+
+**How it should work.** A processor enters property taxes, ground rent, HOA dues, or another proration once, on Taxes & Prorations. When the calculation is finished, that amount is on the fee ledger, the settlement statement, and the Closing Disclosure. An item the seller already paid is a charge to the buyer and a credit to the seller, under Adjustments for Items Paid by Seller in Advance (K and M). An unpaid item is a credit to the buyer and a charge to the seller (L and N). City/town taxes, county taxes, and assessments use those named lines. Ground rent, HOA, and anything else use the next line in the same section. The line shows the dates the adjustment covers. Tax prorations use a 365-day year, and the buyer pays for the settlement day, unless someone changes that on the file. HOA and ground rent follow the same rule.
+
+**Status: In progress.** FF-098. Francis Santos, Nov 17 2026, 2:49 PM ET (Gmail msg 1a1eb0eb7ee40f0c, subject "Proration Amount"), as Processor 2 on TEST. Pull request: [PR 330](https://github.com/Johncoester/cla-portal-demo/pull/330). Not Live. No database file.
+
+**What's built**
+
+- A finished proration is saved to the ledger as soon as the amount can be calculated, and again when it is changed. It is logged.
+- Paid-in-advance items show on K and M. Unpaid items show on L and N. The Charges screens and Closing Disclosure page 3 use the same lines.
+- County or property tax uses the County Taxes line. City/town tax uses the City/Town Taxes line. Assessments use the Assessments line. Ground rent and HOA use the next open line in that section, with the date range on the line.
+- The worked example (July 1, 2026, a $3,650.00 bill, 365-day year, buyer pays the settlement day) is $1,840.00 when the seller already paid it and $1,810.00 when it is unpaid. Ground rent of $365.00 a year is $184.00. HOA of $100.00 a month on July 15 is $55.89. Charging the settlement day to the seller on that tax bill changes $1,840.00 to $1,830.00 and the file keeps that choice.
+- A property-tax escrow deposit (Closing Disclosure section G) stays in closing costs. It is not also posted as a proration.
+
+**What's still missing**
+
+- Not checked on TEST yet. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/proration-cd.md](docs/specs/proration-cd.md)
+- Source: Francis Santos, Nov 17 2026, 2:49 PM ET, Gmail msg 1a1eb0eb7ee40f0c. Uses the PRORATE-1 defaults (tracker row 322).
+
+**Decisions**
+
+- The $3,568 property-tax line Francis saved on MD-26-97407 is the escrow deposit in section G. It belongs in closing costs (K.03), not on the proration lines. The proration is a separate entry.
+- No database change. The proration is already stored on the fee ledger.
 
 ---
 
@@ -274,7 +407,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- On hold: #1, #2, #4, #5, #10, #13, #15, #16, citizenship, spouse marital status, entity documents required, phone and email icons with no app.
+- On hold: #1, #2, #4, #5, #10, #13, #15, #16, spouse marital status, entity documents required, phone and email icons with no app.
+- Citizenship is no longer on hold. Janine asked on Nov 17 2026 to type it on one line. See Citizenship on one line (JN-CITIZEN-1).
 
 **Links**
 
@@ -284,6 +418,35 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - John approved fixing the bugs without waiting (Nov 12, 6:08 PM ET); Francis confirmed the rest on Nov 12, 6:14 PM ET.
+
+---
+
+## Citizenship on one line (JN-CITIZEN-1)
+
+**How it should work.** On Personal information, for a buyer and for a seller, Citizenship is one line the person types. The same line is used for a spouse. An answer already saved, including "US Citizen" and "U.S. Citizen", still shows and can be saved again. A person can also type something that was not in the old list, such as "Born in Canada". Leaving it blank is allowed.
+
+**Status: In progress.** The pull request is open. Not Live until `supabase/migrations/20261125180000_citizenship_free_text.sql` is applied on TEST. This pull request does not apply it.
+
+**What's built**
+
+- Buyer and seller Personal information, and the spouse section, ask for Citizenship on a single line. The old dropdown (U.S. Citizen, Permanent Resident, Non-Resident Alien, Other) is gone from the form definition.
+- A saved answer stays on the same task and in the same spouse column. The column was already plain text. TEST has no check and no enum on it, so the column is not replaced.
+- The database file changes the question on the existing Personal information templates from a dropdown back to a line, and drops a citizenship check only if one is present. The rollback puts the dropdown back and does not change the column.
+
+**What's still missing**
+
+- Not on TEST until the database file is applied. Until then, Personal information on TEST still shows the dropdown, because that question is stored with the template. The spouse line on TEST is already a text box.
+
+**Links**
+
+- Spec: [docs/specs/citizenship-free-text.md](docs/specs/citizenship-free-text.md)
+- Source: Janine's email reply, Nov 17 2026, relayed via Francis Feedback. Tracker item JN-CITIZEN-1.
+- Related pull request: [PR 334](https://github.com/Johncoester/cla-portal-demo/pull/334).
+
+**Decisions**
+
+- Keep `spouse_info.citizenship` and the answer stored on the task. Do not add a new column.
+- The earlier dropdown file (`20261112060400_citizenship_and_agent_phone`) stays as history. The agent-card phone change in that file is not undone.
 
 ---
 
@@ -312,6 +475,68 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Matt confirmed the numbered list on Nov 12 at 2:04 PM ET. MF-054 supersedes MF-052 and MF-047. John waived rule 9 at 1:25 PM ET Nov 13 (t1618u) so this could be built while the walkthrough's remaining email failure was set aside. Agent fees stays on the overview because it is a separate live feature (AF-2), not one of the redundant boxes Matt asked to remove. On Nov 16, MF-056 renamed the Closing Date button to Scheduling Details. The date, time and days remaining stay on that button.
+
+---
+
+## Settlement office locations (FF-101d)
+
+**How it should work.** When an agent or processor picks a CLA office for the settlement (Schedule the Settlement task, Scheduling Details, or the party scheduling link), the list is only the offices marked for settlements. That starts as Towson, Rockville and Bethesda. Rockville is the main office. Other offices stay in the offices table and on Admin > Offices, but are not offered for new settlement picks. A retired office never appears. A pending proposal that already uses another office still shows that office on the file.
+
+**Status: In progress.** Tracker FF-101d. Francis Santos, Portal review Nov 18 2026 11 AM; John confirmed Nov 18 2026, 2:13 PM ET. Pull request: [PR 353](https://github.com/Johncoester/cla-portal-demo/pull/353). Database file `supabase/migrations/20261125300000_settlement_office_flag.sql` is not applied. Not Live.
+
+**What's built**
+
+- `public.offices.used_for_settlements` flag. Towson, Rockville and Bethesda are on; other offices stay off. Rows are not deleted.
+- Settlement pickers and nearest-office default read only active offices with that flag. Existing file/proposal office names still show.
+- Mock and hosted adapters follow the same rule. Cache stamp 202611246600.
+
+**What's still missing**
+
+- Not applied on TEST. Not checked on TEST yet.
+- Admin UI to tick the flag is FF-102 (separate PR).
+
+**Links**
+
+- Spec: [docs/specs/settlement-office-locations.md](docs/specs/settlement-office-locations.md). Source: Francis's Nov 18 Gemini notes (Gmail 1a1ef9d3d862da08). Tracker FF-101d.
+- Related: MF-010 (nearest office), MF-056 (Scheduling Details), FF-102 (Admin Offices flag UI).
+
+**Decisions**
+
+- Drive the picker from the offices table flag, not hard-coded names in the page (John, Nov 18).
+- Notes' "Talson" / "Rockwell" mean Towson / Rockville.
+- Do not apply the database file in this pull request.
+
+---
+
+
+## Admin Offices — Used for settlements (FF-102)
+
+**How it should work.** On Admin > Offices, an Admin or Super admin can tick **Used for settlements** on an office. That is the only way staff turn the flag on or off after FF-101d seeds Towson, Rockville and Bethesda. The settlement pickers (Schedule the Settlement, Scheduling Details, party link) keep using FF-101d's filtered list; this change does not duplicate that picker.
+
+**Status: In progress.** Tracker FF-102. John Coester via Francis Feedback, Nov 18 2026, 2:14 PM ET. Pull request: [PR 354](https://github.com/Johncoester/cla-portal-demo/pull/354). Rebased onto FF-101d (`cursor/ff-101d-settlement-offices-906a` / PR 353). Database file `supabase/migrations/20261125310000_office_used_for_settlements.sql` is not applied. Not Live.
+
+**What's built**
+
+- Admin > Offices checkbox and list chip for Used for settlements.
+- `save_office` takes `p_used_for_settlements` (Admin / Super admin only). Direct insert/update/delete on `public.offices` revoked for portal roles; select stays.
+- Reuses FF-101d picker code. No second column add or seed.
+- Cache stamp 202611246700.
+
+**What's still missing**
+
+- Apply `20261125310000` on TEST after `20261125300000` (FF-101d).
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/admin-offices.md](docs/specs/admin-offices.md). Tracker FF-102.
+- Related: FF-101d (settlement office flag + picker), MF-010 (nearest office).
+
+**Decisions**
+
+- Extend the existing Admin > Offices page; do not add a second offices screen (John / AGENTS.md).
+- Column and seed stay in FF-101d; this PR only owns the Admin save path and write protection.
+- Do not apply the database file in this pull request.
 
 ---
 
@@ -490,7 +715,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Place Order buyer and seller rows take a name, email, and phone (and the entity fields that were already there). The search box remains for an existing contact. A typed name no longer stops on "pick a person from the list."
 - Buyer's agent, listing agent, and lender: a list of saved companies and agents or loan officers, plus boxes to type a person and a company.
 - The same entry is on the file's Parties buttons and on Contacts → Add contact.
-- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten.
+- A typed person is stored as a contact with no portal login. Invite to portal is unchanged and is still a separate action. An existing contact that is picked is not rewritten. If the typed email already belongs to a contact, that contact is used (CONTACT-REUSE-1).
 
 **What's still missing**
 
@@ -594,30 +819,37 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A **Task Builder** page in the admin section where Admins and Super admins build automated workflows ("flows") for title files without code. Each flow starts when something happens on a file (the trigger: order opened, contract received, EMD received or not received after a number of days, title commitment received, closing date set or changed, a number of days before closing). Conditions pick which files it applies to (sales rep, client, transaction type, state, combined with and/or). Actions then run in order: create a task, send an email as a chosen person, create a call task, wait, check again, continue or stop. Each task a flow creates says who it's assigned to (a role on the file or a named person), an optional backup person, who can see it (CLA only, or also the agent, buyer, seller or lender), and its due date. The end goal is a drag-and-drop flowchart screen. This replaces "Workflow definitions" (PR 7, closed) and builds on Task Templates (PR 141).
 
-**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged (PR 263, Nov 14); not Live until its database file is applied on TEST. TB-2b (Try on one file, new files only) pull request open.**
+**Status: In progress. TB-1 Live on TEST (Nov 14). TB-2 merged ([PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263), Nov 14); engine file already applied on TEST as 20261114143634. TB-2b merged ([PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265)); try-and-scope file already applied on TEST as 20261114170335. TB-6 Live on TEST ([PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389), Nov 20).**
 
 | Step | What | Status |
 |---|---|---|
 | TB-1 | Admin page and permissions, list of flows (name, what starts it, On / Off), history (Owner: Claude) | Live on TEST, [PR 261](https://github.com/Johncoester/cla-portal-demo/pull/261). Grok checked steps 1–7 on TEST, Nov 14 |
-| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Not Live until `20261121010000_task_flow_engine.sql` is applied on TEST |
-| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265) open. Not Live until `20261122010000_task_flow_try_and_scope.sql` is applied on TEST, after TB-2's file |
+| TB-2 | Flow engine: conditions and actions, simple form; the EMD reminder working on TEST (Owner: Claude) | Merged, [PR 263](https://github.com/Johncoester/cla-portal-demo/pull/263). Database file already applied on TEST as `task_flow_engine` version 20261114143634 (repo file `20261121010000_task_flow_engine.sql`). |
+| TB-2b | Try on one file; turning on asks new files only or existing open files too (John, Nov 14) (Owner: Claude) | Merged, [PR 265](https://github.com/Johncoester/cla-portal-demo/pull/265). Database file already applied on TEST as `task_flow_try_and_scope` version 20261114170335 (repo file `20261122010000_task_flow_try_and_scope.sql`). |
 | TB-3 | Task settings: assigned to (role or named person), optional backup person, who can see it | Planned |
 | TB-4 | Email actions with templates and "send as" | Planned |
 | TB-5 | Drag-and-drop flowchart screen | Planned |
+| TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
+| TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | **Live.** [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) merged d104c0ff (Nov 21 2026, 12:40 PM ET); `20261127010000_task_flow_email_step.sql` applied on TEST Nov 21 |
+| TB-8 | Easier steps (John, Nov 21, by voice): each step says in plain words when it happens; Sales person lists every staff member with a search box; an email step can go to the agents who didn't refer the file (owner intro) (Owner: Claude) | **Live.** [PR 395](https://github.com/Johncoester/cla-portal-demo/pull/395) merged db09aa3d (Nov 21 2026, 1:50 PM ET); `20261128010000_task_flow_non_referring_agents.sql` applied on TEST Nov 21, 1:51 PM ET (v20261121185110). No flows created or turned on |
+| TB-9 | Easier to build (John, Nov 21, by voice): flows are called templates ("Template name", "+ New template"); Which files is behind an optional "Limit to certain files" link; each step has its own When box (days after it starts) instead of a separate Wait step; an Insert field list for the email (Owner: Claude) | [PR 398](https://github.com/Johncoester/cla-portal-demo/pull/398) open. No database change |
 
 **What's built**
 
 - TB-1: **Admin > Task Builder**, its own menu item, for Admins and Super admins only (everyone else gets "Not authorized"). It lists flows with name, description, what starts it, On / Off, and who changed it last. **+ New flow** and **Edit** take a name, what starts it, days (for "EMD not received" and "Days before closing") and a description. New flows start Off; Turn on / Turn off switch them; nothing is deleted. A History card shows every change.
 - TB-2: each flow says **which files** it applies to (transaction type: purchase, cash purchase or refinance; state; sales person — blank means any) and has **steps** run in order: create a task, create a phone call task, wait a number of days, or stop if the EMD has been received. A task goes to everyone on the file with the chosen role (processor, pre-processor, sales person, buyer's agent, listing agent, buyer, seller, transaction coordinator, lender). The page shows each flow's steps, recent runs (flow, file, status, latest step) and a **Check files now** button. A flow needs at least one task step before it can be turned on. The database starts flows when an order is opened, the EMD is marked received, or the closing date is set or changed, and every 15 minutes checks the day-based triggers and waits. Nothing in it can stop an order from saving.
+- TB-6 (John, Nov 20): a **Request a form from a party** step: which intake form, who it goes to, due in, and reminders (every N days, up to M times). The request is the party's own form task, so it is done when they submit it. Each person gets **one email per file** listing everything still needed from them, and reminder emails go at most once a day, listing what is still open (outbox only). A test run adds the tasks but emails nobody. Spec: TB-6 in [docs/specs/task-builder.md](docs/specs/task-builder.md).
+- TB-7 (John, Nov 20): a **Send an email** step (a saved template from Admin > Email Templates, or a subject and message written on the step, with merge fields like {{buyer_first_name}} and {{property_address}}) and a **File closed** trigger, so a flow can send a thank-you two days after closing. Emails wait in the outbox until the mail switch is on; Try on one file sends the test copy only to the admin trying it. Spec: TB-7 in [docs/specs/task-builder.md](docs/specs/task-builder.md).
 - TB-2b (John, Nov 14): **Try on one file** runs a flow once on a chosen open file, now, even while the flow is Off, with waits skipped so every step shows at once. Its tasks are real tasks on that file marked "Test run", and it never counts as the flow's real run there. **Turn on** asks which files: **New files only** (the default: files opened after it was turned on) or **Existing open files too**, so turning a flow on never sweeps the open files already there by surprise. An "Order opened" flow only ever runs on new orders. The list and History show which was picked.
 
 **What's still missing**
 
-- TB-2 and TB-2b are not Live: apply `20261121010000_task_flow_engine.sql`, then `20261122010000_task_flow_try_and_scope.sql`, on TEST (they need TB-1's file, already applied, and pg_cron, already on TEST). John wants to try it himself before Grok tests it.
+- TB-2, TB-2b and TB-6 database files are applied on TEST. John tests the TB-6 flow himself before Grok tests it.
 - "Contract received" and "Title commitment received" can be saved but not turned on yet.
 - On TEST a new order's flow tasks appear at the next 15-minute check (or **Check files now**), after Place Order has added the people.
 - Named person, optional backup person, and who can see a task (TB-3); emails (TB-4); drag and drop (TB-5).
 - Clients and agents can see tasks assigned to them but only staff mark them done (open question for John).
+- TB-6: request emails go to people with a portal account (a party's request waits until they accept their invite); one email per person per file, not one across all their files.
 
 **Links**
 
@@ -626,7 +858,9 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. Still open: whether clients and agents can tick off tasks.
+- John, Nov 13: its own admin menu item (not under Task Templates); Admins and Super admins only; tasks can be assigned by role or to a named person; a backup person is optional, added on each task. John, Nov 14: a flow can be tried on one file first, and turning it on defaults to new files only. John, Nov 20: client requests in Task Builder, with one email per person listing everything still needed, not one email per request. John, Nov 20: an email step and a File closed trigger; flows stay Off until he has tested them and turns them on. Still open: whether clients and agents can tick off tasks.
+- John, Nov 21: each step says in plain words when it happens ("2 days after the order opens: create this task, due 1 day later"); Task Builder's Sales person choice lists every staff member with a search box (being the sales person is set on the file); a Send an email step can go to the agents who didn't refer the file, using the file's Source of business, for his owner intro email. Open: Place Order and the file still offer only Sales Person and Sales Team as salespeople (Janine, Nov 18), so an Admin who sells can't be added there yet.
+- John, Nov 21 (second voice pass): call them templates; hide Which files behind an optional link; put "when" on each step instead of a Wait step; add an Insert field list so nobody types {{codes}}. Wait steps stay in saved templates and the engine; the form shows them as each step's day.
 
 ---
 
@@ -1108,7 +1342,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Not Live until `supabase/migrations/20261124170000_agent_tc_role_check.sql` is applied on TEST. Until then, typing a coordinator creates the order, leaves the coordinator off, and stays on Place Order.
-- Invite to portal is not offered on these two roles. A person who already has an outside login can still be picked.
+- Nothing for the invite: since Nov 20 2026 Invite to portal is offered on these two roles (TC-INVITE-1, below). A person who already has an outside login can still be picked.
 
 **Links**
 
@@ -1119,8 +1353,378 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The agents' coordinators are their own roles (Buyer Agent TC and Listing Agent TC). They are not the CLA Title Transaction Coordinator.
-- The staff rule stays: only an active staff login can be the Transaction Coordinator on an order.
+- The staff rule stays for a row already saved under the old role name: only an active staff login can be stored as that role. TC-1 takes that name off Add contact. See Transaction coordinator on Add contact (TC-1).
 - The Nov 16 file did not add the two roles to the people-role list. That list has to allow them, or Place Order creates the file and does not open it.
+- Nov 20 2026, 10:41 AM ET: John reversed "no invite for these two roles" in chat ("yes of course a TC needs an invite"). See TC portal invite (TC-INVITE-1).
+
+---
+
+## TC portal invite (TC-INVITE-1)
+
+**How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 10:41 AM ET, from his screenshot of Order Contacts on MD-26-97260. Tracker item TC-INVITE-1. Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387). Not Live until `supabase/migrations/20261125360000_tc_portal_invite.sql` is applied on TEST.
+
+**What's built**
+
+- Order Contacts shows Invite to portal on a coordinator row with no login. The dialog calls the role Transaction coordinator.
+- Share Files can invite a coordinator with no login, the same way.
+- The database file lets the portal invite and the Share Files invite accept the two coordinator roles. Everything else in both is unchanged.
+
+**What's still missing**
+
+- Changing a coordinator's email does not send a new invite by itself. That automatic invite still covers buyers, sellers and agents only.
+- The invite email does not name the coordinator's role. It greets them and names the property.
+
+**Links**
+
+- Spec: [docs/specs/agent-side-tc.md](docs/specs/agent-side-tc.md) (Portal invite)
+- Pull request: [PR 387](https://github.com/Johncoester/cla-portal-demo/pull/387)
+- Source: John Coester, chat, Nov 20 2026, 10:41 AM ET. Tracker item TC-INVITE-1.
+
+**Decisions**
+
+- This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
+- A coordinator gets the short client login, not the agent account.
+- A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+
+---
+
+## TC sees what their agent sees (TC-VIS-1)
+
+**How it should work.** A transaction coordinator sees everything their agent sees on the file: the agent's open and closed tasks, commissions and other agent fees. A TC is one person on many files, working with several agents. On a file, the TC acts for that side's agent when they are on the file as that side's coordinator, or when they are linked to the agent.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026 (standing rule) and Nov 21 2026 (TC rules). Tracker item TC-VIS-1. Rule 9 waived by John for this fix, Nov 21 2026, 11:19 AM ET. Not Live until `supabase/migrations/20261126990000_tc_sees_agent_file.sql` is applied on TEST.
+
+**What's built**
+
+- The database treats a coordinator on the file (Buyer Agent TC or Listing Agent TC) like a linked one: the agent's tasks on that side, open and closed, on open and closed files; the agent's answers; filling in and finishing the agent's forms and tasks on the agent's behalf; the agent fees for that side.
+- A CLA staff Transaction Coordinator gets the agent fees for the side where they are that side's coordinator, or linked to that side's agent.
+- The file Tasks tab: the TC's My Tasks lists the agent's tasks, marked "your agent". The cross-file My Tasks list includes them too.
+- The per-file check keeps its plan between calls. Outside users' task lists are about 5 times faster on a local copy.
+
+**What's still missing**
+
+- Assigning a TC to an agent from the admin screen, the TC's contact and the file, both ways, with the TC put on all of the agent's files. That is TC-ASSIGN-1.
+- Documents and messages are not part of this change.
+
+**Links**
+
+- Spec: [docs/specs/tc-sees-agent-file.md](docs/specs/tc-sees-agent-file.md)
+- Source: John Coester, chat, Nov 20-21 2026. Tracker item TC-VIS-1.
+
+**Decisions**
+
+- Nothing is stored or moved. Only read and permission checks change.
+- The other side's agent tasks and fees, and the buyer's and seller's own tasks, stay hidden from the TC.
+
+---
+
+## Assign agents and coordinators (TC-ASSIGN-1)
+
+**Status: In progress.** John Coester, chat, Nov 21 2026 (TC rules). Tracker item TC-ASSIGN-1. Rule 9 waived by John for the TC fixes, Nov 21 2026. Not Live until `supabase/migrations/20261127990000_tc_assign_agents.sql` is applied on TEST.
+
+- An agent and a transaction coordinator are linked from User List > Edit user (either person), from either person's CRM contact record, or within a file (Order Contacts: adding a coordinator next to that side's agent, or an agent next to that side's coordinator).
+- One link, both ways. The coordinator then goes on every file that agent is on (open, closed, on hold or cancelled), on the agent's side. Refinances are left out.
+- Removing a link takes nobody off a file. A CLA staff login is never linked. A coordinator placed by a link is not linked onward to other agents on that file.
+- Spec: [docs/specs/tc-assign-agents.md](docs/specs/tc-assign-agents.md).
+
+## Reuse a contact by email (CONTACT-REUSE-1)
+
+**How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
+
+**Status: In progress.** John Coester, chat, Nov 20 2026, 11:33 AM ET, after the error toast when adding TC Portal Jc (tcportaljc@gmail.com) to DC-26-78512. Tracker item CONTACT-REUSE-1. Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388). This is a bug fix, not a new feature, so rule 9 does not block it. Not Live until this is on TEST. No database file.
+
+**What's built**
+
+- Order Contacts → Add contact, and File Overview party buttons, use the existing contact when the typed email already belongs to someone. A short note says that person was already a contact.
+- Saving a new contact in the background does the same thing, so Place Order and other add-person screens also reuse the existing record instead of failing.
+- Editing a contact and changing its email to one already used still fails in plain words.
+
+**What's still missing**
+
+- Proof on TEST after this is merged. Not Live until then.
+
+**Links**
+
+- Spec: [docs/specs/contact-reuse.md](docs/specs/contact-reuse.md)
+- Pull request: [PR 388](https://github.com/Johncoester/cla-portal-demo/pull/388)
+- Source: John Coester, chat, Nov 20 2026, 11:33 AM ET. Tracker item CONTACT-REUSE-1.
+
+**Decisions**
+
+- One contact per email stays. The fix is to link that contact to the file, not to allow a second record.
+- The saved name, phone, and company are not overwritten when the typed details differ.
+- Assigning a TC to agents (admin, contact record, or file) so they automatically appear on every one of those agents' files is a later item, not this fix.
+
+---
+
+## Transaction coordinator on Add contact (TC-1)
+
+**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents. On a file, that person's side follows the agent they work for. Add contact offers Buyer's transaction coordinator (works for the buyer's agent) and Listing transaction coordinator (works for the listing agent). It does not offer the old role name Transaction Coordinator, which listed only CLA staff. A file that already has someone under that old role still shows them.
+
+**Status: In progress.** Tracker row 365, item TC-1. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Wording confirmed 11:37 AM. Pull request: [PR 343](https://github.com/Johncoester/cla-portal-demo/pull/343). Not Live. No database file.
+
+**What's built**
+
+- Order Contacts → Add contact no longer lists Transaction Coordinator. The coordinator choices are Buyer's transaction coordinator: works for the buyer's agent, and Listing transaction coordinator: works for the listing agent.
+- The same wording is on Place Order and on Parties when adding or changing a coordinator.
+- A person already saved on a file as Transaction Coordinator still appears on Contacts and Parties. Nothing is deleted.
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Edit order details still has the file-level Transaction Coordinator field. Linking a coordinator from an agent profile, adding them automatically, and a TC contact type are other items.
+- What a coordinator can do on a file, matching their agent, is TC-3.
+
+**Links**
+
+- Spec: [docs/specs/tc-1-add-contact.md](docs/specs/tc-1-add-contact.md)
+- Pull request: [PR 343](https://github.com/Johncoester/cla-portal-demo/pull/343)
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 365, TC-1.
+
+**Decisions**
+
+- A transaction coordinator is an outside assistant to the buyer's agent or the listing agent. TC-1 said that on the choice. TC-5 (tracker row 370) replaces the two choices with one label, Transaction coordinator.
+- The old role stays on files that already have it. New people are not given that role from Add contact.
+
+## Transaction coordinator contact type (TC-4)
+
+**How it should work.** A transaction coordinator is an outside assistant who works for one or more real estate agents. On a file they can do what their agent can do. That permission work is TC-3. The contact type itself is separate from the CLA Title staff role named Transaction Coordinator. CLA staff still have no contact type.
+
+**Status: In progress.** Tracker row 368. John Coester, live call Nov 18 2026, 11:27 AM ET, confirmed 11:35 AM ET, clarified 11:37 AM ET. The contact type can be picked, and a new buyer or listing coordinator is saved as that type. Existing contacts keep the type they already have. Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344). Not Live until `supabase/migrations/20261125230000_tc_contact_type.sql` is applied on TEST.
+
+**What's built**
+
+- Contact type lists offer Transaction coordinator. TC-5b takes the "outside, works for agents" words off that label. The note under the list still says this is an outside assistant and not a CLA Title staff role. The choice is on a contact, on Place Order, on the file's Contacts tab, and in the CRM.
+- A new person typed as the buyer's or listing transaction coordinator is saved as that type, not as a Realtor. Someone already saved keeps their current type.
+- The file's contact list, the user list, and the CRM lists can filter or group by the new type. The coordinator directory lists transaction coordinators separately from agents. Buyers and CLA staff are not in that list.
+- The database file adds the type to the contact and lead checks and does not change existing rows. It is not applied on TEST.
+
+**What's still missing**
+
+- Not Live until the database file is applied on TEST. Until then, saving the new type on TEST is refused in plain words.
+- Removing the CLA staff Transaction Coordinator role, linking a coordinator to an agent's profile, and adding a coordinator automatically are other items. What the coordinator can do on a file is TC-3.
+
+**Links**
+
+- Spec: [docs/specs/tc-contact-type.md](docs/specs/tc-contact-type.md)
+- Pull request: [PR 344](https://github.com/Johncoester/cla-portal-demo/pull/344)
+- Source: John Coester, Nov 18 2026, 11:27 AM ET. Tracker row 368.
+
+**Decisions**
+
+- The stored code is `agent_tc`. The words on screen say the person works for real estate agents and is not CLA Title staff.
+- Existing contacts are not rewritten. A Realtor who is already on a file stays a Realtor.
+- The CLA staff role named Transaction Coordinator is unchanged.
+
+## Transaction coordinators linked to an agent (TC-2)
+
+**How it should work.** A transaction coordinator is an outside assistant to one or more real estate agents, never a CLA Title staff login. On the agent's profile, and on that agent's contact, staff can link one or more coordinators. The agent can do the same on their own profile. One coordinator can be linked to several agents. The list can be added to and removed from. Order Contacts does not offer a Transaction coordinators button.
+
+**Status: Live.** Tracker row 366. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. `20261125240000_agent_tc_links.sql` is applied on TEST (recorded as `agent_tc_links`, v20261118182129, Nov 18 2026 1:21 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied.
+
+**What's built**
+
+- My Agent Profile shows Transaction coordinators for the signed-in agent, with add and remove.
+- Order Contacts does not show a Transaction coordinators button. Each row still has Invite to portal, Edit, and Remove from order. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of order MD-26-97260: that button did not belong on this list. Tracker row TC-BTN-REMOVE.
+- User List, Edit user, shows the same list for a realtor.
+- A new person needs a name. A bad email or a partial phone is pointed out, and what was typed stays. A CLA Title staff login is refused. The same person is not linked twice. Removing the link keeps the person and does not take anyone off a file.
+- The database file is `supabase/migrations/20261125240000_agent_tc_links.sql`. Who can see a link matches who can see the agent's contact. Removing the Order Contacts button does not change that file. The shell cache stamp for this button removal is 202611248200. Order Contacts is loaded at 202611248100.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- Linking a coordinator does not put them on a file. That is TC-3 (tracker row 367).
+- A contact type named Transaction coordinator is TC-4. This list does not add that type.
+- A coordinator's login acting as their agent is TC-3.
+
+**Links**
+
+- Spec: [docs/specs/agent-tc-links.md](docs/specs/agent-tc-links.md)
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM. Tracker row 366. Button removal: John Coester, Nov 19 2026, 10:18 AM ET, screenshot of MD-26-97260 Order Contacts. Tracker row TC-BTN-REMOVE. [PR 371](https://github.com/Johncoester/cla-portal-demo/pull/371).
+
+**Decisions**
+
+- The link is stored on the agent contact, so an agent with no portal login can still have coordinators.
+- The agent edits the list on their own profile, because that page is already theirs. Staff who run orders edit it from User List, Edit user. Sales can see the list there and cannot change it, the same as other contact edits.
+- Order Contacts does not open the coordinator list. John Coester, Nov 19 2026, 10:18 AM ET: the button made no sense on that list, and he did not ask for it. Invite to portal, Edit, and Remove from order stay on the row.
+- A coordinator is any outside contact. CLA Title staff, including the staff role Transaction Coordinator, cannot be linked here.
+
+---
+
+## Coordinator on the agent's file (TC-3)
+
+**How it should work.** When a real estate agent is added as the buyer's agent or the listing agent, each linked transaction coordinator is added on that same side. No one picks buyer or listing for the coordinator. The same coordinator can be on both sides when they assist both agents. Removing the agent does not remove the coordinator. In their own login, on a file where their agent is the buyer's agent or the listing agent, they can do what that agent can do, and a task they finish says they did it on behalf of the agent.
+
+**Status: Live.** Tracker row 367. John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Built on TC-2 (tracker row 366). The first apply on TEST failed on a syntax error in `private.file_role_of` and rolled back; the corrected file `20261125250000_agent_tc_on_file.sql` is applied on TEST (v20261119021738, Nov 18 2026 9:17 PM ET). Corrected Nov 21 2026 (TC-ROADMAP-1): this line said it was not applied. Since Nov 21, TC-VIS-1 (PR 392) lets a coordinator on the file see and work their agent's tasks and fees, and TC-ASSIGN-1 (PR 394) puts a linked coordinator on all of the agent's files, from either side or from the file.
+
+**What's built**
+
+- Adding the buyer's agent or the listing agent adds each linked coordinator on that side. A coordinator already on that side is not added again. A coordinator for both agents is on both sides.
+- Saving a new link adds the coordinator to open purchase files where that agent is already the buyer's agent or the listing agent.
+- Removing the agent leaves the coordinator on the file, including a coordinator someone added by hand.
+- The coordinator's login is treated as their agent on that file: they see the file, finish the agent's tasks, schedule the settlement, and upload. The task says the coordinator completed it on behalf of the agent.
+- The same coordinator is the buyer side on a file where their agent represents the buyer, and the listing side where that agent represents the seller.
+- The database file is `supabase/migrations/20261125250000_agent_tc_on_file.sql`. The first copy used `private.outside_roles(pid, d)[1]`, which Postgres rejects. The corrected copy uses `(private.outside_roles(pid, d))[1]`. The rollback already used a column, not that call, so it did not need the same change. No page file changed, so the shell cache stamp stays 202611246000.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- The one-pass document list on the hosted portal still reads the coordinator's own row. A coordinator there sees a file they uploaded and a file marked for everyone. The mock portal already shows them the agent's side.
+- A contact type named Transaction coordinator is TC-4.
+
+**Links**
+
+- Spec: [docs/specs/agent-tc-on-file.md](docs/specs/agent-tc-on-file.md)
+- Source: John Coester, live call Nov 18 2026, 11:27 AM, confirmed 11:35 AM, and 11:37 AM. Tracker row 367.
+
+**Decisions**
+
+- The coordinator stays when the agent is removed. Staff remove the coordinator from Order Contacts when that person should leave. That way a coordinator added by hand is never dropped because the agent left, and a coordinator added from the link is not dropped either.
+- Permission follows the link: the coordinator acts as the agent only while that agent is the buyer's agent or the listing agent on the file.
+- The file role list an outside user is added as stays Buyer Agent, Listing Agent, Client-Buyer, and Client-Seller. The coordinator is not added as a second agent. Their login is given the agent's role for that file so the existing checks (tasks, scheduling, upload) apply. Both coordinator sides stay allowed, which the two-role rule would block if those roles were added to that list.
+
+---
+
+## Agents see only their own tasks (FF-101a)
+## Transaction coordinator, one choice (TC-5)
+
+**How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent are they linked to?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
+**How it should work.** On a file, the buyer's agent, the listing agent, and a transaction coordinator acting for them see only the tasks assigned to them. The general **Tasks** button and tab are removed for those people so they cannot open every task on the file. They keep **My Tasks**. Staff keep Tasks and My Tasks as they are today. A coordinator linked to the agent (TC-3) can still see and finish that agent's tasks.
+**How it should work.** A transaction coordinator is an outside person who works for one or more real estate agents. On a file, their side follows the agent they are linked to. Add contact, Place Order, and Parties offer one choice, labelled exactly Transaction coordinator. There is no Buyer's or Listing prefix and no "works for" sentence. If the person is linked to the buyer's agent, the listing agent, or both on this file, that side is saved. If they are linked to neither, the form asks "Which agent do they work for?" and lists the file's buyer's agent and listing agent. The stored roles stay the buyer-side and listing-side coordinator roles. Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. They do not say "works for".
+
+**Status: In progress.** Tracker row FF-101a. Francis Santos, Nov 18 2026 11 AM meeting notes, confirmed by John Nov 18 2:13 PM ET. Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row 370, item TC-5. John Coester, voice call Nov 18 2026, about 1:51 PM ET. Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350). Not Live. No database file.
+
+**What's built**
+
+- The file menu and agent pill tabs drop the general Tasks entry for a buyer agent, listing agent, or coordinator acting as them. My Tasks stays.
+- Opening the old Tasks address as an agent still shows only My Tasks.
+- The agent overview "outstanding" button opens My Tasks.
+- The fake portal and the database file refuse agent reads of other parties' tasks. A coordinator still sees the agent's own tasks and can finish them on the agent's behalf.
+- The walkthrough no longer looks for a Client-Buyer row on the buyer agent's tasks page. It checks My Tasks and only that agent's own tasks (E2E-FIX-A).
+- The database file is `supabase/migrations/20261125280000_agent_own_tasks.sql` (with rollback). The shell cache stamp is 202611246300.
+- Add contact, Place Order, and Parties offer one role, Transaction coordinator.
+- The side is taken from the coordinator's links to the agents on that file. Linked to both agents saves both sides.
+- If there is no linked agent on the file, a required question lists the file's buyer's agent and listing agent. If the file has neither agent, saving says to add one first. What was typed stays.
+- Order Contacts and the Parties cards show Transaction coordinator. The agent's name may follow. A refinance still has no transaction coordinator. The shell cache stamp is 202611246200.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- Completing a client's intake for them from the agent login is not part of this change; agents no longer see those client tasks. The walkthrough check for that is E2E-FIX-A.
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Not Live.
+
+**Links**
+
+- Spec: [docs/specs/agent-own-tasks.md](docs/specs/agent-own-tasks.md)
+- PR: [#355](https://github.com/Johncoester/cla-portal-demo/pull/355)
+- Source: Francis Santos, Nov 18 2026 11 AM meeting notes (Gmail 1a1ef9d3d862da08), confirmed by John Nov 18 2:13 PM ET. Tracker row FF-101a.
+- Spec: [docs/specs/tc-5-one-choice.md](docs/specs/tc-5-one-choice.md)
+- Pull request: [PR 350](https://github.com/Johncoester/cla-portal-demo/pull/350)
+- Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5.
+
+**Decisions**
+
+- Enforce in the UI first, and tighten the database so an agent cannot read other parties' tasks even outside the menu.
+- Staff views are unchanged.
+- A TC acting for an agent must still see and complete that agent's tasks (TC-3).
+- The words on the choice are exactly Transaction coordinator. The side is not part of the label.
+- The side comes from the existing agent links (TC-2) and the same buyer or listing side those links already use (TC-3). Nothing new is stored.
+- The follow-up is only the question and the agents on this file. It is required when the side cannot be told from a link.
+
+---
+
+## Buyer agent walkthrough matches My Tasks (E2E-FIX-A)
+
+**How it should work.** The role walkthrough, signed in as the buyer agent, opens Tasks on the test file and sees My Tasks with only that agent's own tasks. It does not see a Client-Buyer row or a way to complete the client's work.
+
+**Status: In progress.** Tracker row E2E-FIX-A (Requests tab, row 391). John Coester, Nov 19 2026. Pull request: [PR 370](https://github.com/Johncoester/cla-portal-demo/pull/370). Not Live. No database file. Nothing on testportal.clatitle.com changes.
+
+**What's built**
+
+- The one walkthrough check in `tests/e2e-roles/specs/agent-complete-invite.spec.js` now looks for My Tasks, the Buyer's Agent tasks list, and only that agent's rows. It fails if a Client-Buyer or Client-Seller row is showing, or if "Fill in for client" or a Complete control for the client's work is on the page.
+
+**What's still missing**
+
+- Not merged. The other failures in Actions run 44513431332 are not part of this change.
+
+**Links**
+
+- Spec: [docs/specs/e2e-fix-a.md](docs/specs/e2e-fix-a.md)
+- Pull request: [PR 370](https://github.com/Johncoester/cla-portal-demo/pull/370)
+- Source: John Coester, Nov 19 2026. Tracker row E2E-FIX-A. Actions run 44513431332, failing since run 44452846353. FF-101a is [PR 355](https://github.com/Johncoester/cla-portal-demo/pull/355), merge 8b2ce856.
+
+**Decisions**
+
+- The test changed because FF-101a removed client tasks from the agent login on purpose. Completing a client task from that login stays out of scope. The check was not loosened to hide a bug (AGENTS.md rule 5).
+
+---
+
+## Transaction coordinator contact type label (TC-5b)
+
+**How it should work.** The contact type for an outside transaction coordinator reads exactly Transaction coordinator. The dropdown, the outside-user type, and the User List filter use those words and no description. A contact type that is not on the list says to pick Realtor, Lender, Buyer/Seller, or Transaction coordinator. A User List filter saved with the older longer label still finds the same people. When the side cannot be told from a link, the form asks "Which agent are they linked to?" Leaving it blank says "Choose which agent they are linked to."
+
+**Status: In progress.** Tracker row 370, item TC-5b. John Coester, voice call Nov 18 2026, about 1:51 PM ET, the same wording as TC-5. Pull request: [PR 362](https://github.com/Johncoester/cla-portal-demo/pull/362). Not Live. No database file.
+
+**What's built**
+
+- The contact type label is Transaction coordinator on the contact type lists, on an outside user's type, and on the User List filter.
+- A bad contact type says: Pick a contact type from the list (Realtor, Lender, Buyer/Seller, or Transaction coordinator).
+- A saved User List filter that still says "Transaction coordinator (outside, works for agents)" matches the same outside coordinators. The shell cache stamp is 202611247700.
+- Add contact, Place Order, and Parties ask "Which agent are they linked to?" when the side is not known. Leaving it blank says "Choose which agent they are linked to."
+
+**What's still missing**
+
+- Not on TEST until this pull request is merged. There is no database file to apply.
+- Not Live.
+
+**Links**
+
+- Spec: [docs/specs/tc-5b-type-label.md](docs/specs/tc-5b-type-label.md)
+- Pull request: [PR 362](https://github.com/Johncoester/cla-portal-demo/pull/362)
+- Source: John Coester, voice call Nov 18 2026, about 1:51 PM ET. Tracker row 370, TC-5b.
+
+**Decisions**
+
+- The stored code stays `agent_tc`. Only the words on screen change.
+- The note under the list, that this is an outside assistant and not a CLA Title staff role, stays. John asked for the label itself to have no description.
+- The older filter words are still accepted so a saved filter does not go blank.
+
+---
+
+## A coordinator cannot be the agent (TC-SELF-BLOCK)
+
+**How it should work.** The transaction coordinator on a file is a different person from the agent they sit with. Adding the buyer's agent again as the buyer coordinator, or the listing agent as the listing coordinator, is refused. The same email counts as the same person. Linking an agent to themselves is refused. People already on a file stay there.
+
+**Status: In progress.** Tracker TC-SELF-BLOCK. John Coester, Nov 19 2026, 10:18 AM ET, screenshot of TEST file MD-26-97260. Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372). Updated onto main after [PR 371](https://github.com/Johncoester/cla-portal-demo/pull/371) merged. Not applied on TEST. Not Live.
+
+**What's built**
+
+- Order Contacts, Add contact to this order, refuses that person before anything is saved. The message is: This person is already the Buyer Agent on this order. A transaction coordinator must be a different person. The listing side names Listing Agent. What was typed stays on the form.
+- Place Order uses the same check on the Agents step, before Next and before the order is placed. Parties uses it when a transaction coordinator is added.
+- A different person is still added. The buyer's agent can still be the listing coordinator when the listing agent is someone else.
+- The coordinator list on an agent refuses that agent, including when the typed email is the agent's email: This agent cannot be their own transaction coordinator.
+- The database file is `supabase/migrations/20261125340000_tc_self_block.sql`, with a rollback. It refuses new rows only. It does not change or delete existing people. It must be applied on TEST. The link-table guard is installed because TC-2's table is already on TEST. The TC-2 file itself is not rewritten. The shell cache stamp is 202611248300, above PR 371 (202611248100–202611248200) and PR 368 (202611248000).
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- A file that already has the agent saved again as the coordinator is left as it is. Removing that row is a separate cleanup.
+
+**Links**
+
+- Spec: [docs/specs/tc-self-block.md](docs/specs/tc-self-block.md)
+- Pull request: [PR 372](https://github.com/Johncoester/cla-portal-demo/pull/372)
+- Source: John Coester, Nov 19 2026, 10:18 AM ET. Tracker TC-SELF-BLOCK.
+
+**Decisions**
+
+- The check is the agent they would be linked to on that side. The buyer's agent is not blocked from being the listing coordinator for a different listing agent.
+- A blank email does not count as the same person.
+- The database guard is a before-insert trigger, not a check on existing rows, so a file that already has this mistake can stay until someone removes it. The pull request does not change TEST data.
 
 ---
 
@@ -1164,7 +1768,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Add document lists Affidavit, Assignment of Mortgage or Lease, Deed, Deed of Trust, Lis Pendens, Power of Attorney, Release of Mortgage, UCC, Lease, and Easement.
 - Each document has pages, consideration, and taxable yes or no. Maryland and the District of Columbia ask primary residence, and a purchase asks first-time buyer, because those change the tax. Virginia and Florida do not ask, because they do not change the result. The file's primary residence and first-time buyer answers fill a new worksheet.
 - Calculate fees uses the existing CLA calculator, including the full county list from REC-CALC-6 (PR 296, merged). A county without its own rows uses the statewide rates. It does not keep a second rate table. Apply writes the recording fees, the lien certificate, and the transfer and recordation taxes. Title premiums stay as they are. A line changed by hand is kept.
-- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. The screen says there is no fee for it and does not invent one.
+- A document the rate sheet does not price (an affidavit, a UCC, and the other four) is allowed. FF-091a shows Rate Not Set on that line instead of leaving the amount blank.
 - Samples checked against the calculator: Baltimore City, Fairfax, the District of Columbia, Miami-Dade, Hillsborough (statewide Florida rates), and a Maryland refinance.
 
 **What's still missing**
@@ -1184,7 +1788,40 @@ This file lists the portal's major features: how each one should work, how far a
 - Save the document answers on the calculated fee. No new database file.
 - A saved worksheet wins the next time the screen opens, so a deed of trust marked not a principal residence stays that way. The file's answers are the starting point when nothing has been saved.
 - Use the county list from REC-CALC-6 (PR 296, merged). A county in Maryland, Virginia, Florida, or the District of Columbia that is not named on a rate row of its own is still calculated, on the statewide rates.
+- Baltimore City who-pays, and the order of exemptions then the split, are FF-091b.
 - A blank county was treated as a missing address. That is FF-095.
+
+---
+
+## Baltimore City taxes and who pays (FF-091b)
+
+**How it should work.** On Taxes & Fees, the tax is figured first, exemptions come off that total, and then the amount is split. The start is the county's default on the rate sheet. Staff can change Buyer pays, Seller pays, or 50/50 split for the executed contract, except a line the law fixes. That line stays locked and says why. Baltimore City uses the questions the rate sheet can answer: price, loan, pages, taxable, primary residence (the owner-occupied exemption), and the first-time homebuyer exemption.
+
+**Status: In progress.** FF-091b. Francis Santos, Nov 17 2026, 1:55 PM ET (message 1a1eaddb3dcfc5d6) and Nov 17 2026, 3:55 PM ET (message 1a1eb4b8017fcabf). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Baltimore City amounts follow the vendored rate sheet: transfer tax 1.5% up to $1,000,000 (2.1% above), with the $22,000 owner-occupant exemption only at $249,900 or less; recordation tax $5.00 per $500 up to $1,000,000 ($5.75 above), with the sheet's $22,000 owner-occupant exemption on that row. The exemption comes off before the split.
+- The county default is a 50/50 split. A first-time buyer who will live in the home pays no state transfer tax, and Maryland law keeps that line with the seller.
+- Staff can change the other taxes for the contract. The choice is saved on the calculated fee.
+- A blank primary residence does not take the exemption.
+
+**What's still missing**
+
+- Recording the mortgage at the same time as the deed, and any statutory exemption the rate sheet does not list. Those are not asked. Editable rate sheets are FF-091c.
+- Not checked on TEST. Not Live.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-baltimore.md](docs/specs/taxes-fees-baltimore.md)
+- Source: Francis Santos, Nov 17 2026, 3:55 PM ET, message 1a1eb4b8017fcabf. Tracker FF-091b.
+
+**Decisions**
+
+- Figure the tax, take the exemption off the total, then allocate. Do not take the exemption from one side of a split.
+- The jurisdiction default is the rate sheet's Paid By. The contract choice is the control on Taxes & Fees.
+- Lock only a line the law fixes, and show the reason. Maryland state transfer tax for a first-time buyer who will live in the home stays with the seller (Tax-Property 13-203).
+- No new database file. No editable rate sheet in this change.
 
 ---
 
@@ -1222,6 +1859,109 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+---
+
+## Tax rate sheets by place (FF-091c)
+
+**How it should work.** Each state, county, and city has its own rate sheet. Taxes & Fees still shows Rate Not Set, who pays, and the first-time-buyer exemption the way they work today. The sheet prices the taxes and fees, takes the exemptions off the total, then splits what is left. The sheet supplies the starting split. Staff can change who pays to match the contract, unless the law fixes that line. An Admin can change a rate, an exemption, or a rule without a code change. A blank rate says Rate Not Set, and staff type the fee.
+
+**Status: In progress.** Tracker FF-091c. Francis Santos, Nov 17 2026, 3:55 PM ET (Gmail message 1a1eb4b8017fcabf). Not Live. Database file `supabase/migrations/20261125170000_tax_rate_sheets.sql`. Not applied on TEST.
+
+**What's built**
+
+- Tables for places, rate lines, exemptions, questions, and the default buyer / seller split, with a flag when the law fixes the split. Staff can read. Only an Admin or Super admin can write. Row security enforces it.
+- Admin, Tax rates: pick a place and edit the rate, the exemption, the question, and who pays. A blank amount is Rate Not Set.
+- Taxes & Fees reads the tables. If they are not on the database yet, the rates already in the portal are the fallback. The screen keeps Rate Not Set, the who-pays buttons, the first-time-buyer exemption, and the aggregate adjustment as a reduction.
+- The rates copied in are the ones already in the fee sheet for Maryland (Baltimore City and the counties on that sheet), Virginia, the District of Columbia, and Florida. Nothing was invented.
+- Baltimore City, $200,000, owner-occupied: city transfer tax $2,670 and recordation $1,780 after the $22,000 exemption, then split. A first-time buyer pays no state transfer tax; the seller pays $500, and that line stays locked.
+
+**What's still missing**
+
+- Not applied on TEST. Not Live.
+- Calvert, Carroll, Frederick, Somerset, and Wicomico have no county transfer tax in the sheet, so there is no line.
+- No dollar rate for recording the mortgage at the same time as the deed, and no amount for "other statutory exemptions." Those questions are on the rate sheet. Taxes & Fees does not ask them, because the Live screen does not.
+- The contract's split is still chosen on Taxes & Fees. It is not read from a named field on the order.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-rate-sheets.md](docs/specs/taxes-fees-rate-sheets.md)
+- Source: Francis Santos, Nov 17 2026, 3:55 PM ET, message 1a1eb4b8017fcabf. Tracker FF-091c.
+
+**Decisions**
+
+- Figure the tax, apply the exemption, then split. The $22,000 comes off the whole amount before a 50/50 split.
+- Maryland state transfer tax for a first-time buyer who will live there stays with the seller. The "set by law" flag starts on for that line.
+- A county keeps the statewide rows for any tax it does not replace.
+- Do not apply the database file from this pull request.
+- Keep the Live Taxes & Fees screen (Rate Not Set, who pays, first-time buyer) and the aggregate adjustment as a reduction.
+
+---
+
+## Rate Not Set on Taxes & Fees (FF-091a)
+
+**How it should work.** On Taxes & Fees, a document or recording line with no rate in CLA's rates is not left blank. The line says Rate Not Set and staff type the fee. That amount saves, comes back after a reload, counts in the totals, and is marked entered by hand. Calculating again keeps it unless staff choose to replace it.
+
+**Status: In review.** FF-091a. Francis Santos, Nov 17 2026, 1:55 PM ET, reply to the Taxes & Fees check (Gmail message 1a1eaddb3dcfc5d6), confirmed in the same day's recording-fees note (Gmail message 1a1eaed436b0de49, 2:12 PM ET). Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- An affidavit, assignment, lis pendens, UCC, lease, easement, or any other document the rate sheet does not price gets its own line: Recording fee, payee, and Rate Not Set. No amount is invented.
+- Staff type the fee on that line. Apply saves it. The charges row says Entered by hand. The amount is in the section total, the settlement statement, and the Closing Disclosure.
+- A blank fee is allowed and stays Rate Not Set, so the document is still visible. A value that is not a dollar amount stays on the form and says what to type.
+- Calculate fees again keeps a saved hand amount. Replace the amount entered by hand is the choice that lets a new figure take its place. Clearing it returns the line to Rate Not Set.
+
+**What's still missing**
+
+- Not checked on TEST. Not Live.
+- Baltimore City buyer, seller, or 50/50 transfer-tax choice is a different request from the same reply. It is not in this change.
+- The address and county message on Calculate (FF-095) is a different fix.
+
+**Links**
+
+- Spec: [docs/specs/taxes-fees-rate-not-set.md](docs/specs/taxes-fees-rate-not-set.md)
+- Source: Francis Santos, Nov 17 2026, 1:55 PM ET, message 1a1eaddb3dcfc5d6. The 2:12 PM ET note is message 1a1eaed436b0de49. Tracker FF-091a.
+- Pull request: [PR 324](https://github.com/Johncoester/cla-portal-demo/pull/324)
+
+**Decisions**
+
+- No new database file. The line is a calculated fee whose rate amount is empty. The typed fee is the amount on the charge, so a later calculation sees it as entered by hand and leaves it.
+- The typed fee is saved when Apply is clicked, including when the only change is that fee. Who pays stays as it was when the amount is replaced.
+
+---
+
+## Commission broker fee and payout (FF-101b)
+
+**How it should work.** On the agent's Commission information task, the agent enters a broker fee and sees a read-only Total commission (their Agent fees commission for that side plus the broker fee). They also pick how to be paid: At settlement, FedEx overnight (with a mailing address), or Wire (with bank details). The account number shows last 4 only to people who are not the agent or the processor. Field names are ready for a future agent-profile default; that default is not built yet.
+
+**Status: In progress.** Tracker FF-101b. Francis Santos, Nov 18 2026 11 AM meeting notes; confirmed by John Coester Nov 18 2026, 2:13 PM ET. Pull request: [PR 352](https://github.com/Johncoester/cla-portal-demo/pull/352). Database file `supabase/migrations/20261125290000_commission_broker_payout.sql` — not applied on TEST. Not Live.
+
+**What's built**
+
+- Commission information template v3 adds Broker fee ($), read-only Commission ($) from Agent fees, read-only Total commission, and payout method (At settlement / FedEx overnight / Wire) with the matching address or bank fields.
+- Total commission uses the existing Agent fees math: the side's commission amount already includes any additional amount; Total = that amount + broker fee.
+- An old page still cannot put a commission amount on this task (AF-8). Open copies move to v3; finished copies keep their version.
+- Wire account numbers use the same mask path as seller proceeds (owner and processor full; others last 4).
+- Demo adapter and unit tests cover save, total, FedEx/Wire validation, and masking. Cache stamp `202611247800` (above main’s FF-101c `6500`). Notes and `commission_task_guard` keep FF-101c Tasks wording.
+
+**What's still missing**
+
+- Database file not applied on TEST.
+- Agent-profile default payout (John emailed Matt Nov 18 11:19 AM; not answered).
+- Moving commission UI off File Overview into agent task sections (FF-101c).
+
+**Links**
+
+- Spec: [docs/specs/commission-broker-payout.md](docs/specs/commission-broker-payout.md)
+- Source: Francis Nov 18 11 AM notes; John confirmed 2:13 PM ET. Tracker FF-101b.
+- Related: Agent fees (AF-8), seller proceeds masking, FF-101c.
+
+**Decisions**
+
+- Commission $ stays in Agent fees (one place). This task shows it read-only and adds broker fee + payout only.
+- Payout field keys match a future profile default; the profile default itself waits on Matt.
+
+---
+
 ## Commission Paid By (FF-089)
 
 **How it should work.** On Place Order, under Earnest money & agent fees, the listing agent and the selling agent each have Commission Paid By: Buyer, Seller, or Split. Split asks for the buyer's share and the seller's share, and the two amounts must add up to the commission. That commission then shows on the buyer side, the seller side, or both, on the settlement statement and the Closing Disclosure.
@@ -1253,16 +1993,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin can tick **Can own CRM records** for that person. It starts off for everyone, including admins. A ticked person, whatever their role, can be chosen as the owner of a lead, client, company, or deal, in Change owner, and in a spreadsheet import. Someone who is not ticked is not in those lists. A record that already names them still shows their name. Who can open the CRM does not change.
 
-**Status: In progress.** Tracker row CRM-OWNER-1, Requests tab row 315. John Coester asked on Nov 15 2026, 3:11 PM ET, and confirmed it on Nov 16 2026, 10:55 AM ET. Pull request: [PR 306](https://github.com/Johncoester/cla-portal-demo/pull/306). Database file `supabase/migrations/20261124140000_crm_owner_flag.sql`. Not applied on TEST. Not Live.
+**Status: In progress.** Tracker row CRM-OWNER-1, Requests tab row 315. John Coester asked on Nov 15 2026, 3:11 PM ET, and confirmed it on Nov 16 2026, 10:55 AM ET. Pull request: [PR 306](https://github.com/Johncoester/cla-portal-demo/pull/306). Database file `supabase/migrations/20261124140000_crm_owner_flag.sql`. The column and the guard are on TEST. Saving the tick is not, until CRM-OWNER-1b is applied. Not Live.
 
 **What's built**
 
 - The edit-user checkbox, saved only by an Admin or Super admin. The database refuses anyone else and writes the activity log (who, which user, old value, new value, when).
 - Owner lists for leads, clients, companies, deals, Change owner, and the import Owner column use that tick. Existing names stay on the record.
+- The save itself needs a separate grant. See CRM-OWNER-1b below.
 
 **What's still missing**
 
-- Not on TEST until the database file is applied there and someone checks the checkbox and an owner list. Do not mark Live before that.
+- Apply the CRM-OWNER-1b grant on TEST, then have a Super admin tick a user, save, and reload. Do not mark Live before that. An owner list still needs a person to check it on TEST.
 
 **Links**
 
@@ -1272,6 +2013,88 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Nobody is turned on by the database file. An admin ticks people after it is applied.
 - The tick does not change role access or who can open the CRM.
+
+## Saving "Can own CRM records" (CRM-OWNER-1b)
+
+**How it should work.** On Admin, then User List, then Edit user, an Admin or Super admin ticks **Can own CRM records** and chooses Save. The tick stays on after a reload. Anyone else sees the box locked and cannot change it. The database still refuses that person, and the activity log records a change that is allowed.
+
+**Status: In progress.** Tracker row CRM-OWNER-1b. Janine Santos reported it by email to John on Nov 18 2026, 9:36 AM ET, with a screenshot. She is an active Super admin. The toast was "This was not saved: your login is not allowed to change this." A read-only check on TEST showed `authenticated` can read `profiles.can_own_crm` and cannot update it. The guard trigger was already there. Pull request: [PR 342](https://github.com/Johncoester/cla-portal-demo/pull/342). Database file `supabase/migrations/20261125210000_crm_owner_flag_grant.sql`. Not applied on TEST. Not Live.
+
+**What's built**
+
+- The database grant so a signed-in user may update that one column. The guard trigger is unchanged: only an active Admin or Super admin can change the tick, and the activity log still records who, which user, the old value, and the new value.
+- The checkbox on Edit user is unchanged. It stays enabled for an Admin or Super admin.
+
+**What's still missing**
+
+- Apply the grant on TEST. Then sign in as a Super admin, tick the box for a user, save, and reload. The box should stay ticked. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- The earlier database file is not edited. This file only grants the column.
+- The shell cache stamp is 202611245200, above main's 202611245100, so a saved copy of the shell is not reused.
+
+## Who can see and change a CRM record (CRM-VIS-1)
+
+**How it should work.** An Admin or a Super admin can see and change every CRM record. Everyone else who can open the CRM can see every lead, client, company, pipeline opportunity, and activity, and can change or archive only the records they own. On a record they do not own, Edit and Archive are greyed out and the page says "Only the owner or an admin can change this record." A mass update, a change of owner, or another bulk action skips those records and says how many were skipped. A new owner must still be someone who can own CRM records.
+
+**Status: In progress.** Janine Santos, the CRM user, confirmed this on Nov 18 2026. Designed by the portal lead. Tracker row CRM-VIS-1. Pull request: [PR 358](https://github.com/Johncoester/cla-portal-demo/pull/358), parenthesis fix [PR 366](https://github.com/Johncoester/cla-portal-demo/pull/366), rollback anchors [PR 367](https://github.com/Johncoester/cla-portal-demo/pull/367). Database file `supabase/migrations/20261125330000_crm_visibility_edit_own.sql` (already applied on TEST). Rollback `supabase/rollbacks/20261125330000_crm_visibility_edit_own.sql`. Not Live.
+
+**What's built**
+
+- Row security on leads, companies, pipeline opportunities, and activities: every CRM user can read them. An update is allowed for an admin, or when the owner column is the signed-in person.
+- The same check inside the database functions that write those records, including archive, convert, close task, and client save. Mass update skips rows the person does not own and returns the count.
+- Two extra policies on clients. They match only a contact that has a CRM stage, which is how a CRM client is marked. A person on a file is not included. Staff profile ids are looked up once per query. The portal's own contact policies are unchanged.
+- The screen greys Edit and Archive and shows the plain note. Bulk actions skip records the person does not own.
+- The rollback puts the company list and company detail back by a phrase that appears once. A shorter phrase also sat on the order counts, so the rollback stopped before it changed anything.
+
+**What's still missing**
+
+- Someone signs in as a salesperson, opens a lead they do not own, and checks that Edit and Archive are greyed out, then opens their own lead and saves a change. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-visibility.md](docs/specs/crm-visibility.md)
+- Before-definitions: [supabase/review/20261125330000_crm_visibility_before.sql](supabase/review/20261125330000_crm_visibility_before.sql)
+
+**Decisions**
+
+- `public.deals` is the shared portal order table. Its policies were read and were not changed. The CRM Deals tab stays on that table.
+- Pipeline opportunities are `public.crm_opportunities`. They follow the same owner rule.
+- Records are still archived, not erased. Archive is the delete on the screen.
+- Cache stamp 202611247100.
+- The rollback finds the company-list contacts count and the company-detail contact list, because `private.crm_in_pool(c.id)` also sits on the order counts. The forward file is unchanged.
+
+## CRM owner on the User List (CRM-OWNER-2)
+
+**How it should work.** On Admin, then User List, each person has a **CRM owner** checkbox beside **Admin**. It is the same tick as **Can own CRM records** on Edit user. An Admin or Super admin can turn it on or off from the row, without opening Edit. The Edit checkbox stays, and the two stay in step. Anyone else sees the box locked. A change is written to the activity log the same way as Edit. If the save fails, the box goes back and the message says what to do, in plain words.
+
+**Status: In progress.** Tracker row 369, CRM-OWNER-2. John Coester asked in chat on Nov 18 2026, 11:49 AM ET, with a screenshot of Admin, then User List. Pull request: [PR 348](https://github.com/Johncoester/cla-portal-demo/pull/348). No database file. The column and the update grant from CRM-OWNER-1 and CRM-OWNER-1b are reused. Not Live until an Admin ticks a row on TEST, reloads, and sees the same tick on Edit user.
+
+**What's built**
+
+- A CRM owner checkbox on every User List row, beside Admin. Ticking it saves through the same update as Edit user.
+- The Edit user checkbox is unchanged. The row and Edit read and write the same tick.
+- Only an Admin or Super admin can change it. A removed person keeps the tick, and the box is locked. The activity log records who, which user, the old value, and the new value.
+- A failed save puts the box back and shows a plain message. A database code is not shown.
+- On a phone the list scrolls sideways and the box is large enough to tap.
+
+**What's still missing**
+
+- A check on TEST. Do not mark Live before an Admin ticks a row, reloads, and opens Edit for that person.
+
+**Links**
+
+- Spec: [docs/specs/crm-owner-flag.md](docs/specs/crm-owner-flag.md)
+
+**Decisions**
+
+- No new database file. The existing column and the update grant are enough.
+- The shell cache stamp is 202611245700, so a saved copy of the User List is not reused.
 
 ## CRM custom view user criteria
 
@@ -1304,13 +2127,13 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Custom view name column can move
 
-**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. The arrows move it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
+**How it should work.** On New Custom View and Edit view, Choose Columns, the record name (Lead Name, Client Name, Company Name, Deal Name) stays selected. Drag it like any other selected column, so Client Owner or another column can be first. The list for that view uses the saved order. The name still opens the record. A saved view that never stored a position for the name still shows the name first.
 
 **Status: In progress.** Janine, Feedback 30 item 2, confirmed before this change. No database file. Not Live until this is merged and someone checks it on TEST.
 
 **What's built**
 
-- The name column can move up and down on Leads, Clients, Companies, and Deals, and it cannot be removed.
+- The name column can be dragged on Leads, Clients, Companies, and Deals, and it cannot be removed.
 - The saved order is the order of the list. A missing name position stays first.
 - The criteria user list from pull request 309 stays. Both work on the same custom view.
 
@@ -1326,6 +2149,59 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Janine asked to move the name, not to drop it. It stays required and it can sit in any selected position.
 - An older view with no stored name position keeps the name first. A view that already stored a position keeps that position.
+
+## New custom view starts with the All list columns
+
+**How it should work.** On Leads, Clients, Companies, and Deals, New Custom View opens with the same columns, in the same order, as All Leads, All Clients, All Companies, or All Deals. A person's own column choice on that All list is the starting point. They can still add, remove, and reorder columns before saving. A view that is already saved keeps its own columns. The record name stays selected, in the place the All list already gave it, or first when the All list is not showing it.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 2, confirmed by email Nov 19, 2026, 6:30 PM ET. Pull request: [PR 385](https://github.com/Johncoester/cla-portal-demo/pull/385). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- New Custom View for all four lists starts from the All list's columns, including a column choice saved on that login.
+- Edit of a saved view still shows that view's columns.
+- The name column can still move, and it cannot be removed. A list column the view cannot store, such as Source on Deals, is left out. Companies City on the All list is the City field on the view.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- A column change on the All list that has not been saved to the login yet is not copied if New Custom View is opened in that same moment.
+
+**Links**
+
+- Spec: [docs/specs/crm-new-view-all-columns.md](docs/specs/crm-new-view-all-columns.md)
+
+**Decisions**
+
+- No database file. The All list already stores a person's column choice.
+- The All list and New Custom View share one column list, so the two cannot drift.
+- The shell cache stamp is 202611249850, above main's 202611249800.
+
+## Custom view columns drag like the All list
+
+**How it should work.** On New Custom View and Edit view, Choose Columns, the selected columns move the same way as Manage columns on All Leads, All Clients, All Companies, and All Deals. Drag a selected column to a new place. The row has the same border and grab cursor as that list. Arrow keys move the focused row one place. Add and remove stay. The record name stays selected and can sit in any place. The order you leave is the order the view saves and the order that view's list shows.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 3, confirmed by email Nov 19, 2026, 6:30 PM ET ("Yes"). Pull request: [PR 386](https://github.com/Johncoester/cla-portal-demo/pull/386). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- Selected columns on Leads, Clients, Companies, and Deals use the All list's drag row. The up and down arrows are gone.
+- Add, remove, and the record-name rule stay. A blank view name does not throw away the order.
+- The saved column order is the order the view list shows.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-column-drag.md](docs/specs/crm-view-column-drag.md)
+
+**Decisions**
+
+- Reuse the All list's column row and its drag and arrow-key controls. Do not keep a second set of arrow buttons.
+- No database file. The view already stores column order.
+- The shell cache stamp is 202611249870, above main's 202611249850.
 
 ## Page load retry (LOAD-RETRY-1)
 
@@ -1375,6 +2251,70 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The order status column is shared with the rest of the portal, so its stored words stay Open, Closed, On Hold, and Cancelled. The CRM only changes the label.
 - The numeric order stage (`deals.stage`) is not a CRM pick list and is not changed.
+
+---
+
+## CRM note edit (Feedback 27 item 1)
+
+**How it should work.** On a Lead, a Client, or a Company, the person who wrote a note, or an admin, can open Edit, fix the words or add to them, and save. The note stays on that same record and shows Edited with the time. Nobody can delete a note. A processor still cannot change notes. A note the CRM wrote (such as Archived) cannot be edited.
+
+**Status: In progress.** Janine, CRM Feedback 27 item 1, confirmed Nov 16 2026. Pull request: [PR 338](https://github.com/Johncoester/cla-portal-demo/pull/338). No database file. Not on TEST until this pull request is merged. Not Live.
+
+**What's built**
+
+- Edit, Save, and Cancel on a note the person wrote, and for an admin on any note a person wrote.
+- A failed save keeps what was typed and says what to do. A blank note is refused. The original note stays.
+- Edited and the time after a real change. A new note is not marked edited.
+- The same notes list is already on Company records, so Edit is there too.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- Edit does not move a note onto another lead, client, or company.
+- CRM deal records do not use this notes list.
+
+**Links**
+
+- Spec: [docs/specs/crm-note-edit.md](docs/specs/crm-note-edit.md)
+
+**Decisions**
+
+- No database file. The activity row already allows an update and already stores the edit time.
+- Only the author, or an Admin or Super admin, gets Edit. A processor stays read-only. There is no Delete.
+
+---
+
+## CRM note file (Feedback 27 item 2)
+
+**How it should work.** On a Lead, a Client, or a Company, the note box has a paperclip. The person adding a note, or the person editing a note they wrote (or an admin), can choose a file. That file shows on that note, with a link to download it. It does not show in the record's Attachments list. A note still needs words. There is no text formatting and no delete.
+
+**Status: In progress.** Janine, the CRM user, confirmed Nov 16 2026. CRM Feedback 27 item 2. Pull request: [PR 341](https://github.com/Johncoester/cla-portal-demo/pull/341). A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks a note there.
+
+**What's built**
+
+- A paperclip on Add Note and on Edit. The chosen file name shows before Save.
+- The file is listed on that note, with the size and a download link. Anyone who can see the note can open the file.
+- The same file is left out of Attachments.
+- Until the database file is applied, the paperclip is hidden and the notes list says attaching a file is not available yet. Adding and editing the words still works.
+- The same notes list is on Company records, so the paperclip is there too.
+
+**What's still missing**
+
+- The lead applies `supabase/migrations/20261125200000_crm_note_files.sql` on TEST. Do not mark Live before that, and not before someone checks it.
+- A file cannot be removed. Notes and these files are kept.
+- If the file is stored and the note row then fails to save, that copy stays in storage and is not shown. The person can choose the file again.
+- CRM deal records do not use this notes list.
+
+**Links**
+
+- Spec: [docs/specs/crm-note-files.md](docs/specs/crm-note-files.md)
+
+**Decisions**
+
+- The file uses the existing CRM attachment table. `note_id` marks a note file so the Attachments list, which only reads rows with no `note_id`, cannot show it. The bytes go to the private `crm` bucket under `notes/`.
+- Opening the file in storage is allowed only when that person can read the note. Adding a file also requires the right to edit that note (the author, or an admin). Those checks look up the note by its id. They do not add a per-row helper.
+- One read of the attachment table covers every note on the record. There is no extra read per note.
+- Only the author, or an Admin or Super admin, can add a file to a note that already exists. A processor stays read-only.
 
 ---
 
@@ -1466,6 +2406,70 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Admin fee Payable by (FF-093)
+
+**How it should work.** On a file, the Admin fee section has Payable by: Buyer, Seller, or Split (Buyer and Seller). The choice is saved on that file and is still there after a reload. Split means the buyer and the seller each pay half. An odd cent goes to the seller. The fee ledger, the settlement statement, and the Closing Disclosure use those same two amounts.
+
+**Status: In review.** Tracker FF-093. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail msg 1a1eacd7648484d9). Medium. Pull request: [PR 327](https://github.com/Johncoester/cla-portal-demo/pull/327). Not Live. The database file is not applied on TEST.
+
+**What's built**
+
+- Agent fees, Edit, Admin fee: Payable by with Buyer, Seller, and Split (Buyer and Seller).
+- The choice is stored on the file. The next time the file opens, the same choice is selected.
+- Split fills half and half. A $395 fee is $197.50 and $197.50. A $10.01 fee is $5.00 and $5.01, and the extra cent is the seller's.
+- The fee ledger, the settlement statement, and Closing Disclosure section H put those amounts in the buyer and seller columns.
+- A choice that is not one of the three is refused in plain words. The form stays open with what was typed.
+
+**What's still missing**
+
+- Not on TEST until `supabase/migrations/20261125130000_admin_fee_payable_by.sql` is applied there and someone checks a file. Do not mark Live before that.
+- Place Order still takes the admin fee amount only. Payable by is on the file.
+- Taxes & Fees does not include this admin fee. It is the recording and transfer calculation.
+
+**Links**
+
+- Spec: [docs/specs/admin-fee-payable-by.md](docs/specs/admin-fee-payable-by.md)
+- Pull request: [PR 327](https://github.com/Johncoester/cla-portal-demo/pull/327)
+- Source: Francis Santos, Nov 17 2026, 1:37 PM ET, message 1a1eacd7648484d9. Tracker FF-093.
+
+**Decisions**
+
+- Split for an admin fee is half and half. It does not ask for two typed amounts. A commission Split still does.
+- An odd cent goes to the seller, the same way the recording calculator splits a tax.
+- No new columns. The fee row already stores the buyer amount and the seller amount for a split.
+- The shell cache stamp is 202611243082. Files this change does not edit keep main's stamps. CRM pages stay at 202611242290.
+
+---
+
+## Accounting Basic Info (FF-094)
+
+**How it should work.** In Accounting, the section that was called Contract Figures is named Basic Info. It shows Sales price, Loan amount, Closing date, Disbursement date, and Source of business. How it was obtained, Source for this figure, Seller credit, the second Earnest money block, Warranty, HOA, Condo, Deferred, and Historical tax are not on that screen. The stored values stay, so other screens that already use them keep working.
+
+**Status: In progress.** Tracker FF-094. Francis Santos, email Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9), item 3. Medium. Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321). Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- The Accounting menu and the page heading say Basic Info. The five fields are the order's own figures, the same ones Place Order and Edit order details save. Saving does not open the old contract-term sheet, so a blank box cannot wipe a value that used to be on that sheet.
+- Earnest money stays as its own card. The duplicate block at the bottom of the old sheet is gone. Commissions stay as the read-only Agent fees summary. Seller credit stays under Charges, L/N. A refinance has no sales price here.
+- Sales, the sales team, and a transaction coordinator can read the form and cannot change it.
+- The menu link that also said Basic Info and opened the file overview is now labeled Order overview.
+
+**What's still missing**
+
+- Other Charges has a card for the warranty cap and payer, the HOA and condo name, monthly dues, certificate balance and date, and the deferred amount, schedule, and payee. Those boxes read and write the columns already on the order. Not Live until someone checks Basic Info and Other Charges on TEST. The old transfer-fee figure stays stored and is not on this card.
+
+**Links**
+
+- Spec: [docs/specs/accounting-basic-info.md](docs/specs/accounting-basic-info.md)
+- Pull request: [PR 321](https://github.com/Johncoester/cla-portal-demo/pull/321)
+
+**Decisions**
+
+- Remove the extra boxes from the screen only. Do not drop columns.
+- Basic Info writes the order. It does not save the hidden contract-term sheet.
+- TC Contract info is a different screen and stays as it is. The role walkthrough does not look for the words "Contract figures".
+
+---
 ## CRM import note match speed
 
 **How it should work.** On Import Notes, Preview still attaches each note to the same lead or client as before. An open person wins over an archived one. If several are open, or none are, the earliest created date wins. The preview should come back quickly when the lead list is large, instead of looking through every lead once per note row.
@@ -1495,7 +2499,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Salespeople on Place Order (FF-092)
 
-**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. Who can be picked does not change.
+**How it should work.** On Place Order, Team & Notes, "Salespeople on this order" is a search box. Type a name or a role, pick one or more people, and each chosen person shows as a chip with Remove. The order saves the same salesperson ids as the old checkbox list. FF-092a later limited that list to Sales Person and Sales Team.
 
 **Status: In review.** Tracker item FF-092 (Medium). Francis Santos, Nov 17 2026, 1:37 PM ET (Gmail message 1a1eacd7648484d9). Pull request: [PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322). No database file. Not Live until someone checks it on TEST.
 
@@ -1519,4 +2523,576 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - No database change. The saved field is still salesIds.
-- The search list is the same people the checkbox list showed.
+- FF-092 shipped the search list as every active staff login, the same people the checkbox list showed. FF-092a narrows that list. See the next section.
+
+## Salespeople list is Sales Person and Sales Team (FF-092a)
+
+**How it should work.** "Salespeople on this order" and Add a salesperson on a file list only users whose role is Sales Person or Sales Team. A salesperson already saved on a file still shows on that file. Task Builder still names a person already saved on a flow.
+
+**Status: In review.** Tracker item FF-092a, a follow-up to FF-092. Janine, written answer Nov 17 2026, 6:26 PM ET. Pull request: [PR 335](https://github.com/Johncoester/cla-portal-demo/pull/335). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- Place Order and both file pages offer only Sales Person and Sales Team in the salesperson list.
+- A person already saved on a file still shows by name, and can still be removed.
+- Task Builder keeps the name of a salesperson already saved on a flow when that person is no longer in the list.
+- Saving still accepts an active staff login, or a user who can own CRM records. The CRM owner lists are unchanged.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/place-order-sales-roles.md](docs/specs/place-order-sales-roles.md)
+- Follows: [docs/specs/place-order-salespeople.md](docs/specs/place-order-salespeople.md)
+
+**Decisions**
+
+- No database change. The saved field is still salesIds. The database still accepts any active staff login as a salesperson.
+- The list uses the role strings Sales Person and Sales Team.
+
+## Place Order walkthrough picks a real salesperson (E2E-FIX-B)
+
+**How it should work.** The Place Order walkthrough, signed in as the non-demo E2E Processor, searches Team & Notes for a salesperson who is not a demo user. A name that is not a person still says no match. The file-number prefix checks stay as they are.
+
+**Status: In progress.** Tracker row E2E-FIX-B (Requests tab, row 390). John, Nov 19 2026. Pull request: [PR 369](https://github.com/Johncoester/cla-portal-demo/pull/369). No database file. Not Live. Nothing on testportal.clatitle.com changes.
+
+**What's built**
+
+- On TEST the walkthrough searches E2E Salesperson, checks that name on the chip, and checks that one salesperson id is saved.
+- A nonsense name still shows "No match."
+- The fake-data run still searches Sam Salesperson, the sample salesperson, who is not a demo user.
+
+**What's still missing**
+
+- Not merged. Do not mark Live. There is no database file, and the walkthrough has not been run again on TEST.
+- The file-number prefix checks were not reached in recent runs, because the walkthrough stopped on the old name. This change does not prove those checks.
+
+**Links**
+
+- Spec: [docs/specs/e2e-fix-b.md](docs/specs/e2e-fix-b.md)
+- Pull request: [PR 369](https://github.com/Johncoester/cla-portal-demo/pull/369)
+- Evidence: Actions run [44513431332](https://github.com/Johncoester/cla-portal-demo/actions/runs/44513431332), failing since run [44163727716](https://github.com/Johncoester/cla-portal-demo/actions/runs/44163727716) after FF-092 ([PR 322](https://github.com/Johncoester/cla-portal-demo/pull/322), commit 8dbc9be1).
+
+**Decisions**
+
+- The test used a demo-only name. Sam Demo is hidden from the non-demo processor on purpose. The TEST search is E2E Salesperson. The portal code is unchanged (rule 5).
+
+---
+
+## Aggregate adjustment (FF-096)
+
+**How it should work.** On Escrow, line 08 Aggregate adjustment, an amount typed as -$1,200, ($1,200), or $1,200 comes off the section total. It also comes off the borrower's totals, the Closing Disclosure, the settlement statement, and the fee ledger.
+
+**Status: In progress.** FF-096. Francis Santos, email Nov 17 2026, 2:20 PM ET (Gmail message 1a1eaf4ac2ad6496), Processor 2 on TEST. Not Live. No database file. Not applied on TEST.
+
+**What's built**
+
+- Escrow line 08 accepts a minus sign, parentheses, or a dollar amount. The line is stored as a positive borrower charge that lowers the total.
+- Homeowner's insurance $1,368.00 plus property taxes $3,568.00 minus an aggregate adjustment of $1,200.00 totals $3,736.00. The same $1,200.00 comes off the borrower's debits, cash to close, the Closing Disclosure, and the settlement statement.
+- A blank amount or $0.00 clears the adjustment. A value that is not an amount stays on the screen and says how to type it.
+- Saving the description first and the amount second still lowers the total. That second save used to add the $1,200.00.
+
+**What's still missing**
+
+- Not checked on TEST. Do not mark Live before someone saves -$1,200 on Escrow line 08 and sees the total go down. The line already saved on TEST stays as it is until it is saved again.
+- Other fee lines still do not take a minus sign.
+
+**Links**
+
+- Spec: [docs/specs/aggregate-adjustment.md](docs/specs/aggregate-adjustment.md)
+
+**Decisions**
+
+- No database file. The line was already allowed to lower the total. The save was not marking it that way.
+- A positive amount on line 08 lowers the total too. That is the line for the aggregate adjustment.
+
+## Settlement and disbursement dates on File Overview (FF-097)
+
+**How it should work.** At the top of a file, next to the settlement date, staff who can edit the file can change that date and the disbursement date. The settlement date saves on the file, stays after a reload, and is the date tasks, Scheduling Details, Accounting, and prorations already use. Agents, buyers, and sellers see the dates and cannot change them. A buyer's "+ Propose a closing time" still does not write the file date.
+
+**Status: In progress.** Tracker FF-097. Francis Santos, Nov 17 2026, 2:31 PM ET (Gmail message 1a1eafe6e1a32dde), signed in as Processor 2. Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- The file header shows Settlement date and Disbursement date side by side. A processor, a pre-processor, or an admin gets a date field. Other roles, and demo view, see text.
+- Saving writes the existing closing date and disbursement date. A blank disbursement date stays automatic.
+- Tasks, Scheduling Details, Accounting, and prorations read that same closing date.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- John's later change, locking the file date when a buyer proposes a closing time, is not built here.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-dates.md](docs/specs/file-overview-dates.md)
+- Pull request: [PR 328](https://github.com/Johncoester/cla-portal-demo/pull/328)
+
+**Decisions**
+
+- No database change. TEST already lets staff who can edit the file update `closing_date`. The scheduling guard does not block that column.
+- The disbursement date uses the existing column. Blank means the automatic date.
+
+## File Overview layout (FF-105)
+
+**How it should work.** On the staff File Overview, the blue tasks bar stays above a row of four boxes (Transaction Type, Open Date, Close Date, Purchase Price) and a Closing Team row. Each Closing Team card shows initials, the person's name, then the role: Processor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person. A missing person leaves the name blank. Parties is one compact list in the picture's order: Buyer, Seller, Lender, Loan Officer (only when that name is already on the lender contact), Selling Agency, Selling Agent, Selling Agent TC, Listing Agency, Listing Agent, Listing Agent TC, Title Abstractor, and Underwriter. Processor, Title Company, the sales rep, Preprocessor, and anyone else already on the file stay under that list. Call, Email, copy, Source of business, All contacts, Notes, Automation, and Configuration stay. Closer stays Closer. Buyers, sellers, and agents do not get this staff layout.
+
+**Status: In progress.** Tracker FF-105. Francis Santos, email Nov 19 2026, 12:23 PM ET ("File Overview – UI Layout Rearrangement Only"), image Order Parties Updated.png. She confirmed the layout on Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375). No database file. Not Live until someone checks it on TEST.
+
+**What's built**
+
+- Staff File Overview shows the four boxes (value, then the label) and the Closing Team cards (initials, name, then the role).
+- Parties follows the picture's order and labels. Selling Agent, Selling Agent TC, Listing Agent TC, and Title Abstractor are display words. The stored roles stay Buyer Agent, Buyer Agent TC, Listing Agent TC, and Abstractor.
+- A Loan Officer row appears only when the lender contact is already a loan officer.
+- Processor, Title Company, sales rep, Preprocessor, Notes, Automation, and the existing buttons stay.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Licensed Settlement Agent has no saved field, so the card title shows and the name stays blank. Closer is unchanged.
+- The staff tracker shows "Wire/Cash to Close Acknowledge" and "Funding Auth". Reports and the database still use the old stage names.
+
+**Links**
+
+- Spec: [docs/specs/file-overview-layout.md](docs/specs/file-overview-layout.md)
+- Pull request: [PR 375](https://github.com/Johncoester/cla-portal-demo/pull/375)
+
+**Decisions**
+
+- Layout only. No new database column and no removed field.
+- Licensed Settlement Agent is not the Closer.
+- A blank name means nobody is assigned. The role title stays.
+- More than one salesperson means more than one Sales Person card.
+
+## CRM report grouping without fiscal buckets
+
+**How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.
+
+**Status: In progress.** Janine Santos said "We can remove fiscal for now." Pull request: [PR 333](https://github.com/Johncoester/cla-portal-demo/pull/333). No database file. Not Live until someone checks a report and a chart on TEST.
+
+**What's built**
+
+- The grouping list on reports and charts no longer includes the three fiscal choices.
+- Opening a saved report or chart that still has one of those codes uses the matching calendar grouping.
+- Saving a report or chart that still sends one of those codes stores the calendar grouping.
+- Date filters say Previous Year, Current Year, and Next Year. A saved filter or view that still uses the old FY choice loads as that year choice.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- This Year stays on the date list. It covers the same calendar year as Current Year.
+
+**Links**
+
+- Spec: [docs/specs/crm-report-grouping.md](docs/specs/crm-report-grouping.md)
+- Pull request: [PR 333](https://github.com/Johncoester/cla-portal-demo/pull/333)
+
+**Decisions**
+
+- No database change. Old saved values stay stored and are read as the calendar grouping.
+- The closing-cost calculator's Maryland property-tax note is not a CRM screen and is unchanged.
+
+---
+
+## CRM Home My Tasks (Feedback 29 item 4)
+
+**How it should work.** On CRM Home, every task view (Open, Overdue, Closed, Today + Overdue, and the rest of that menu) shows only tasks assigned to the person who is signed in. An admin sees only their own tasks here too. Admins will later get separate Tasks, Meetings, and Calls modules. Those are not part of this change.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 4. Pull request: [PR 336](https://github.com/Johncoester/cla-portal-demo/pull/336). No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- CRM Home asks for tasks assigned to the signed-in person. The owner filter is on that read, on the owner column that is already indexed.
+- Every choice in the Home task menu uses that list, so each one is only that person's tasks.
+- Previous and Next on a task opened from Home stay on that person's tasks when the browser has not kept the list order.
+- Dashboards that list every visible task are unchanged.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- Separate Tasks, Meetings, and Calls modules for admins are not built.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-my-tasks.md](docs/specs/crm-home-my-tasks.md)
+- Pull request: [PR 336](https://github.com/Johncoester/cla-portal-demo/pull/336)
+
+**Decisions**
+
+- No database change. The existing owner index is enough.
+- The filter is the same for every CRM user, including an admin and a processor.
+- Reports and dashboards still load the tasks that person is allowed to see. Only the Home task list is limited to the assignee.
+
+## CRM record shortcuts (Feedback 28 item 3, updated by Feedback 36)
+
+**How it should work.** On a Lead, Client, Deal, or Company, the left panel lists only that record's own shortcuts, and only when the section is already on the page: Notes, Deals, Open Activities, Closed Activities, Emails, Attachments. A click moves down the page to that section. Attachments is the only shortcut with a count. An empty list shows no number. More than 10 shows 10+. On a wide screen the panel stays put while the record scrolls. On a narrow screen the shortcuts wrap across the top. The module links (Clients, Leads, Deals, Tasks, Meetings, Calls) are top tabs. See the next section.
+
+**Status: In progress.** Janine, CRM Feedback 28 item 3, confirmed Nov 16 2026. The first panel was [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337), merged as 3212c332. The Nov 18 order is [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360). Call on a deal opened the Calls list in [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368). Feedback 36 (Janine, Nov 20 2026, 12:40 PM ET, tracker F36 row 416) moves the modules off this panel. No database file. Not Live until someone checks a record on TEST.
+
+**What's built**
+
+- The panel on Lead, Client, Company, and Deal records.
+- Notes, Open Activities, Closed Activities, Emails, and Attachments, only when that section is on the page.
+- Deals, only when the record already lists orders (a client or a company). It jumps to that list. The orders card still says Orders in the portal.
+- A lead has no orders list, so Deals is not on a lead. A deal shows Emails only.
+- Attachments shows the number of files already on the page. Empty shows no number. More than 10 shows 10+. No other shortcut shows a count.
+- The lists of leads, clients, companies, and deals do not get the panel.
+- The panel does not load anything extra.
+- Clients, Leads, Task, Meeting, and Call are no longer on this panel.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The orders card still says Orders in the portal. The shortcut that jumps there says Deals.
+- There is no Meetings list. That tab stays grey "Coming soon". The Calls list has no way to show only one deal's calls.
+
+**Links**
+
+- Spec: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Module tabs: [docs/specs/crm-module-tabs.md](docs/specs/crm-module-tabs.md)
+- First panel: [PR 337](https://github.com/Johncoester/cla-portal-demo/pull/337)
+- Order change: [PR 360](https://github.com/Johncoester/cla-portal-demo/pull/360)
+- Call opens the Calls list: [PR 368](https://github.com/Johncoester/cla-portal-demo/pull/368)
+- Modules moved to the top tabs: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
+
+**Decisions**
+
+- No database change. The panel does not add rows. It points at a section already on the record.
+- Feedback 33 counts are not built here except Attachments. Empty shows no number. More than 10 shows 10+.
+- Module links live on the top tabs, not on this panel.
+
+## CRM module tabs (Feedback 36)
+
+**How it should work.** The CRM top tabs keep their existing order and add Tasks, Meetings, and Calls after Deals: Home, Leads, Clients, Companies, Deals, Tasks, Meetings, Calls, then Pipeline, Dashboards, Reports, and Templates. Tasks opens CRM Home (My Open Tasks). Calls opens the Calls list. Meetings is grey "Coming soon" and is not a link. The left menu, Reports, Email Templates, and Home keep working.
+
+**Status: In progress.** Janine Santos, Feedback 36, confirmed Nov 20 2026, 12:40 PM ET. Tracker F36, row 416. No database file. Not Live until someone checks a record on TEST.
+
+**What's built**
+
+- Tasks, Meetings, and Calls on the CRM top tab row, after Deals and before Pipeline.
+- Tasks opens `#/crm` (CRM Home). Calls opens `#/crm/calls`. Meetings is grey text with "Coming soon" and does not open a page.
+- A switched-off Calls module hides that tab. A Calls module in testing keeps the beta badge.
+- The record's left panel no longer lists those modules.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- There is no Meetings list page.
+
+**Links**
+
+- Spec: [docs/specs/crm-module-tabs.md](docs/specs/crm-module-tabs.md)
+- Record shortcuts: [docs/specs/crm-record-shortcuts.md](docs/specs/crm-record-shortcuts.md)
+- Pull request: [PR 404](https://github.com/Johncoester/cla-portal-demo/pull/404)
+
+**Decisions**
+
+- No database change. The existing tab order is kept. Tasks, Meetings, and Calls are inserted after Deals, in that order.
+- Meetings is shown and disabled until a Meetings list exists. It is not a broken link.
+- The CRM menu is unchanged.
+
+---
+
+## CRM task profile link (Feedback 29 item 6)
+
+**How it should work.** On a CRM task, the page shows the lead or client that task belongs to. The name is a link back to that profile. The same page opens from Home and from Open Activities on a record.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 6. Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339). No database file. Not Live until someone checks a task on TEST.
+
+**What's built**
+
+- A task on a lead shows that lead's name and links to the lead.
+- A task on a client shows that client's name and links to the client.
+- The name comes from the task when it is already there. Otherwise one read by that record's id fills it in.
+- If the name cannot be read, the task still opens and says where to look. A company task does not invent a person.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Home Related To and Contact Name columns are a separate item.
+
+**Links**
+
+- Spec: [docs/specs/crm-task-profile.md](docs/specs/crm-task-profile.md)
+- Pull request: [PR 339](https://github.com/Johncoester/cla-portal-demo/pull/339)
+
+**Decisions**
+
+- No database change. The task already stores the record it belongs to.
+- The link is built from that record id. A stored web address on the task is not used as the profile link.
+
+---
+
+## CRM Home task names (Feedback 29 item 5)
+
+**How it should work.** On CRM Home, Related To and Contact Name show the lead or client the task was created under. Intro Call shows Marcus Vance. Each name is a link that opens that lead or client profile. A task that is not under a lead or a client leaves both columns blank, and the rest of the list still shows.
+
+**Status: In progress.** Janine confirmed this on Nov 16 2026, CRM Feedback 29 item 5. Pull request: [PR 340](https://github.com/Johncoester/cla-portal-demo/pull/340). No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- Home asks for the signed-in person's tasks, then asks once for the names of the leads on that list and once for the clients on that list.
+- Both columns show that name, and each name opens the lead or client profile.
+- A name the read does not return stays blank. The task list still opens.
+- Tasks under a company or an opportunity are unchanged.
+- Opening one task still uses that task's own name read.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-task-names.md](docs/specs/crm-home-task-names.md)
+- Pull request: [PR 340](https://github.com/Johncoester/cla-portal-demo/pull/340)
+
+**Decisions**
+
+- No database change. The task already stores the lead or client id. That id is not a foreign key, so the name cannot be embedded in the task read.
+- A list that is only leads, or only clients, uses one extra read. A list with both uses one read for each table. It never reads once per task.
+- Janine later asked to drop the Related To column. That follow-up is the next section. It is not part of PR 340.
+
+---
+
+## CRM Home My Tasks drops Related To (Feedback 29 follow-up)
+
+**How it should work.** On CRM Home, My Tasks no longer has a Related To column. Contact Name is the name of the record the task belongs to, and it is a link. A lead opens that lead. A client opens that client. A company opens that company. A deal opens that deal, using the property address as the name. Due Date, Subject, Status, Priority, and Edit stay as they are. A task with no name still shows, with a blank Contact Name. The task page itself still has Related To.
+
+**Status: In progress.** Janine Santos, Nov 18 2026, asked to remove Related To because it showed the same information as Contact Name, as long as Contact Name shows for tasks from every module. She confirmed on Nov 19 2026, 6:28 PM ET, with "Feedback 29 - Home tab tasks: Yes." No database file. Not Live until someone checks CRM Home on TEST.
+
+**What's built**
+
+- The Home task list no longer has Related To. The other columns on that list are unchanged.
+- Contact Name links to the lead, client, company, or deal.
+- The list asks once for each of those tables that the list actually uses. It does not ask once per task.
+- A name the read does not return stays blank, and the rest of the list still shows.
+- Opening one task is unchanged. That page still shows Related To.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- A task under a pipeline opportunity still has a blank Contact Name. An opportunity does not have its own page.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-tasks-related-to.md](docs/specs/crm-home-tasks-related-to.md)
+- Pull request: [PR 383](https://github.com/Johncoester/cla-portal-demo/pull/383)
+
+**Decisions**
+
+- No database change. The task already stores which record it belongs to.
+- The deal name is the property address, the same name the deal page uses.
+- Related To stays on the task page. Only the Home list drops that column.
+
+---
+
+## Add dashboard charts to CRM Home (Feedback 31 item 1)
+## Clone a CRM dashboard copies its charts
+## CRM Calls menu link (Feedback 32 item 3)
+
+**How it should work.** Each chart on a CRM dashboard has Add to Home. The chart then shows on that person's CRM Home, with Refresh, Rename, and Remove. The ... menu on Home has Reorder, with Move up and Move down (F31b, row 414). Dragging can also change the order. Rename and Remove do not change the chart on the dashboard. Remove only takes it off Home. There is no resize. Each person has their own Home charts.
+**How it should work.** Clone on a CRM dashboard makes a new dashboard named like "Lead dashboard (copy)". Every chart comes with it: the same settings, filters, order, and size. The original dashboard stays as it was. A hidden chart is not copied. The copy is Only me.
+**How it should work.** Calls in the CRM menu opens a list of calls already saved on a lead, client, or company. The subject opens that call. If there are no calls, the page says so. It is not the full Calls module.
+
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 1. Pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359). A database file is included and has not been applied. Not Live until the lead applies it on TEST and someone checks Home there. Not merged.
+**Status: In progress.** Janine confirmed this on Nov 18 2026, CRM Feedback 31 item 2. Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357). No database file. Not Live until someone checks Clone on TEST.
+**Status: In progress.** Janine, CRM Feedback 32 item 3, confirmed Nov 18 2026. Pull request: [PR 356](https://github.com/Johncoester/cla-portal-demo/pull/356). No database file. Not Live until someone checks Calls on TEST.
+
+**What's built**
+
+- Add to Home on every chart of a dashboard the person can open.
+- Home shows those charts after the rest of the page, with Refresh, Rename, Remove, and Reorder (Move up and Move down) from the ... menu. Dragging by the title can also change the order.
+- The Home name and the Home order are stored for that person only. The dashboard chart is unchanged.
+- If the person has no Home charts, Home does not ask again during that browser tab, and it does not load chart numbers.
+- If the database file is not applied yet, Add to Home is hidden.
+- Clone suggests "<name> (copy)" and saves that name, shortened so it still ends with " (copy)" when the original name is already at the 100-character limit.
+- Every visible chart is copied in one save: name, type, module, measure, grouping, filters, width, height, and order.
+- The dashboard's own owner and period filters are copied, so the charts match.
+- A retired chart stays on the original only.
+- A blank name is refused and nothing is saved.
+- Calls in the CRM menu opens the list instead of saying the page does not exist.
+- The list is one read of the calls already stored. Newer calls are first. Each subject opens the call that was already there.
+- A missing call says it was not found and goes back to the list. A processor can see the list.
+- The other CRM menu links still open their pages.
+
+**What's still missing**
+
+- The database file is not applied on TEST. Do not mark Live before that, and not before someone checks it there.
+- Resizing was asked not to be built.
+- Not checked on TEST yet. Do not mark Live before that.
+- Scheduling, logging, and completing calls from this list are later, with the Calls, Meetings, and Tasks modules.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
+- Pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359)
+- Spec: [docs/specs/crm-dashboard-clone.md](docs/specs/crm-dashboard-clone.md)
+- Pull request: [PR 357](https://github.com/Johncoester/cla-portal-demo/pull/357)
+- Spec: [docs/specs/crm-calls-menu.md](docs/specs/crm-calls-menu.md)
+- Pull request: [PR 356](https://github.com/Johncoester/cla-portal-demo/pull/356)
+
+**Decisions**
+
+- List column preferences cannot hold this. Those rows are only the lead, client, company, and deal lists. A new table stores the chart id, the Home name, and the order.
+- The file is not applied by this change.
+- No database change. Charts already store their settings on the dashboard. The copy writes those rows in one batch.
+- The copy is Only me. Sharing on the original is not copied.
+- A hidden chart is not copied. Restore it on the original first if it should be included.
+- No database change. The list uses the calls already stored. It does not add a table or a query.
+- The full Calls module is not part of this change. The menu opens the short list so the link is not a dead end.
+
+---
+
+## Reorder charts on CRM Home (F31b, row 414)
+
+**How it should work.** On CRM Home, a **...** button at the top right opens a small menu with **Reorder**. Reorder shows **Move up** and **Move down** on each Home chart, plus **Done**. The new order is saved for that person and is still there after they leave Home and come back. Another person does not see or change it. Refresh, Rename, and Remove keep working. When Home has no charts, Reorder is disabled and the menu says there is nothing to reorder.
+
+**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393). No new database file. Not Live.
+
+**What's built**
+
+- The ... menu on CRM Home, with Reorder.
+- Move up, Move down, and Done. The order is stored on that person's existing Home chart rows.
+- Leaving Home and coming back shows the same order. Another person's Home is separate.
+- Refresh, Rename, and Remove still work.
+- An empty Home disables Reorder and shows a short note.
+- Dragging by the title can still change the order. It is not the only way.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The Home chart table from PR 359 is still not applied on TEST. Reorder uses that table and does not add one.
+
+**Links**
+
+- Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
+- Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393)
+- Earlier pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359)
+
+**Decisions**
+
+- No new database file. The order is the position already stored for that person.
+- The menu has Reorder only. Zoho also shows Add Component and View in Full Screen. Those are not part of this change.
+- Move up and Move down are the way to reorder. Dragging stays as an extra.
+
+---
+
+## Document folders (FF-104)
+
+**How it should work.** On an order, Documents keeps All files, Received, and Sent. A fourth tab, Folders, lists that order's folders and how many files are in each one. CLA staff can add a folder and move a document into a folder. Buyers, sellers, and agents do not see the tab. A new closing order gets eight folders (100 Processing through 700 Recorded Documents and Policies) instead of the five older names. Orders that already exist keep the folders and files they have.
+
+**Status: In progress.** FF-104a (the Folders tab) is [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376). FF-104b (the eight folders on new orders) is [PR 377](https://github.com/Johncoester/cla-portal-demo/pull/377). The database file is not applied on TEST. Not Live.
+
+**What's built**
+
+- FF-104a: the Folders tab, the file count, Add folder, and Move, for Processor, Preprocessor, Transaction Coordinator, Admin, and Super admin. Sales can open the tab and see the counts. They cannot add or move.
+- FF-104b: a new closing order gets the eight folders. An order that already exists keeps the folders it has. Title does not add a second copy of a folder name the order already has. "450 Final Closing Documents" and Title's "450 Prior Closing Documents" are both kept.
+
+**What's still missing**
+
+- Apply `supabase/migrations/20261125350000_order_default_folders.sql` on TEST. Do not mark Live before that, and not before someone checks a new order there.
+- Master Template Library, Generate, Search Packages, a Word editor, Download Word, Download PDF, the Merge / Delete / Rename / Refresh / Download / Print / Send / eSign toolbar, and Drafts. John has not decided the eSign provider, the Word editor, or Delete / retention.
+- A photo-ID upload on a new order no longer has an "IDs & personal" folder, so it is filed as Unfiled. Older orders still have that folder.
+
+**Links**
+
+- Spec: [docs/specs/document-folders.md](docs/specs/document-folders.md)
+- Pull request: [PR 376](https://github.com/Johncoester/cla-portal-demo/pull/376) (FF-104a) and [PR 377](https://github.com/Johncoester/cla-portal-demo/pull/377) (FF-104b)
+- Source: Francis Santos, Nov 19 2026, 1:15 PM ET, confirmed Nov 19 2026, 2:35 PM ET (Gmail 1a1f54e71ce7e8b6). Tracker FF-104a and FF-104b.
+
+**Decisions**
+
+- Phase 1 is the tab, then the default folders. Nothing else from the picture is built in this phase.
+- The Title module keeps its own extra folder names. "450 Final Closing Documents" and "450 Prior Closing Documents" are different folders.
+
+---
+
+## CRM Companies column sort (Feedback 30 follow-up item 1)
+
+**How it should work.** On CRM, then Companies, each column header sorts the All Companies list. The first click sorts up. The second click sorts down. The same arrow used on Leads, Clients, and Deals shows the direction. Search, filters, and pages stay in effect.
+
+**Status: In progress.** Janine Santos, Feedback 30 follow-up item 1, confirmed by email Nov 19 2026, 6:30 PM ET ("Yes"). Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- Companies uses the same header sort as Leads and Clients. The Sort menu is no longer on that list.
+- The list still opens on Company Name, A to Z. A sort already saved on the login is kept.
+- Search, Company Owner, Type, Archived, and the three time filters limit which companies are sorted. The next page continues that order.
+- Blank city, owner, and times stay at the bottom. Clients, Orders, and Volume sort as amounts.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/crm-companies-sort.md](docs/specs/crm-companies-sort.md)
+- Pull request: [PR 384](https://github.com/Johncoester/cla-portal-demo/pull/384)
+
+**Decisions**
+
+- No database file. The company list is already loaded, then sorted in the browser, the same way Leads and Clients sort after their list is loaded.
+- Cache stamp 202611249800, so a saved copy of the Companies page is not reused.
+
+---
+
+## CRM owner lists include Sales Person users (F35)
+
+**How it should work.** In the CRM, every owner dropdown and owner filter lists Unassigned, every active person who already has Can own CRM records turned on, and every active user with the Sales Person role. A disabled or removed person is not listed. Sales Team is not added by role. An admin who is not ticked stays off the list, the same as before. A salesperson can still change only a record they own, and can still assign a record only to themselves.
+
+**Status: In progress.** Tracker F35, row 415. Janine Santos, Nov 19 2026 Feedback 35 video, confirmed Nov 20 2026, 12:40 PM ET ("yes, that's it"). The database file is not applied on TEST. Not Live until that file is applied and someone checks the Clients Owner filter on TEST.
+
+**What's built**
+
+- One owner rule for the picker and for saving an owner: an active Sales Person, or an active user with the tick.
+- Lead Owner, Client Owner, Company Owner, and Deal Owner use that list: filters, Change owner, and the Add and Edit forms.
+- The tick on User List is unchanged. A salesperson still cannot change a record they do not own.
+
+**What's still missing**
+
+- Apply `supabase/migrations/20261127020000_crm_sales_person_owners.sql` on TEST. Do not mark Live before that. Then sign in, open CRM, then Clients, and check that the Owner filter and the Client Owner field list the active Sales Person users plus the people who were already there.
+- Spreadsheet import still matches an owner by the tick. Zoho sync is unchanged.
+
+**Links**
+
+- Spec: [docs/specs/crm-sales-owners.md](docs/specs/crm-sales-owners.md)
+- Source: Janine Santos, Nov 19 2026 Feedback 35 video, and her Nov 20 2026, 12:40 PM ET "yes, that's it". Tracker F35, row 415.
+
+**Decisions**
+
+- The database file is required. A Sales Person cannot read every other salesperson's profile, so the existing owner list (a database function) is the one place that can show the full list. The pull request does not apply it.
+- Sales Team is not added by role. Inactive users stay off the list.
+- Cache stamp 202611289970, above main's 202611289960, so a saved copy of the shell is not reused.
+
+---
+
+## Custom view checkboxes and mass actions (F37)
+
+**How it should work.** A custom view on Leads, Clients, Companies, or Deals has the same row checkboxes as that module's All list: one in the header for the page, and one on each row. The selection bar and the mass actions are the same ones (Update a field, Email, Change owner or Change salesperson, Create task, and Select all matching when the page is not the whole list). They act on the rows in that view, including the search on the view. A salesperson still changes only records they own, and the result says how many were saved and how many were skipped. The checkbox is not a column they can choose or drag.
+
+**Status: In progress.** Tracker F37, row 417. Janine Santos, Feedback 37 video, confirmed Nov 20, 2026, 12:40 PM ET ("yes, that's it"). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- The custom view list uses the All list's selection bar and mass actions.
+- Select all matching uses the rows that match the view, including the search typed on the view.
+- Saved column order still shows. The checkbox stays in front and is not in Choose Columns.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- Update a field on Deals is still Notes, the same as All Deals. Closing date is not a mass-update field there.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-bulk.md](docs/specs/crm-view-bulk.md)
+- Source: Janine Santos, Feedback 37 video, and her Nov 20, 2026, 12:40 PM ET "yes, that's it". Tracker F37, row 417.
+
+**Decisions**
+
+- No database file. The existing mass update and mass email already accept the ids of the rows to change. A view's criteria are not the All list's filters, so Select all matching sends those ids, one page at a time, instead of asking for a new database function.
+- The checkbox is not stored as a column, so the drag order from the column chooser is unchanged.
+- Cache stamp 202611290610, above main's 202611290600, so a saved copy of the shell is not reused.
+

@@ -1,13 +1,13 @@
 // Closing Date tab: the processor sends time options; each side answers through its own link; the processor confirms; a request can be reopened.
 // Links are shown here to copy. Nothing is emailed from this build.
 import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
-import { schedulingPanelHtml, wireSchedulingPanel } from './scheduling-panel.js?v=202611242210';
-import { settlementAgentChoices } from '../data/scheduling-details.js?v=202611241900';
-import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611101015';
-import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611101015';
-import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611101015';
-import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS, MOBILE_NOTARY } from '../data/closing-side.js?v=202611242210';
-import { US_STATE_NAMES } from '../data/constants.js?v=202611101015';
+import { schedulingPanelHtml, wireSchedulingPanel } from './scheduling-panel.js?v=202611247700';
+import { settlementAgentChoices } from '../data/scheduling-details.js?v=202611247700';
+import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611247700';
+import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611247700';
+import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611247700';
+import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS, MOBILE_NOTARY } from '../data/closing-side.js?v=202611247700';
+import { US_STATE_NAMES } from '../data/constants.js?v=202611247700';
 // John, Nov 4: "Will you be in <state> at the time of closing?" (Yes / No -> another US state or a country outside the US). One block per party.
 export function locFields(r, pre = '') { const st = stateName(r.propertyState) || "the property's state"; const no = r.inStateAtClosing === false; const abroad = no && !!r.closingLocationCountry;
   return html`<fieldset class="loc-q span2" data-loc-fields="${r.participantId}" data-pre="${pre}"><legend>${r.mine ? '' : html`${sideWord(r.partyRole)} ${r.name}: `}Will you be in ${st} at the time of closing?</legend>

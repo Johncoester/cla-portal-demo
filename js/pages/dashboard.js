@@ -1,12 +1,12 @@
 // Role dashboards: Processor = Work Queue; Sales Person / Sales Team = Team Dashboard (view-only);
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, toText, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611161500';
-import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611101015';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611242400';
+import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611247700';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611289950';
 import { themeOn } from '../theme.js?v=202611070139';
-import { pendingMine } from '../data/task-actions.js?v=202611221900';
+import { pendingMine } from '../data/task-actions.js?v=202611269900';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
-import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611191800';
+import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611247700';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -41,7 +41,7 @@ export async function render(ctx) {
   const first = await paint();
   const bar = () => html`${state.openRows.length < state.openTotal ? html`<p data-dash-more><button type="button" data-show-more-open>Show more open files</button> <span class="muted">${state.openRows.length} of ${state.openTotal} open</span></p>` : ''}${state.otherTotal && !state.showOther ? html`<p data-dash-other><button type="button" data-show-other>Show closed, on hold, and cancelled</button> <span class="muted">${state.otherTotal} file(s)</span></p>` : ''}`;
   const tc = themeOn() && (user.isAdmin || runsOrders(user) || ['Sales Person', 'Sales Team', 'Transaction Coordinator'].includes(user.role));
-  const cards = tc ? (await import('./theme-cards.js?v=202611241900')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
+  const cards = tc ? (await import('./theme-cards.js?v=202611247700')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
   return { title: first.title, crumbs: [[first.title]], body: html`<div data-dash-root>${cards}${first.body}${bar()}</div>`, mount(root) {
     const wire = (viewMount) => {
       viewMount && viewMount(root);
@@ -58,7 +58,7 @@ export async function render(ctx) {
     const redraw = async () => {
       const again = await paint();
       const box = $('[data-dash-root]', root); if (!box) return;
-      const top = tc ? (await import('./theme-cards.js?v=202611241900')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
+      const top = tc ? (await import('./theme-cards.js?v=202611247700')).dashCards(state.showOther ? state.openRows.concat(state.otherRows) : state.openRows) : '';
       box.innerHTML = toText(html`${top}${again.body}${bar()}`);
       wire(again.mount);
     };
@@ -158,10 +158,8 @@ async function admin({ user, deals, open, openTotal, otherTotal, adminBits }) {
       <div class="card"><h3>Teams</h3><ul class="plain">${teams.map((t) => html`<li><strong>${t.name}</strong><br><span class="muted">${t.members.map((m) => `${m.name} (${m.memberRole})`).join(', ') || 'No members'}</span></li>`)}</ul></div></div>` };
 }
 
-// OUTSIDE USER (per-file roles): one login, files grouped by the role they hold on each file. Each group uses that role's view
-// (agent cards with "tasks you can complete for your client", or the client's "what we need from you"), so counts stay per file.
-const GROUPS = [['Buyer Agent', "Files I'm the buyer's agent on"], ['Listing Agent', "Files I'm the listing agent on"], ['Client-Buyer', 'My purchases'], ['Client-Seller', 'My sales'], ['Outside user', 'Other files I can see']];
-// a self-represented file (client + own agent) is listed ONCE, under the client group (My purchases / My sales), with an agent badge
+// OUTSIDE USER (per-file roles): one login, a role per file. Clients' "what we need from you" blocks list the files where they are the client.
+// a self-represented file (client + own agent) counts as a client file, with an agent badge
 const groupOf = (d) => (d.selfRep ? (d.myRoles || []).find((r) => isClient(r)) : d.myRole);
 // FILE-FIRST (John, Nov 4): ONE combined "everything I need to do" list across every file this person is on (buyer's-agent AND listing-agent files,
 // client files). Each row = its file (address + file number) and their role on THAT file; clicking opens that file at that task. Which tasks exist
@@ -174,16 +172,57 @@ export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo',
       <td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td>
       <td data-my-task-role>${t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
       : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
-async function outside({ deals, all }) {
-  const fromFiles = pendingMine(all.filter((t) => !t.deal || t.deal.status === 'Open'));
-  const mine = fromFiles.map((t) => ({ ...t, myRoleLabel: t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || '' }));
-  const mineOpen = (d) => all.filter((t) => t.deal.id === d.id && t.mine && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
-  const sections = GROUPS.map(([role, label]) => { const list = deals.filter((d) => groupOf(d) === role); if (!list.length) return '';
-    const isC = isClient(role); const shown = isC ? list.filter((d) => d.status === 'Open') : list;
-    const todo = list.filter((d) => d.status === 'Open').reduce((n, d) => n + mineOpen(d), 0);
-    const forClient = all.filter((t) => list.some((d) => d.id === t.deal.id) && t.forClient && ['todo', 'in_progress', 'blocked'].includes(t.status)).length;
-    return html`<section class="role-group" data-group="${role}"><h3 class="group-title">${label} <span class="muted small" data-count>${list.length} file(s)${isC && shown.length !== list.length ? ` (${shown.length} open)` : ''} &middot; ${todo} task(s) for you${isAgent(role) || (forClient && list.some((d) => d.selfRep)) ? ` · ${forClient} you can complete for your client` : ''}${list.some((d) => d.selfRep) ? ` · ${list.filter((d) => d.selfRep).length} as your own agent` : ''}</span></h3>
-      ${isC ? (shown.length ? clientBlocks(list, all) : html`<p class="muted">No open files.</p>`) : html`<div class="card-grid">${isAgent(role) ? agentCards(list, all, role) : list.map((d) => html`<div class="card">${dealLink(d)} <strong>${d.address}</strong></div>`)}</div>`}</section>`; });
-  return { title: 'My files', body: html`<div class="page-head"><div><div class="eyebrow">MY FILES</div><h2 class="page-title">My files</h2><div class="muted">${deals.length} file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
-    ${deals.length ? myTaskList(mine) : ''}${deals.length ? sections : html`<p class="muted">You are not on any files yet.</p>`}` };
+// TC-DASHBOARD-1 (John, Nov 21 2026: "this layout looks horrible"): the My Files home is a dashboard in the Open Orders table look.
+// Outstanding tasks are grouped by file (File No, Property Address and Your Role each in their own column, once per file), then a file
+// overview with Stage, Closing Date, tasks for you and, for the agent side only, the commission. Clients' "What we need from you" stays.
+const TC_LABEL = 'Transaction Coordinator';
+const OPEN_TASK = ['todo', 'in_progress', 'blocked'];
+const roleText = (d) => (!d ? '' : d.selfRep || d.myRoleLabel === TC_LABEL ? d.myRoleLabel : ({ 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller' })[d.myRole] || d.myRoleLabel || d.myRole || '');
+// Commission: only for files where this person is on the agent side (Buyer Agent / Listing Agent, including a coordinator for that agent).
+const FEE_SIDE = { 'Buyer Agent': 'buyer', 'Listing Agent': 'listing' };
+const feeSideOf = (d) => FEE_SIDE[d.myRole] || ((d.myRoles || []).map((r) => FEE_SIDE[r]).find(Boolean)) || null;
+export const DASH_FEE_FILES = 12;   // speed: at most this many commission reads, after the page is drawn
+const commissionText = (side) => { const c = side && side.commission; if (!c || (c.amount == null && c.percent == null)) return '';
+  return `${c.percent != null ? `${Number(c.percent).toLocaleString('en-US', { maximumFractionDigits: 4 })}% / ` : ''}${c.amount != null ? fmtMoney(c.amount) : ''}`; };
+export const outsideTaskGroups = (deals, all) => { const byId = new Map(deals.map((d) => [d.id, d])); const groups = new Map();
+  pendingMine((all || []).filter((t) => t.deal && (!t.deal.status || t.deal.status === 'Open')), OPEN_TASK).forEach((t) => { const id = t.deal.id;
+    if (!groups.has(id)) groups.set(id, { deal: { ...t.deal, ...(byId.get(id) || {}) }, tasks: [] }); groups.get(id).tasks.push(t); });
+  const due = (t) => t.dueDate || '9999-12-31';
+  return [...groups.values()].map((g) => ({ ...g, tasks: g.tasks.sort((a, b) => due(a).localeCompare(due(b))) })).sort((a, b) => due(a.tasks[0]).localeCompare(due(b.tasks[0]))); };
+const taskRows = (groups, today) => groups.flatMap((g) => g.tasks.map((t, i) => { const late = t.overdue || (t.dueDate && t.dueDate < today);
+  return html`<tr data-my-task="${t.id}" data-my-task-deal="${g.deal.id}">${i === 0 ? html`<td rowspan="${g.tasks.length}" data-task-file><a href="#/deals/${g.deal.id}">${g.deal.fileNumber}</a></td>
+    <td rowspan="${g.tasks.length}" data-task-address>${g.deal.street ? html`${g.deal.street},<br>${g.deal.city}, ${g.deal.state}, ${g.deal.zip}` : g.deal.address || ''}</td><td rowspan="${g.tasks.length}" data-my-task-role>${roleText(g.deal)}</td>` : ''}
+    <td><a href="${taskHref(t)}" data-my-task-link>${t.title}</a> ${t.status === 'in_progress' ? pill('started', 'info') : ''}</td>
+    <td class="nowrap">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}${late ? html` ${pill('overdue', 'bad')}` : ''}</td></tr>`; }));
+async function outside({ api, deals, all, today }) {
+  const open = deals.filter((d) => d.status === 'Open');
+  const groups = outsideTaskGroups(deals, all); const taskCount = groups.reduce((n, g) => n + g.tasks.length, 0);
+  const overdue = groups.reduce((n, g) => n + g.tasks.filter((t) => t.overdue || (t.dueDate && t.dueDate < today)).length, 0);
+  const soon = localDate(14);
+  const closing = open.filter((d) => d.closingDate && d.closingDate >= today && d.closingDate <= soon).length;
+  const mineOn = (d) => groups.find((g) => g.deal.id === d.id);
+  const feeFiles = open.filter(feeSideOf); const showFees = feeFiles.length > 0;
+  const clientFiles = open.filter((d) => isClient(groupOf(d) || ''));
+  const body = html`<div class="page-head"><div><div class="eyebrow">MY FILES</div><h2 class="page-title">My files</h2><div class="muted">${open.length} open file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
+    <div class="stat-row" data-dash-stats>${stat('Open files', open.length, html`<a href="#/orders?s=Open">Open Orders</a>`)}${stat('Tasks for you', taskCount, `on ${groups.length} file(s)`, taskCount ? 'warn' : '')}${stat('Overdue', overdue, 'past their due date', overdue ? 'bad' : '')}${stat('Closing soon', closing, 'in the next 14 days')}</div>
+    <div class="box-title"><h3 data-my-tasks>Outstanding tasks <span class="muted small" data-my-tasks-count>${taskCount} task(s) on ${groups.length} file(s)</span></h3></div>
+    ${taskCount ? html`<table class="tbl striped" data-dash-tasks><thead><tr><th>File No</th><th>Property Address</th><th>Your Role</th><th>Task</th><th>Due</th></tr></thead><tbody>${taskRows(groups, today)}</tbody></table>`
+      : html`<p class="muted" data-no-tasks>Nothing needed from you right now.</p>`}
+    <div class="box-title"><h3>File overview <span class="muted small">${open.length} open file(s)</span></h3></div>
+    ${open.length ? html`<table class="tbl striped" data-dash-files><thead><tr><th>File No</th><th>Property Address</th><th>Your Role</th><th>Closing Date</th><th>Stage</th><th>Task Pending</th>${showFees ? html`<th>Commission</th>` : ''}<th></th></tr></thead><tbody>${open.map((d) => { const g = mineOn(d);
+      return html`<tr data-dash-file="${d.id}"><td><a href="#/deals/${d.id}">${d.fileNumber}</a>${d.fileTitle ? html`<br><span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}</td>
+        <td>${d.street ? html`${d.street},<br>${d.city}, ${d.state}, ${d.zip}` : d.address}</td><td data-dash-role>${roleText(d)}</td><td class="nowrap">${d.closingDate ? fmtDate(d.closingDate) : html`<span class="muted">Not set</span>`}</td>
+        <td data-dash-stage>${d.stageName || STAGES[Number(d.stage) || 0] || ''}</td><td>${g ? html`<span class="action-req">Action Required</span><br><span class="muted small">${g.tasks.length} task(s)</span>` : ''}</td>
+        ${showFees ? html`<td data-commission="${feeSideOf(d) ? d.id : ''}">${feeSideOf(d) ? html`<span class="muted small">Loading...</span>` : ''}</td>` : ''}<td><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`; })}</tbody></table>`
+      : html`<p class="muted">You are not on any open files yet.</p>`}
+    ${clientFiles.length ? html`<section class="role-group" data-group="client"><h3 class="group-title">What we need from you</h3>${clientBlocks(clientFiles, all)}</section>` : ''}`;
+  return { title: 'My files', body, mount(root) {
+    if (!showFees) return;
+    // speed: drawn first, then one commission read per agent-side file (at most DASH_FEE_FILES), all at once. A failed read says so in its cell.
+    feeFiles.slice(0, DASH_FEE_FILES).forEach(async (d) => { const cell = root.querySelector(`[data-commission="${d.id}"]`); if (!cell) return;
+      try { const r = api.getAgentFees ? await api.getAgentFees(d.id) : null; const side = r && r.fees ? r.fees[feeSideOf(d)] : null; const txt = commissionText(side);
+        cell.innerHTML = txt ? toText(txt) : '<span class="muted small">Not entered yet</span>';
+      } catch (e) { cell.innerHTML = '<span class="muted small">Could not load</span>'; } });
+    feeFiles.slice(DASH_FEE_FILES).forEach((d) => { const cell = root.querySelector(`[data-commission="${d.id}"]`); if (cell) cell.innerHTML = '<span class="muted small">Open the file to see it</span>'; });
+  } };
 }

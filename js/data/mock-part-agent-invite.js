@@ -4,8 +4,8 @@
 //  d.agentProfiles {profileId: {cellPhone, officePhone, brokerage, licenseNumber, street, city, state, zip, otherContact, photo (data URL), photoShape, updatedAt}}
 //  d.agentBirthMD  {profileId: 'MM-DD'}  (month / day only; kept apart like d.agentBirthdates, the existing optional birthdate it reuses)
 // NOTHING IS SENT. createAgentInvite / resendAgentInvite return the one-time link path; the page shows it for staff to copy.
-import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611140100';
-import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611101015';
+import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611249900';
+import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611247700';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const fromNow = (n) => new Date(Date.now() + n * 864e5).toISOString();
@@ -76,7 +76,7 @@ export function agentInvitePart(x) {
       if (!dealId || !dealsFor(u).some((z) => z.id === dealId)) fail('Order not found.');
       const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
       const parts = d.participants.filter((p) => p.dealId === dealId && p.contactId === c.id && !p.removed && PORTAL_INVITE_ROLES.includes(p.role));
-      if (!parts.length) fail('Only a buyer, seller, buyer agent or listing agent on this file can be invited.');
+      if (!parts.length) fail("Only a buyer, seller, buyer agent or listing agent on this file, or an agent's transaction coordinator, can be invited.");
       const role = (parts.find((p) => inviteKindForRole(p.role) === 'agent') || parts[0]).role; const kind = inviteKindForRole(role);
       if (c.profileId && (prof(c.profileId) || {}).status === 'active') fail(`${c.firstName} ${c.lastName} already has a portal login.`);
       if (!String(c.firstName || '').trim() || !String(c.lastName || '').trim()) fail('Add a first and last name to this contact (Edit) before inviting.');
@@ -96,7 +96,7 @@ export function agentInvitePart(x) {
     async inviteAfterEmailChange({ dealId = null, contactId = null } = {}) { const u = needInviter(); const d = db();
       if (!dealId || !dealsFor(u).some((z) => z.id === dealId)) fail('Order not found.');
       const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
-      const parts = d.participants.filter((p) => p.dealId === dealId && p.contactId === c.id && !p.removed && PORTAL_INVITE_ROLES.includes(p.role));
+      const parts = d.participants.filter((p) => p.dealId === dealId && p.contactId === c.id && !p.removed && PORTAL_INVITE_ROLES.includes(p.role) && !/ TC$/.test(p.role));   // TC-INVITE-1: email-change invites stay buyer / seller / agent (mirrors rpc_invite_after_email_change)
       if (!parts.length) fail('Only a buyer, seller, buyer agent or listing agent on this file can be invited.');
       const role = (parts.find((p) => inviteKindForRole(p.role) === 'agent') || parts[0]).role; const kind = inviteKindForRole(role);
       if (!String(c.firstName || '').trim() || !String(c.lastName || '').trim()) fail('Add a first and last name to this contact (Edit) before inviting.');

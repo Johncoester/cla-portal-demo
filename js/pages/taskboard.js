@@ -1,9 +1,9 @@
 // Cross-file task list with filters, sort and Buyer / Seller / Agent grouping (Matt, Nov 2). Used by the Tasks page and the Processor's Work Queue.
 // Filtering happens in the browser on what the adapter returned (listAllTasks already applies the person's access). Existing styles only.
 import { html, $, $$, toText, fmtDate, pill, options } from '../ui.js?v=202611161500';
-import { filterTasks, sortTasks, groupTasks, isOverdue, TASK_SORTS, TASK_GROUPS, roleShort } from '../data/task-board.js?v=202611241000';
+import { filterTasks, sortTasks, groupTasks, isOverdue, TASK_SORTS, TASK_GROUPS, roleShort } from '../data/task-board.js?v=202611247700';
 import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
-import { CLS, LABEL } from './dealtasks.js?v=202611242400';
+import { CLS, LABEL } from './dealtasks.js?v=202611289950';
 
 const STATUS_OPTS = [['open', 'Incomplete (to do, started, blocked)'], ['done', 'Completed'], ['blocked', 'Blocked'], ['cancelled', 'Cancelled'], ['all', 'All statuses']];
 const FILE_OPTS = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['Cancelled', 'Cancelled files'], ['All', 'All files']];

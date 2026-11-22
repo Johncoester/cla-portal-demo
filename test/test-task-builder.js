@@ -17,10 +17,10 @@ const aerr = async (p) => { try { await p; return ''; } catch (e) { return e.mes
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 
 // rules
-ok(TRIGGERS.map((t) => t.code).join() === 'order_opened,contract_received,emd_received,emd_not_received,commitment_received,closing_date_set,days_before_closing', 'the starter list of triggers');
+ok(TRIGGERS.map((t) => t.code).join() === 'order_opened,contract_received,emd_received,emd_not_received,commitment_received,closing_date_set,days_before_closing,file_closed', 'the list of triggers (File closed added for TB-7)');
 ok(triggerNeedsDays('emd_not_received') && triggerNeedsDays('days_before_closing') && !triggerNeedsDays('order_opened'), 'only the two day-based triggers need days');
 ok(triggerText('emd_not_received', 2) === 'EMD not received, 2 days after the order was opened' && triggerText('days_before_closing', 1) === 'Days before closing, 1 day before the closing date', 'trigger text reads in plain words');
-ok(/Give the flow a name/.test(err(() => cleanFlow({ name: '  ', trigger: 'order_opened' }))), 'a blank name is refused in plain words');
+ok(/Give the template a name/.test(err(() => cleanFlow({ name: '  ', trigger: 'order_opened' }))), 'a blank name is refused in plain words');
 ok(/too short/.test(err(() => cleanFlow({ name: 'ab', trigger: 'order_opened' }))), 'a two-letter name is refused');
 ok(/Choose what starts/.test(err(() => cleanFlow({ name: 'EMD reminder' }))), 'a missing trigger is refused');
 ok(/not on the list/.test(err(() => cleanFlow({ name: 'EMD reminder', trigger: 'drop table' }))), 'an unknown trigger is refused');
@@ -42,7 +42,7 @@ ok(SECTIONS['task-builder'] === '/task-builder' && routeWs(route) === 'admin', '
 // menu: its own item, not under Task Templates
 const app = read('js/app.js');
 ok(/add\('task-builder', 'Task Builder', '#\/task-builder', 'task'\)/.test(app) && app.includes("if (canOpenTaskSetup(u, demo)) add('task-builder'"), 'Task Builder is its own admin menu item for Admins and Super admins');
-ok(app.includes("'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611221100'))"), 'the page is registered at its stamp');
+ok(app.includes("'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611290700'))"), 'the page is registered at its stamp');
 
 // the mock portal
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
@@ -71,9 +71,12 @@ ok(mine.map((l) => l.action).join() === 'turned off,turned on,changed,created', 
 ok(/2 days after .* now EMD not received, 3 days/.test(mine[2].detail) && mine[3].byName === 'Adam Admin', 'the history says what changed and who did it');
 ok(/not found/.test(await aerr(api.setTaskFlowActive('flow-nope', true))), 'a missing flow gives a plain message');
 
+await api.createTaskFlow({ name: 'Saved salesperson', trigger: 'order_opened', conditions: { salesPeople: ['u-proc'] }, steps: [] });
+
 // the page
 const page = await render({ api, user: { id: 'u-admin', role: 'Super admin', isAdmin: true, status: 'active' }, refresh() {} });
 const body = toText(page.body);
+ok(/Sales: Paula Processor/.test(body) && !/Sales: a sales person no longer active/.test(body), 'a salesperson already saved on a flow keeps their name when they are not in the sales list (FF-092a)');
 ok(page.title === 'Task Builder' && body.includes('data-tb-new') && body.includes('EMD reminder') && body.includes('data-tb-on=') && body.includes('check open files about every 15 minutes') && body.includes('data-tb-run-now') && body.includes('data-tb-runs'), 'the page lists flows with an On / Off switch, Check files now and recent runs');
 ok(/does not exist/.test(await aerr(render({ api, user: user('Processor'), refresh() {} }))), 'the page refuses a Processor');
 ok(/created: <br><span class="muted small" data-tb-log-detail>Starts:/.test(body), 'History keeps a space between the action and its detail (Grok, Nov 14: "createdStarts")');

@@ -28,30 +28,34 @@ async function show() { const app = document.getElementById('app'); const v = aw
 const app = await show();
 app.querySelector('[data-tb-new]').click();
 const m = document.getElementById('modal');
-ok(!!m && !!m.querySelector('[data-tb-steps-box]') && !!m.querySelector('[data-tb-conds]'), 'New flow opens with Which files and Steps');
+ok(!!m && !!m.querySelector('[data-tb-steps-box]') && !!m.querySelector('[data-tb-conds]') && /Template name/.test(m.textContent), 'New template opens with Template name, an optional Limit to certain files, and Steps');
+ok(!m.querySelector('[data-tb-limit]').hasAttribute('open'), 'Limit to certain files starts closed (John, Nov 21)');
 set(m.querySelector('[data-tb-name-input]'), 'EMD reminder');
 set(m.querySelector('[data-tb-trigger-input]'), 'emd_not_received');
 ok(!m.querySelector('[data-tb-days]').hidden, 'EMD not received shows the Days box');
 set(m.querySelector('[data-tb-days-input]'), '2');
 m.querySelector('[data-tb-cond="states"][value="MD"]').checked = true;
 const add = m.querySelector('[data-tb-add-step]');
-add.click(); add.click(); add.click();
-ok(m.querySelectorAll('[data-tb-step]').length === 3, 'three steps added');
+add.click(); add.click();
+ok(m.querySelectorAll('[data-tb-step]').length === 2, 'two steps added');
+ok(![...m.querySelectorAll('[data-tb-step="0"] [data-tb-step-type] option')].some((o) => o.getAttribute('value') === 'wait'), 'there is no separate Wait step to choose (each step has its own When)');
 let s1 = m.querySelector('[data-tb-step="0"]');
 set(s1.querySelector('[data-tb-step-field="title"]'), 'Chase the EMD');
 set(s1.querySelector('[data-tb-step-field="assignTo"]'), 'Buyer Agent');
-set(m.querySelector('[data-tb-step="1"] [data-tb-step-type]'), 'wait');
-set(m.querySelector('[data-tb-step="1"] [data-tb-step-field="days"]'), '1');
-set(m.querySelector('[data-tb-step="2"] [data-tb-step-type]'), 'call_task');
-const s3 = m.querySelector('[data-tb-step="2"]');
+ok(/^2 days after the order opens: create a task for the buyer's agent, due 1 day later\.$/.test(s1.querySelector('[data-tb-step-when]').textContent), 'step 1 reads as a sentence with its timing');
+set(m.querySelector('[data-tb-step="1"] [data-tb-step-type]'), 'call_task');
+const s3 = m.querySelector('[data-tb-step="1"]');
 set(s3.querySelector('[data-tb-step-field="title"]'), 'Call about the EMD');
 set(s3.querySelector('[data-tb-step-field="assignTo"]'), 'Processor');
 set(s3.querySelector('[data-tb-step-field="dueDays"]'), '0');
-// insert "stop if EMD received" before the call: add at the end, move it up once
+set(s3.querySelector('[data-tb-step-at]'), '1');
+ok(/^3 days after the order opens: create a phone call task for the processor, due the same day\.$/.test(m.querySelector('[data-tb-step="1"] [data-tb-step-when]').textContent), 'its When box moves it to a day later, and the sentence says so');
+// "stop if EMD received" before the call, on the same day: add at the end, move it up once
 add.click();
-set(m.querySelector('[data-tb-step="3"] [data-tb-step-type]'), 'stop_if_emd_received');
-m.querySelector('[data-tb-step="3"] [data-tb-step-up]').click();
-ok(m.querySelector('[data-tb-step="2"] [data-tb-step-type]').value === 'stop_if_emd_received' && m.querySelector('[data-tb-step="3"] [data-tb-step-field="title"]').value === 'Call about the EMD', 'moving a step up keeps what was typed');
+set(m.querySelector('[data-tb-step="2"] [data-tb-step-type]'), 'stop_if_emd_received');
+ok(m.querySelector('[data-tb-step="2"] [data-tb-step-at]').value === '1', 'a new step starts on the same day as the one before it');
+m.querySelector('[data-tb-step="2"] [data-tb-step-up]').click();
+ok(m.querySelector('[data-tb-step="1"] [data-tb-step-type]').value === 'stop_if_emd_received' && m.querySelector('[data-tb-step="2"] [data-tb-step-field="title"]').value === 'Call about the EMD', 'moving a step up keeps what was typed');
 ok(m.querySelector('[data-tb-step="0"] [data-tb-step-field="title"]').value === 'Chase the EMD', 'redrawing keeps the first step');
 
 // a mistake: blank the first task name
@@ -59,23 +63,48 @@ set(m.querySelector('[data-tb-step="0"] [data-tb-step-field="title"]'), '');
 fire(m.querySelector('#tbf'), 'submit'); await wait(); await wait();
 const errBox = m.querySelector('[data-tb-err]');
 ok(!errBox.hidden && /Step 1: give the task a name/.test(errBox.textContent) && document.getElementById('modal') === m, 'a blank task name shows "Step 1: give the task a name" and the window stays open');
-ok(m.querySelector('[data-tb-step="3"] [data-tb-step-field="title"]').value === 'Call about the EMD' && m.querySelector('[data-tb-name-input]').value === 'EMD reminder', 'nothing typed is lost');
+ok(m.querySelector('[data-tb-step="2"] [data-tb-step-field="title"]').value === 'Call about the EMD' && m.querySelector('[data-tb-name-input]').value === 'EMD reminder', 'nothing typed is lost');
 set(m.querySelector('[data-tb-step="0"] [data-tb-step-field="title"]'), 'Chase the EMD');
 fire(m.querySelector('#tbf'), 'submit'); await wait(); await wait(); await wait();
 ok(!document.getElementById('modal') && refreshed === 1, 'saving closes the window and refreshes the list');
 const flows = (await api.listTaskFlows()).flows;
 const f = flows.find((x) => x.name === 'EMD reminder');
-ok(f && f.active === false && f.triggerDays === 2 && f.conditions.states.join() === 'MD' && f.steps.map((s) => s.type).join() === 'create_task,wait,stop_if_emd_received,call_task', 'the flow saved Off with its days, state and four steps in order');
+ok(f && f.active === false && f.triggerDays === 2 && f.conditions.states.join() === 'MD' && f.steps.map((s) => s.type).join() === 'create_task,wait,stop_if_emd_received,call_task', 'the template saved Off with its days, state, and the steps in day order with a 1-day Wait between them');
 
 // remove a step while editing
 const app2 = await show();
 app2.querySelector(`[data-tb-edit="${f.id}"]`).click();
 const m2 = document.getElementById('modal');
-ok(m2.querySelectorAll('[data-tb-step]').length === 4 && m2.querySelector('[data-tb-cond="states"][value="MD"]').hasAttribute('checked'), 'Edit opens with the saved steps and states');
-m2.querySelector('[data-tb-step="2"] [data-tb-step-remove]').click();
+ok(m2.querySelectorAll('[data-tb-step]').length === 3 && m2.querySelector('[data-tb-cond="states"][value="MD"]').hasAttribute('checked') && m2.querySelector('[data-tb-limit]').hasAttribute('open'), 'Edit opens with the 3 steps (the Wait shows as days), the state, and Limit open because it is used');
+ok(m2.querySelector('[data-tb-step="2"] [data-tb-step-at]').value === '1', 'the call step shows its day from the saved Wait');
+m2.querySelector('[data-tb-step="1"] [data-tb-step-remove]').click();
 fire(m2.querySelector('#tbf'), 'submit'); await wait(); await wait(); await wait();
 const f2 = (await api.listTaskFlows()).flows.find((x) => x.id === f.id);
 ok(f2.steps.length === 3 && (await api.listTaskFlows()).log.some((l) => l.flowId === f.id && /steps changed \(3\)/.test(l.detail)), 'removing a step saves and shows in the history');
+
+// ---------- Nov 21 (John, by voice): When on each step, Insert field ----------
+const { stepsToActions, actionsToSteps, actionLine } = await import('../js/data/task-builder.js');
+ok(JSON.stringify(actionsToSteps([{ type: 'send_email', at: 2, sendTo: 'Client-Buyer', subject: 'Hi', body: 'Hi' }, { type: 'create_task', at: 0, title: 'Open file', assignTo: 'Processor', dueDays: 1 }]).map((x) => x.type)) === '["create_task","wait","send_email"]', 'saving puts steps in day order with a Wait between days');
+ok(JSON.stringify(stepsToActions([{ type: 'wait', days: 3 }, { type: 'create_task', title: 'A', assignTo: 'Processor', dueDays: 0 }, { type: 'wait', days: 2 }, { type: 'call_task', title: 'B', assignTo: 'Processor', dueDays: 0 }]).map((x) => x.at)) === '[3,5]', 'opening a saved template turns its Waits back into days (templates from before keep working)');
+let msg = ''; try { actionsToSteps([{ type: 'create_task', at: '61', title: 'A', assignTo: 'Processor', dueDays: 0 }]); } catch (e) { msg = e.message; }
+ok(/Step 1: "When" must be a whole number of days from 0 to 60/.test(msg), 'a When of 61 days is refused in plain words');
+ok(actionLine('file_closed', null, { type: 'send_email', at: 2, sendTo: 'Client-Buyer' }) === '2 days after the file closes: email the buyer.' && actionLine('order_opened', null, { type: 'send_email', at: 0, sendTo: 'non_referring_agents' }) === "As soon as the order opens: email the agents who didn't refer the file.", 'each step reads as a sentence');
+const app3 = await show();
+ok(/\+ New template/.test(app3.textContent) && /Templates/.test(app3.textContent), 'the page says templates, not flows');
+app3.querySelector('[data-tb-new]').click();
+const m3 = document.getElementById('modal');
+m3.querySelector('[data-tb-add-step]').click();
+set(m3.querySelector('[data-tb-step="0"] [data-tb-step-type]'), 'send_email');
+const subj = m3.querySelector('[data-tb-step="0"] [data-tb-step-field="subject"]'); const msgBox = m3.querySelector('[data-tb-step="0"] [data-tb-step-field="body"]');
+const ins = m3.querySelector('[data-tb-step="0"] [data-tb-insert]');
+ok(!!ins && [...ins.options].some((o) => o.getAttribute('value') === 'property_address' && /Property address/.test(o.textContent)), 'Insert field lists the fields in plain words');
+msgBox.value = 'Hi , welcome'; msgBox.selectionStart = msgBox.selectionEnd = 3; fire(msgBox, 'focus'); fire(msgBox, 'input');
+ins.value = 'recipient_first_name'; fire(ins, 'change');
+ok(msgBox.value === 'Hi {{recipient_first_name}}, welcome' && ins.value === '', 'choosing a field drops it into the message where the cursor was');
+subj.value = 'Welcome to '; subj.selectionStart = subj.selectionEnd = subj.value.length; fire(subj, 'focus'); fire(subj, 'input');
+ins.value = 'property_address'; fire(ins, 'change');
+ok(subj.value === 'Welcome to {{property_address}}', 'after clicking the subject, the field goes into the subject');
+document.querySelector('#modal [data-close]').click();
 
 console.log(fail ? `${fail} failed` : 'all passed');
 process.exit(fail ? 1 : 0);

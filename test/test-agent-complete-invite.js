@@ -21,17 +21,23 @@ ok(staff.canComplete === true && staff.canTick === true, 'staff can still comple
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-bagent');
 const tasks = await api.listTasks('deal-1');
-const buyerForm = tasks.find((t) => t.forClient && t.assignedRole === 'Client-Buyer' && t.kind === 'form' && t.status !== 'done');
-ok(!!buyerForm && buyerForm.canComplete === false && !buyerForm.canTick, 'the buyer agent sees the client form without a complete control');
-const before = buyerForm.status;
-let refused = '';
-try { await api.saveTaskForm(buyerForm.id, {}, { complete: true }); } catch (e) { refused = e.message; }
-ok(/only complete tasks assigned to you/i.test(refused), 'saving the form as complete is refused');
-const again = (await api.listTasks('deal-1')).find((t) => t.id === buyerForm.id);
-ok(again.status === before, 'the client task status stays unchanged');
+// FF-101a (Francis Nov 18, John confirmed 2:13 PM ET): agents no longer see client tasks on their side.
+// V-4 still refuses completing a client task if one were opened; the list itself is own-tasks only.
+ok(!tasks.some((t) => t.assignedRole === 'Client-Buyer' || t.forClient), 'the buyer agent no longer sees client forms on the file (FF-101a)');
+ok(tasks.some((t) => t.assignedRole === 'Buyer Agent' && t.mine), 'the buyer agent still sees their own tasks');
+const clientFormId = (await (async () => {
+  await api.signInDev('u-proc');
+  const all = await api.listTasks('deal-1');
+  return (all.find((t) => t.assignedRole === 'Client-Buyer' && t.kind === 'form' && t.status !== 'done') || {}).id;
+})());
+ok(!!clientFormId, 'staff can still see a buyer form on the file');
+await api.signInDev('u-bagent');
+let hidden = '';
+try { await api.getTask(clientFormId); } catch (e) { hidden = e.message; }
+ok(/not found/i.test(hidden), 'opening a client task by id is refused for the agent');
 
 await api.signInDev('u-buyer');
-const mine = (await api.listTasks('deal-1')).find((t) => t.id === buyerForm.id);
+const mine = (await api.listTasks('deal-1')).find((t) => t.id === clientFormId);
 ok(mine && mine.mine && mine.canComplete !== false, 'the buyer the task belongs to can still complete it');
 
 const used = await api.getAgentInvite('demo-used-ai-1');
@@ -64,7 +70,7 @@ dest = '';
 const revokedView = await signup.render({ api: { getAgentInvite: async () => ({ status: 'revoked', email: 'old@example.test' }) }, params: { token: 'revoked' }, go(p) { dest = p; } });
 ok(!dest && !revokedView.redirect && /no longer active/i.test(toText(revokedView.body)), 'a revoked invite still says it is no longer active');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-ok(/if \(view && view\.redirect\)/.test(appSrc) && appSrc.includes("import('./pages/agent-signup.js?v=202611211100')"), 'the router leaves for Sign in before drawing a used invite');
+ok(/if \(view && view\.redirect\)/.test(appSrc) && appSrc.includes("import('./pages/agent-signup.js?v=202611249900')"), 'the router leaves for Sign in before drawing a used invite');
 
 console.log(fail ? fail + ' failed' : 'agent complete and invite sign-in passed');
 if (fail) process.exit(1);

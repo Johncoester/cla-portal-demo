@@ -1,7 +1,7 @@
 /* Spouse tab. Loaded only when this tab opens. One getSpouse call, which includes the SSN display. */
 import { html, raw, $, guard, toast } from '../ui.js?v=202611161500';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { phoneOk, PHONE_MSG } from '../data/constants.js?v=202611101015';
+import { phoneOk, PHONE_MSG } from '../data/constants.js?v=202611247700';
 
 /* FF-068 #9 (Janine's Nov 12 video; Francis confirm-back Nov 12 6:14 PM ET): the Social Security number is visible while it is typed and
  * gets its dashes automatically (xxx-xx-xxxx). After saving, only the masked last 4 is shown (the input is cleared). */

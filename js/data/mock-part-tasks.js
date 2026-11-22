@@ -1,13 +1,13 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill } from './templates.js?v=202611221900';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from './templates.js?v=202611247700';
 import { ssnDigits, ssnGrouped, ssnMask, ssnStaff, withoutSsn } from './buyer-ssn.js?v=202611120200';
-import { senderFor } from './email-senders.js?v=202611101015';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611241900';   // Task switch OFF: no new copy (existing copies kept)
-import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611131900';
-import { maskAccount } from './constants.js?v=202611101015';
+import { senderFor } from './email-senders.js?v=202611247700';
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611247700';   // Task switch OFF: no new copy (existing copies kept)
+import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611247700';
+import { maskAccount } from './constants.js?v=202611247700';
 import { taskDueDate } from './due-date.js?v=202611110300';
-import { COMMISSION_TASK_REFUSED } from './agent-fees.js?v=202611222800';
+import { COMMISSION_TASK_REFUSED, AGENT_ROLE_SIDE } from './agent-fees.js?v=202611246500';
 export function tasksAndForms(x) {
   const { load, save, nid, needUser, needAdmin, isManager, dealOr404, onDeal, fileRole, fileRoles, holds, dealsFor, log, prof, nameOf, ownerOf, taskVisible, agentCanFill, formDataVisible, notify, dealProfileIds, folderOf, clone, now, fail, str, dateOrNull, localDate, localDayOf, C } = x;
   const OPEN = ['todo', 'in_progress', 'blocked'];
@@ -34,8 +34,14 @@ export function tasksAndForms(x) {
     const other = rs.length > 1 ? rs.filter((r) => r !== as) : []; return `${nameOf(id)} (${other.length ? `as ${as}; also ${other.join(', ')} on this file` : as})`; };
   const capOf = (byId, ownerId, t) => (byId && byId === ownerId ? t.assignedRole : undefined);   // acting on your own copy = as that copy's role
   // "Completed by Bianca Buyer-Agent (Buyer Agent) on behalf of Ben Buyer" - shown on the task, in the log and to staff.
-  const byLine = (byId, ownerId, dealId, t) => `${who(byId, dealId, t && capOf(byId, ownerId, t))}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
-  const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : ''; o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole));
+  const byLine = (byId, ownerId, dealId, t) => {
+    const behalf = ownerId && x.tcForAgent && x.tcForAgent(byId, ownerId, dealId, t && t.assignedRole);
+    if (behalf) return `${nameOf(byId)} (${behalf.roleLabel}) on behalf of ${nameOf(behalf.agentProfileId)}`;
+    return `${who(byId, dealId, t && capOf(byId, ownerId, t))}${ownerId && byId && byId !== ownerId ? ` on behalf of ${nameOf(ownerId)}` : ''}`;
+  };
+  const out = (u, t) => { const o = clone(t); o.ownerId = ownerOf(t); o.ownerName = o.ownerId ? nameOf(o.ownerId) : '';
+    const behalf = o.ownerId && x.tcForAgent && x.tcForAgent(u.id, o.ownerId, t.dealId, t.assignedRole);
+    o.mine = o.ownerId === u.id || (!t.participantId && holds(u, t.assignedRole)) || !!behalf;
     o.canFill = canFill(u, t); o.forClient = !o.mine && agentCanFill(u, t);
     const clientTask = t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller';
     o.canComplete = !clientTask || isManager(u) || o.mine;
@@ -94,6 +100,16 @@ export function tasksAndForms(x) {
       o.fields = tp ? clone(fieldsOf(t, tp)) : []; o.template = tp ? { id: tp.id, code: tp.code, version: tp.version, title: tp.title } : null;
       if (t.kind === 'sign') o.signature = x.signInfo(u, t);
       if (!o.formHidden) { o.documents = load().documents.filter((z) => z.dealId === t.dealId && o.fields.some((f) => f.type === 'doc' && t.formData[f.k] === z.id)).map((z) => ({ id: z.id, name: z.name })); }
+      // FF-101b: Commission ($) on this form is the Agent fees amount for this side (read-only); total updates with broker fee.
+      if (t.templateCode === 'commissions' && o.fields.some((f) => f.k === 'broker_fee') && !o.formHidden) {
+        const side = AGENT_ROLE_SIDE[t.assignedRole];
+        const fee = side ? (load().agentFees || []).find((z) => z.dealId === t.dealId && z.side === side && z.kind === 'commission') : null;
+        o.commissionFromFees = fee && fee.amount != null ? fee.amount : null;
+        if (o.canFill) {
+          o.formData = { ...o.formData, commission_shown: formatCommissionMoney(moneyAmountOrZero(o.commissionFromFees)),
+            total_commission: totalCommissionAmount(o.commissionFromFees, o.formData.broker_fee) };
+        }
+      }
       return o;
     },
     async createTask(dealId, input) {
@@ -137,6 +153,14 @@ export function tasksAndForms(x) {
       const owner = ownerOf(t); const prevBy = t.savedBy || t.completedBy; const forClient = !!owner && owner !== u.id && agentCanFill(u, t);
       // AF-8: an old page can't put a commission back on the Commission information task (it is an Agent fee)
       if (t.templateCode === 'commissions' && String(r.data.commission_amount || '').trim() && r.data.commission_amount !== (t.formData || {}).commission_amount) fail(COMMISSION_TASK_REFUSED);
+      // FF-101b: Total commission = Agent fees commission (already includes any additional amount) + broker fee. Read-only fields are rewritten here.
+      if (t.templateCode === 'commissions' && fields.some((f) => f.k === 'broker_fee')) {
+        const side = AGENT_ROLE_SIDE[t.assignedRole];
+        const fee = side ? (load().agentFees || []).find((z) => z.dealId === t.dealId && z.side === side && z.kind === 'commission') : null;
+        const commission = fee ? fee.amount : 0;
+        r.data.commission_shown = formatCommissionMoney(moneyAmountOrZero(commission));
+        r.data.total_commission = totalCommissionAmount(commission, r.data.broker_fee);
+      }
       t.formData = r.data; t.savedAt = now(); t.savedBy = u.id;
       // who did it: agent on behalf of the client, or the client correcting answers an agent entered
       const selfRep = fileRoles(u.id, t.dealId).length > 1;   // self-represented: always record the capacity, even on their own copy

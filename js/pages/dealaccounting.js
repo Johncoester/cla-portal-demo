@@ -3,20 +3,30 @@
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import { themeOn } from '../theme.js?v=202611070139';
-import { modOn } from '../data/modules.js?v=202611101015';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611241600';
+import { modOn } from '../data/modules.js?v=202611247700';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611247900';
 import { prorationsView } from './dealaccounting-prorations.js?v=202611241500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611241600'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
-import { brokerageOnFile } from '../data/lender-file.js?v=202611241600';
+import { cdPagesView, cdDetailsView, loanView } from './dealaccounting-cd.js?v=202611289950'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { brokerageOnFile } from '../data/lender-file.js?v=202611247700';
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
-import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611241500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611241500';
-import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611241900';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611242400';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { contractView } from './dealaccounting-contract.js?v=202611223000';
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611243300';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611247900';
+import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611249900';
+import { fwpCanRead } from '../data/funding-wire-policy.js?v=202611070139';
+import { chargesView, paymentSummaryView, aggregateAdjustmentPatch } from './dealaccounting-charges.js?v=202611247900';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { booksHtml } from './dealaccounting-books.js?v=202611242700';
+import { contractView } from './dealaccounting-contract.js?v=202611247700';
 import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
-const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['contract', 'Basic Info'], ['loan', 'Loan'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const BOOK_VIEWS = new Set(['ledger', 'receipts', 'disbursements', 'balances', 'balancing']);
+const BOOK_BLURB = {
+  ledger: 'The fee ledger for this file. These are test figures. They are not a bank record and not a Closing Disclosure.',
+  receipts: 'Money coming into this file, from the test ledger. Nothing here is a deposit at the bank.',
+  disbursements: 'Money going out of this file, from the test ledger. This page does not print a check or send a wire.',
+  balances: 'The book balance for this file, from the test ledger. This is not a balance at the bank.',
+  balancing: 'Whether the money in and the money out on this file match. These are test figures, not a bank reconciliation.',
+};
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,10 +44,18 @@ export async function render({ api, deal: fileDeal, user }) {
   if (view === 'alta' || view === 'cd') deal = await withStatementParties(api, deal);   // the statements name the buyer, seller, lender and agents
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
-  const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user));   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
+  const showFunding = !!((api.features || {}).funding && fwpCanRead(user) && modOn('funding'));
+  const bookTabs = BOOK_VIEWS.has(view) ? html`<nav class="tt-tabs acct-noprint" data-acct-books aria-label="Accounting">${[['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing']].map(([k, label]) => html`<a href="${base}?v=${k}" class="${view === k ? 'active' : ''}" data-nav-acct="${k}">${label}</a>`)}${showFunding ? html`<a href="#/deals/${deal.id}/funding" data-nav-acct="funding">Loan Funding</a>` : ''}</nav>` : '';
   const noLines = !acc.entries.length;
-  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Contract figures</h2>
-      <p class="muted small">TEST contract figures are estimates. They are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger is a separate worksheet and does not copy the order price, deposit, or loan.</p></div>
+  const bookName = BOOK_VIEWS.has(view) ? (VIEWS.find(([k]) => k === view) || [])[1] : '';
+  const sectionTitle = bookName || (VIEWS.find(([k]) => k === view) || ['', 'Accounting'])[1];
+  const sectionNote = bookName ? BOOK_BLURB[view]
+    : view === 'contract'
+      ? 'Sales price, loan amount, closing date, disbursement date, and source of business. These are the order’s figures.'
+      : view === 'loan' ? 'The loan on this file. What you enter here prints on page 1 of the Closing Disclosure.'
+      : 'TEST only. The statements use the fee ledger and the order.';
+  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title" data-acct-title="${view}">${sectionTitle}</h2>
+      <p class="muted small">${sectionNote}</p></div>
     <div class="acct-head-side"><span class="pill warn" data-test-mark>${TEST_MARK}</span>${acc.canEdit ? '' : html`<span class="pill" data-acct-readonly>Read only</span>`}</div></div>`;
   // summary tiles: the classic stat cards, or (card theme, the default look) Loan-Summary style cards: grey card, white inset head with one big baby-blue value.
   // Same data-* hooks either way (data-acct-totals, data-due-buyer, data-due-seller, data-balance, data-balance-diff).
@@ -67,10 +85,13 @@ export async function render({ api, deal: fileDeal, user }) {
   else if (view === 'alta') v = await altaView(api, deal, acc, q, base);
   else if (view === 'cd') v = viewerChrome(await cdPagesView(api, deal, acc, docHead, printBtn, mountPrint), base);
   else if (view === 'cddetails') v = await cdDetailsView(api, deal, acc);
+  else if (view === 'loan') v = await loanView(api, deal);
   else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
+  else if (view === 'receipts' || view === 'disbursements' || view === 'balances' || view === 'balancing') v = { body: booksHtml(view, acc, base) };
   else v = await ledgerView(api, deal, acc, showRetired, base);
-  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell">${nav}<div class="qc-body">${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
+  const pageName = bookName || 'Accounting';
+  return { title: pageName, crumbs: [[pageName]], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell qc-shell-open"><div class="qc-body">${bookTabs}${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------
@@ -157,7 +178,7 @@ function mountLedger(root, api, deal, acc, refresh) {
   $$('[data-prorate]', f).forEach((b) => b.addEventListener('click', () => { el('altaSection').value = 'prorations'; el('cdSection').value = ''; if (b.dataset.prorate === 'advance') { el('from').value = 'buyer'; el('to').value = 'seller'; } else { el('from').value = 'seller'; el('to').value = 'buyer'; } sync(); }));
   if (el('lenderCredit')) el('lenderCredit').addEventListener('change', () => { if (el('lenderCredit').checked) { el('from').value = 'lender'; el('to').value = 'buyer'; el('cdSection').value = ''; if (el('altaSection').value === 'prorations') el('altaSection').value = 'loanCharges'; } });
   const fill = (fee) => { el('kind').value = fee.kind || 'charge'; if (el('lenderCredit')) el('lenderCredit').checked = !!fee.lenderCredit; for (const n of ['description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'note', 'presetKey']) el(n).value = fee[n] ?? '';
-    el('amount').value = fee.amount != null ? Number(fee.amount).toFixed(2) : ''; el('paidBy').value = fee.paidBy || 'buyer'; el('timing').value = fee.timing || 'at'; el('poc').checked = !!fee.poc; el('titlePrefix').checked = !!fee.titlePrefix;
+    el('amount').value = fee.amount != null ? (fee.reduces ? '-' : '') + Number(fee.amount).toFixed(2) : ''; el('paidBy').value = fee.paidBy || 'buyer'; el('timing').value = fee.timing || 'at'; el('poc').checked = !!fee.poc; el('titlePrefix').checked = !!fee.titlePrefix;
     PAYERS.forEach(([k]) => { if (el('split_' + k)) el('split_' + k).value = fee.split && Number(fee.split[k]) ? Number(fee.split[k]).toFixed(2) : ''; });
     if (fee.kind === 'credit') { el('from').value = fee.from || 'seller'; el('to').value = fee.to || 'buyer'; } sync(); };
   $('[data-preset]', f).addEventListener('change', guard(async (e) => { const key = e.target.value; if (!key) return; const p = (await api.listAccountingPresets(deal.id)).find((x) => x.key === key); fill({ ...p.fee }); el('editId').value = ''; toast(p.calculated ? `Filled from CLA rates. It is saved tagged ${CALC_TAG}; changing it before saving marks it overridden.` : 'Preset filled with an EXAMPLE amount. Check it before saving.'); }));
@@ -170,7 +191,10 @@ function mountLedger(root, api, deal, acc, refresh) {
     if (v.kind === 'credit') Object.assign(input, { from: v.from, to: v.to, lenderCredit: !!(el('lenderCredit') && el('lenderCredit').checked) });
     else Object.assign(input, { paidBy: v.paidBy, timing: el('poc').checked ? 'before' : v.timing, poc: el('poc').checked, titlePrefix: el('titlePrefix').checked,
       split: v.paidBy === 'split' ? Object.fromEntries(PAYERS.filter(([k]) => el('split_' + k)).map(([k]) => [k, v['split_' + k]])) : null });
-    try { if (v.editId) { await api.updateAccountingFee(v.editId, input); toast('Fee updated (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Fee added (logged).'); } go(); }
+    try {
+      const line08 = String(v.cdLine || '').trim();
+      if (v.kind !== 'credit' && String(v.cdSection || '').toUpperCase() === 'G' && (line08 === '08' || line08 === '8')) Object.assign(input, aggregateAdjustmentPatch(v.amount), { altaSection: 'impounds', cdSection: 'G', cdLine: '08' });
+      if (v.editId) { await api.updateAccountingFee(v.editId, input); toast('Fee updated (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Fee added (logged).'); } go(); }
     catch (x) { err.textContent = x.message; toast(x.message, 'err'); } });
   sync();
 }
@@ -252,7 +276,7 @@ function mountCalc(root, api, deal, acc, refresh) {
     if (!setup.covered) { panel.innerHTML = toText(html`${rateNoteHtml(setup)}<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
-      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611241600'); const problem = recordingDocsProblem(opts.docs);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611247900'); const problem = recordingDocsProblem(opts.docs);
       $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
       if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
       errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);

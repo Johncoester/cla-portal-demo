@@ -2,8 +2,9 @@
  * The portal invites them and holds the message and the files until they sign in.
  * Pure helpers, plus one function that makes (or finds) the invite through the data layer. Nothing here sends by itself. */
 
-// Only these file roles can be invited to the portal (the same four as File Contacts > Invite to portal).
-export const SHARE_INVITE_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
+// Only these file roles can be invited to the portal (the same roles as File Contacts > Invite to portal).
+// TC-INVITE-1 (John, Nov 20 2026): an agent's transaction coordinator can be invited too.
+export const SHARE_INVITE_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC'];
 
 /* The contact id behind a recipient row when that person has no portal login, or '' when they have one.
  * For CLA staff the recipient list also carries file contacts with an email and no login, by their contact id

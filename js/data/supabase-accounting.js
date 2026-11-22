@@ -3,14 +3,15 @@
  * database switch (private.features 'accounting', off by default; RLS refuses everything while it is off). RLS + triggers enforce the rules
  * (staff only, Sales read-only, no deletes, refinance has no seller side, every change logged in accounting_fee_log). Nothing is sent. */
 // Caroline, Nov 4 (migration 39): prorations, CD details (accounting_cd_details + accounting_cd_log), prepaids / escrow lines, TCs read-only.
-import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611070139';
-import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611241500';
-import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE } from './contract-terms.js?v=202611191700';
-import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611223000';
+import { cleanCdDetails, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA, cdFieldLabel } from './cd-pages.js?v=202611289950';
+import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, cleanFee, allEntries, ledgerTotals, altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration, feeChanges } from './accounting.js?v=202611247900';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractMismatch, assertContractPersisted, exactlyOneRow, ESTIMATE_POSTURE, mergeOtherChargeDetails, otherChargeDetailsChanged } from './contract-terms.js?v=202611247900';
+import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611246500';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
-const engine = () => import('./fee-engine.js?v=202611241600');
-const taxes = () => import('./taxes-fees.js?v=202611242400');
+const engine = () => import('./fee-engine.js?v=202611247900');
+const taxes = () => import('./taxes-fees.js?v=202611247900');
+const remoteRates = () => import('./supabase-tax-rates.js?v=202611247700');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
@@ -37,6 +38,7 @@ export function accountingSupabase({ sb, ok, flags }) {
   };
   const access = async (id) => { const a = ok(await sb.rpc('accounting_access', { p_deal: id })); if (a === 'off') throw new Error(ACCOUNTING_OFF); if (a === 'none') throw new Error(ACCOUNTING_STAFF_ONLY); return a; };
   const fees = async (id) => (ok(await sb.from('accounting_fees').select('*').eq('deal_id', id).order('created_at')) || []).map(fromRow);
+  const taxBundle = async () => { try { return await (await remoteRates()).readTaxBundle(sb); } catch (e) { return null; } };
   const editor = async (id) => { const a = await access(id); if (a !== 'edit') throw new Error(ACCOUNTING_READ_ONLY); return a; };
   const insertCalc = async (E, d, all, line, P, overrides = {}, at = new Date().toISOString()) => {
     if (all.some((f) => !f.retired && isCalculated(f) && f.calc.key === line.key)) throw new Error(`"${line.description}" is already on the ledger from CLA rates. Use "Calculate fees from CLA rates" to update it.`);
@@ -77,11 +79,11 @@ export function accountingSupabase({ sb, ok, flags }) {
       if (retireExamples) for (const x of D.examples) { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', x.id).select('id').single()); r.examplesRetired++; }
       return r; },
     // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
-    async getTaxesFeesSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); return T.taxesFeesSetup(d, await fees(dealId), rates.tables, rates); },
-    async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source); },
+    async getTaxesFeesSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.taxesFeesSetup(d, await fees(dealId), rates.tables, rates, bundle); },
+    async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source, bundle); },
     async applyTaxesFees(dealId, worksheet, { token = null, retireExamples = true } = {}) {
-      on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const all = await fees(dealId); const rates = await E.loadCalculatorRates();
-      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source); const D = T.diffTaxesFees(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
+      on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const all = await fees(dealId); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle();
+      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source, bundle); const D = T.diffTaxesFees(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = new Date().toISOString(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
         if (row.status === 'new') {
@@ -168,6 +170,26 @@ export function accountingSupabase({ sb, ok, flags }) {
       back.fields = overlayEarnestFields(after, back.fields);
       assertContractPersisted({ ...clean, fields: { ...clean.fields, ...earnestFromDeal(after) } }, back);
       return { dealId, saved: true, canEdit: true, posture: ESTIMATE_POSTURE, blocked: '', fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
+    },
+    async saveOtherChargeDetails(dealId, input) {
+      on(); await editor(dealId);
+      let existing;
+      try { existing = ok(await sb.from('accounting_contract_terms').select('*').eq('deal_id', dealId).maybeSingle()); }
+      catch (e) {
+        if (/schema cache|could not find the table|does not exist/i.test(e.message || '')) throw new Error('Warranty, HOA, condo, and deferred figures are not on this database yet. Nothing was saved.');
+        throw e;
+      }
+      const prev = existing ? fromContractRow(existing) : { fields: blankContract(dealId).fields, flags: {} };
+      const clean = mergeOtherChargeDetails(prev, input);
+      if (existing && !otherChargeDetailsChanged(prev, clean)) return { dealId, saved: true, canEdit: true, fields: clean.fields, flags: clean.flags };
+      const payload = toContractRow(clean);
+      const wrote = existing
+        ? ok(await sb.from('accounting_contract_terms').update(payload).eq('deal_id', dealId).select('*'))
+        : ok(await sb.from('accounting_contract_terms').insert({ deal_id: dealId, ...payload }).select('*').single());
+      const row = exactlyOneRow(wrote);
+      const back = fromContractRow(row);
+      if (otherChargeDetailsChanged(clean, back)) throw new Error('Warranty, HOA, condo, and deferred figures were not saved.');
+      return { dealId, saved: true, canEdit: true, fields: back.fields, flags: back.flags, updatedAt: back.updatedAt };
     },
   };
 }

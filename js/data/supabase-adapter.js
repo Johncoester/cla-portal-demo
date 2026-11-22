@@ -1,65 +1,67 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611241000';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611101015';
+import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611247700';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611247700';
 import { textToHtml } from './gmail-email.js?v=202611191000';
-import { agentTcAlreadyMessage, isAgentTcRole } from './agent-tc.js?v=202611241300';
+import { agentTcAlreadyMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611248300';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
-import { assertRecipients, messageText } from './portal-message.js?v=202611241900';
-import { planDocumentBatch } from './document-batch.js?v=202611101015';
+import { assertRecipients, messageText } from './portal-message.js?v=202611247700';
+import { planDocumentBatch } from './document-batch.js?v=202611247700';
 import { featureFlags } from './features.js?v=202611070139';
-import { accountingSupabase } from './supabase-accounting.js?v=202611242400';
-import { payoffsSupabase } from './supabase-payoffs.js?v=202611241600';
-import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611222800';
-import { titleSupabase } from './supabase-title.js?v=202611112200';
+import { accountingSupabase } from './supabase-accounting.js?v=202611289950';
+import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611247700';
+import { payoffsSupabase } from './supabase-payoffs.js?v=202611247900';
+import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611247900';
+import { titleSupabase } from './supabase-title.js?v=202611247700';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
-import { fundingSupabase } from './supabase-funding.js?v=202611241600';
+import { fundingSupabase } from './supabase-funding.js?v=202611247900';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
 import { wiresSupabase } from './supabase-wires.js?v=202611111800';
-import { modulesSupabase } from './supabase-modules.js?v=202611101015';
+import { modulesSupabase } from './supabase-modules.js?v=202611247700';
 import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access
-import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611241900';
-import { callItemsSupabase } from './supabase-callitems.js?v=202611223100';
-import { automationPart } from './automation.js?v=202611101015';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611101015';
-import { crmSupabase } from './supabase-crm.js?v=202611242290';
-import { hrSupabase } from './supabase-hr.js?v=202611100130';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611242010';
-import { officesSupabase } from './supabase-offices.js?v=202611101015';
-import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611221100';   // John, Nov 13: Admin > Task Builder (TB-1)
-import { closingLocationSupabase } from './supabase-closing-location.js?v=202611242210';
-import { tcSupabase } from './supabase-tc.js?v=202611191700';
-import { emailSendersSupabase } from './supabase-email-senders.js?v=202611101015';
-import { gmailSupabase } from './supabase-gmail.js?v=202611140900';
-import { nov5Supabase } from './supabase-nov5.js?v=202611162200';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611241900';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611191600';
-import { staffSupabase } from './supabase-staff.js?v=202611241300';
+import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611247700';
+import { callItemsSupabase } from './supabase-callitems.js?v=202611247900';
+import { automationPart } from './automation.js?v=202611247700';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611247700';
+import { crmSupabase } from './supabase-crm.js?v=202611249700';
+import { hrSupabase } from './supabase-hr.js?v=202611247700';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611247700';
+import { officesSupabase } from './supabase-offices.js?v=202611247700';
+import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611290700';   // John, Nov 13: Admin > Task Builder (TB-1)
+import { closingLocationSupabase } from './supabase-closing-location.js?v=202611247700';
+import { tcSupabase } from './supabase-tc.js?v=202611247700';
+import { emailSendersSupabase } from './supabase-email-senders.js?v=202611247700';
+import { gmailSupabase } from './supabase-gmail.js?v=202611247700';
+import { nov5Supabase } from './supabase-nov5.js?v=202611247700';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611247700';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611249900';
+import { staffSupabase } from './supabase-staff.js?v=202611247700';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
-import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611191800';
-import { CLOSER_STAFF_ROLES } from './closer.js?v=202611101015';
-import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611191800';
+import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
+import { CLOSER_STAFF_ROLES } from './closer.js?v=202611247700';
+import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611247700';
 import { processorFields, missingProcessorIds, nameOfProfile } from './processor-assign.js?v=202611091600';
-import { propertyAddressOf } from './nov5-rules.js?v=202611131900';
-import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611221900';
-import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611191800';
+import { propertyAddressOf } from './nov5-rules.js?v=202611247700';
+import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611269900';
+import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611247700';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES } from './party-task-completion.js?v=202611241000';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
-import { contactInsertRow } from './contact-insert.js?v=202611241600';
+import { contactInsertRow, contactTypeSaveError } from './contact-insert.js?v=202611247700';
+import { existingContactByEmail, isUniqueEmailError, normContactEmail } from './contact-reuse.js?v=202611249950';
 import { assertContactSaved, contactSaveMiss, duplicatePartyMessage, sameParty } from './contact-save.js?v=202611101130';
-import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611241600';
+import { lenderExtras, lenderColumnsTouched, lenderColumnWrite, lossPayeeSuggestions, cleanLenderRole, brokerageContact, brokerageContactError, brokerageWrite, brokerageColumnMiss } from './lender-file.js?v=202611247700';
 import { fileTitleOf } from './party-name.js?v=202611102000';
-import { parcelInput } from './parcels.js?v=202611222100';
-import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611223000';
+import { parcelInput } from './parcels.js?v=202611247700';
+import { earnestDealPatch, earnestTouched } from './earnest-commission.js?v=202611246500';
 import { claRepresentationCode, claRepresentationLabel } from './cla-representation.js?v=202611090950';
 import { withMyAcknowledgements } from './agreement-link.js?v=202611091030';
 import { filterListedDocuments, shapeListedDocument } from './document-list.js?v=202611091030';
 import { nameDocSenders, sendersToLookUp } from './doc-senders.js?v=202611191500';
 import { readThreadPeople, roleText, withThreadPeople } from './portal-threads.js?v=202611162200';
-import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611191100';
+import { ensureShareInvite, waitingParticipant } from './share-invite.js?v=202611249900';
 import { activityFilters, actorList, applyActivityFilters, hasActivityFilter, matchesActivity, withActors } from './activity-filter.js?v=202611162000';
 import { resetRedirect } from './reset-redirect.js?v=202611161900';
 import { authEventAction, carriedReads, gatherReads, identitySlot, mapLimit, navigationReads, profileFlight, speculativeReads } from './read-batch.js?v=202611111200';
@@ -100,7 +102,8 @@ export async function createSupabaseAdapter(cfg) {
   // roles = all I hold there, label = 'Buyer + Buyer's Agent' for an agent buying for themselves. Outside users get the roles/labels across files.
   const loadFileRoles = async () => new Map((ok(await sb.rpc('my_file_roles_full')) || []).map((r) => [r.deal_id, r]));
   const fileRoles = () => sessionCache('roles', loadFileRoles);
-  const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
+  // TC-PROFILE-1: 'Transaction Coordinator' is the label (never a role) for an outside coordinator on a file through their agent
+  const ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller', 'Transaction Coordinator'];
   const sorted = (xs) => [...new Set(xs)].filter((r) => ORDER.includes(r)).sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y));
   // staff only (RPC returns nothing to outside users): "Agent is a party" badge = a client who is also their side's agent on the order
   const loadParties = async () => { const m = new Map(); (ok(await sb.rpc('agent_parties')) || []).forEach((r) => { if (!m.has(r.deal_id)) m.set(r.deal_id, []); m.get(r.deal_id).push({ contactId: r.contact_id, name: r.name, label: r.label }); }); return m; };
@@ -517,7 +520,7 @@ export async function createSupabaseAdapter(cfg) {
     async createDeal(input) {
       // Refinance (John, Nov 3): no purchase price / EMD; migration 32 (private.deal_refi_guard) refuses them, and sellers / realtors / a TC on the file
       const refi = input.transactionType === 'Refinance';
-      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611131900'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
+      if (!String(input.county || '').trim()) { const { autoCounty } = await import('./county-auto.js?v=202611247700'); input = { ...input, county: (await autoCounty(input)).county }; }   // live40: county from the ZIP when left blank (no schema change)
       const { data: { user } } = await sb.auth.getUser();
       const row = { street: input.street, city: input.city, state: String(input.state || '').toUpperCase(), zip: input.zip || '', county: String(input.county || '').trim(), transaction_type: input.transactionType || 'Purchase',
         open_date: input.openDate || officeDate(), closing_date: input.closingDate || null, ...(input.disbursementDate ? { disbursement_date: input.disbursementDate } : {}), purchase_price: refi ? null : moneyAmount(input.purchasePrice), loan_amount: moneyAmount(input.loanAmount),
@@ -591,8 +594,36 @@ export async function createSupabaseAdapter(cfg) {
       if (!saved || !saved.id) throw new Error('Order not found.');
       dropFileReads();
       return a.getDeal(id); },
-    // contacts: unique email (contacts_email_uq); a new contact has no login and no invite is sent
-    async createContact(input) { return camel(ok(await sb.from('contacts').insert(contactInsertRow(input)).select().single())); },
+    // contacts: unique email (contacts_email_uq). An existing email is reused (CONTACT-REUSE-1); no login or invite is sent.
+    async findContactByEmail(email) {
+      const want = normContactEmail(email);
+      if (!want) return null;
+      let rows = [];
+      try { rows = camel(ok(await sb.from('contacts').select('*').eq('email', want))) || []; }
+      catch (e) { rows = []; }
+      let hit = existingContactByEmail(rows, want);
+      if (hit) return hit;
+      try { rows = camel(ok(await sb.rpc('contact_directory', { p_search: want }))) || []; }
+      catch (e) { rows = []; }
+      return existingContactByEmail(rows, want);
+    },
+    async createContact(input) {
+      const row = contactInsertRow(input);
+      const email = normContactEmail(row.email);
+      if (email) {
+        const existing = await a.findContactByEmail(email);
+        if (existing) return existing;
+      }
+      try { return camel(ok(await sb.from('contacts').insert(row).select().single())); }
+      catch (e) {
+        const mapped = contactTypeSaveError(e); if (mapped) throw mapped;
+        if (email && isUniqueEmailError(e)) {
+          const existing = await a.findContactByEmail(email);
+          if (existing) return existing;
+        }
+        throw e;
+      }
+    },
     async updateContact(id, patch) {
       if (!id) throw new Error('This contact was not saved. Nothing was changed.');
       const row = {};
@@ -604,7 +635,7 @@ export async function createSupabaseAdapter(cfg) {
       if (!Object.keys(row).length) throw new Error('Nothing to save on this contact.');
       let saved;
       try { saved = camel(ok(await sb.from('contacts').update(row).eq('id', id).select().single())); }
-      catch (e) { throw contactSaveMiss(e); }
+      catch (e) { const mapped = contactTypeSaveError(e); if (mapped) throw mapped; throw contactSaveMiss(e); }
       if (!saved || !saved.id) throw new Error('This contact was not saved. Nothing was changed.');
       assertContactSaved(patch, saved);
       dropFileReads();
@@ -624,6 +655,15 @@ export async function createSupabaseAdapter(cfg) {
       const contact = camel(ok(await sb.from('contacts').select('id, first_name, last_name, email, company').eq('id', cid).maybeSingle()));
       if (!contact) throw new Error('Contact not found.');
       const onFile = (ok(await sb.rpc('deal_contacts', { p_deal: dealId })) || []).map((r) => ({ role: r.role, contactId: r.contact_id, contact: { id: r.contact_id, firstName: r.first_name, lastName: r.last_name, email: r.email, company: r.company } }));
+      if (isAgentTcRole(role)) {
+        const agentRole = role === 'Listing Agent TC' ? 'Listing Agent' : 'Buyer Agent';
+        const self = selfTcOnOrderProblem(
+          { contactId: contact.id, email: contact.email },
+          onFile.filter((p) => p.role === agentRole).map((p) => ({ contactId: p.contactId, email: p.contact && p.contact.email, role: agentRole })),
+          [role],
+        );
+        if (self) throw new Error(self);
+      }
       if (sameParty(onFile, contact, role)) throw new Error(isAgentTcRole(role) ? agentTcAlreadyMessage(contact, role) : duplicatePartyMessage(contact, role));
       const p = ok(await sb.from('deal_participants').insert({ deal_id: dealId, contact_id: cid, role }).select('id').single());
       if (opts && opts.entity) ok(await sb.rpc('set_participant_entity', { p_participant: p.id, p_entity: opts.entity }));
@@ -665,6 +705,33 @@ export async function createSupabaseAdapter(cfg) {
     async listSalesRepContacts(dealId) { return (ok(await sb.rpc('agent_sales_rep_contacts', { p_deal: dealId })) || []).map((r) => ({ id: r.sales_id, name: r.name, phone: r.work_phone, email: r.work_email })); },
     async setDealSalesPeople(dealId, salesIds) { ok(await sb.rpc('set_deal_sales_people', { p_deal: dealId, p_sales: salesIds })); return (await a.getDeal(dealId)).salesPeople; },
     // contact type (migration 21): contact_directory() / deal_contacts() keep their shape; types come from contact_types(ids)
+    async listAgentTcs(agentContactId) {
+      if (!agentContactId) throw new Error('That person was not found. Pick someone from the list, or enter their name.');
+      return camel(ok(await sb.rpc('agent_tcs', { p_agent: agentContactId }))) || [];
+    },
+    async linkAgentTc(agentContactId, tcContactId) {
+      const id = ok(await sb.rpc('link_agent_tc', { p_agent: agentContactId, p_tc: tcContactId, p_first: '', p_last: '', p_email: '', p_phone: '', p_company: '' }));
+      const rows = await a.listAgentTcs(agentContactId);
+      return rows.find((r) => r.contactId === id) || { contactId: id, agentContactId };
+    },
+    async createAndLinkAgentTc(agentContactId, input = {}) {
+      const id = ok(await sb.rpc('link_agent_tc', {
+        p_agent: agentContactId, p_tc: null, p_first: input.firstName || '', p_last: input.lastName || '',
+        p_email: input.email || '', p_phone: input.phone || '', p_company: input.company || '',
+      }));
+      const rows = await a.listAgentTcs(agentContactId);
+      return rows.find((r) => r.contactId === id) || { contactId: id, agentContactId };
+    },
+    async unlinkAgentTc(agentContactId, tcContactId) {
+      ok(await sb.rpc('unlink_agent_tc', { p_agent: agentContactId, p_tc: tcContactId }));
+      return true;
+    },
+    // TC-ASSIGN-1: the agents a coordinator works with (the coordinator's contact record and User List > Edit user).
+    // Adding or removing from that side uses link_agent_tc / unlink_agent_tc with the agent and the coordinator.
+    async listTcAgents(tcContactId) {
+      if (!tcContactId) throw new Error('That person was not found. Pick someone from the list, or enter their name.');
+      return camel(ok(await sb.rpc('tc_agents', { p_tc: tcContactId }))) || [];
+    },
     async listContacts(search = '') {
       const cs = camel(ok(await sb.rpc('contact_directory', { p_search: search }))) || [];
       const u = await me();
@@ -944,6 +1011,7 @@ export async function createSupabaseAdapter(cfg) {
   Object.assign(a, crmSupabase({ sb, ok, camel, me, flags: a.features }));
   // ACCOUNTING (John, Nov 3; migration 34): only when features.accounting === true (off by default everywhere) AND the database switch is on.
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
+  Object.assign(a, taxRatesSupabase({ sb, me }));
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
   // AGENT FEES (AF-2, John Nov 12): per side commission / admin fee / other fees; the database functions decide who sees and changes what

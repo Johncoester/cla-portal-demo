@@ -2,9 +2,9 @@
  * staff who run the file see and change both sides; an agent sees and changes only their own side; a TC changes the side of an agent on
  * their team (or both sides when they are the file's TC); other CLA staff on the file read both sides; buyers and sellers see nothing.
  * An agent or TC saving confirms the side. Staff need a reason to change a confirmed fee (no re-approval). Every change is logged. FAKE DATA. */
-import { runsOrders } from './constants.js?v=202611101015';
-import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611222800';
-import { cleanFee } from './accounting.js?v=202611241500';
+import { runsOrders } from './constants.js?v=202611247700';
+import { readAgentFees, groupAgentFees, SIDE_LABEL, defaultPayer, agentFeeLedgerInput, ledgerKey, ledgerShape } from './agent-fees.js?v=202611246500';
+import { cleanFee } from './accounting.js?v=202611247900';
 
 export function ensureAgentFees(d) { for (const k of ['agentFees', 'agentFeeLog']) if (!Array.isArray(d[k])) d[k] = []; return d; }
 
@@ -65,7 +65,8 @@ export function agentFeesPart(x) {
     return { sides, fees: groupAgentFees(rows) };
   };
   const jsonOf = (f) => { if (!f) return null; const o = { kind: f.kind, slot: f.slot, amount: f.amount, payer: f.payer };
-    if (f.kind === 'commission') { o.basis = f.basis; o.percent = f.percent; if (f.base) o.base = f.base; if (f.additional) o.additional = f.additional; if (f.payer === 'split') { o.splitBuyer = f.splitBuyer; o.splitSeller = f.splitSeller; } }
+    if (f.kind === 'commission') { o.basis = f.basis; o.percent = f.percent; if (f.base) o.base = f.base; if (f.additional) o.additional = f.additional; }
+    if (f.payer === 'split') { o.splitBuyer = f.splitBuyer; o.splitSeller = f.splitSeller; }
     if (f.kind === 'other') { o.description = f.description; o.paidTo = f.paidTo; } return o; };
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   // AF-5: keep the side's fee-ledger lines in step (one per fee; a removed fee's line is retired; a line changed by hand is left alone)

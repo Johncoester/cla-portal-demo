@@ -1,8 +1,8 @@
 /* In-place settlement edits on a file (MF-011). Fake data only. No network.
  * Date, closer, and signing method use columns that already exist.
  * closingTime is deals.closing_time (HH:MM). Agents are the existing participant rows. */
-import { runsOrders, isRefi, REFI_BLOCKED_ROLES } from './constants.js?v=202611101015';
-import { canManageClosingLocations } from './closing-location.js?v=202611101015';
+import { runsOrders, isRefi, REFI_BLOCKED_ROLES } from './constants.js?v=202611247700';
+import { canManageClosingLocations } from './closing-location.js?v=202611247700';
 
 export const CLOSING_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 

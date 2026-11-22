@@ -5,10 +5,10 @@
  *  * SEARCH RESULT COLUMNS: each person picks the columns of each module's table on the search results page.
  *  * DISBURSEMENT DETAILS on a deal (Admin / Super admin edit; logged).
  * Nothing is deleted: views and saved filters are RETIRED (hidden). Mirrored by migration 56. */
-import { moduleFields, cleanCriteria, applyCriteria, display, SEARCH_COLUMNS, SEARCH_MODULES } from './crm-analytics.js?v=202611242010';
-import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, placeNameColumn, cleanFilterValues, SEARCH_COL_MAX, viewModuleFields, withViewUserIds } from './crm-views.js?v=202611242010';
+import { moduleFields, cleanCriteria, applyCriteria, display, SEARCH_COLUMNS, SEARCH_MODULES, withPresetKeys } from './crm-analytics.js?v=202611247700';
+import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, placeNameColumn, cleanFilterValues, SEARCH_COL_MAX, viewModuleFields, withViewUserIds } from './crm-views.js?v=202611247700';
 import { cleanDisbursement, DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
-import { crmReadOnly } from './crm.js?v=202611130900';
+import { crmReadOnly } from './crm.js?v=202611247700';
 
 export function feedbackNov4Part(x, h) {
   const { save, now, fail, str, nid, nameOf, prof, localDate, clone, C } = x;
@@ -37,7 +37,7 @@ export function feedbackNov4Part(x, h) {
     return { name, visibility: vis, shareUsers: users, logic, criteria, columns, sortField, sortDir };
   }
   const viewOut = (u, v) => ({ id: v.id, module: v.module, name: v.name, ownerId: v.ownerId, ownerName: nameOf(v.ownerId), visibility: v.visibility, shareUsers: [...(v.shareUsers || [])], logic: v.logic,
-    criteria: clone(v.criteria), columns: placeNameColumn(v.module, v.columns), sortField: v.sortField, sortDir: v.sortDir, mine: v.ownerId === u.id, canEdit: editable(u, v), retired: !!v.retiredAt,
+    criteria: withPresetKeys(clone(v.criteria)), columns: placeNameColumn(v.module, v.columns), sortField: v.sortField, sortDir: v.sortDir, mine: v.ownerId === u.id, canEdit: editable(u, v), retired: !!v.retiredAt,
     pinned: db().crmViewPins.some((p) => p.userId === u.id && p.viewId === v.id), createdAt: v.createdAt, modifiedAt: v.modifiedAt });
   const cellOf = (f, r, cfg) => ({ text: display(f, r, cfg), link: f.link && !f.encrypted ? r[f.link] || '' : '' });
 

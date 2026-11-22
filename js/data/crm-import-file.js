@@ -1,6 +1,6 @@
 /* File checks for the CRM import screens. FAKE DATA ONLY. Nothing here talks to the network.
  * The size and row limits live in crm-janine.js. Messages stay on the upload card until another file is chosen. */
-import { IMPORT_MAX_BYTES, IMPORT_MAX_ROWS, importTooBigMessage, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS } from './crm-janine.js?v=202611101600';
+import { IMPORT_MAX_BYTES, IMPORT_MAX_ROWS, importTooBigMessage, guessMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS } from './crm-janine.js?v=202611247700';
 
 const CSV_MIME = new Set(['text/csv', 'application/csv', 'text/comma-separated-values']);
 const EXCEL_MIME = new Set(['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);

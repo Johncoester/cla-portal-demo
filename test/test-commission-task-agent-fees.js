@@ -53,7 +53,10 @@ ok(seeded.fees.listing && seeded.fees.listing.commission && seeded.fees.listing.
   'the sample file shows the listing agent\'s $14,550 from their Commission information task, confirmed');
 const tasks = await api.listTasks('deal-1');
 const open = tasks.find((t) => t.templateCode === 'commissions' && t.status !== 'done');
-ok(open && open.templateVersion === 2, 'an open Commission information task on the sample file is on the new version');
+// FF-101b added commissions v3 (broker fee + payout) on top of AF-8's v2. Open copies now land on v3, which still has no commission_amount.
+const openDetail = open ? await api.getTask(open.id) : null;
+ok(open && open.templateVersion >= 2 && openDetail && !openDetail.fields.some((f) => f.k === 'commission_amount'),
+  'an open Commission information task on the sample file is on v2+ (no typed commission amount)');
 await api.signInDev('u-lagent');
 const done = (await api.listTasks('deal-1')).find((t) => t.templateCode === 'commissions' && t.status === 'done' && t.assignedRole === 'Listing Agent');
 let refused = '';
@@ -61,8 +64,12 @@ try { await api.saveTaskForm(done.id, { ...done.formData, commission_amount: '99
 ok(refused === COMMISSION_TASK_REFUSED, 'an old page that sends a new commission on the task is refused with a plain message');
 
 const sql = readFileSync(new URL('../supabase/migrations/20261123010000_commission_task_agent_fees.sql', import.meta.url), 'utf8');
-ok(sql.includes("private.agent_fee_sync(r.purchase_price, 'amount'") && sql.includes("'agent'") && sql.includes('tasks_commission_task_guard') && sql.includes(COMMISSION_TASK_REFUSED),
-  'the database file uses the same rules and the same message');
+ok(sql.includes("private.agent_fee_sync(r.purchase_price, 'amount'") && sql.includes("'agent'") && sql.includes('tasks_commission_task_guard'),
+  'the AF-8 database file moves a saved commission into Agent fees and guards the task');
+// FF-101c: location wording moved to Tasks; the follow-up migration keeps the same refusal text as COMMISSION_TASK_REFUSED
+const loc = readFileSync(new URL('../supabase/migrations/20261125260000_ff101c_agent_fees_tasks_location.sql', import.meta.url), 'utf8');
+ok(loc.includes(COMMISSION_TASK_REFUSED) && loc.includes('deal_old_commission_guard') && loc.includes('agent task section on Tasks'),
+  'the FF-101c database file uses the same refusal message and points to Tasks');
 
 console.log(fail ? fail + ' failed' : 'commission task agent fees passed');
 if (fail) process.exit(1);

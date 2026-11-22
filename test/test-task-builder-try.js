@@ -77,7 +77,7 @@ ok(!m.querySelector('[data-tb-scope-pick]') && /orders placed from now on/.test(
 document.querySelector('#modal [data-close]').click();
 app.querySelector(`[data-tb-try="${opened.id}"]`).click(); await settle();
 m = document.getElementById('modal');
-ok(!!m && m.querySelectorAll('[data-tb-try-file] option').length > 1 && /even while the flow is Off/.test(m.textContent), 'Try on one file lists open files and explains what it does');
+ok(!!m && m.querySelectorAll('[data-tb-try-file] option').length > 1 && /even while the template is Off/.test(m.textContent), 'Try on one file lists open files and explains what it does');
 fire(m.querySelector('#tbtry'), 'submit'); await settle();
 ok(!m.querySelector('[data-tb-try-err]').hidden && /Choose a file/.test(m.querySelector('[data-tb-try-err]').textContent), 'running with no file chosen says to choose one');
 m.querySelector('[data-tb-try-file]').value = 'deal-2';

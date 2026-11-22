@@ -19,7 +19,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const src = readFileSync('js/pages/dealcontacts.js', 'utf8');
 ok(/onCreate:\s*quickCreate/.test(src), 'dealcontacts wires picker onCreate');
-ok(/allowCreate:\s*\(\)\s*=>\s*!isTc\(\)/.test(src), 'dealcontacts hides inline create for Transaction Coordinator');
+ok(!/allowCreate:\s*\(\)\s*=>\s*!isTc\(\)/.test(src) && !src.includes('data-tc-note'), 'Add contact no longer hides create for a staff Transaction Coordinator');
 ok(/splitPersonName/.test(src), 'dealcontacts imports splitPersonName');
 ok(/Add "…" as a new person/.test(src) || /Add "\u2026" as a new person/.test(src) || /as a new person/.test(src), 'dealcontacts tells staff about inline create');
 
@@ -75,18 +75,17 @@ q.dispatchEvent(new window.Event('input'));
 await wait(10);
 ok(!!root.querySelector('li[data-create]') && /new lender/.test(root.querySelector('li[data-create]').textContent), 'lender role uses lender create verb');
 
-// TC: no inline create
-role = 'Transaction Coordinator';
+// The old staff role is not a choice, so typing a new name still offers create for the roles that remain.
+role = 'Buyer Agent';
 q.value = 'Nobody Here';
 q.dispatchEvent(new window.Event('input'));
 await wait(10);
-ok(!root.querySelector('li[data-create]') && /Pick someone from the list/.test(root.querySelector('li[data-none]')?.textContent || ''), 'TC role offers no inline create');
+ok(!!root.querySelector('li[data-create]') && /new person/.test(root.querySelector('li[data-create]').textContent), 'a coordinator-side role still offers inline create');
 
-// allowCreate gate unit
 ok(matchPeople([{ id: '1', firstName: 'Ann', lastName: 'Buyer', email: '', company: '' }], 'Zzz').length === 0, 'unknown name has no match');
 
-ok(src.includes("tcIds.add('staff:' + t.profileId)") && src.includes('isTcPick'), 'dealcontacts TC list includes staff logins that have no contact row');
-ok(src.includes('Any active staff login can be the Transaction Coordinator') && !src.includes('Only users with the Transaction Coordinator account role'), 'dealcontacts TC note allows any active staff login');
+ok(!src.includes("tcIds.add('staff:' + t.profileId)") && !src.includes('isTcPick') && src.includes('rolesForNewContact'), 'Add contact does not build a staff-only Transaction Coordinator list');
+ok(!src.includes('Any active staff login can be the Transaction Coordinator') && src.includes('agentTcChoiceLabel') && src.includes('Which agent are they linked to?'), 'Add contact names the outside coordinator, not a staff login');
 
 // John, 3:11 PM ET Nov 13 video: two John Coesters, one staff login and one realtor contact
 const staffJohn = { id: 'staff:u-john', profileId: 'u-john', firstName: 'John', lastName: 'Coester', email: 'jcoester@clatitle.com', accountRole: 'Super admin' };
