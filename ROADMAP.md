@@ -3040,3 +3040,33 @@ This file lists the portal's major features: how each one should work, how far a
 - Sales Team is not added by role. Inactive users stay off the list.
 - Cache stamp 202611289970, above main's 202611289960, so a saved copy of the shell is not reused.
 
+---
+
+## Custom view checkboxes and mass actions (F37)
+
+**How it should work.** A custom view on Leads, Clients, Companies, or Deals has the same row checkboxes as that module's All list: one in the header for the page, and one on each row. The selection bar and the mass actions are the same ones (Update a field, Email, Change owner or Change salesperson, Create task, and Select all matching when the page is not the whole list). They act on the rows in that view, including the search on the view. A salesperson still changes only records they own, and the result says how many were saved and how many were skipped. The checkbox is not a column they can choose or drag.
+
+**Status: In progress.** Tracker F37, row 417. Janine Santos, Feedback 37 video, confirmed Nov 20, 2026, 12:40 PM ET ("yes, that's it"). No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- The custom view list uses the All list's selection bar and mass actions.
+- Select all matching uses the rows that match the view, including the search typed on the view.
+- Saved column order still shows. The checkbox stays in front and is not in Choose Columns.
+
+**What's still missing**
+
+- A check on TEST after merge. Do not mark Live before that.
+- Update a field on Deals is still Notes, the same as All Deals. Closing date is not a mass-update field there.
+
+**Links**
+
+- Spec: [docs/specs/crm-view-bulk.md](docs/specs/crm-view-bulk.md)
+- Source: Janine Santos, Feedback 37 video, and her Nov 20, 2026, 12:40 PM ET "yes, that's it". Tracker F37, row 417.
+
+**Decisions**
+
+- No database file. The existing mass update and mass email already accept the ids of the rows to change. A view's criteria are not the All list's filters, so Select all matching sends those ids, one page at a time, instead of asking for a new database function.
+- The checkbox is not stored as a column, so the drag order from the column chooser is unchanged.
+- Cache stamp 202611290610, above main's 202611290600, so a saved copy of the shell is not reused.
+

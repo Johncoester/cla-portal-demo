@@ -109,8 +109,10 @@ for (const [module, label] of MODULES) {
   const shown = await viewPage({ api, me, cfg, owners, params: { id } });
   root.innerHTML = toText(shown.body);
   shown.mount(root);
-  const heads = [...root.querySelectorAll('thead th')].map((th) => th.dataset.sort);
-  ok(heads.join() === stored.columns.join(), label + ' the view list shows the saved column order');
+  const heads = [...root.querySelectorAll('thead th[data-sort]')].map((th) => th.dataset.sort);
+  const check = root.querySelector('thead [data-bulk-page]');
+  const checkTh = check && check.closest('th');
+  ok(check && checkTh && !checkTh.dataset.sort && !checkTh.dataset.col && checkTh.getAttribute('draggable') !== 'true' && heads.join() === stored.columns.join(), label + ' the view list shows the saved column order, with a checkbox that is not a column');
 }
 
 const edited = await api.createCrmView({ module: 'contacts', name: 'Edit drag', columns: ['ownerId', 'name', 'email'], criteria: [], pin: false });

@@ -98,10 +98,11 @@ for (const [module, label, extra] of MODULES) {
   const shown = await viewPage({ api, me, cfg, owners, params: { id } });
   root.innerHTML = toText(shown.body);
   shown.mount(root);
-  const heads = [...root.querySelectorAll('thead th')].map((th) => th.dataset.sort);
+  const heads = [...root.querySelectorAll('thead th[data-sort]')].map((th) => th.dataset.sort);
+  const check = root.querySelector('thead [data-bulk-page]');
   const nameCell = root.querySelector('tbody td[data-col="name"] a');
   const rowId = (root.querySelector('tbody tr[data-row]') || {}).dataset;
-  ok(heads[0] === 'ownerId' && heads.includes('name') && nameCell && rowId && nameCell.getAttribute('href').includes('/' + rowId.row), label + ' rendered list puts the owner first and the name still opens the record');
+  ok(check && !check.closest('th').dataset.sort && heads[0] === 'ownerId' && heads.includes('name') && nameCell && rowId && nameCell.getAttribute('href').includes('/' + rowId.row), label + ' rendered list puts the owner first, the checkbox is not a column, and the name still opens the record');
 }
 
 const raw = JSON.parse(store.getItem(STORAGE_KEY));
