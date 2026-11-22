@@ -13,7 +13,7 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved file template or a written message, with merge fields) and the "File closed"
  * trigger. Emails are queued in the outbox; a test run sends the email only to the admin trying it. */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611281200';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611290700';
 import { renderFlowEmail, testCopy, emailRecipients, emailRoleName } from './flow-email.js?v=202611281200';
 import { SEED_SHARED } from './file-email-templates.js?v=202611247700';
 import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';

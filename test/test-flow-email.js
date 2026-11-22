@@ -82,16 +82,16 @@ const v = await render({ api, user, refresh() {} }); app.innerHTML = toText(v.bo
 app.querySelector(`[data-tb-on="${f.id}"]`) || app.querySelector(`[data-tb-off="${f.id}"]`).click();
 app.querySelector(`[data-tb-edit="${f.id}"]`).click(); await settle();
 const m = document.getElementById('modal');
-const box = m.querySelector('[data-tb-step="1"]');
-ok(!!box.querySelector('[data-tb-email-tpl]') && !!box.querySelector('[data-tb-step-field="subject"]') && !!box.querySelector('[data-tb-step-field="body"]') && /\{\{buyer_first_name\}\}/.test(box.querySelector('[data-tb-merge-list]').textContent), 'a written email shows subject, message and the merge fields');
-ok(!m.querySelector('[data-tb-step="2"] [data-tb-step-field="subject"]') && m.querySelector('[data-tb-step="2"] [data-tb-email-tpl]').value === tpls[0].id, 'a template step shows the template, not the boxes');
+const box = m.querySelector('[data-tb-step="0"]');
+ok(!!box.querySelector('[data-tb-email-tpl]') && !!box.querySelector('[data-tb-step-field="subject"]') && !!box.querySelector('[data-tb-step-field="body"]') && [...box.querySelectorAll('[data-tb-insert] option')].some((o) => o.getAttribute('value') === 'buyer_first_name'), 'a written email shows subject, message and an Insert field list');
+ok(!m.querySelector('[data-tb-step="1"] [data-tb-step-field="subject"]') && m.querySelector('[data-tb-step="1"] [data-tb-email-tpl]').value === tpls[0].id, 'a template step shows the template, not the boxes');
 const sel = box.querySelector('[data-tb-email-tpl]'); sel.value = tpls[0].id; fire(sel, 'change');
-ok(!m.querySelector('[data-tb-step="1"] [data-tb-step-field="subject"]'), 'choosing a template hides the subject and message');
-const sel2 = m.querySelector('[data-tb-step="1"] [data-tb-email-tpl]'); sel2.value = ''; fire(sel2, 'change');
-const body = m.querySelector('[data-tb-step="1"] [data-tb-step-field="body"]'); body.value = 'Hi {{nickname}}'; fire(body, 'input');
+ok(!m.querySelector('[data-tb-step="0"] [data-tb-step-field="subject"]'), 'choosing a template hides the subject and message');
+const sel2 = m.querySelector('[data-tb-step="0"] [data-tb-email-tpl]'); sel2.value = ''; fire(sel2, 'change');
+const body = m.querySelector('[data-tb-step="0"] [data-tb-step-field="body"]'); body.value = 'Hi {{nickname}}'; fire(body, 'input');
 fire(m.querySelector('#tbf'), 'submit'); await settle();
 const errBox = m.querySelector('[data-tb-err]');
-ok(!errBox.hidden && /Step 2: \{\{nickname\}\} is not a merge field/.test(errBox.textContent) && !!document.getElementById('modal'), 'a wrong merge field is caught before saving and the window stays open');
+ok(!errBox.hidden && /Step 1: \{\{nickname\}\} is not a merge field/.test(errBox.textContent) && !!document.getElementById('modal'), 'a wrong merge field is caught before saving and the window stays open');
 
 
 // ---------- Nov 21 (John): intro email to the agents who didn't refer the file; plain timing; every staff member as sales person ----------
@@ -140,9 +140,9 @@ ok(stepTimeline('file_closed', null, [{ type: 'wait', days: 2 }, { type: 'send_e
   ok(shown.length === 1 && /King John/.test(shown[0]), 'typing a name narrows the list');
   const trig = m3.querySelector('[data-tb-trigger-input]'); trig.value = 'order_opened'; trig.dispatchEvent(new window.Event('change', { bubbles: true }));
   const addB = m3.querySelector('[data-tb-add-step]'); addB.click(); addB.click();
-  const w = m3.querySelector('[data-tb-step="0"] [data-tb-step-type]'); w.value = 'wait'; w.dispatchEvent(new window.Event('change', { bubbles: true }));
-  const wd = m3.querySelector('[data-tb-step="0"] [data-tb-step-field="days"]'); wd.value = '2'; wd.dispatchEvent(new window.Event('input', { bubbles: true }));
-  ok(/2 days after the order opens: create this task, due 1 day later\./.test(m3.querySelector('[data-tb-step="1"] [data-tb-step-when]').textContent), 'the second step says "2 days after the order opens: create this task, due 1 day later"');
+  const at1 = m3.querySelector('[data-tb-step="1"] [data-tb-step-at]'); at1.value = '2'; at1.dispatchEvent(new window.Event('input', { bubbles: true }));
+  ok(/^2 days after the order opens: create a task for someone \(choose who below\), due 1 day later\.$/.test(m3.querySelector('[data-tb-step="1"] [data-tb-step-when]').textContent), 'the second step says "2 days after the order opens: create a task ..., due 1 day later"');
+  ok(/days after it starts \(2 days after the order opens\)/.test(m3.querySelector('[data-tb-step="1"] [data-tb-at-hint]').textContent), 'the When box says what its number means');
   const dd = m3.querySelector('[data-tb-step="1"] [data-tb-step-field="dueDays"]'); dd.value = '0'; dd.dispatchEvent(new window.Event('input', { bubbles: true }));
   ok(/due the same day/.test(m3.querySelector('[data-tb-step="1"] [data-tb-step-when]').textContent) && /Due \(days after it's created\)/.test(m3.querySelector('[data-tb-step="1"]').textContent), 'the line updates as you type, and the due box says days after it is created');
   const em = m3.querySelector('[data-tb-step="1"] [data-tb-step-type]'); em.value = 'send_email'; em.dispatchEvent(new window.Event('change', { bubbles: true }));
