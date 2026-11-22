@@ -45,7 +45,7 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611249900')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611290300')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611290900')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611248300')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611289950')),
@@ -117,7 +117,7 @@ export function savedFileReturn() {
   try { sessionStorage.removeItem(RETURN_KEY); } catch (e) { /* already gone */ }
   return /^#\/deals\/[\w-]+(\/[\w-]+)?$/.test(back) ? back : '';
 }
-export const dashLabel = (u) => isClientOnlyUser(u) ? 'Open Orders' : u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Preprocessor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
+export const dashLabel = (u) => isClientOnlyUser(u) ? 'Open Orders' : u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Preprocessor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'Dashboard' }[u.role]);
 
 // HR workspace menu (data/hr.js decides who gets what): HR managers / Super admins the Zoho-style sections, everyone else My profile (+ My team)
 export function hrNavFor(u) {

@@ -24,7 +24,7 @@ await api.signInDev(login.id);
 const user = await api.getMyProfile();
 const page = await render({ api, user });
 const out = String(page.body);
-ok(page.title === 'My files', 'an outside user still lands on My files');
+ok(page.title === 'Dashboard', 'an outside user lands on the Dashboard (renamed from My files, John Nov 22 2026)');
 ok(out.includes('data-dash-stats') && out.includes('Tasks for you') && out.includes('Overdue'), 'the dashboard opens with the task and file counts');
 const tasksTable = out.slice(out.indexOf('data-dash-tasks'), out.indexOf('</table>', out.indexOf('data-dash-tasks')));
 ok(out.includes('class="tbl striped" data-dash-tasks') || !out.includes('data-dash-tasks'), 'outstanding tasks use the Open Orders table style (tbl striped)');
@@ -54,6 +54,8 @@ const g = outsideTaskGroups(deals, all);
 ok(g.length === 1 && g[0].deal.id === 'a' && g[0].tasks.map((t) => t.id).join() === '2,1' && g[0].deal.myRoleLabel === 'Transaction Coordinator', 'tasks are grouped by file, earliest due first, and take the file\'s role');
 
 const src = readFileSync(new URL('../js/pages/dashboard.js', import.meta.url), 'utf8');
+const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+ok(appSrc.includes("'Outside user': 'Dashboard'") && !appSrc.includes("'Outside user': 'My Files'") && out.includes('<h2 class="page-title">Dashboard</h2>') && !/MY FILES|>My files</.test(out.slice(0, out.indexOf('data-dash-stats'))), 'the menu item and page heading say Dashboard, not My Files (John, Nov 22 2026)');
 ok(DASH_FEE_FILES <= 12 && src.includes('feeFiles.slice(0, DASH_FEE_FILES)'), 'speed: commission reads are capped and run after the page is drawn');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
