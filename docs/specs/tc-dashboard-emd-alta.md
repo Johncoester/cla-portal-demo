@@ -37,6 +37,6 @@ No extra list query. EMD fields are added to the dashboard's existing open-file 
 
 ## What's not in this item
 
-- Renaming My files to Dashboard (separate item).
+- The home is called Dashboard (PR 408, merged).
 - ALTA sign-off or "ready to send to the client."
 - Alerts when an EMD receipt comes in, or when ALTA is marked received.

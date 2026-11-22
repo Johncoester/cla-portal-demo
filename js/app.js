@@ -117,7 +117,7 @@ export function savedFileReturn() {
   try { sessionStorage.removeItem(RETURN_KEY); } catch (e) { /* already gone */ }
   return /^#\/deals\/[\w-]+(\/[\w-]+)?$/.test(back) ? back : '';
 }
-export const dashLabel = (u) => isClientOnlyUser(u) ? 'Open Orders' : u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Preprocessor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'My Files' }[u.role]);
+export const dashLabel = (u) => isClientOnlyUser(u) ? 'Open Orders' : u.isAdmin ? 'Admin' : ({ 'Processor': 'Work Queue', 'Preprocessor': 'Work Queue', 'Sales Person': 'Team Dashboard', 'Sales Team': 'Team Dashboard', 'Transaction Coordinator': 'Dashboard', 'Buyer Agent': 'Transactions', 'Listing Agent': 'Transactions', 'Client-Buyer': 'My Closing', 'Client-Seller': 'My Closing', 'Outside user': 'Dashboard' }[u.role]);
 
 // HR workspace menu (data/hr.js decides who gets what): HR managers / Super admins the Zoho-style sections, everyone else My profile (+ My team)
 export function hrNavFor(u) {

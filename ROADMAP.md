@@ -1429,6 +1429,31 @@ This file lists the portal's major features: how each one should work, how far a
 - Removing a link takes nobody off a file. A CLA staff login is never linked. A coordinator placed by a link is not linked onward to other agents on that file.
 - Spec: [docs/specs/tc-assign-agents.md](docs/specs/tc-assign-agents.md).
 
+## TC portal home is called Dashboard (TC-DASHBOARD-LABEL-1)
+
+**How it should work.** For an outside user (the login a transaction coordinator gets), the left-menu item and the home page are called **Dashboard**, not "My Files". The page is the TC dashboard built in TC-DASHBOARD-1 (PR 402). Only the name changes.
+
+**Status: In review.** John Coester, chat, Nov 22 2026, 1:21 PM ET: "my files should be called Dashboard". Tracker item TC-DASHBOARD-LABEL-1. No database file.
+
+**What's built**
+
+- Menu item, page title, eyebrow and heading say Dashboard for the Outside user role. The route (`#/dashboard`) is unchanged.
+- Other roles keep their own names: CLA staff Transaction Coordinator was already Dashboard; agents keep Transactions; clients keep Open Orders (no home page); Processor and Preprocessor keep Work Queue; Sales keep Team Dashboard; admins keep Admin.
+
+**What's still missing**
+
+- Nothing for this item.
+
+**Links**
+
+- Pull request: [PR 408](https://github.com/Johncoester/cla-portal-demo/pull/408)
+
+**Decisions**
+
+- Only the visible name changes; the route and internal ids stay the same (John, Nov 22 2026).
+
+---
+
 ## Reuse a contact by email (CONTACT-REUSE-1)
 
 **How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
@@ -3179,7 +3204,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - A check on TEST after merge, with a fake TC login and at least one overdue EMD and one file closing within 2 days. Do not mark Live before that.
 - The ALTA card does not use `alta_received` and does not add a TC sign-off or "ready to send to the client" step. Those were later asks from the Nov 20 TC feedback and are not in this item.
-- The My files heading and nav label are unchanged here; renaming them to Dashboard is a separate item.
+- The home is called Dashboard (TC-DASHBOARD-LABEL-1, [PR 408](https://github.com/Johncoester/cla-portal-demo/pull/408), merged Nov 22 2026).
 
 **Links**
 

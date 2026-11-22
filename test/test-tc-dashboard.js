@@ -55,7 +55,7 @@ await api.signInDev(login.id);
 const user = await api.getMyProfile();
 const page = await render({ api, user });
 const out = String(page.body);
-ok(page.title === 'My files', 'an outside user still lands on My files');
+ok(page.title === 'Dashboard', 'an outside user lands on the Dashboard (renamed from My files, John Nov 22 2026)');
 ok(out.includes('data-dash-stats') && out.includes('Tasks for you') && out.includes('Overdue'), 'the dashboard opens with the task and file counts');
 ok(out.includes('data-my-tasks') && out.includes('Outstanding tasks') && out.includes('File overview'), 'outstanding tasks and file overview stay on the dashboard');
 const tasksTable = out.slice(out.indexOf('data-dash-tasks'), out.indexOf('</table>', out.indexOf('data-dash-tasks')));
@@ -104,8 +104,9 @@ const g = outsideTaskGroups(deals, all);
 ok(g.length === 1 && g[0].deal.id === 'a' && g[0].tasks.map((t) => t.id).join() === '2,1' && g[0].deal.myRoleLabel === 'Transaction Coordinator', 'tasks are grouped by file, earliest due first, and take the file\'s role');
 
 const src = readFileSync(new URL('../js/pages/dashboard.js', import.meta.url), 'utf8');
+const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+ok(appSrc.includes("'Outside user': 'Dashboard'") && !appSrc.includes("'Outside user': 'My Files'") && out.includes('<h2 class="page-title">Dashboard</h2>') && !/MY FILES|>My files</.test(out.slice(0, out.indexOf('data-dash-stats'))), 'the menu item and page heading say Dashboard, not My Files (John, Nov 22 2026)');
 ok(DASH_FEE_FILES <= 12 && src.includes('feeFiles.slice(0, DASH_FEE_FILES)'), 'speed: fee reads are capped and run after the page is drawn');
-ok(src.includes("title: 'My files'") && !/My Files should be called Dashboard/i.test(src), 'this change does not rename the My files heading (that is a separate item)');
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('all ok');

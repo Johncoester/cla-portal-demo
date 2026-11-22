@@ -172,7 +172,7 @@ export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo',
       <td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td>
       <td data-my-task-role>${t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
       : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
-// TC-DASHBOARD-1 (John, Nov 21 2026: "this layout looks horrible"): the My Files home is a dashboard in the Open Orders table look.
+// TC-DASHBOARD-1 (John, Nov 21 2026: "this layout looks horrible"): the outside user's home (named Dashboard since John, Nov 22 2026: "my files should be called Dashboard") is a dashboard in the Open Orders table look.
 // Outstanding tasks are grouped by file (File No, Property Address and Your Role each in their own column, once per file), then a file
 // overview with Stage, Closing Date, tasks for you and, for the agent side only, the commission. Clients' "What we need from you" stays.
 const TC_LABEL = 'Transaction Coordinator';
@@ -224,7 +224,7 @@ async function outside({ api, deals, all, today }) {
   const clientFiles = open.filter((d) => isClient(groupOf(d) || ''));
   const emdRows = outstandingEmds(open, today);
   const altaRows = altaReviewNeeded(open, today);
-  const body = html`<div class="page-head"><div><div class="eyebrow">MY FILES</div><h2 class="page-title">My files</h2><div class="muted">${open.length} open file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
+  const body = html`<div class="page-head"><div><div class="eyebrow">DASHBOARD</div><h2 class="page-title">Dashboard</h2><div class="muted">${open.length} open file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
     <div class="stat-row" data-dash-stats>${stat('Open files', open.length, html`<a href="#/orders?s=Open">Open Orders</a>`)}${stat('Tasks for you', taskCount, `on ${groups.length} file(s)`, taskCount ? 'warn' : '')}${stat('Overdue', overdue, 'past their due date', overdue ? 'bad' : '')}${stat('Closing soon', closing, 'in the next 14 days')}</div>
     <div class="box-title"><h3 data-my-tasks>Outstanding tasks <span class="muted small" data-my-tasks-count>${taskCount} task(s) on ${groups.length} file(s)</span></h3></div>
     ${taskCount ? html`<table class="tbl striped" data-dash-tasks><thead><tr><th>File No</th><th>Property Address</th><th>Your Role</th><th>Task</th><th>Due</th></tr></thead><tbody>${taskRows(groups, today)}</tbody></table>`
@@ -251,7 +251,7 @@ async function outside({ api, deals, all, today }) {
         ${showFees ? html`<td data-commission="${feeSideOf(d) ? d.id : ''}">${feeSideOf(d) ? html`<span class="muted small">Loading...</span>` : ''}</td><td data-admin-fees="${feeSideOf(d) ? d.id : ''}">${feeSideOf(d) ? html`<span class="muted small">Loading...</span>` : ''}</td>` : ''}<td><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`; })}</tbody></table>`
       : html`<p class="muted">You are not on any open files yet.</p>`}
     ${clientFiles.length ? html`<section class="role-group" data-group="client"><h3 class="group-title">What we need from you</h3>${clientBlocks(clientFiles, all)}</section>` : ''}`;
-  return { title: 'My files', body, mount(root) {
+  return { title: 'Dashboard', body, mount(root) {
     if (!showFees) return;
     // speed: drawn first, then one fee read per agent-side file (at most DASH_FEE_FILES), all at once. A failed read says so in its cells.
     const fill = (sel, d, htmlText) => { const cell = root.querySelector(`[${sel}="${d.id}"]`); if (cell) cell.innerHTML = htmlText; };
