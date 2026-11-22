@@ -278,12 +278,12 @@ for (const file of walk(path.join(root, 'js')).concat(readdirSync(root).filter((
 const dual = [...hits.entries()].filter(([, stamps]) => stamps.size > 1);
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.map(([t, s]) => t + ' ' + [...s].join(',')).join('; ') : ''));
 const chain = [
-  ['js/pages/crm-forms.js', '202611289980'],
-  ['js/pages/crm-home.js', '202611289980'],
-  ['js/pages/crm.js', '202611290610'],
-  ['js/data/mock-part-crm.js', '202611289960'],
-  ['js/data/mock-adapter.js', '202611290700', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
-  ['js/data/supabase-crm.js', '202611249700'],
+  ['js/pages/crm-forms.js', '202611290800'],
+  ['js/pages/crm-home.js', '202611290800'],
+  ['js/pages/crm.js', '202611290800'],
+  ['js/data/mock-part-crm.js', '202611290800'],
+  ['js/data/mock-adapter.js', '202611290800', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
+  ['js/data/supabase-crm.js', '202611290800'],
   ['js/data/supabase-adapter.js', '202611291400'],
   ['js/data/adapter.js', '202611291400', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
   ['js/app.js', '202611291400', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],

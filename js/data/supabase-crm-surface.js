@@ -1,13 +1,13 @@
 /* Hosted methods the CRM screens call that were not on the Supabase adapter.
  * Tables only: dashboards, reports, layout sections, dup rules, search columns, activities.
  * Recent items have no table, so they last for this page session only. */
-import { localDate } from './constants.js?v=202611247700';
+import { localDate, STAGES } from './constants.js?v=202611247700';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611247700';
 import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys,
-} from './crm-analytics.js?v=202611247700';
+  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, withFileColumns,
+} from './crm-analytics.js?v=202611290800';
 import { cleanHomeTitle, homeChartsMissing, homeChartMessage } from './crm-home-charts.js?v=202611247000';
 
 const RECENT = new Map();
@@ -63,6 +63,15 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
   const who = async () => { on(); const u = await me(); if (!u || !canUseCrm(u)) throw new Error('The CRM is for CLA staff only.'); return u; };
   const editor = async () => { const u = await who(); if (crmReadOnly(u)) throw new Error('The Processor has read-only access to the CRM.'); return u; };
   const pack = async (q) => { try { return ok(await q) || []; } catch { return []; } };
+  // RPT-1: a Deals REPORT also carries the file columns (processor, source of business, agents ...). One extra read, for reports only.
+  // If the database file is not on this database yet, the report still runs: those columns are blank and the result says why.
+  const FILE_COLUMNS_MISSING = 'The file columns (processor, source of business, agents) are not on this database yet, so they are blank. The rest of the report is complete.';
+  const reportRowsOf = async (module) => {
+    if (module !== 'deals') return { rows: await rowsOf(module), notice: '' };
+    const [rows, extra] = await Promise.all([rowsOf('deals'), (async () => { try { return ok(await sb.rpc('crm_deal_report_fields')) || []; } catch (e) { return null; } })()]);
+    const by = new Map((extra || []).map((x) => [x.id, x]));
+    return { rows: rows.map((r) => withFileColumns(r, by.get(r.id), STAGES)), notice: extra ? '' : FILE_COLUMNS_MISSING };
+  };
   const rowsOf = async (module) => {
     if (module === 'leads') return self.listCrmLeads();
     if (module === 'contacts') return self.listCrmContacts();
@@ -303,9 +312,9 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       const u = await who(); const cfg = await self.getCrmSettings();
       const def = typeof idOrDef === 'string' ? await this.getCrmReport(idOrDef) : { ...idOrDef, ...(Object.prototype.hasOwnProperty.call(idOrDef, 'bucket') ? { bucket: calendarBucket(idOrDef.bucket) } : {}) };
       const fields = reportFields(def.module, def.related || [], cfg);
-      const rows = await rowsOf(def.module);
+      const { rows, notice } = await reportRowsOf(def.module);
       const out = runReport(rows, def, fields, cfg, { today: localDate() });
-      return { ...out, filterText: '', groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k) };
+      return { ...out, notice, filterText: '', groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k) };
     },
     async exportCrmReport(id) { const u = await who(); if (!u.isAdmin) throw new Error('Only an Admin or Super admin can export a report.'); const rep = await this.getCrmReport(id); const out = await this.runCrmReport(id); return { name: `${rep.name}.csv`, csv: reportCsv(out, out.groupFields || []) }; },
     // Home copies. An empty pin list returns before any chart or module row is read.

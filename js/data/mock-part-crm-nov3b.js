@@ -6,9 +6,9 @@
  *  * DASHBOARDS (built-in + your own; Only me / All Users / Custom; lock for shared users) with Chart, KPI, Target Meter and Funnel components.
  *  * REPORTS (folders, columns, row groups, aggregates, AND / OR filters, sharing); Export only for Admin / Super admin.
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
-import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
+import { withFileColumns, MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611247700';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611290800';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611247700';
@@ -220,8 +220,24 @@ export function crmNov3bPart(x, h) {
     r.columns ||= DEFAULT_COLUMNS[r.module]; r.rowGroups ||= []; r.aggregates ||= []; r.filters ||= []; r.logic ||= 'and'; r.related ||= []; r.share ||= { mode: 'all', users: [], roles: [] };
     return r;
   }
+  // RPT-1: the file columns of a Deals report (the demo copy of crm_deal_report_fields)
+  function fileColumns(q) {
+    const d = db(); const ps = d.participants.filter((p) => p.dealId === q.id); const cOf = (id) => d.contacts.find((c) => c.id === id);
+    const names = (role) => ps.filter((p) => p.role === role).map((p) => cOf(p.contactId)).filter(Boolean).map(fullName).join(', ');
+    const person = (c) => (c ? { name: fullName(c), company: c.company || '', phone: c.mobile || c.phone || '', email: c.email || '' } : { name: '', company: '', phone: '', email: '' });
+    const first = (role) => person(cOf((ps.find((p) => p.role === role) || {}).contactId));
+    const ba = first('Buyer Agent'); const la = first('Listing Agent'); const src = String(q.sourceOfBusiness || ''); const sid = src.includes(':') ? src.split(':')[1] : '';
+    const sc = person(sid ? cOf(sid) : null); const cfg = cfgFor(crmUser());
+    return { id: q.id, state: q.state || '', zip: q.zip || '', lenderName: q.lenderName || '', contractDate: q.contractDate || null, stageNo: Number.isInteger(q.stage) ? q.stage : null,
+      processorName: q.processorId ? nameOf(q.processorId) : '', preprocessorName: q.preprocessorUserId ? nameOf(q.preprocessorUserId) : '', tcName: q.tcUserId ? nameOf(q.tcUserId) : '', closerName: q.closerName || '',
+      buyerNames: names('Client-Buyer'), sellerNames: names('Client-Seller'),
+      buyerAgentName: ba.name, buyerAgentCompany: ba.company, buyerAgentPhone: ba.phone, buyerAgentEmail: ba.email, listingAgentName: la.name, listingAgentCompany: la.company, listingAgentPhone: la.phone, listingAgentEmail: la.email,
+      sourceOfBusiness: src ? (referralLabel(src, (id) => { const c = cOf(id); return c ? fullName(c) : ''; }) || L(cfg, 'leadSource', src)) : '',
+      sourceContactName: sc.name, sourceCompany: sc.company, sourcePhone: sc.phone, sourceEmail: sc.email };
+  }
   function execReport(u, def, cfg) {
     const fields = reportFields(def.module, def.related, cfg); let rows = rowsOf(u, def.module, cfg);
+    if (def.module === 'deals') { const by = new Map(crmDealsFor(u).map((q) => [q.id, fileColumns(q)])); rows = rows.map((r) => withFileColumns(r, by.get(r.id), C.STAGES)); }
     if ((def.related || []).length) { const rm = {}; def.related.forEach((m) => { rm[m] = relMap(u, def.module, rows, m, cfg); }); rows = joinRows(rows, def.related, rm); }
     const out = runReport(rows, def, fields, cfg, { today: today() });
     return { ...out, groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k), filterText: criteriaText(def.filters, fields, cfg, def.logic, userNames()) };
