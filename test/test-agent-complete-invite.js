@@ -1,4 +1,7 @@
-/* V-4: an agent cannot mark a client's task complete. V-6: a used invite opens Sign in with the email. */
+/* V-4: an agent cannot mark a client's task complete.
+   John, Nov 14 2026 (t1667u): a used invite goes straight to Sign in. The old test expected an
+   "already used" page because that was the behavior Janine confirmed on Nov 13. John changed it. */
+import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { shapeListedTask } from '../js/data/task-actions.js';
 import { toText } from '../js/ui.js';
@@ -18,17 +21,23 @@ ok(staff.canComplete === true && staff.canTick === true, 'staff can still comple
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-bagent');
 const tasks = await api.listTasks('deal-1');
-const buyerForm = tasks.find((t) => t.forClient && t.assignedRole === 'Client-Buyer' && t.kind === 'form' && t.status !== 'done');
-ok(!!buyerForm && buyerForm.canComplete === false && !buyerForm.canTick, 'the buyer agent sees the client form without a complete control');
-const before = buyerForm.status;
-let refused = '';
-try { await api.saveTaskForm(buyerForm.id, {}, { complete: true }); } catch (e) { refused = e.message; }
-ok(/only complete tasks assigned to you/i.test(refused), 'saving the form as complete is refused');
-const again = (await api.listTasks('deal-1')).find((t) => t.id === buyerForm.id);
-ok(again.status === before, 'the client task status stays unchanged');
+// FF-101a (Francis Nov 18, John confirmed 2:13 PM ET): agents no longer see client tasks on their side.
+// V-4 still refuses completing a client task if one were opened; the list itself is own-tasks only.
+ok(!tasks.some((t) => t.assignedRole === 'Client-Buyer' || t.forClient), 'the buyer agent no longer sees client forms on the file (FF-101a)');
+ok(tasks.some((t) => t.assignedRole === 'Buyer Agent' && t.mine), 'the buyer agent still sees their own tasks');
+const clientFormId = (await (async () => {
+  await api.signInDev('u-proc');
+  const all = await api.listTasks('deal-1');
+  return (all.find((t) => t.assignedRole === 'Client-Buyer' && t.kind === 'form' && t.status !== 'done') || {}).id;
+})());
+ok(!!clientFormId, 'staff can still see a buyer form on the file');
+await api.signInDev('u-bagent');
+let hidden = '';
+try { await api.getTask(clientFormId); } catch (e) { hidden = e.message; }
+ok(/not found/i.test(hidden), 'opening a client task by id is refused for the agent');
 
 await api.signInDev('u-buyer');
-const mine = (await api.listTasks('deal-1')).find((t) => t.id === buyerForm.id);
+const mine = (await api.listTasks('deal-1')).find((t) => t.id === clientFormId);
 ok(mine && mine.mine && mine.canComplete !== false, 'the buyer the task belongs to can still complete it');
 
 const used = await api.getAgentInvite('demo-used-ai-1');
@@ -36,11 +45,32 @@ ok(used.status === 'accepted' && used.email === 'bianca.buyeragent@example.test'
 let dest = '';
 const signup = await import('../js/pages/agent-signup.js');
 const view = await signup.render({ api, params: { token: 'demo-used-ai-1' }, go(p) { dest = p; } });
-ok(dest === '/login?email=bianca.buyeragent%40example.test', 'the used invite opens Sign in with that email');
 const text = toText(view.body);
-ok(text.includes('data-invite-redirect="signin"') && !/account exists/i.test(text) && !/already used/i.test(text), 'the used invite does not show Account exists');
+ok(dest === '/login?email=bianca.buyeragent%40example.test' && view.redirect === dest, 'a used invite goes straight to Sign in with that email');
+ok(!/already used/i.test(text) && !text.includes('data-invite-used') && !text.includes('data-invite-signin') && !/not valid/i.test(text) && !/expired/i.test(text), 'the used invite shows no error and no in-between page');
+const existsApi = { getAgentInvite: async () => ({ status: 'exists', email: 'ada@example.test', firstName: 'Ada', lastName: 'Buyer', inviteKind: 'client' }) };
+dest = '';
+const existsView = await signup.render({ api: existsApi, params: { token: 'exists-token' }, go(p) { dest = p; } });
+ok(dest === '/login?email=ada%40example.test' && existsView.redirect === dest && !/already used/i.test(toText(existsView.body)) && !/portal login/i.test(toText(existsView.body)), 'an email that already has a login takes the same path to Sign in');
 const pending = await api.getAgentInvite('demo-lena-pending-0001');
 ok(pending.status === 'pending', 'a pending invite still opens the setup form');
+dest = '';
+const pendingView = await signup.render({ api, params: { token: 'demo-lena-pending-0001' }, go(p) { dest = p; } });
+const pendingText = toText(pendingView.body);
+ok(/data-invite-state="pending"/.test(pendingText) && /Set up your agent account/.test(pendingText) && !/already used/i.test(pendingText) && !dest && !pendingView.redirect, 'a pending invite still opens registration, not login');
+dest = '';
+const expiredView = await signup.render({ api, params: { token: 'demo-expired-0001' }, go(p) { dest = p; } });
+const expiredText = toText(expiredView.body);
+ok(!dest && !expiredView.redirect && /data-invite-state="expired"/.test(expiredText) && /expired/i.test(expiredText) && /#\/login/.test(expiredText), 'an expired invite still explains itself and offers sign in');
+dest = '';
+const invalidView = await signup.render({ api, params: { token: 'not-a-real-token' }, go(p) { dest = p; } });
+const invalidText = toText(invalidView.body);
+ok(!dest && !invalidView.redirect && /data-invite-state="invalid"/.test(invalidText) && /not valid/i.test(invalidText), 'an unknown invite still says the link is not valid');
+dest = '';
+const revokedView = await signup.render({ api: { getAgentInvite: async () => ({ status: 'revoked', email: 'old@example.test' }) }, params: { token: 'revoked' }, go(p) { dest = p; } });
+ok(!dest && !revokedView.redirect && /no longer active/i.test(toText(revokedView.body)), 'a revoked invite still says it is no longer active');
+const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+ok(/if \(view && view\.redirect\)/.test(appSrc) && appSrc.includes("import('./pages/agent-signup.js?v=202611249900')"), 'the router leaves for Sign in before drawing a used invite');
 
 console.log(fail ? fail + ' failed' : 'agent complete and invite sign-in passed');
 if (fail) process.exit(1);

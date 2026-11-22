@@ -4,7 +4,7 @@
  * Deliberately NOT collected: SSNs (the old portal asked for them; that needs a separate secure decision).
  * DELEGATION: agentRoles = which agent roles may fill a CLIENT's copy for them (only the agent on the client's own side, on that order).
  * Admin / processor change it on the Task Templates page (setTemplateAgentRoles). Personal items can never be delegated: see delegationLocked(). */
-import { isRealDate, phoneOk, fmtPhone, PHONE_MSG, routingOk, accountOk } from './constants.js?v=202611101015';
+import { isRealDate, phoneOk, fmtPhone, PHONE_MSG, routingOk, accountOk } from './constants.js?v=202611247700';
 const yn = ['Yes', 'No'];
 const F = (k, label, type, req = false, extra = {}) => ({ k, label, type, req, ...extra });
 const none = (label) => F('none', label, 'checkbox');
@@ -14,7 +14,8 @@ const PERSONAL_V1 = [F('full_name', 'Full legal name', 'text', true), F('email',
 // ---- Matt, Nov 3 (migration 26) ----
 // Field option `roles`: the field is only on copies for those roles (settlement type is a SELLER-only choice; buyers always settle in person).
 // fieldsForRole() is applied wherever a copy's fields are shown or validated (mock getTask / saveTaskForm / updateTask; SQL private.fields_for_role).
-export const fieldsForRole = (fields, role) => (fields || []).filter((f) => !f.roles || f.roles.includes(role));
+export const fieldsForRole = (fields, role) => (fields || []).filter((f) => !f.roles || f.roles.includes(role))
+  .map((f) => (f.roleLabels && f.roleLabels[role] ? { ...f, label: f.roleLabels[role] } : f));   // FF-068 #11: one question, worded per role
 // Power of attorney (buyers and sellers): who the attorney-in-fact ("your Agent") is, how they are related, how to reach them, and why a POA is needed.
 const POA_YES = ['power_of_attorney', 'Yes'];
 export const POA_FIELDS = [F('power_of_attorney', 'Will you use a power of attorney?', 'select', false, { opts: yn }),
@@ -50,11 +51,10 @@ const PERSONAL_V4 = [...PERSONAL_V1, F('settlement_type', 'In-person or online s
 // Not included, waiting on John: full SSN, confirmed spouse match.
 const BUYER_ONLY = ['Client-Buyer'];
 const buyerYn = (k, label, extra = {}) => F(k, label, 'select', false, { opts: yn, roles: BUYER_ONLY, ...extra });
-export const CITIZENSHIP_OPTS = ['U.S. Citizen', 'Permanent Resident', 'Non-Resident Alien', 'Other'];
-// "US Citizen" is already stored on a file. It stays a valid answer and is shown when that is the saved value.
-export const CITIZENSHIP_KEPT = ['US Citizen'];
+// JN-CITIZEN-1 (Janine, Nov 17 2026, via Francis Feedback): Citizenship is one line the person types.
+// An answer already saved, including "US Citizen", stays on the file and shows in that line.
 export const BUYER_PERSONAL_FIELDS = [
-  F('citizenship', 'Citizenship', 'select', false, { opts: CITIZENSHIP_OPTS, keep: CITIZENSHIP_KEPT, roles: BUYER_ONLY }),
+  F('citizenship', 'Citizenship', 'text', false, { roles: BUYER_ONLY }),
   F('gender', 'Gender', 'select', false, { opts: ['Female', 'Male', 'Nonbinary', 'Prefer not to say'], roles: BUYER_ONLY }),
   F('date_of_birth', 'Date of birth', 'date', false, { roles: BUYER_ONLY }),
   F('forwarding_address', 'Forwarding address', 'text', false, { roles: BUYER_ONLY }),
@@ -87,6 +87,21 @@ const SELLER_PERSONAL_FIELDS = [
 ];
 const SHARED_WITH_SELLER = ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'leaving_town', 'divorce', 'primary_residence'];
 const PERSONAL_V6 = [...PERSONAL_V5.map((f) => SHARED_WITH_SELLER.includes(f.k) ? { ...f, roles: CLIENTS } : f), ...SELLER_PERSONAL_FIELDS];
+/* FF-066 #6 (Janine's video, Nov 12 "CLA Portal Test - Processor and Seller Screens"; Francis confirm-back Nov 12 6:14 PM ET): the seller proceeds
+ * acknowledgment moves out of Personal information into "How you want your proceeds" (seller_proceeds v2), with the $5,000 wire note.
+ * personal_info v7 = v6 without proceeds_statement / proceeds_ack. Answers already saved stay on the copy's own version. */
+export const PROCEEDS_MOVED = ['proceeds_statement', 'proceeds_ack'];
+const PERSONAL_V7 = PERSONAL_V6.filter((f) => !PROCEEDS_MOVED.includes(f.k));
+/* FF-068 #8/#11/#12 (Janine's Nov 12 video; Francis confirm-back Nov 12 6:14 PM ET): personal_info v8 = v7 plus an EIN/Tax ID for entities
+ * (required when "Add entity" is ticked), the seller wording "Is the property your primary residence?", and no "Where is the water meter?". */
+export const SELLER_PRIMARY_LABEL = 'Is the property your primary residence?';
+const PERSONAL_V8 = PERSONAL_V7.filter((f) => f.k !== 'water_meter_where').flatMap((f) => {
+  if (f.k === 'primary_residence') return [{ ...f, roleLabels: { 'Client-Seller': SELLER_PRIMARY_LABEL } }];
+  if (f.k === 'entity_state') return [f, F('entity_tax_id', 'EIN/Tax ID', 'text', true, { when: ENT })];
+  return [f];
+});
+export const PROCEEDS_WIRE_NOTE = 'Proceeds of $5,000.00 or more must be sent by wire transfer.';
+export const PROCEEDS_STATEMENT = 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.';
 const ID_V2 = [
   F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }),
   F('id_expires', 'Expiration date', 'date', true),
@@ -117,6 +132,44 @@ export const VESTING_TYPES = [
   ['Entity (LLC/trust)', 'The property is owned by a company (such as an LLC) or a trust instead of by you personally. The entity\'s own documents decide who can sign, and we will ask for extra documents.']];
 export const VESTING_HELP = { button: 'What do these mean?', title: 'Ways to hold title (plain English)', items: VESTING_TYPES,
   note: 'This is general information only, not legal advice. The right choice depends on your situation (marriage, estate plans, taxes, lender rules). Please ask CLA Title or your own attorney before you choose.' };
+const PROCEEDS_V1 = [F('method', 'How do you want to receive your proceeds?', 'select', true, { opts: ['Wire transfer', 'Check sent by FedEx', 'Check at settlement'] }),
+      F('bank_name', 'Bank name', 'text', true, { when: ['method', 'Wire transfer'] }), F('routing', 'Routing number (9 digits)', 'routing', true, { when: ['method', 'Wire transfer'] }),
+      F('account', 'Account number', 'account', true, { when: ['method', 'Wire transfer'], mask: true }), F('account_name', 'Name on the account', 'text', true, { when: ['method', 'Wire transfer'] }),
+      F('mail_street', 'Mail the check to: street address', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_unit', 'Apt / unit', 'text', false, { when: ['method', 'Check sent by FedEx'] }),
+      F('mail_city', 'City', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_state', 'State', 'state', true, { when: ['method', 'Check sent by FedEx'] }),
+      F('mail_zip', 'ZIP', 'zip', true, { when: ['method', 'Check sent by FedEx'] }),
+      F('settlement_conditions', 'Conditions for a check at settlement', 'info', false, { when: ['method', 'Check at settlement'],
+        text: 'PLACEHOLDER - sample wording on CLA Portal Live Test. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer\'s funds are confirmed, and you must show photo ID to receive it.' }),
+      F('settlement_ack', 'I understand the conditions for receiving a check at settlement', 'checkbox', true, { when: ['method', 'Check at settlement'] })];
+const PROCEEDS_V2 = [...PROCEEDS_V1, F('proceeds_wire_note', 'Wire transfers', 'info', false, { text: PROCEEDS_WIRE_NOTE }),
+  F('proceeds_statement', 'Seller proceeds acknowledgment', 'info', false, { text: PROCEEDS_STATEMENT }),
+  F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true), F('notes', 'Anything else we should know?', 'textarea')];
+export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box under your agent task section on Tasks. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
+/* FF-101b (Francis Nov 18 11 AM notes; John confirmed 2:13 PM ET): broker fee + total on Commission information, and how the commission is paid.
+ * Commission $ still comes from Agent fees (amount already includes any additional amount on that side). Total = that commission + broker fee.
+ * Field keys (payout_method, mail_*, bank_*, account) are stable so a future agent-profile default can prefill them (Matt has not answered John's 11:19 AM email yet). */
+export const COMMISSION_PAYOUT_OPTS = ['At settlement', 'FedEx overnight', 'Wire'];
+export const COMMISSION_FEDEX = ['payout_method', 'FedEx overnight'];
+export const COMMISSION_WIRE = ['payout_method', 'Wire'];
+export const COMMISSION_BROKER_NOTE = 'Your commission amount is kept in the Agent fees box under your agent task section on Tasks (percent and dollars stay in step there, including any additional amount). Enter a broker fee here if you have one. Total commission is your commission plus the broker fee. How you want to be paid can later be saved on your agent profile as a default; that profile default is not built yet.';
+const COMMISSIONS_V3_FIELDS = [
+  F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
+  F('agent_fees_note', 'Your commission', 'info', false, { text: COMMISSION_BROKER_NOTE }),
+  F('commission_shown', 'Commission ($)', 'money', false, { readonly: true }),
+  F('broker_fee', 'Broker fee ($)', 'money', false),
+  F('total_commission', 'Total commission ($)', 'money', false, { readonly: true }),
+  F('payout_method', 'How should we send your commission?', 'select', true, { opts: COMMISSION_PAYOUT_OPTS }),
+  F('mail_street', 'Mail the check to: street address', 'text', true, { when: COMMISSION_FEDEX }),
+  F('mail_unit', 'Apt / unit', 'text', false, { when: COMMISSION_FEDEX }),
+  F('mail_city', 'City', 'text', true, { when: COMMISSION_FEDEX }),
+  F('mail_state', 'State', 'state', true, { when: COMMISSION_FEDEX }),
+  F('mail_zip', 'ZIP', 'zip', true, { when: COMMISSION_FEDEX }),
+  F('bank_name', 'Bank name', 'text', true, { when: COMMISSION_WIRE }),
+  F('account_name', 'Name on the account', 'text', true, { when: COMMISSION_WIRE }),
+  F('routing', 'Routing number (9 digits)', 'routing', true, { when: COMMISSION_WIRE }),
+  F('account', 'Account number', 'account', true, { when: COMMISSION_WIRE, mask: true }),
+  F('notes', 'Notes', 'textarea'),
+];
 export const TEMPLATE_DEFS = [
   { code: 'id_upload', version: 1, title: 'Upload photo ID', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'A clear photo or scan of a government ID.',
     fields: [F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }), F('id_expires', 'Expiration date', 'date', true), F('id_document', 'ID document', 'doc', true)] },
@@ -178,6 +231,16 @@ export const TEMPLATE_DEFS = [
   { code: 'commissions', version: 1, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], description: 'Confirm your commission for the settlement statement.',
     fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true), F('commission_amount', 'Commission ($)', 'money', true),
       F('paid_by', 'Paid by', 'select', true, { opts: ['Seller', 'Buyer', 'Split'] }), F('notes', 'Notes', 'textarea')] },
+  // AF-8 (John, Nov 14; migration 124 = SQL 20261123010000): the commission is no longer asked here. It is an Agent fee (one place);
+  // the amount and Paid by are replaced by a note pointing to the Agent fees box. Brokerage, License ID and Notes stay.
+  { code: 'commissions', version: 2, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], migration: 124,
+    description: 'Confirm your brokerage and license. Your commission and fees are entered in the Agent fees box under your agent task section on Tasks.',
+    fields: [F('brokerage', 'Brokerage', 'text', true), F('license_id', 'License ID', 'text', true),
+      F('agent_fees_note', 'Your commission', 'info', false, { text: AGENT_FEES_NOTE }), F('notes', 'Notes', 'textarea')] },
+  // FF-101b (Francis Nov 18; migration 125 = SQL 20261125290000): broker fee, total commission, payout method (At settlement / FedEx overnight / Wire).
+  { code: 'commissions', version: 3, title: 'Commission information', roles: ['Buyer Agent', 'Listing Agent'], dueDays: 10, agentRoles: [], migration: 125,
+    description: 'Confirm your brokerage, license, broker fee and how you want your commission paid. Your commission amount stays in the Agent fees box.',
+    fields: COMMISSIONS_V3_FIELDS },
   // ---- Matt, Oct 31 (migration 14): seller forwarding address + how the seller gets their proceeds ----
   { code: 'forwarding_address', version: 1, title: 'Forwarding address', roles: ['Client-Seller'], dueDays: 10, agentRoles: [], migration: 14,
     description: 'Where should we send your mail after closing (the recorded deed, any escrow refund, your 1099-S and other closing papers)?',
@@ -185,16 +248,16 @@ export const TEMPLATE_DEFS = [
       F('zip', 'ZIP', 'zip', true), F('effective', 'Mail should go there from (date)', 'date'), F('phone_after', 'Best phone after closing', 'phone')] },
   { code: 'seller_proceeds', version: 1, title: 'How you want your proceeds', roles: ['Client-Seller'], dueDays: 10, clientOnly: true, agentRoles: [], migration: 14,
     description: 'How you want to receive the money from your sale. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
-    fields: [F('method', 'How do you want to receive your proceeds?', 'select', true, { opts: ['Wire transfer', 'Check sent by FedEx', 'Check at settlement'] }),
-      F('bank_name', 'Bank name', 'text', true, { when: ['method', 'Wire transfer'] }), F('routing', 'Routing number (9 digits)', 'routing', true, { when: ['method', 'Wire transfer'] }),
-      F('account', 'Account number', 'account', true, { when: ['method', 'Wire transfer'], mask: true }), F('account_name', 'Name on the account', 'text', true, { when: ['method', 'Wire transfer'] }),
-      F('mail_street', 'Mail the check to: street address', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_unit', 'Apt / unit', 'text', false, { when: ['method', 'Check sent by FedEx'] }),
-      F('mail_city', 'City', 'text', true, { when: ['method', 'Check sent by FedEx'] }), F('mail_state', 'State', 'state', true, { when: ['method', 'Check sent by FedEx'] }),
-      F('mail_zip', 'ZIP', 'zip', true, { when: ['method', 'Check sent by FedEx'] }),
-      F('settlement_conditions', 'Conditions for a check at settlement', 'info', false, { when: ['method', 'Check at settlement'],
-        text: 'PLACEHOLDER - sample wording on CLA Portal Live Test. Example only: the check is made out to the seller(s) on title, is handed over only after the buyer\'s funds are confirmed, and you must show photo ID to receive it.' }),
-      F('settlement_ack', 'I understand the conditions for receiving a check at settlement', 'checkbox', true, { when: ['method', 'Check at settlement'] }),
-      F('notes', 'Anything else we should know?', 'textarea')] },
+    fields: [...PROCEEDS_V1, F('notes', 'Anything else we should know?', 'textarea')] },
+  { code: 'seller_proceeds', version: 2, title: 'How you want your proceeds', roles: ['Client-Seller'], dueDays: 10, clientOnly: true, agentRoles: [], migration: 122,
+    description: 'How you want to receive the money from your sale, and the seller proceeds acknowledgment. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
+    fields: PROCEEDS_V2 },
+  { code: 'personal_info', version: 7, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 122,
+    description: 'Buyer and seller personal details. Sellers also answer property and utility questions. Spouse information is a section on this form.',
+    fields: PERSONAL_V7 },
+  { code: 'personal_info', version: 8, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 123,
+    description: 'Buyer and seller personal details. Sellers also answer property and utility questions. Spouse information is a section on this form.',
+    fields: PERSONAL_V8 },
 ];
 
 // Personal items stay client-only whatever the setting says: ID / identity, signatures, banking / wire / payment-account details, SSN.
@@ -223,10 +286,10 @@ function cleanMortgages(raw) {
   else if (raw) { try { const parsed = JSON.parse(String(raw)); if (Array.isArray(parsed)) list = parsed; } catch (e) { list = []; } }
   return list.map((m) => ({
     lender: String((m && m.lender) || '').trim().slice(0, 200),
-    phone: String((m && m.phone) || '').trim().slice(0, 40),
-    last4: String((m && m.last4) || '').replace(/\D/g, '').slice(0, 4),
+    phone: (() => { const ph = String((m && m.phone) || '').trim().slice(0, 40); return phoneOk(ph) ? fmtPhone(ph) : ph; })(),
+    loan_number: String((m && (m.loan_number || m.last4)) || '').replace(/[^0-9A-Za-z-]/g, '').slice(0, 30),   // FF-067: the full loan number (older answers kept their last 4 here)
     loan_type: String((m && m.loan_type) || '').trim().slice(0, 40),
-  })).filter((m) => m.lender || m.last4 || m.phone);
+  })).filter((m) => m.lender || m.loan_number || m.phone);
 }
 export function validateForm(fields, input, complete) {
   const data = {}; const errors = [];
@@ -246,6 +309,7 @@ export function validateForm(fields, input, complete) {
     if (f.type === 'mortgages') {
       if (!fieldActive(f, data)) { delete data[f.k]; continue; }
       if (complete && !cleanMortgages(data[f.k]).length) errors.push({ k: f.k, msg: 'Add at least one mortgage, or mark that there is none.' });
+      if (cleanMortgages(data[f.k]).some((m) => m.phone && !phoneOk(m.phone))) errors.push({ k: f.k, msg: `Mortgage phone ${PHONE_MSG}.` });   // FF-069 #14
       continue;
     }
     if (f.type === 'checkbox') { if (!fieldActive(f, data)) delete data[f.k]; else if (complete && f.req && !data[f.k]) errors.push({ k: f.k, msg: `Please tick: ${f.label}.` }); continue; }
@@ -348,6 +412,44 @@ export function applySellerTasks(d, { at = new Date().toISOString(), by = null }
   }
   return { added, moved };
 }
+/* FF-066 (migration 122): personal_info v7 (no proceeds acknowledgment) and seller_proceeds v2 (with it). Same move rule: untouched to-do copies
+ * with no answers take the new version; a copy with answers keeps its version and its answers. Idempotent. Mirrored in SQL 20261117140000. */
+const isProceedsV7 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'water_meter') && !(t.fields || []).some((f) => f.k === 'proceeds_ack');
+const isProceedsV2 = (t) => t.code === 'seller_proceeds' && (t.fields || []).some((f) => f.k === 'proceeds_wire_note');
+export function applyProceedsMove(d, { at = new Date().toISOString(), by = null } = {}) {
+  const added = []; let moved = 0;
+  for (const def of TEMPLATE_DEFS.filter((t) => t.migration === 122)) {
+    const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find((t) => isProceedsV7(t) || isProceedsV2(t));
+    if (!nt) {
+      const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
+      nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+      if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-proceeds`;
+      vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+    }
+    if (!nt.active) continue;
+    d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+      .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  }
+  return { added, moved };
+}
+/* FF-068 (migration 123): personal_info v8. Same move rule as above: only untouched to-do copies with no answers move. Idempotent.
+ * Mirrored in SQL 20261117150000. */
+const isPersonalV8 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'entity_tax_id');
+export function applyPersonalV8(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 123); const added = []; let moved = 0;
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isPersonalV8);
+  if (!nt) {
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-ein`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
 // Place Order entity (participant.entity) -> answers pre-filled on that person's Personal information copy (only when the copy has no answers yet)
 export const ENTITY_TYPES_SET = new Set(ENTITY_TYPES);
 export function entityPrefill(entity, fields) {
@@ -357,3 +459,79 @@ export function entityPrefill(entity, fields) {
   [['repName', 'entity_rep_name'], ['repTitle', 'entity_rep_title'], ['repPhone', 'entity_rep_phone'], ['repEmail', 'entity_rep_email']].forEach(([a, k]) => { if (entity[a] && keys.has(k)) out[k] = entity[a]; });
   return out;
 }
+
+/* AF-8 (migration 124, mirrored in SQL 20261123010000): commissions v2 without the amount. Unlike the intake versions above, every OPEN copy
+ * (to do, in progress, blocked) moves to it and keeps its answers, so nobody is asked for a commission again; finished copies keep their version.
+ * Idempotent: v2 is recognised by its agent_fees_note field and the absence of broker_fee (v3). */
+const isCommissionsV2 = (t) => t.code === 'commissions' && (t.fields || []).some((f) => f.k === 'agent_fees_note')
+  && !(t.fields || []).some((f) => f.k === 'broker_fee');
+export function applyCommissionTaskV2(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 124); const added = []; let moved = 0;
+  if (!Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isCommissionsV2);
+  if (!nt) {
+    if (!vs.length) return { added, moved };
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = Math.max(top.version + 1, def.version);
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: [...(top.agentRoles || [])], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-agent-fees`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && ['todo', 'in_progress', 'blocked'].includes(t.status)
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
+
+/* FF-101b (migration 125, mirrored in SQL 20261125290000): commissions v3 adds broker fee, total commission and payout method.
+ * Every OPEN copy moves to it and keeps answers; finished copies keep their version. Idempotent: recognised by broker_fee. */
+const isCommissionsV3 = (t) => t.code === 'commissions' && (t.fields || []).some((f) => f.k === 'broker_fee');
+export function applyCommissionTaskV3(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 125); const added = []; let moved = 0;
+  if (!Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isCommissionsV3);
+  if (!nt) {
+    if (!vs.length) return { added, moved };
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = Math.max(top.version + 1, def.version);
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: [...(top.agentRoles || [])], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-broker-payout`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  } else if (!nt.active) {
+    vs.forEach((t) => { t.active = t.id === nt.id; });
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && ['todo', 'in_progress', 'blocked'].includes(t.status)
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
+
+/* Money helpers for Commission information total (commission from Agent fees + broker fee). */
+export function moneyAmountOrZero(v) {
+  if (v == null || String(v).trim() === '') return 0;
+  const n = Number(String(v).replace(/[$,]/g, ''));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
+}
+export function formatCommissionMoney(n) {
+  const x = Math.round(Number(n) * 100) / 100;
+  return Number.isFinite(x) ? String(x) : '0';
+}
+export function totalCommissionAmount(commission, brokerFee) {
+  return formatCommissionMoney(moneyAmountOrZero(commission) + moneyAmountOrZero(brokerFee));
+}
+
+/* JN-CITIZEN-1: a copy of the question that was saved as a dropdown becomes a single line.
+ * The answer already stored on the task is not touched. Running it again changes nothing. */
+export function applyCitizenshipFreeText(d) {
+  let changed = 0;
+  for (const t of (d && d.taskTemplates) || []) {
+    for (const f of t.fields || []) {
+      if (f.k !== 'citizenship' || f.type === 'text') continue;
+      f.type = 'text';
+      delete f.opts;
+      delete f.keep;
+      changed++;
+    }
+  }
+  if (changed) d.citizenshipTextNow = true;
+  return { changed };
+}
+

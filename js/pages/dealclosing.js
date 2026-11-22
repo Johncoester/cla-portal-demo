@@ -1,11 +1,13 @@
 // Closing Date tab: the processor sends time options; each side answers through its own link; the processor confirms; a request can be reopened.
 // Links are shown here to copy. Nothing is emailed from this build.
 import { html, raw, $, $$, guard, formData, modal, closeModal, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
-import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611101015';
-import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611101015';
-import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611101015';
-import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS } from '../data/closing-side.js?v=202611120500';
-import { US_STATE_NAMES } from '../data/constants.js?v=202611101015';
+import { schedulingPanelHtml, wireSchedulingPanel } from './scheduling-panel.js?v=202611247700';
+import { settlementAgentChoices } from '../data/scheduling-details.js?v=202611247700';
+import { runsOrders, viewOnly, isProcessor, isClient, sideOf, isViewOnly, CLOSING_LOCATIONS } from '../data/constants.js?v=202611247700';
+import { placeText, OFFICE_LOCATION } from '../data/cla-offices.js?v=202611247700';
+import { SIGNING_METHODS, COUNTRIES, stateName, sideWord, canManageClosingLocations, canScheduleClosing } from '../data/closing-location.js?v=202611247700';
+import { officeOptionLabel, MANUAL_OFFICE, sideFromDeal, cleanSideSigning, sidePatch, scheduledPlace, cleanManualAddress, composeAddress, PLACE_KINDS, SIGN_STATUSES, TYPED_ADDRESS, MOBILE_NOTARY } from '../data/closing-side.js?v=202611247700';
+import { US_STATE_NAMES } from '../data/constants.js?v=202611247700';
 // John, Nov 4: "Will you be in <state> at the time of closing?" (Yes / No -> another US state or a country outside the US). One block per party.
 export function locFields(r, pre = '') { const st = stateName(r.propertyState) || "the property's state"; const no = r.inStateAtClosing === false; const abroad = no && !!r.closingLocationCountry;
   return html`<fieldset class="loc-q span2" data-loc-fields="${r.participantId}" data-pre="${pre}"><legend>${r.mine ? '' : html`${sideWord(r.partyRole)} ${r.name}: `}Will you be in ${st} at the time of closing?</legend>
@@ -51,7 +53,7 @@ export async function render({ api, user, deal, refresh }) {
     ${manager ? html`<p><button class="ghost" id="confirmnew">${sc ? 'Change the scheduled closing' : 'Schedule the closing'}</button></p>` : ''}</div>`;
   const propTable = proposals.length || canPropose ? html`<div class="card" id="proposals"><div class="deal-card-head"><h3>Proposed closing times</h3>${canPropose ? html`<button class="m-btn" id="propose">+ Propose a closing time</button>` : ''}</div>
     ${proposals.length ? html`<table class="tbl"><thead><tr><th>When</th><th>Where</th>${staffView ? html`<th>Side</th>` : ''}<th>Proposed by</th><th>Note</th><th></th></tr></thead><tbody>${proposals.map((p) => html`<tr data-proposal="${p.id}"><td><strong>${slotText(p.at)}</strong></td><td data-proposal-place>${placeText(p.location, p.officeId, p.officeName)}${p.officeRetired ? html` <span class="muted small" data-office-retired>(retired office)</span>` : ''}</td>${staffView ? html`<td>${sideName(p.side)}</td>` : ''}<td>${p.proposedByName}<br><span class="muted small">${p.roleLabel}</span></td><td>${p.note}</td>
-      <td>${p.status === 'confirmed' ? pill('confirmed', 'ok') : manager ? html`<button class="m-btn" data-accept="${p.id}">Confirm this</button>` : pill('waiting for CLA', 'info')}</td></tr>`)}</tbody></table>` : html`<p class="muted">No proposals yet.</p>`}
+      <td>${p.status === 'confirmed' ? pill('confirmed', 'ok') : p.status === 'declined' ? html`<span data-proposal-declined>${pill('declined', '')}</span>` : manager ? html`<button class="m-btn" data-accept="${p.id}">Confirm this</button>` : pill('waiting for CLA', 'info')}</td></tr>`)}</tbody></table>` : html`<p class="muted">No proposals yet.</p>`}
     ${!staffView ? html`<p class="muted small">Only CLA Title and your own side see your proposals.</p>` : ''}</div>` : '';
   const linkUrl = (tok) => `${globalThis.location.origin}${globalThis.location.pathname}#/schedule/${tok}`;
   const officeName = (id) => (id && (officeBook.offices || []).find((o) => o.id === id) || {}).name || '';
@@ -80,10 +82,9 @@ export async function render({ api, user, deal, refresh }) {
   };
   const offices = officeBook.offices || [];
   const sideBlock = (side) => { const s = sideFromDeal(deal, side); const place = s.placeKind === 'office' ? officeOptionLabel(offices.find((o) => o.id === s.officeId) || {}) : composeAddress(s);
-    if (!editLoc) return html`<p data-side-read="${side}"><strong>${s.label}:</strong> ${s.status === 'signed' ? `Signed ${fmtDate(s.signedOn)}` : 'Pending'}${s.date ? html` · ${fmtDate(s.date)} ${s.time || ''}` : ''}${place ? html` · ${place}` : ''}</p>`;
+    if (!editLoc) return html`<p data-side-read="${side}"><strong>${s.label}:</strong> ${s.status === 'signed' ? 'Signed' : 'Pending'}${s.date ? html` · ${fmtDate(s.date)} ${s.time || ''}` : ''}${place ? html` · ${place}` : ''}</p>`;
     return html`<form data-side-form="${side}" class="form-grid"><h4 class="span2">${s.label}</h4>
       <label>Status<select name="status" aria-label="${s.label} signing status">${SIGN_STATUSES.map(([c, l]) => html`<option value="${c}" ${s.status === c ? raw('selected') : ''}>${l}</option>`)}</select></label>
-      <label>Signed on<input type="date" name="signedOn" value="${s.signedOn || ''}" aria-label="${s.label} signed on"></label>
       <label>Date<input type="date" name="date" value="${s.date || ''}" aria-label="${s.label} signing date"></label>
       <label>Time<input type="time" name="time" value="${s.time || ''}" aria-label="${s.label} signing time"></label>
       <label class="span2">Location<select name="placeKind" data-place-kind aria-label="${s.label} location"><option value="">Choose&hellip;</option>${PLACE_KINDS.map(([c, l]) => html`<option value="${c}" ${s.placeKind === c ? raw('selected') : ''}>${l}</option>`)}</select></label>
@@ -91,21 +92,27 @@ export async function render({ api, user, deal, refresh }) {
       <div class="span2 form-grid" data-side-manual ${s.placeKind === 'mobile_notary' || s.placeKind === 'manual' ? '' : raw('hidden')}><label>Street<input name="street" value="${s.street || ''}" maxlength="120"></label><label>City<input name="city" value="${s.city || ''}" maxlength="80"></label><label>State<input name="state" value="${s.state || ''}" maxlength="2"></label><label>ZIP<input name="zip" value="${s.zip || ''}" maxlength="10"></label></div>
       <div class="span2"><button class="m-btn" type="submit">Save ${s.label}</button></div></form>`; };
   const sideCard = staffView ? html`<div class="card" data-side-signing><h3>Signing by side</h3><p class="muted small">The buyer side and the seller side are set separately. Pending or Signed is what the processor sees for each side.</p>${sideBlock('buyer')}${sideBlock('seller')}</div>` : '';
-  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Closing Date</h2>${proc && !anyOpen ? html`<button class="m-btn right" id="newreq">+ New closing date request</button>` : ''}</div>
+  const staffList = proc && api.listActiveStaff ? await api.listActiveStaff().catch(() => []) : [];
+  const choices = settlementAgentChoices(staffList);
+  const links = proc && api.schedulingCopyLinks ? await api.schedulingCopyLinks(deal.id).catch(() => []) : [];
+  const panel = schedulingPanelHtml({ deal, staff: !!proc, choices, links });
+  const body = html`<div class="box-title"><h2><span class="h-ico"></span>Scheduling Details</h2>${proc && !anyOpen ? html`<button class="m-btn right" id="newreq">+ New closing date request</button>` : ''}</div>
+    ${panel}
     <p class="muted">Current settlement date: <strong>${fmtDate(deal.closingDate) || 'not set'}</strong></p>
     ${flagBox}${sideCard}${scheduled}${whereCard}${propTable}
     ${list.length ? list.map(block) : html`<p class="muted">No closing date request yet.${proc ? ' Send one with a few time options; each side answers through its own link.' : ''}</p>`}`;
-  return { title: 'Closing Date', crumbs: [['Closing Date']], body, mount(root) {
+  return { title: 'Scheduling Details', crumbs: [['Scheduling Details']], body, mount(root) {
+    wireSchedulingPanel(root, { api, deal, refresh, choices });
     const nb = $('#newreq', root); if (nb) nb.addEventListener('click', guard(() => slotsModal('New closing date request', async (f) => { await api.createSettlementRequest(deal.id, f); toast('Request created. Copy the links to send them.'); }, true)));
     $$('[data-confirm]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Confirm this closing time? It becomes the settlement date.')) return; await api.confirmSettlement(b.dataset.confirm, Number(b.dataset.slot)); toast('Closing time confirmed'); refresh(); })));
     const pb = $('#propose', root); if (pb) pb.addEventListener('click', guard(() => whenModal('Propose a closing time', async (f) => { await api.proposeClosing(deal.id, f); toast('Proposal sent to CLA Title'); })));
-    const cn = $('#confirmnew', root); if (cn) cn.addEventListener('click', guard(() => whenModal(sc ? 'Change the scheduled closing' : 'Schedule the closing', async (f) => { await api.confirmClosing(deal.id, f); toast('Closing scheduled. Everyone on the file can see it.'); })));
+    const cn = $('#confirmnew', root); if (cn) cn.addEventListener('click', guard(() => whenModal(sc ? 'Change the scheduled closing' : 'Schedule the closing', async (f) => { await api.confirmClosing(deal.id, f); toast('Closing scheduled. Everyone on the file can see it.'); }, { notaryAddress: true })));
     $$('[data-accept]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Confirm this closing time and place? Everyone on the file will see it.')) return; await api.confirmClosing(deal.id, { proposalId: b.dataset.accept }); toast('Closing scheduled'); refresh(); })));
     wireLocFields(root);
     $$('[data-loc-form]', root).forEach((f) => f.addEventListener('submit', guard(async (e) => { e.preventDefault(); await api.answerClosingLocation(deal.id, f.dataset.locForm, locValue(formData(f))); toast('Thanks, saved'); refresh(); })));
     $$('[data-signing]', root).forEach((sel) => sel.addEventListener('change', guard(async () => { await api.setSigningMethod(deal.id, sel.dataset.signing, sel.value); toast('Signing method saved'); refresh(); })));
     $$('[data-side-form]', root).forEach((form) => { const sync = () => { const kind = (form.placeKind && form.placeKind.value) || ''; const office = $('[data-side-office]', form); const manual = $('[data-side-manual]', form); if (office) office.hidden = kind !== 'office'; if (manual) manual.hidden = kind !== 'mobile_notary' && kind !== 'manual'; }; form.addEventListener('change', sync);
-      form.addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(form); const clean = cleanSideSigning({ ...v, side: form.dataset.sideForm }); await api.saveSideSigning(deal.id, clean); toast(`${clean.side === 'seller' ? 'Seller' : 'Buyer'} side saved`); refresh(); })); });
+      form.addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(form); const stored = sideFromDeal(deal, form.dataset.sideForm); const clean = cleanSideSigning({ ...v, side: form.dataset.sideForm, signedOn: stored.signedOn, allowBlankSignedOn: !stored.signedOn }); await api.saveSideSigning(deal.id, clean); toast(`${clean.side === 'seller' ? 'Seller' : 'Buyer'} side saved`); refresh(); })); });
     $$('[data-edit-loc]', root).forEach((b) => b.addEventListener('click', () => { const r = locs.find((z) => z.participantId === b.dataset.editLoc); const side = r.partyRole === 'Client-Seller' ? 'seller' : 'buyer'; const s = sideFromDeal(deal, side);
       const m = modal(`Where ${r.name} will be at closing`, html`<form id="lf" class="form-grid">${locFields(r)}
         <h4 class="span2">${s.label} date, time and location</h4>
@@ -115,26 +122,28 @@ export async function render({ api, user, deal, refresh }) {
         <label>Street<input name="street" value="${s.street || ''}" maxlength="120"></label><label>City<input name="city" value="${s.city || ''}" maxlength="80"></label><label>State<input name="state" value="${s.state || ''}" maxlength="2"></label><label>ZIP<input name="zip" value="${s.zip || ''}" maxlength="10"></label>
         <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       wireLocFields(m); $('#lf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const v = formData(e.target); await api.setClosingLocation(deal.id, r.participantId, locValue(v));
-        if (v.placeKind || v.date || v.time) await api.saveSideSigning(deal.id, cleanSideSigning({ ...v, side, status: s.status, signedOn: s.signedOn }));
+        if (v.placeKind || v.date || v.time) await api.saveSideSigning(deal.id, cleanSideSigning({ ...v, side, status: s.status, signedOn: s.signedOn, allowBlankSignedOn: !s.signedOn }));
         closeModal(); toast('Answer saved'); refresh(); })); }));
     $$('[data-reopen]', root).forEach((b) => b.addEventListener('click', guard(() => slotsModal('Reopen closing date request', async (f) => { await api.reopenSettlement(b.dataset.reopen, f); toast('Reopened. Both sides can answer again.'); }, false))));
   } };
 
   // Matt: "Where" defaults to a CLA Title office, the one closest to the property (straight-line distance). The offices are the ACTIVE ones
   // from Admin > Offices (retired offices are not offered). Staff can change the office before sending.
-  async function whenModal(title, save) {
+  async function whenModal(title, save, { notaryAddress = false } = {}) {
     const od = await api.getClosingOfficeDefault(deal.id); const offices = od.offices;
     const m = modal(title, html`<form id="wf" class="form-grid"><label>Date and time *<input type="datetime-local" name="at" required></label>
       <label>Where *<select name="location" required data-closing-where><option value="">Choose&hellip;</option>${CLOSING_LOCATIONS.map((l) => html`<option ${l === OFFICE_LOCATION ? raw('selected') : ''}>${l}</option>`)}</select></label>
       <label class="span2" data-office-wrap>Which CLA Title office *<select name="officeId" data-closing-office><option value="">Choose an office&hellip;</option>${offices.map((o) => html`<option value="${o.id}" ${o.id === od.officeId ? raw('selected') : ''}>${officeOptionLabel(o)}</option>`)}<option value="${MANUAL_OFFICE}">Type an address</option></select>
         <span class="muted small" data-office-hint>${od.officeId ? html`Closest to the property: ${od.text}. You can change it.` : od.text} <span data-office-address>${(offices.find((o) => o.id === od.officeId) || {}).address || ''}</span></span></label>
       <div class="span2 form-grid" data-manual-place hidden><label>Street<input name="mstreet" maxlength="120" data-manual-street></label><label>City<input name="mcity" maxlength="80"></label><label>State<input name="mstate" maxlength="2" placeholder="FL"></label><label>ZIP<input name="mzip" maxlength="10"></label></div>
+      ${notaryAddress ? html`<div class="span2 form-grid" data-notary-place hidden><p class="span2 muted small">Mobile notary: where the signing takes place.</p><label>Street *<input name="nstreet" maxlength="120" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualStreet || ''}"></label><label>City *<input name="ncity" maxlength="80" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualCity || ''}"></label><label>State *<input name="nstate" maxlength="2" placeholder="MD" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualState || ''}"></label><label>ZIP *<input name="nzip" maxlength="10" inputmode="numeric" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualZip || ''}"></label></div>` : ''}
       <label class="span2">Note<input name="note" maxlength="500" placeholder="e.g. mornings only"></label>
       ${!staffView ? locs.filter((r) => r.mine).map((r) => locFields(r, `loc_${r.participantId}_`)) : flags.length ? html`<div class="span2 notice warn" data-modal-flags>${flags.map((r) => html`<div>${r.flag.text} (signing method: ${r.signingLabel})</div>`)}</div>` : ''}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     const f = $('#wf', m); const wrap = $('[data-office-wrap]', f); const offSel = $('[data-closing-office]', f);
     const manual = $('[data-manual-place]', f);
-    const sync = () => { const on = f.location.value === OFFICE_LOCATION; wrap.hidden = !on; const typing = on && offSel.value === MANUAL_OFFICE; offSel.required = on && !typing; if (manual) manual.hidden = !typing; };
+    const notary = $('[data-notary-place]', f);   // FF-063 #3: the processor types the mobile notary's signing address
+    const sync = () => { const on = f.location.value === OFFICE_LOCATION; wrap.hidden = !on; const typing = on && offSel.value === MANUAL_OFFICE; offSel.required = on && !typing; if (manual) manual.hidden = !typing; if (notary) notary.hidden = f.location.value !== MOBILE_NOTARY; };
     f.location.addEventListener('change', sync); offSel.addEventListener('change', sync); sync();
     offSel.addEventListener('change', () => { $('[data-office-address]', f).textContent = offSel.value === MANUAL_OFFICE ? '' : ((offices.find((o) => o.id === offSel.value) || {}).address || ''); });
     wireLocFields(f);
@@ -145,6 +154,8 @@ export async function render({ api, user, deal, refresh }) {
       ['closingManualStreet', 'closingManualCity', 'closingManualState', 'closingManualZip'].forEach((k) => { if (v[k]) { manualPatch[k] = v[k]; delete v[k]; } });
       ['mstreet', 'mcity', 'mstate', 'mzip'].forEach((k) => delete v[k]);
       if (manualPatch.closingManualStreet) { Object.assign(v, manualPatch); v.location = TYPED_ADDRESS; delete v.officeId; }
+      if (notary && v.location === MOBILE_NOTARY) { const addr = cleanManualAddress({ street: v.nstreet, city: v.ncity, state: v.nstate, zip: v.nzip }, { required: true }); Object.assign(v, { closingManualStreet: addr.street, closingManualCity: addr.city, closingManualState: addr.state, closingManualZip: addr.zip }); delete v.officeId; }
+      ['nstreet', 'ncity', 'nstate', 'nzip'].forEach((k) => delete v[k]);
       for (const r of staffView ? [] : locs.filter((z) => z.mine)) { const pre = `loc_${r.participantId}_`; await api.answerClosingLocation(deal.id, r.participantId, locValue(v, pre)); Object.keys(v).filter((k) => k.startsWith(pre)).forEach((k) => delete v[k]); }
       await save(v); closeModal(); refresh(); }));
   }

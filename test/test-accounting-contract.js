@@ -26,8 +26,9 @@ ok(exactlyOneRow([{ sale_price: 1 }]).sale_price === 1 && exactlyOneRow({ sale_p
 ok((() => { try { exactlyOneRow([]); return false; } catch (e) { return e.message === CONTRACT_NOT_SAVED; } })(), 'zero returned rows fail');
 ok((() => { try { exactlyOneRow([{ sale_price: 1 }, { sale_price: 2 }]); return false; } catch (e) { return e.message === CONTRACT_NOT_SAVED; } })(), 'two returned rows fail');
 ok((() => { try { exactlyOneRow(null); return false; } catch (e) { return e.message === CONTRACT_NOT_SAVED; } })(), 'a missing row fails');
-ok(autoEntries({ purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000 }).length === 0, 'order price, loan, and deposit are not ledger lines');
-ok(ledgerTotals({ purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000 }, []).receipts === 0, 'those order figures are not funds in');
+const fromOrder = autoEntries({ purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000 });
+ok(fromOrder.length === 3 && fromOrder.every((e) => e.auto), 'sale price, deposit and loan are read from the order and are not stored fee rows');
+ok(ledgerTotals({ purchasePrice: 485000, loanAmount: 388000, emdAmount: 10000 }, []).buyerCredits === 388000 + 10000, 'the loan and the deposit are credits to the buyer');
 
 const adapter = createMockAdapter({ storage: mem(), sessionStorage: mem(), features: { accounting: true } });
 await adapter.signInDev('u-proc');
@@ -40,19 +41,21 @@ ok(again.saved && again.fields.loanAmount === 100.5 && again.fields.salePrice ==
 const deal = await adapter.getDeal('deal-1');
 ok(deal.purchasePrice === before.purchasePrice && deal.loanAmount === before.loanAmount && deal.emdAmount === 25, 'saving contract figures keeps the sale price and loan, and writes the earnest amount onto the order');
 const fees = await adapter.getAccounting('deal-1');
-ok(!fees.entries.some((e) => e.auto) && fees.totals.receipts === 0, 'the fee ledger does not receive the contract figures');
+const stored = fees.entries.filter((e) => !e.auto);
+ok(fees.entries.filter((e) => e.auto).map((e) => e.autoKey).sort().join() === 'deposit,loanAmount,salesPrice' && stored.every((e) => e.kind !== 'credit' || !/Sale Price of Property|^Deposit$|^Loan Amount$/i.test(e.description)), 'the fee ledger shows the order figures as from the order, and does not store a second copy');
 const cd = await adapter.getClosingDisclosure('deal-1');
 const labels = ['K', 'L', 'M', 'N'].flatMap((k) => ((cd.summaries[k] || {}).rows || []).map((r) => r.label));
-ok(!labels.some((l) => /Sale Price|Deposit|Loan Amount/.test(l)), 'the Closing Disclosure does not list the contract promises');
-const feeCount = (await adapter.getAccounting('deal-1')).entries.length;
+ok(labels.includes('Sale Price of Property') && labels.includes('Deposit') && labels.includes('Loan Amount'), 'the Closing Disclosure lists the sale price, deposit and loan from the order');
+const feeCount = stored.length;
 await adapter.updateDeal('deal-1', { purchasePrice: '100', loanAmount: '80', emdAmount: '5' });
 const edited = await adapter.getAccounting('deal-1');
-ok(edited.entries.length === feeCount && edited.totals.receipts === 0 && !edited.entries.some((e) => e.auto), 'editing the order price, loan, and EMD does not post ledger funds');
+ok(edited.entries.filter((e) => !e.auto).length === feeCount && edited.entries.find((e) => e.autoKey === 'salesPrice').amount === 100 && edited.entries.find((e) => e.autoKey === 'loanAmount').amount === 80 && edited.entries.find((e) => e.autoKey === 'deposit').amount === 5, 'editing the order price, loan, and EMD changes the from-the-order lines and does not add a stored fee');
 const opened = await adapter.createDeal({ street: '1 Fixture Lane', city: 'Rockville', state: 'MD', zip: '20850', openDate: '2026-11-01', purchasePrice: '500', loanAmount: '400', emdAmount: '25' });
 const fresh = await adapter.getAccounting(opened.id);
 const freshCd = await adapter.getClosingDisclosure(opened.id);
 const freshLabels = ['K', 'L', 'M', 'N'].flatMap((k) => ((freshCd.summaries[k] || {}).rows || []).map((r) => r.label));
-ok(opened.purchasePrice === 500 && fresh.entries.length === 0 && fresh.totals.receipts === 0 && !freshLabels.some((l) => /Sale Price|Deposit|Loan Amount/.test(l)), 'opening an order does not post its price, loan, or EMD onto the ledger');
+const freshStored = fresh.entries.filter((e) => !e.auto);
+ok(opened.purchasePrice === 500 && freshStored.length === 1 && freshStored[0].presetKey === 'waterEscrow' && freshStored[0].amount === 400 && !freshStored.some((e) => /Sale Price of Property|^Loan Amount$/i.test(e.description)) && freshLabels.includes('Sale Price of Property') && freshLabels.includes('Loan Amount'), 'opening an order does not store its price or loan, and the Closing Disclosure still shows them. The only stored line is the $400 Maryland water escrow.');
 ok((await adapter.getContractTerms('deal-2')).saved === false && (await adapter.getContractTerms('deal-2')).fields.loanAmount === null, 'another order stays blank');
 const badBefore = await adapter.getContractTerms('deal-1');
 ok(await rejects(() => adapter.saveContractTerms('deal-1', { salePrice: 'nope' }), /blank or an amount/), 'a bad amount is refused');

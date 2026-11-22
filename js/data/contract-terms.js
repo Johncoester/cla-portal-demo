@@ -1,5 +1,6 @@
 /* contract-terms.js : TEST contract figures for one order. PURE. No storage and no network.
  * These figures are estimates. They are not a fee-ledger line, not funds received, not a payoff, and not a Closing Disclosure.
+ * Commissions are not here: they are Agent fees under the agent task sections on Tasks (one place, John Nov 13 2026; moved FF-101c).
  * A blank amount stays null. Zero is stored only when someone typed zero. A percent never fills a dollar field. */
 const fail = (m) => { throw new Error(m); };
 const roundTo = (n, places) => { const p = 10 ** places; return Math.round((Number(n) + Number.EPSILON) * p) / p; };
@@ -19,10 +20,6 @@ export const CONTRACT_FIELDS = [
   { key: 'downPayment', column: 'down_payment', group: 'price', kind: 'money', label: 'Down payment', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if it was only derived and not written down.' },
   { key: 'sellerCreditPercent', column: 'seller_credit_percent', group: 'credit', kind: 'percent', places: 4, label: 'Seller credit %', hint: 'Does not fill the credit dollars.' },
   { key: 'sellerCreditAmount', column: 'seller_credit_amount', group: 'credit', kind: 'money', label: 'Seller credit $', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if no amount is selected. Do not type 0 for unknown.' },
-  { key: 'buyerBrokerPercent', column: 'buyer_broker_percent', group: 'credit', kind: 'percent', places: 4, label: 'Buyer broker %', hint: 'Cooperative compensation percent. Not a payable.' },
-  { key: 'buyerBrokerAmount', column: 'buyer_broker_amount', group: 'credit', kind: 'money', label: 'Buyer broker $', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if the dollars are not written down.' },
-  { key: 'listingCommissionPercent', column: 'listing_commission_percent', group: 'credit', kind: 'percent', places: 4, label: 'Listing commission %' },
-  { key: 'listingCommissionAmount', column: 'listing_commission_amount', group: 'credit', kind: 'money', label: 'Listing commission $', basis: ['explicit', 'derived', 'calculated'], hint: 'Blank if the listing side was not established.' },
   { key: 'warrantyCap', column: 'warranty_cap', group: 'warranty', kind: 'money', label: 'Warranty cap', basis: ['explicit', 'derived', 'calculated'], hint: 'A cap or "up to" figure. Not an amount paid.' },
   { key: 'warrantyPayer', column: 'warranty_payer', group: 'warranty', kind: 'text', max: 120, label: 'Warranty payer', hint: 'Blank if a warranty was not selected.' },
   { key: 'hoaName', column: 'hoa_name', group: 'hoa', kind: 'text', max: 200, label: 'HOA name' },
@@ -50,11 +47,13 @@ export const CONTRACT_FIELDS = [
   { key: 'internalNote', column: 'internal_note', group: 'notes', kind: 'note', max: 2000, label: 'Internal accounting note', hint: 'Separate from the order review notes. Nothing here is cut short to make room.' },
 ];
 export const CONTRACT_GROUPS = [
-  ['price', 'Price and loan'], ['credit', 'Credits and commissions'], ['warranty', 'Warranty'], ['hoa', 'HOA and condo'],
+  ['price', 'Price and loan'], ['credit', 'Seller credit'], ['warranty', 'Warranty'], ['hoa', 'HOA and condo'],
   ['deferred', 'Deferred charges'], ['tax', 'Historical tax'], ['emd', 'Earnest money'], ['notes', 'Evidence and internal note'],
 ];
 const FIELD = Object.fromEntries(CONTRACT_FIELDS.map((f) => [f.key, f]));
 const HISTORICAL = new Set(['hoaCertificateBalance', 'condoCertificateBalance', 'taxLevy', 'taxAssessment']);
+/* FF-094: these stay on the order and are edited under Accounting > Other Charges. */
+export const OTHER_CHARGE_DETAIL_KEYS = ['warrantyCap', 'warrantyPayer', 'hoaName', 'hoaMonthly', 'hoaCertificateBalance', 'hoaCertificateAsOf', 'condoName', 'condoMonthly', 'condoCertificateBalance', 'condoCertificateAsOf', 'deferredAmount', 'deferredSchedule', 'deferredPayee'];
 
 const blankValue = (f) => (f.kind === 'text' || f.kind === 'note' ? '' : f.key === 'emdReceipt' ? 'unknown' : null);
 export function blankContract(dealId, canEdit = false) {
@@ -141,6 +140,37 @@ export function cleanContractTerms(input) {
   return { fields, flags };
 }
 
+function valueOf(f, src) {
+  if (f.kind === 'money') return moneyOrNull(src[f.key], f.label);
+  if (f.kind === 'date') return dateOrNull(src[f.key], f.label);
+  return textOrEmpty(src[f.key], f.max || 200, f.label);
+}
+/* Merge the Other Charges form onto the stored sheet. Other columns and their markers stay as stored. */
+export function mergeOtherChargeDetails(stored, input) {
+  const src = input || {};
+  const base = stored && stored.fields ? stored : { fields: blankContract('').fields, flags: {} };
+  const fields = { ...base.fields, posture: ESTIMATE_POSTURE };
+  const flags = { ...(base.flags || {}) };
+  for (const key of OTHER_CHARGE_DETAIL_KEYS) {
+    const f = FIELD[key];
+    const value = valueOf(f, src);
+    fields[key] = value;
+    if (!f.basis) continue;
+    if (value == null || value === '') { delete flags[key]; continue; }
+    const kept = flags[key];
+    if (kept && f.basis.includes(kept.basis)) flags[key] = { basis: kept.basis, provisional: true, source: String(kept.source || '') };
+    else flags[key] = { basis: HISTORICAL.has(key) ? 'historical' : 'explicit', provisional: true, source: '' };
+  }
+  return { fields, flags };
+}
+export function otherChargeDetailsChanged(before, after) {
+  const prev = before || { fields: {}, flags: {} };
+  for (const key of OTHER_CHARGE_DETAIL_KEYS) {
+    if (JSON.stringify(prev.fields[key] ?? null) !== JSON.stringify(after.fields[key] ?? null)) return true;
+    if (canonicalJson((prev.flags || {})[key] || null) !== canonicalJson((after.flags || {})[key] || null)) return true;
+  }
+  return false;
+}
 export function illustrative(amount, percent) {
   if (amount == null || percent == null) return null;
   return roundTo(Number(amount) * Number(percent) / 100, 2);

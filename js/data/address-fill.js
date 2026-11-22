@@ -1,7 +1,7 @@
 /* Property address helpers. City, state and ZIP come from a typed address. County and state
  * come from the bundled Census ZIP table (crm-janine lookupCounty). Nothing is fetched. */
-import { US_STATES, US_STATE_NAMES } from './constants.js?v=202611101015';
-import { lookupCounty } from './crm-janine.js?v=202611101600';
+import { US_STATES, US_STATE_NAMES } from './constants.js?v=202611247700';
+import { lookupCounty } from './crm-janine.js?v=202611247700';
 
 const STATE_BY_NAME = new Map(US_STATE_NAMES.map(([code, name]) => [name.toLowerCase(), code]));
 
@@ -54,28 +54,40 @@ export async function fillProperty(fields = {}) {
 }
 
 /* Run when the address is left or chosen. Not on each keystroke. Empty city, state, ZIP and county fill from the street line and the bundled ZIP table. A value already typed stays. Parcel IDs stay typed. */
-export function bindAddressFill(form) {
-  if (!form || form.dataset.addressBound === '1') return;
-  form.dataset.addressBound = '1';
+/* FF-011 (Francis confirm-back Nov 12 6:14 PM ET): task forms reuse this with a name prefix, e.g. { prefix: 'mail_' } for mail_street / mail_city / mail_state / mail_zip. */
+export function bindAddressFill(form, { prefix = '' } = {}) {
+  const key = 'addressBound' + (prefix ? '_' + prefix.replace(/[^a-z0-9]/gi, '') : '');
+  if (!form || form.dataset[key] === '1') return;
+  form.dataset[key] = '1';
   let timer = 0;
+  const box = (name) => form.querySelector(`[name="${prefix}${name}"]`);
   const run = () => {
-    const street = form.querySelector('[name="street"]');
-    const city = form.querySelector('[name="city"]');
-    const state = form.querySelector('[name="state"]');
-    const zip = form.querySelector('[name="zip"]');
-    const county = form.querySelector('[name="county"]');
+    const street = box('street');
+    const city = box('city');
+    const state = box('state');
+    const zip = box('zip');
+    const county = box('county');
     if (!street) return;
     fillProperty({ street: street.value, city: city && city.value, state: state && state.value, zip: zip && zip.value, county: county && county.value }).then((next) => {
       if (next.parsed && next.street && next.street !== street.value) street.value = next.street;
       if (city && !city.value.trim() && next.city) city.value = next.city;
-      if (state && !state.value && next.state) state.value = next.state;
+      let stateSet = false;
+      if (state && !state.value && next.state) { state.value = next.state; stateSet = true; }
       if (zip && !zip.value.trim() && next.zip) zip.value = next.zip;
-      if (county && !county.value.trim() && next.county) county.value = next.county;
+      // A county dropdown is rebuilt when the state changes. Tell it before the county is chosen.
+      if (stateSet) state.dispatchEvent(new Event('change', { bubbles: true }));
+      if (county && !String(county.value || '').trim() && next.county) {
+        if (county.tagName === 'SELECT') {
+          const want = next.county.trim().toLowerCase();
+          const hit = [...county.options].find((o) => o.value && o.value.toLowerCase() === want && o.dataset.countyUnmatched !== '1');
+          if (hit) county.value = hit.value;
+        } else county.value = next.county;
+      }
     }).catch(() => {});
   };
   const schedule = () => { clearTimeout(timer); timer = setTimeout(run, 400); };
   ['street', 'city', 'state', 'zip'].forEach((name) => {
-    const el = form.querySelector(`[name="${name}"]`);
+    const el = box(name);
     if (!el) return;
     el.addEventListener('blur', run);
     el.addEventListener('change', schedule);

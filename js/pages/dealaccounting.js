@@ -3,37 +3,59 @@
 // view. Processor / Admin / Super admin edit; Sales Person / Sales Team read only. TEST ONLY: "TEST - not a legal disclosure" on every page and print.
 import { html, raw, $, $$, guard, formData, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import { themeOn } from '../theme.js?v=202611070139';
-import { modOn } from '../data/modules.js?v=202611101015';
-import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611070139';
-import { prorationsView } from './dealaccounting-prorations.js?v=202611161500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
-import { cdPagesView, cdDetailsView } from './dealaccounting-cd.js?v=202611161500'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { modOn } from '../data/modules.js?v=202611247700';
+import { isTitlePremium, splitAmount, splitFor, UNSET_NOTE } from '../data/underwriter.js?v=202611247900';
+import { prorationsView } from './dealaccounting-prorations.js?v=202611241500';   // Caroline Kim, Nov 4 2026: prorations from the settlement date
+import { cdPagesView, cdDetailsView, loanView } from './dealaccounting-cd.js?v=202611289950'; // Caroline, Nov 4: CD pages 1-5, CD details, prepaids F + escrow G
+import { brokerageOnFile } from '../data/lender-file.js?v=202611247700';
 import { render as postClosingRender } from './dealpostclosing.js?v=202611161500';
-import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611161500';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611070139';
-import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611140400';
-import { qcNav, chargesView, paymentSummaryView } from './dealaccounting-charges.js?v=202611161500';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
-import { contractView } from './dealaccounting-contract.js?v=202611161500';
+import { payoffsView, taxesView, otherContactsView } from './dealpayoffs.js?v=202611243300';   // John, Nov 4 2026: Qualia payoffs / HOA / FFB / ground rent   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { ALTA_SECTIONS, CD_SECTIONS, CD_FEE_SECTIONS, PAYERS, FROM_KEYS, FROM_LABEL, TO_KEYS, PRESET_STATES, TEST_MARK, CALC_TAG, altaLabel, cdLabel, DEFAULT_CD, cdDescription, acctCanRead } from '../data/accounting.js?v=202611247900';
+import { canReachPayoffs, PAYOFF_VIEWS } from '../data/locked-links.js?v=202611249900';
+import { fwpCanRead } from '../data/funding-wire-policy.js?v=202611070139';
+import { chargesView, paymentSummaryView, aggregateAdjustmentPatch } from './dealaccounting-charges.js?v=202611247900';   // John, Nov 4 2026: Qualia's Closing › Charges workflow
+import { booksHtml } from './dealaccounting-books.js?v=202611242700';
+import { contractView } from './dealaccounting-contract.js?v=202611247700';
+import { partyNames, withStatementParties } from '../data/statement-parties.js?v=202611222900';
 
-const VIEWS = [['contract', 'Contract figures'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Fee ledger'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const VIEWS = [['contract', 'Basic Info'], ['loan', 'Loan'], ['postclosing', 'Post-Closing'], ['payoffs', 'Payoffs'], ['taxes', 'Taxes & Prorations'], ['othercontacts', 'Other Contacts'], ['charges', 'Charges'], ['payments', 'Payment summary'], ['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing'], ['prorations', 'Prorations'], ['alta', 'ALTA Settlement Statement'], ['cd', 'Closing Disclosure'], ['cddetails', 'CD details & escrow'], ['history', 'Edit history']];
+const BOOK_VIEWS = new Set(['ledger', 'receipts', 'disbursements', 'balances', 'balancing']);
+const BOOK_BLURB = {
+  ledger: 'The fee ledger for this file. These are test figures. They are not a bank record and not a Closing Disclosure.',
+  receipts: 'Money coming into this file, from the test ledger. Nothing here is a deposit at the bank.',
+  disbursements: 'Money going out of this file, from the test ledger. This page does not print a check or send a wire.',
+  balances: 'The book balance for this file, from the test ledger. This is not a balance at the bank.',
+  balancing: 'Whether the money in and the money out on this file match. These are test figures, not a bank reconciliation.',
+};
 // negative amounts (the escrow aggregate adjustment) show as -$x.xx
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const READ_ONLY_NOTE = 'Read only for your role (Sales Person, Sales Team, Transaction Coordinator): you can read the ledger, prorations and statements; only a Processor, Admin or Super admin can add or change them.';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
-const names = (deal, role) => deal.participants.filter((p) => p.role === role && p.contact).map((p) => (p.entity && p.entity.name) || `${p.contact.firstName} ${p.contact.lastName}`).join(', ');
+const names = (deal, role) => partyNames(deal.participants, role);   // typed people count; the people are loaded for the statements (statement-parties.js)
 
-export async function render({ api, deal, user }) {
+export async function render({ api, deal: fileDeal, user }) {
+  let deal = fileDeal;
   if (!(api.features || {}).accounting || !modOn('accounting')) throw new Error('That page does not exist.');   // config flag off, or not Live (beta) for this user
   if (!acctCanRead(user) || user.accountRole) throw new Error('Accounting is for CLA staff only.');
   const q = new URLSearchParams(location.hash.split('?')[1] || ''); const view = VIEWS.some(([k]) => k === q.get('v')) ? q.get('v') : q.get('calc') === '1' || q.get('retired') === '1' ? 'ledger' : 'contract';
   if (PAYOFF_VIEWS.includes(view) && !canReachPayoffs(user)) throw new Error('That section is not available for your account.');   // live28: same rule as the route guard
   const showRetired = q.get('retired') === '1'; const base = `#/deals/${deal.id}/accounting`;
+  if (view === 'alta' || view === 'cd') deal = await withStatementParties(api, deal);   // the statements name the buyer, seller, lender and agents
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
-  const nav = qcNav(deal, view, q.get('s') || 'A', base, canReachPayoffs(user));   // live28: Payoffs / Taxes / Other Contacts links for Processors + admins only   // Qualia-style left nav: General · Closing › Charges A-N · Preview · CLA tools
+  const showFunding = !!((api.features || {}).funding && fwpCanRead(user) && modOn('funding'));
+  const bookTabs = BOOK_VIEWS.has(view) ? html`<nav class="tt-tabs acct-noprint" data-acct-books aria-label="Accounting">${[['ledger', 'Ledger'], ['receipts', 'Receipts'], ['disbursements', 'Disbursements'], ['balances', 'Account Balances'], ['balancing', 'Balancing']].map(([k, label]) => html`<a href="${base}?v=${k}" class="${view === k ? 'active' : ''}" data-nav-acct="${k}">${label}</a>`)}${showFunding ? html`<a href="#/deals/${deal.id}/funding" data-nav-acct="funding">Loan Funding</a>` : ''}</nav>` : '';
   const noLines = !acc.entries.length;
-  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title">Contract figures</h2>
-      <p class="muted small">TEST contract figures are estimates. They are not funds received, not a payoff, and not a Closing Disclosure. The fee ledger is a separate worksheet and does not copy the order price, deposit, or loan.</p></div>
+  const bookName = BOOK_VIEWS.has(view) ? (VIEWS.find(([k]) => k === view) || [])[1] : '';
+  const sectionTitle = bookName || (VIEWS.find(([k]) => k === view) || ['', 'Accounting'])[1];
+  const sectionNote = bookName ? BOOK_BLURB[view]
+    : view === 'contract'
+      ? 'Sales price, loan amount, closing date, disbursement date, and source of business. These are the order’s figures.'
+      : view === 'loan' ? 'The loan on this file. What you enter here prints on page 1 of the Closing Disclosure.'
+      : 'TEST only. The statements use the fee ledger and the order.';
+  const head = html`<div class="acct-head acct-noprint"><div><p class="eyebrow">Accounting</p><h2 class="page-title" data-acct-title="${view}">${sectionTitle}</h2>
+      <p class="muted small">${sectionNote}</p></div>
     <div class="acct-head-side"><span class="pill warn" data-test-mark>${TEST_MARK}</span>${acc.canEdit ? '' : html`<span class="pill" data-acct-readonly>Read only</span>`}</div></div>`;
   // summary tiles: the classic stat cards, or (card theme, the default look) Loan-Summary style cards: grey card, white inset head with one big baby-blue value.
   // Same data-* hooks either way (data-acct-totals, data-due-buyer, data-due-seller, data-balance, data-balance-diff).
@@ -63,10 +85,13 @@ export async function render({ api, deal, user }) {
   else if (view === 'alta') v = await altaView(api, deal, acc, q, base);
   else if (view === 'cd') v = viewerChrome(await cdPagesView(api, deal, acc, docHead, printBtn, mountPrint), base);
   else if (view === 'cddetails') v = await cdDetailsView(api, deal, acc);
+  else if (view === 'loan') v = await loanView(api, deal);
   else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
+  else if (view === 'receipts' || view === 'disbursements' || view === 'balances' || view === 'balancing') v = { body: booksHtml(view, acc, base) };
   else v = await ledgerView(api, deal, acc, showRetired, base);
-  return { title: 'Accounting', crumbs: [['Accounting']], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell">${nav}<div class="qc-body">${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
+  const pageName = bookName || 'Accounting';
+  return { title: pageName, crumbs: [[pageName]], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell qc-shell-open"><div class="qc-body">${bookTabs}${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------
@@ -76,7 +101,7 @@ async function ledgerView(api, deal, acc, showRetired, base) {
   const presets = acc.canEdit ? await api.listAccountingPresets(deal.id) : [];
   const groups = [['CLA rates for this order', presets.filter((p) => p.calculated)], ...PRESET_STATES.filter(([k]) => k === 'ALL' || k === deal.state).map(([k, l]) => [l, presets.filter((p) => !p.calculated && p.state === k)])].filter(([, l]) => l.length);
   const bySec = ALTA_SECTIONS.map(([k, l]) => [k, l, acc.entries.filter((e) => e.altaSection === k)]).filter(([, , l]) => l.length);
-  const who = (e) => { if (e.kind === 'credit') return html`<span class="small acct-flow">${FROM_LABEL[e.from]} &rarr; ${e.to === 'buyer' ? (acc.refi ? 'Borrower' : 'Buyer') : 'Seller'}</span>`; return ''; };
+  const who = (e) => { if (e.autoKey === 'excessDeposit') return html`<span class="small acct-flow">Seller already has it &middot; not received by CLA</span>`; if (e.kind === 'credit') return html`<span class="small acct-flow">${FROM_LABEL[e.from]} &rarr; ${e.to === 'buyer' ? (acc.refi ? 'Borrower' : 'Buyer') : 'Seller'}</span>`; return ''; };
   const cell = (n) => html`<td class="num">${m2(n)}</td>`;
   const row = (e) => { const sp = e.split || {}; const cr = e.kind === 'credit';
     const bD = cr ? (e.from === 'buyer' ? e.amount : 0) : (e.reduces ? -1 : 1) * (sp.buyer || 0); const bC = cr && e.to === 'buyer' ? e.amount : 0; const sD = cr ? (e.from === 'seller' ? e.amount : 0) : sp.seller; const sC = cr && e.to === 'seller' ? e.amount : 0;
@@ -153,7 +178,7 @@ function mountLedger(root, api, deal, acc, refresh) {
   $$('[data-prorate]', f).forEach((b) => b.addEventListener('click', () => { el('altaSection').value = 'prorations'; el('cdSection').value = ''; if (b.dataset.prorate === 'advance') { el('from').value = 'buyer'; el('to').value = 'seller'; } else { el('from').value = 'seller'; el('to').value = 'buyer'; } sync(); }));
   if (el('lenderCredit')) el('lenderCredit').addEventListener('change', () => { if (el('lenderCredit').checked) { el('from').value = 'lender'; el('to').value = 'buyer'; el('cdSection').value = ''; if (el('altaSection').value === 'prorations') el('altaSection').value = 'loanCharges'; } });
   const fill = (fee) => { el('kind').value = fee.kind || 'charge'; if (el('lenderCredit')) el('lenderCredit').checked = !!fee.lenderCredit; for (const n of ['description', 'altaSection', 'cdSection', 'cdLine', 'payee', 'note', 'presetKey']) el(n).value = fee[n] ?? '';
-    el('amount').value = fee.amount != null ? Number(fee.amount).toFixed(2) : ''; el('paidBy').value = fee.paidBy || 'buyer'; el('timing').value = fee.timing || 'at'; el('poc').checked = !!fee.poc; el('titlePrefix').checked = !!fee.titlePrefix;
+    el('amount').value = fee.amount != null ? (fee.reduces ? '-' : '') + Number(fee.amount).toFixed(2) : ''; el('paidBy').value = fee.paidBy || 'buyer'; el('timing').value = fee.timing || 'at'; el('poc').checked = !!fee.poc; el('titlePrefix').checked = !!fee.titlePrefix;
     PAYERS.forEach(([k]) => { if (el('split_' + k)) el('split_' + k).value = fee.split && Number(fee.split[k]) ? Number(fee.split[k]).toFixed(2) : ''; });
     if (fee.kind === 'credit') { el('from').value = fee.from || 'seller'; el('to').value = fee.to || 'buyer'; } sync(); };
   $('[data-preset]', f).addEventListener('change', guard(async (e) => { const key = e.target.value; if (!key) return; const p = (await api.listAccountingPresets(deal.id)).find((x) => x.key === key); fill({ ...p.fee }); el('editId').value = ''; toast(p.calculated ? `Filled from CLA rates. It is saved tagged ${CALC_TAG}; changing it before saving marks it overridden.` : 'Preset filled with an EXAMPLE amount. Check it before saving.'); }));
@@ -166,7 +191,10 @@ function mountLedger(root, api, deal, acc, refresh) {
     if (v.kind === 'credit') Object.assign(input, { from: v.from, to: v.to, lenderCredit: !!(el('lenderCredit') && el('lenderCredit').checked) });
     else Object.assign(input, { paidBy: v.paidBy, timing: el('poc').checked ? 'before' : v.timing, poc: el('poc').checked, titlePrefix: el('titlePrefix').checked,
       split: v.paidBy === 'split' ? Object.fromEntries(PAYERS.filter(([k]) => el('split_' + k)).map(([k]) => [k, v['split_' + k]])) : null });
-    try { if (v.editId) { await api.updateAccountingFee(v.editId, input); toast('Fee updated (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Fee added (logged).'); } go(); }
+    try {
+      const line08 = String(v.cdLine || '').trim();
+      if (v.kind !== 'credit' && String(v.cdSection || '').toUpperCase() === 'G' && (line08 === '08' || line08 === '8')) Object.assign(input, aggregateAdjustmentPatch(v.amount), { altaSection: 'impounds', cdSection: 'G', cdLine: '08' });
+      if (v.editId) { await api.updateAccountingFee(v.editId, input); toast('Fee updated (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Fee added (logged).'); } go(); }
     catch (x) { err.textContent = x.message; toast(x.message, 'err'); } });
   sync();
 }
@@ -179,10 +207,26 @@ const calcDetail = (e) => html`<div class="small muted">${e.payee ? `to ${e.paye
 const STATUS = { new: ['New', 'ok'], changed: ['Changed', 'info'], unchanged: ['Unchanged', ''], overridden: ['Overridden, kept', 'warn'], 'stale-overridden': ['Overridden, no longer calculated, kept', 'warn'], retire: ['Will be retired', 'bad'], retired: ['Retired by you, skipped', ''] };
 const payText = (l, refi) => { if (!l) return ''; const B = refi ? 'Borrower' : 'Buyer'; if (l.paidBy !== 'split') return { buyer: B, seller: 'Seller', lender: 'Lender', other: 'Other' }[l.paidBy] || l.paidBy;
   return 'Split: ' + Object.entries(l.split || {}).filter(([, x]) => Number(x)).map(([k, x]) => `${k === 'buyer' ? B : k[0].toUpperCase() + k.slice(1)} ${m2z(x)}`).join(' / '); };
+const DOC_ROWS = [['Deed', 'Deed'], ['Deed of Trust', 'Deed of Trust (DOT)'], ['Release', 'Release'], ['Power of Attorney', 'Power of Attorney (POA)']];
+function docsToRecord(docs) {
+  const row = docs || {};
+  const val = (name, i) => { const pair = row[name]; return Array.isArray(pair) && pair[i] != null && pair[i] !== '' ? pair[i] : ''; };
+  return html`<fieldset class="acct-calc-docs" data-calc-docs><legend class="small">Documents to record</legend>
+    <p class="muted small">How many of each document to record, and how many pages each one has. A deed of trust is included only when the file has a loan. On a purchase, the release count starts as the number of payoffs on the file. A count you already saved stays.</p>
+    ${DOC_ROWS.map(([name, label]) => html`<div class="acct-doc-row" data-doc-row="${name}"><span>${label}</span>
+      <label>How many<input inputmode="numeric" data-doc="${name}" data-doc-part="count" aria-label="${label}, how many" value="${val(name, 0)}"></label>
+      <label>Pages<input inputmode="numeric" data-doc="${name}" data-doc-part="pages" aria-label="${label}, pages" value="${val(name, 1)}"></label></div>`)}
+    <p class="notice warn small" data-docs-error hidden></p></fieldset>`;
+}
+function rateNoteHtml(S) {
+  if (!S.rateNote) return '';
+  return html`<p class="${S.source && S.source.live ? 'small' : 'notice warn small'}" data-rate-loaded>${S.rateNote}</p>`;
+}
 function calcOptionsForm(S) {
   const o = S.options || {}; const ends = o.ends; const sel = (n, list, v) => html`<select name="${n}">${list.map(([k, l]) => opt(k, l, v))}</select>`;
   const ownL = { Buyer: 'Buyer', Seller: 'Seller', MDB: 'Miami-Dade / Broward custom', CHA: 'Charlotte custom' };
   return html`<form class="acct-calc-form" data-calc-form novalidate>
+    ${rateNoteHtml(S)}
     <p class="small" data-calc-source>Rates: <strong>CLA quote calculator ${S.source.commit}</strong> (rate snapshot ${S.source.snapshot}, ${S.source.label || 'vendored'}), underwriter Fidelity National Title. Order: <strong>${S.county ? S.county + ', ' : ''}${S.state} ${S.type === 'refi' ? 'refinance' : S.type}</strong>${S.usesStateDefaults ? ' (no county rates: state defaults used)' : ''}.</p>
     <div class="form-grid">
       ${S.asks.occ ? html`<label class="check"><input type="checkbox" name="occ" value="1" ${o.occ !== false ? raw('checked') : ''}> Principal residence</label>` : ''}
@@ -196,6 +240,7 @@ function calcOptionsForm(S) {
       ${S.asks.payoff ? html`<label>Payoff of the existing loan<input name="payoff" inputmode="decimal" value="${o.payoff || ''}" placeholder="0.00"></label>` : ''}
       ${S.asks.assessed ? html`<label>Assessed value <span class="muted">(if higher than the price)</span><input name="assessed" inputmode="decimal" value="${o.assessed || ''}" placeholder="0.00"></label>` : ''}
     </div>
+    ${docsToRecord(o.docs)}
     ${S.endorsements.length ? html`<fieldset class="acct-calc-ends" data-calc-ends><legend class="small">Endorsements</legend>${S.endorsements.map((e) => html`<label class="check small"><input type="checkbox" name="end" value="${e.code}" ${(ends ? ends.includes(e.code) : e.defaultOn) ? raw('checked') : ''}> ${e.code} <span class="muted">${e.name}</span></label>`)}</fieldset>` : html`<p class="small muted" data-calc-no-ends>No endorsements in the calculator for ${S.state}.</p>`}
     <div class="acct-form-actions"><button class="m-btn" type="submit" data-calc-preview>Preview changes</button><span class="muted small">Nothing changes until you apply.</span></div></form><div data-calc-result></div>`;
 }
@@ -224,11 +269,17 @@ function mountCalc(root, api, deal, acc, refresh) {
   const read = (f) => { const v = (n) => (f.elements[n] ? f.elements[n].value : undefined); const o = { rate: v('rate') };
     if (f.elements.occ) o.occ = f.elements.occ.checked; else o.occ = true; if (f.elements.fthb) o.fthb = f.elements.fthb.checked;
     if (f.elements.pol) o.pol = v('pol'); if (f.elements.owner) o.owner = v('owner') !== 'false'; if (f.elements.pres) o.pres = v('pres'); if (f.elements.ownPay) o.ownPay = v('ownPay'); if (f.elements.payoff) o.payoff = v('payoff') || 0; if (f.elements.assessed) o.assessed = v('assessed') || 0;
-    if (setup.endorsements.length) o.ends = $$('input[name=end]', f).filter((x) => x.checked).map((x) => x.value); return o; };
+    if (setup.endorsements.length) o.ends = $$('input[name=end]', f).filter((x) => x.checked).map((x) => x.value);
+    o.docs = {}; for (const [name] of DOC_ROWS) o.docs[name] = [$(`[data-doc="${name}"][data-doc-part="count"]`, f).value, $(`[data-doc="${name}"][data-doc-part="pages"]`, f).value];
+    return o; };
   const open = guard(async () => { setup = await api.getCalculatorSetup(deal.id); panel.hidden = false; $('[data-calc-open]', card).hidden = true;
-    if (!setup.covered) { panel.innerHTML = toText(html`<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
+    if (!setup.covered) { panel.innerHTML = toText(html`${rateNoteHtml(setup)}<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
-    f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const P = await api.previewCalculatedFees(deal.id, opts);
+    f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611247900'); const problem = recordingDocsProblem(opts.docs);
+      $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
+      if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
+      errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);
       out.innerHTML = toText(calcPreview(P, refi)); const btn = $('[data-calc-apply]', out); const ex = $('[data-calc-examples]', out);
       const count = () => { const n = P.applicable + (ex && ex.checked ? P.examples.length : 0); btn.textContent = n ? `Apply ${n} change${n === 1 ? '' : 's'}` : 'Nothing to apply'; btn.disabled = !n; };
       if (ex) ex.addEventListener('change', count); count(); out.scrollIntoView({ block: 'nearest' });
@@ -240,20 +291,26 @@ function mountCalc(root, api, deal, acc, refresh) {
 }
 
 // ---------------- ALTA Settlement Statement ----------------
-const printBtn = (what) => html`<button type="button" class="ghost acct-noprint" data-print="${what}">Print ${what === 'alta' ? 'ALTA statement' : 'CD fee pages'}</button>`;
-const mountPrint = (root) => $$('[data-print]', root).forEach((b) => b.addEventListener('click', () => { document.body.classList.add('acct-printing'); setTimeout(() => { window.print(); document.body.classList.remove('acct-printing'); }, 30); }));
+// AF-6 (John, Nov 12): "Generate CD" / "Generate ALTA" make a PDF of the live tab: the browser's print window opens with the file's
+// document name filled in; choose "Save as PDF". The CD and ALTA tabs stay as they are.
+const printBtn = (what, deal) => html`<button type="button" class="ghost acct-noprint" data-print="${what}" data-generate="${what}" data-pdf-name="${pdfName(deal, what)}" title="Opens the print window. Choose Save as PDF.">Generate ${what === 'alta' ? 'ALTA' : 'CD'}</button>`;
+export const pdfName = (deal, what) => `${(deal && deal.fileNumber) || 'File'} - ${what === 'alta' ? 'ALTA Settlement Statement' : 'Closing Disclosure'} - TEST`;
+const mountPrint = (root) => $$('[data-print]', root).forEach((b) => b.addEventListener('click', () => {
+  const was = document.title; document.title = b.dataset.pdfName || was;
+  document.body.classList.add('acct-printing'); setTimeout(() => { window.print(); document.body.classList.remove('acct-printing'); document.title = was; }, 30); }));
 const docHead = (deal, title, sub) => html`<header class="acct-doc-head"><div class="acct-mark" data-print-mark>${TEST_MARK}</div>
   <h2>${title}</h2>${sub ? html`<p class="muted">${sub}</p>` : ''}
   <dl class="acct-doc-meta"><div><dt>File #</dt><dd>${deal.fileNumber}</dd></div><div><dt>Property</dt><dd>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</dd></div>
     <div><dt>Settlement date</dt><dd>${fmtDate(deal.closingDate) || 'Not set'}</dd></div><div><dt>${deal.transactionType === 'Refinance' ? 'Borrower' : 'Buyer / borrower'}</dt><dd>${names(deal, 'Client-Buyer') || '—'}</dd></div>
     ${deal.transactionType === 'Refinance' ? '' : html`<div><dt>Seller</dt><dd>${names(deal, 'Client-Seller') || '—'}</dd></div>`}<div><dt>Lender</dt><dd>${deal.lenderName || names(deal, 'Lender') || '—'}</dd></div>
+    ${(() => { const b = brokerageOnFile(deal); const extra = [b.contact, b.phone, b.email, b.address].filter(Boolean); return (b.company || extra.length) ? html`<div data-stmt-broker><dt>Mortgage broker</dt><dd>${b.company || '—'}${extra.length ? html`<div class="small">${extra.join(' · ')}</div>` : ''}</dd></div>` : ''; })()}
     <div><dt>Settlement agent</dt><dd>CLA Title &amp; Escrow (test portal)</dd></div></dl></header>`;
 
 async function altaView(api, deal, acc, q, base) {
   const view = ['combined', 'buyer', 'seller'].includes(q.get('view')) ? q.get('view') : 'combined';
   const st = await api.getAltaStatement(deal.id, view); const V = st.view; const combined = V === 'combined';
   const choices = (acc.refi ? [['buyer', 'Borrower']] : [['combined', 'Combined'], ['buyer', 'Buyer / borrower'], ['seller', 'Seller']]);
-  const seg = html`<div class="acct-toolbar acct-noprint"><div class="seg" data-alta-views>${choices.map(([k, l]) => html`<a class="seg-btn ${k === V ? 'on' : ''}" href="${base}?v=alta&view=${k}" data-alta-view="${k}">${l}</a>`)}</div><span class="spacer"></span>${printBtn('alta')}</div>`;
+  const seg = html`<div class="acct-toolbar acct-noprint"><div class="seg" data-alta-views>${choices.map(([k, l]) => html`<a class="seg-btn ${k === V ? 'on' : ''}" href="${base}?v=alta&view=${k}" data-alta-view="${k}">${l}</a>`)}</div><span class="spacer"></span>${printBtn('alta', deal)}</div>`;
   const cols = combined ? 5 : 3;
   const amt = (n) => html`<td class="num">${m2(n)}</td>`;
   const line = (r) => combined ? html`<tr data-alta-row="${r.id}">${amt(r.sellerDebit)}${amt(r.sellerCredit)}<td>${r.description}${r.memo ? html`<div class="small muted">${r.memo}</div>` : ''}</td>${amt(r.buyerDebit)}${amt(r.buyerCredit)}</tr>`

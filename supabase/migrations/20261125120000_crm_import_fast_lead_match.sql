@@ -1,0 +1,709 @@
+-- CRM import note match, set-based (speed follow-up to CRM-201 / PR 314).
+-- Not applied to hosted TEST (aqcervntopidtcazcmlv) or any hosted database.
+-- The portal lead applies this file. Do not run it on production.
+--
+-- A note preview used to look up each row on its own:
+--   where lower(email) = the row email
+--   order by (archived_at is null) desc, created_at
+--   limit 1
+-- On about 110,000 leads that plan is a sequential scan, about 25 ms a row,
+-- so 500 note rows take about 12 seconds. Client notes use the same shape on
+-- contacts (crm_archived_at instead of archived_at).
+--
+-- This file does two things, and the chosen person stays the same:
+--   1. Before the row loop, one query matches every email in the file.
+--      distinct on (lower(email)) with the same order: an open row
+--      (archived time is null) wins, then the earliest created_at.
+--      Null created_at still sorts last. Name counts run only for rows
+--      whose email did not match, and only when that count is 1 is a
+--      person chosen. Two people with the same name still ask for an email.
+--   2. An expression index on lower(email), then the open flag, then
+--      created_at, so that order can be read from the index.
+--
+-- The index is not partial. Archived rows have to be in it, because an
+-- archived person is a valid match when nobody open has that email.
+-- It is not built CONCURRENTLY here. This file is one transaction, and
+-- CREATE INDEX CONCURRENTLY cannot run inside a transaction.
+--
+-- How the lead should apply it on TEST
+-- -------------------------------------
+-- Prefer building the two indexes first, outside a transaction, so the
+-- table is not locked for writes while the index is built. Run each
+-- statement on its own (psql autocommit, or one statement at a time).
+-- Do not wrap them in BEGIN/COMMIT. If the SQL window wraps every run
+-- in a transaction, CONCURRENTLY will fail; run the migration file
+-- below instead and accept a short write lock.
+--
+--   create index concurrently if not exists crm_leads_import_email_idx
+--     on public.crm_leads (lower(email), (archived_at is null) desc, created_at);
+--   create index concurrently if not exists contacts_import_email_idx
+--     on public.contacts (lower(email), (crm_archived_at is null) desc, created_at);
+--
+-- Then run this file. CREATE INDEX IF NOT EXISTS does nothing when those
+-- indexes are already there, and the function is replaced.
+-- If you skip the concurrent step, this file builds the same indexes
+-- inside its transaction. lock_timeout is 3 seconds, so a busy table
+-- fails the whole file and changes nothing. At about 110,000 leads the
+-- build itself is short once the lock is granted.
+--
+-- private.crm_person_dup is unchanged. Its email probe already uses
+-- crm_leads_open_email_uq (open, unconverted, non-empty email only) and
+-- its phone probe already uses crm_leads_dup_phone_idx. That is an index
+-- lookup per inserted person, not the note-import sequential scan.
+-- A people preview still inserts one row at a time, so it stays slower
+-- than the note match. This file does not add a per-row private helper
+-- and does not change policies on deals, tasks, or profiles.
+--
+-- Guard: replace public.crm_import_batch only when md5(prosrc) is
+-- e5c509d25c438940c4d497d35b7dc485, the body from
+-- 20261125110000_crm_import_preview_row_errors.sql (PR 314, 057f6da0).
+-- That body is the before-definition. The rollback puts it back.
+-- Rollback: supabase/rollbacks/20261125120000_crm_import_fast_lead_match.sql
+
+begin;
+set local lock_timeout = '3s';
+set local search_path = pg_catalog, public, extensions;
+
+do $guard$
+declare
+  sig text := 'public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer)';
+  got text;
+  definer boolean;
+  conf text[];
+begin
+  if to_regprocedure(sig) is null then
+    raise exception 'drift: % is missing', sig;
+  end if;
+  if pg_get_function_result(sig::regprocedure) is distinct from 'jsonb' then
+    raise exception 'drift: crm_import_batch does not return jsonb';
+  end if;
+  select p.prosecdef, p.proconfig, md5(p.prosrc)
+    into definer, conf, got
+  from pg_proc p
+  where p.oid = sig::regprocedure;
+  if not coalesce(definer, false) or coalesce(array_to_string(conf, ','), '') !~ 'search_path=' then
+    raise exception 'drift: crm_import_batch is not security definer with a pinned search_path';
+  end if;
+  if got is distinct from 'e5c509d25c438940c4d497d35b7dc485' then
+    raise exception 'drift: crm_import_batch md5 %', got;
+  end if;
+end
+$guard$;
+
+create index if not exists crm_leads_import_email_idx
+  on public.crm_leads (lower(email), (archived_at is null) desc, created_at);
+
+create index if not exists contacts_import_email_idx
+  on public.contacts (lower(email), (crm_archived_at is null) desc, created_at);
+
+comment on index public.crm_leads_import_email_idx is
+  'Note import: lower(email), open lead first, then earliest created_at.';
+comment on index public.contacts_import_email_idx is
+  'Note import: lower(email), open client first, then earliest created_at.';
+
+create or replace function public.crm_import_batch(
+  p_commit boolean,
+  p_module text,
+  p_kind text,
+  p_file_name text,
+  p_defaults jsonb,
+  p_rows jsonb,
+  p_import uuid default null,
+  p_chunk integer default 1
+) returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public, extensions
+as $fn$
+declare
+  v_uid uuid;
+  v_n int;
+  v_row jsonb;
+  v_rec jsonb;
+  v_def jsonb;
+  v_field text;
+  v_val text;
+  v_list text;
+  v_line int;
+  v_notes jsonb;
+  v_first text;
+  v_last text;
+  v_email text;
+  v_phone text;
+  v_mobile text;
+  v_company text;
+  v_role text;
+  v_title text;
+  v_source text;
+  v_status text;
+  v_canon text;
+  v_street text;
+  v_city text;
+  v_state text;
+  v_zip text;
+  v_county text;
+  v_license text;
+  v_desc text;
+  v_owner uuid;
+  v_owner_text text;
+  v_account uuid;
+  v_acc_name text;
+  v_acc_archived timestamptz;
+  v_links jsonb;
+  v_new uuid;
+  v_name text;
+  v_link text;
+  v_entity text;
+  v_body text;
+  v_subject text;
+  v_em text;
+  v_nm text;
+  v_hits int;
+  v_arch boolean;
+  v_msg text;
+  v_state_code text;
+  v_out_rows jsonb := '[]'::jsonb;
+  v_ok int := 0;
+  v_dup int := 0;
+  v_err int := 0;
+  v_total int := 0;
+  v_import uuid;
+  v_batch_module text;
+  v_batch_kind text;
+  v_batch_by uuid;
+  v_prev_total int;
+  v_result jsonb;
+  v_row_status text;
+  v_keys jsonb := '[]'::jsonb;
+  v_by_email jsonb := '{}'::jsonb;
+  v_by_name jsonb := '{}'::jsonb;
+  v_hit jsonb;
+  v_need_name boolean := false;
+begin
+  -- once per call, before any row is touched
+  if coalesce(private.is_admin(), false) is not true then
+    raise exception 'Only an Admin or Super admin can import.' using errcode = '42501';
+  end if;
+  v_uid := private.effective_uid();
+  if p_module is distinct from 'leads' and p_module is distinct from 'contacts' then
+    raise exception 'Import into Leads or Clients.' using errcode = 'P0001';
+  end if;
+  if p_kind is distinct from 'records' and p_kind is distinct from 'notes' then
+    raise exception 'Import records or notes.' using errcode = 'P0001';
+  end if;
+  if jsonb_typeof(p_rows) is distinct from 'array' or jsonb_array_length(p_rows) is null or jsonb_array_length(p_rows) < 1 then
+    raise exception 'The file needs a header row and at least one row of data.' using errcode = 'P0001';
+  end if;
+  v_n := jsonb_array_length(p_rows);
+  if p_chunk is null then
+    p_chunk := 1;
+  end if;
+  if p_chunk < 1 or p_chunk > 20 then
+    raise exception 'Chunk % is outside 1 to 20. A file is at most 10000 rows, sent 500 at a time.', p_chunk using errcode = 'P0001';
+  end if;
+  if v_n > 500 then
+    raise exception 'At most 500 rows per import call.' using errcode = 'P0001';
+  end if;
+  if (select count(distinct (value->>'line')::int) from jsonb_array_elements(p_rows)) is distinct from v_n then
+    raise exception 'Each import row needs its own line number.' using errcode = 'P0001';
+  end if;
+  if p_defaults is null or jsonb_typeof(p_defaults) = 'null' then
+    p_defaults := '[]'::jsonb;
+  elsif jsonb_typeof(p_defaults) is distinct from 'array' then
+    raise exception 'Defaults must be a list.' using errcode = 'P0001';
+  end if;
+  if p_kind = 'records' then
+    for v_def in select value from jsonb_array_elements(p_defaults) loop
+      v_field := btrim(coalesce(v_def->>'field', ''));
+      v_val := btrim(coalesce(v_def->>'value', ''));
+      if v_field not in ('ownerId', 'roleInCompany', 'relationshipStatus', 'leadSource', 'state') then
+        raise exception '"%" cannot have a default value.', v_field using errcode = 'P0001';
+      end if;
+      if v_val = '' then continue; end if;
+      if v_field = 'ownerId' then
+        if v_val !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+           or not exists (
+             select 1 from public.profiles
+             where id = v_val::uuid and status = 'active' and can_own_crm
+           ) then
+          raise exception 'The default Owner must be an active user who can own CRM records.' using errcode = 'P0001';
+        end if;
+      elsif v_field = 'state' then
+        if not private.us_state_ok(upper(v_val)) then
+          raise exception 'Pick a state for the default State.' using errcode = 'P0001';
+        end if;
+      elsif v_field = 'relationshipStatus' then
+        v_list := case when p_module = 'leads' then 'leadRelationshipStatus' else 'relationshipStatus' end;
+        if not private.crm_option_active(v_list, v_val) then
+          raise exception 'A default Relationship Status must be a current choice. Retired statuses are not offered and are not imported.' using errcode = 'P0001';
+        end if;
+      else
+        v_list := v_field;
+        if not private.crm_option_active(v_list, v_val) then
+          if exists (select 1 from public.crm_picklist_options where list_key = v_list and value = v_val) then
+            raise exception '"%" is retired; pick another %.', private.crm_option_label(v_list, v_val),
+              case when v_field = 'roleInCompany' then 'Role in Company' else 'Lead Source' end using errcode = 'P0001';
+          end if;
+          raise exception 'Pick a % from the list.', case when v_field = 'roleInCompany' then 'Role in Company' else 'Lead Source' end using errcode = 'P0001';
+        end if;
+      end if;
+    end loop;
+  end if;
+
+  -- client duplicate checks run only when the CRM itself is writing
+  perform set_config('crm.person_write', '1', true);
+
+  -- Preview writes run in this subtransaction. A commit falls through and keeps them.
+  -- A preview raises CRM01. Only this block catches it, so the inserts roll
+  -- back and the function returns jsonb. PostgREST answers HTTP 200.
+  begin
+
+  -- Notes: one pass over the leads or clients in this file, then each row reads that result.
+  -- Email tie-break matches the old per-row query: open row first (archived time is null),
+  -- then the earliest created_at (null created_at sorts last). A name is counted only when
+  -- that row's email did not choose someone. The same rule is used for clients.
+  if p_kind = 'notes' then
+    select coalesce(jsonb_agg(jsonb_build_object('em', k.em, 'nm', k.nm)), '[]'::jsonb)
+      into v_keys
+    from (
+      select
+        lower(left(btrim(coalesce(coalesce(r->'values', '{}'::jsonb)->>'email', '')), 200)) as em,
+        lower(btrim(regexp_replace(coalesce(nullif(btrim(coalesce(coalesce(r->'values', '{}'::jsonb)->>'fullName', '')), ''),
+          btrim(coalesce(coalesce(r->'values', '{}'::jsonb)->>'firstName', '') || ' ' || coalesce(coalesce(r->'values', '{}'::jsonb)->>'lastName', ''))), '\s+', ' ', 'g'))) as nm
+      from jsonb_array_elements(p_rows) r
+    ) k;
+
+    if p_module = 'leads' then
+      select coalesce(jsonb_object_agg(s.em, jsonb_build_object('id', s.id, 'name', s.name, 'arch', s.arch)), '{}'::jsonb)
+        into v_by_email
+      from (
+        select distinct on (lower(l.email))
+          lower(l.email) as em,
+          l.id,
+          btrim(l.first_name || ' ' || l.last_name) as name,
+          (l.archived_at is not null) as arch
+        from public.crm_leads l
+        where lower(l.email) in (
+          select key.em from jsonb_to_recordset(v_keys) as key(em text, nm text) where key.em <> ''
+        )
+        order by lower(l.email), (l.archived_at is null) desc, l.created_at
+      ) s;
+
+      select exists (
+        select 1 from jsonb_to_recordset(v_keys) as key(em text, nm text)
+        where key.nm <> '' and (key.em = '' or (v_by_email -> key.em) is null)
+      ) into v_need_name;
+
+      if v_need_name then
+        select coalesce(jsonb_object_agg(s.nm, jsonb_build_object('n', s.n, 'id', s.id, 'name', s.name, 'arch', s.arch)), '{}'::jsonb)
+          into v_by_name
+        from (
+          select
+            lower(btrim(regexp_replace(l.first_name || ' ' || l.last_name, '\s+', ' ', 'g'))) as nm,
+            count(*)::int as n,
+            min(l.id::text)::uuid as id,
+            min(btrim(l.first_name || ' ' || l.last_name)) as name,
+            bool_or(l.archived_at is not null) as arch
+          from public.crm_leads l
+          where lower(btrim(regexp_replace(l.first_name || ' ' || l.last_name, '\s+', ' ', 'g'))) in (
+            select key.nm from jsonb_to_recordset(v_keys) as key(em text, nm text)
+            where key.nm <> '' and (key.em = '' or (v_by_email -> key.em) is null)
+          )
+          group by 1
+        ) s
+        where s.nm is not null and s.nm <> '';
+      end if;
+    else
+      select coalesce(jsonb_object_agg(s.em, jsonb_build_object('id', s.id, 'name', s.name, 'arch', s.arch)), '{}'::jsonb)
+        into v_by_email
+      from (
+        select distinct on (lower(c.email))
+          lower(c.email) as em,
+          c.id,
+          btrim(c.first_name || ' ' || c.last_name) as name,
+          (c.crm_archived_at is not null) as arch
+        from public.contacts c
+        where lower(c.email) in (
+          select key.em from jsonb_to_recordset(v_keys) as key(em text, nm text) where key.em <> ''
+        )
+        order by lower(c.email), (c.crm_archived_at is null) desc, c.created_at
+      ) s;
+
+      select exists (
+        select 1 from jsonb_to_recordset(v_keys) as key(em text, nm text)
+        where key.nm <> '' and (key.em = '' or (v_by_email -> key.em) is null)
+      ) into v_need_name;
+
+      if v_need_name then
+        select coalesce(jsonb_object_agg(s.nm, jsonb_build_object('n', s.n, 'id', s.id, 'name', s.name, 'arch', s.arch)), '{}'::jsonb)
+          into v_by_name
+        from (
+          select
+            lower(btrim(regexp_replace(c.first_name || ' ' || c.last_name, '\s+', ' ', 'g'))) as nm,
+            count(*)::int as n,
+            min(c.id::text)::uuid as id,
+            min(btrim(c.first_name || ' ' || c.last_name)) as name,
+            bool_or(c.crm_archived_at is not null) as arch
+          from public.contacts c
+          where lower(btrim(regexp_replace(c.first_name || ' ' || c.last_name, '\s+', ' ', 'g'))) in (
+            select key.nm from jsonb_to_recordset(v_keys) as key(em text, nm text)
+            where key.nm <> '' and (key.em = '' or (v_by_email -> key.em) is null)
+          )
+          group by 1
+        ) s
+        where s.nm is not null and s.nm <> '';
+      end if;
+    end if;
+  end if;
+
+  -- rows (private.is_admin already ran once above; nothing in this loop calls it)
+  for v_row in select value from jsonb_array_elements(p_rows) loop
+    v_total := v_total + 1;
+    v_line := (v_row->>'line')::int;
+    v_notes := case when jsonb_typeof(v_row->'prepNotes') = 'array' then v_row->'prepNotes' else '[]'::jsonb end;
+    v_rec := coalesce(v_row->'values', '{}'::jsonb);
+    v_new := null; v_name := null; v_link := null; v_owner := null; v_account := null;
+    begin
+      if p_kind = 'records' then
+        for v_def in select value from jsonb_array_elements(p_defaults) loop
+          v_field := v_def->>'field';
+          v_val := btrim(coalesce(v_def->>'value', ''));
+          if v_val = '' or btrim(coalesce(v_rec->>v_field, '')) <> '' then continue; end if;
+          if v_field = 'state' then v_val := upper(v_val); end if;
+          v_rec := jsonb_set(v_rec, array[v_field], to_jsonb(v_val), true);
+          if v_field = 'ownerId' then
+            v_notes := v_notes || jsonb_build_array('Owner: ' || coalesce(private.crm_name(v_val::uuid), v_val) || ' (default)');
+          else
+            v_notes := v_notes || jsonb_build_array(
+              (case v_field when 'roleInCompany' then 'Role in Company' when 'relationshipStatus' then 'Relationship Status'
+                when 'leadSource' then 'Lead Source' when 'state' then 'State' else v_field end)
+              || ': ' || v_val || ' (default)');
+          end if;
+        end loop;
+        v_first := left(btrim(coalesce(v_rec->>'firstName', '')), 80);
+        v_last := left(btrim(coalesce(v_rec->>'lastName', '')), 80);
+        v_email := left(lower(btrim(coalesce(v_rec->>'email', ''))), 200);
+        v_phone := left(btrim(coalesce(v_rec->>'phone', '')), 40);
+        v_mobile := left(btrim(coalesce(v_rec->>'mobile', '')), 40);
+        v_company := left(btrim(coalesce(v_rec->>'company', '')), 160);
+        v_role := left(btrim(coalesce(v_rec->>'roleInCompany', '')), 80);
+        v_title := left(btrim(coalesce(v_rec->>'title', '')), 100);
+        v_source := left(btrim(coalesce(v_rec->>'leadSource', '')), 80);
+        v_status := left(btrim(coalesce(v_rec->>'relationshipStatus', '')), 80);
+        v_street := left(btrim(coalesce(v_rec->>'street', '')), 200);
+        v_city := left(btrim(coalesce(v_rec->>'city', '')), 80);
+        v_state := upper(left(btrim(coalesce(v_rec->>'state', '')), 2));
+        if length(btrim(coalesce(v_rec->>'state', ''))) > 2 then v_state := left(btrim(v_rec->>'state'), 40); end if;
+        v_zip := left(btrim(coalesce(v_rec->>'zip', '')), 10);
+        v_county := left(btrim(coalesce(v_rec->>'county', '')), 60);
+        v_license := left(btrim(coalesce(v_rec->>'licenseNo', '')), 60);
+        v_desc := left(btrim(coalesce(v_rec->>'description', '')), 4000);
+        if v_email <> '' and v_email !~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' then
+          raise exception 'Email is not valid.' using errcode = 'P0001';
+        end if;
+        if v_state <> '' and not private.us_state_ok(v_state) then
+          raise exception 'Pick a US state (or DC).' using errcode = 'P0001';
+        end if;
+        if v_zip <> '' and v_zip !~ '^[0-9]{5}(-[0-9]{4})?$' then
+          raise exception 'Zip Code must be 5 digits (or ZIP+4).' using errcode = 'P0001';
+        end if;
+        if v_status <> '' then
+          v_list := case when p_module = 'leads' then 'leadRelationshipStatus' else 'relationshipStatus' end;
+          select o.value into v_canon
+          from public.crm_picklist_options o
+          where o.list_key = v_list and not o.retired
+            and (o.value = v_status or lower(o.label) = lower(v_status))
+          order by (o.value = v_status) desc
+          limit 1;
+          if v_canon is null then
+            if exists (
+              select 1 from public.crm_picklist_options o
+              where o.list_key = v_list and o.retired
+                and (o.value = v_status or lower(o.label) = lower(v_status))
+            ) then
+              raise exception 'Relationship Status "%" is retired and is not imported. Pick a current status.', v_status using errcode = 'P0001';
+            end if;
+          else
+            v_status := v_canon;
+          end if;
+        end if;
+        if p_module = 'leads' then
+          if v_role = '' then
+            raise exception 'Role in Company is required.' using errcode = 'P0001';
+          end if;
+          if v_status = '' then
+            raise exception 'Relationship Status is required.' using errcode = 'P0001';
+          end if;
+          if v_state = '' then
+            raise exception 'State is required.' using errcode = 'P0001';
+          end if;
+        end if;
+        v_owner_text := btrim(coalesce(v_rec->>'ownerId', ''));
+        if v_owner_text <> '' then
+          if v_owner_text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+            select id into v_owner from public.profiles
+            where id = v_owner_text::uuid and status = 'active' and can_own_crm;
+          end if;
+          if v_owner is null then
+            select count(*) into v_hits from public.profiles
+            where status = 'active' and can_own_crm
+              and (lower(email) = lower(v_owner_text) or lower(btrim(first_name || ' ' || last_name)) = lower(v_owner_text));
+            if v_hits > 1 then
+              raise exception 'Owner "%" matches more than one user who can own CRM records. Use the email.', v_owner_text using errcode = 'P0001';
+            end if;
+            select id into v_owner from public.profiles
+            where status = 'active' and can_own_crm
+              and (lower(email) = lower(v_owner_text) or lower(btrim(first_name || ' ' || last_name)) = lower(v_owner_text));
+          end if;
+          if v_owner is null then
+            raise exception 'Owner "%" is not an active user who can own CRM records.', v_owner_text using errcode = 'P0001';
+          end if;
+        end if;
+        v_links := '{}'::jsonb;
+        if jsonb_typeof(v_rec->'links') = 'object' then
+          select coalesce(jsonb_object_agg(e.key, to_jsonb(btrim(e.value #>> '{}'))), '{}'::jsonb) into v_links
+          from jsonb_each(v_rec->'links') e
+          where e.key = any (private.crm_link_keys()) and jsonb_typeof(e.value) = 'string' and btrim(e.value #>> '{}') <> '';
+        end if;
+        if v_company <> '' then
+          select a.id, a.name, a.archived_at into v_account, v_acc_name, v_acc_archived
+          from public.crm_accounts a
+          where private.crm_company_key(a.name) = private.crm_company_key(v_company)
+          order by a.archived_at nulls first
+          limit 1;
+          if v_account is not null and v_acc_archived is null then
+            v_notes := v_notes || jsonb_build_array('Company: ' || v_acc_name);
+          else
+            v_account := null;
+            v_notes := v_notes || jsonb_build_array('No company called "' || v_company || '" yet: kept as text' || case when p_module = 'leads' then ' (pick it from Companies later)' else '' end);
+          end if;
+        end if;
+        if p_module = 'leads' then
+          insert into public.crm_leads (
+            first_name, last_name, company, email, phone, mobile, source, status, owner_id, notes,
+            role_in_company, title, license_no, crm_street, crm_city, crm_state, crm_zip, crm_county, links, account_id
+          ) values (
+            v_first, v_last, case when v_account is null then v_company else '' end, v_email, v_phone, v_mobile,
+            v_source, v_status, v_owner, v_desc, v_role, v_title, v_license, v_street, v_city, v_state, v_zip, v_county,
+            coalesce(v_links, '{}'::jsonb), v_account
+          ) returning id, btrim(first_name || ' ' || last_name) into v_new, v_name;
+          v_link := '#/crm/leads/' || v_new::text;
+        else
+          v_new := public.crm_create_contact(jsonb_strip_nulls(jsonb_build_object(
+            'firstName', v_first, 'lastName', v_last, 'email', v_email, 'phone', v_phone, 'mobile', v_mobile,
+            'company', case when v_account is null then v_company else '' end,
+            'accountId', v_account, 'roleInCompany', v_role, 'title', v_title, 'leadSource', v_source,
+            'relationshipStatus', nullif(v_status, ''), 'street', v_street, 'city', v_city, 'state', v_state,
+            'zip', v_zip, 'county', v_county, 'licenseNo', v_license, 'description', v_desc,
+            'ownerId', v_owner, 'links', coalesce(v_links, '{}'::jsonb)
+          )));
+          select btrim(c.first_name || ' ' || c.last_name) into v_name from public.contacts c where c.id = v_new;
+          v_link := '#/crm/contacts/' || v_new::text;
+        end if;
+      else
+        v_body := left(btrim(coalesce(v_rec->>'note', '')), 4000);
+        if v_body = '' then raise exception 'Note is required.' using errcode = 'P0001'; end if;
+        v_subject := left(btrim(coalesce(v_rec->>'noteTitle', '')), 200);
+        if v_subject = '' then v_subject := left(split_part(v_body, E'\n', 1), 80); end if;
+        if btrim(v_subject) = '' then raise exception 'Note is required.' using errcode = 'P0001'; end if;
+        v_em := lower(left(btrim(coalesce(v_rec->>'email', '')), 200));
+        v_nm := lower(btrim(regexp_replace(coalesce(nullif(btrim(coalesce(v_rec->>'fullName', '')), ''),
+          btrim(coalesce(v_rec->>'firstName', '') || ' ' || coalesce(v_rec->>'lastName', ''))), '\s+', ' ', 'g')));
+        v_entity := case when p_module = 'leads' then 'lead' else 'contact' end;
+        v_new := null;
+        if v_em <> '' then
+          v_hit := v_by_email -> v_em;
+          if v_hit is not null then
+            v_new := (v_hit->>'id')::uuid;
+            v_name := v_hit->>'name';
+            v_arch := (v_hit->>'arch')::boolean;
+          end if;
+        end if;
+        if v_new is null then
+          if v_nm = '' then
+            if v_em <> '' then
+              raise exception 'No % has the email %.', case when p_module = 'leads' then 'lead' else 'client' end, v_em using errcode = 'P0002';
+            end if;
+            raise exception 'Give the email or the name of the % for this note.', case when p_module = 'leads' then 'lead' else 'client' end using errcode = 'P0001';
+          end if;
+          v_hit := v_by_name -> v_nm;
+          v_hits := coalesce((v_hit->>'n')::int, 0);
+          if v_hits > 1 then
+            raise exception '% % are named "%"; add the email to pick one.', v_hits, case when p_module = 'leads' then 'leads' else 'clients' end, v_nm using errcode = 'P0001';
+          end if;
+          if v_hits = 0 then
+            raise exception 'No % %is named "%".', case when p_module = 'leads' then 'lead' else 'client' end, case when v_em <> '' then 'has the email ' || v_em || ' or ' else '' end, v_nm using errcode = 'P0002';
+          end if;
+          v_new := (v_hit->>'id')::uuid;
+          v_name := v_hit->>'name';
+          v_arch := (v_hit->>'arch')::boolean;
+        end if;
+        if exists (
+          select 1 from public.crm_activities a
+          where a.kind = 'note' and a.entity = v_entity and a.entity_id = v_new and a.body = v_body and a.subject = v_subject
+        ) then
+          raise exception 'Duplicate: this note is already on %.', v_name using errcode = '23505';
+        end if;
+        insert into public.crm_activities (entity, entity_id, kind, subject, body, status)
+        values (v_entity, v_new, 'note', v_subject, v_body, 'done');
+        v_link := '#/crm/' || case when p_module = 'leads' then 'leads' else 'contacts' end || '/' || v_new::text;
+        v_notes := v_notes || jsonb_build_array(case when v_arch then 'on an archived ' || v_entity else 'linked by ' || case when v_em <> '' then 'email' else 'name' end end);
+      end if;
+      v_ok := v_ok + 1;
+      v_out_rows := v_out_rows || jsonb_build_array(jsonb_build_object(
+        'line', v_line, 'status', 'ok', 'message', '', 'id', v_new, 'name', coalesce(v_name, ''), 'link', v_link, 'notes', v_notes
+      ));
+    exception
+      when sqlstate 'P0004' then
+        -- assert_failure is not caught by WHEN OTHERS. On a preview, keep the
+        -- reason on this row so the other rows still come back. A commit
+        -- re-raises, so one assert still rolls that chunk back.
+        if coalesce(p_commit, false) then
+          raise;
+        end if;
+        get stacked diagnostics v_msg = message_text;
+        v_err := v_err + 1;
+        if coalesce(btrim(v_msg), '') = '' or v_msg ~* 'assert|sqlstate|syntax error' then
+          v_msg := 'This row could not be checked. Nothing on this row was saved.';
+        end if;
+        v_out_rows := v_out_rows || jsonb_build_array(jsonb_build_object(
+          'line', v_line, 'status', 'error', 'message', left(v_msg, 500),
+          'id', null, 'name', '', 'link', '', 'notes', v_notes
+        ));
+      when others then
+      get stacked diagnostics v_msg = message_text, v_state_code = returned_sqlstate;
+      if v_state_code = '23505' or v_msg ~* 'already (used|exists|a client)|duplicate' then
+        v_row_status := 'duplicate';
+        v_dup := v_dup + 1;
+        if v_state_code = '23505' and v_msg !~* 'already|duplicate' then
+          v_msg := 'Duplicate: this email or phone is already on a lead or client.';
+        end if;
+      else
+        v_row_status := 'error';
+        v_err := v_err + 1;
+      end if;
+      v_out_rows := v_out_rows || jsonb_build_array(jsonb_build_object(
+        'line', v_line, 'status', v_row_status, 'message', left(coalesce(v_msg, 'This row could not be imported.'), 500),
+        'id', null, 'name', '', 'link', '', 'notes', v_notes
+      ));
+    end;
+  end loop;
+
+  v_result := jsonb_build_object(
+    'rows', v_out_rows,
+    'counts', jsonb_build_object('total', v_total, 'ok', v_ok, 'duplicates', v_dup, 'errors', v_err),
+    'importId', null,
+    'message', case when not coalesce(p_commit, false)
+      then 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.'
+      else '' end
+  );
+  if not coalesce(p_commit, false) then
+    raise exception 'crm_import_preview_sentinel' using errcode = 'CRM01';
+  end if;
+  exception
+    when sqlstate 'CRM01' then
+      return v_result;
+  end;
+
+  if p_import is null then
+    insert into public.crm_imports (module, kind, file_name, created_by, created, duplicates, errors, total, defaults)
+    values (
+      p_module, p_kind, left(btrim(coalesce(p_file_name, '')), 200), v_uid, v_ok, v_dup, v_err, v_total, p_defaults
+    ) returning id into v_import;
+  else
+    select i.module, i.kind, i.created_by, i.total
+      into v_batch_module, v_batch_kind, v_batch_by, v_prev_total
+    from public.crm_imports i
+    where i.id = p_import
+    for update;
+    if not found then
+      raise exception 'Import batch not found.' using errcode = 'P0002';
+    end if;
+    if v_batch_by is distinct from v_uid then
+      raise exception 'Only the admin who started this import can add a chunk.' using errcode = '42501';
+    end if;
+    if v_batch_module is distinct from p_module or v_batch_kind is distinct from p_kind then
+      raise exception 'This chunk does not match the import it was added to.' using errcode = 'P0001';
+    end if;
+    if coalesce(v_prev_total, 0) + v_n > 10000 then
+      raise exception 'A file is at most 10000 rows. Split the file and import each part.' using errcode = 'P0001';
+    end if;
+    update public.crm_imports
+    set created = created + v_ok,
+        duplicates = duplicates + v_dup,
+        errors = errors + v_err,
+        total = total + v_total
+    where id = p_import;
+    v_import := p_import;
+  end if;
+
+  insert into public.crm_import_rows (import_id, line, status, message, record_id, record_name)
+  select v_import, (r->>'line')::int, r->>'status', left(coalesce(r->>'message', ''), 500),
+         nullif(r->>'id', '')::uuid, left(coalesce(r->>'name', ''), 200)
+  from jsonb_array_elements(v_out_rows) r;
+
+  v_result := jsonb_set(v_result, '{importId}', to_jsonb(v_import));
+  return v_result;
+end
+$fn$;
+
+
+
+revoke all on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) from public;
+grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated;
+
+do $anon$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) from anon;
+  end if;
+end
+$anon$;
+
+
+do $readback$
+declare
+  sig text := 'public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer)';
+  src text;
+  got text;
+  definer boolean;
+  conf text[];
+begin
+  select p.prosrc, md5(p.prosrc), p.prosecdef, p.proconfig
+    into src, got, definer, conf
+  from pg_proc p
+  where p.oid = sig::regprocedure;
+  if got is distinct from '8a1c2abfae3e8b4329d592790a3cc3d0' then
+    raise exception 'readback: crm_import_batch md5 %', got;
+  end if;
+  if not coalesce(definer, false) then
+    raise exception 'readback: crm_import_batch lost security definer';
+  end if;
+  if coalesce(array_to_string(conf, ','), '') !~ 'search_path=' then
+    raise exception 'readback: search_path was not pinned';
+  end if;
+  if position('distinct on (lower(l.email))' in src) = 0
+     or position('distinct on (lower(c.email))' in src) = 0 then
+    raise exception 'readback: set-based email match is missing';
+  end if;
+  if position('order by lower(l.email), (l.archived_at is null) desc, l.created_at' in src) = 0
+     or position('order by lower(c.email), (c.crm_archived_at is null) desc, c.created_at' in src) = 0 then
+    raise exception 'readback: archived and created_at tie-break is missing';
+  end if;
+  if position('Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.' in src) = 0 then
+    raise exception 'readback: the preview message is missing';
+  end if;
+  if position('can own CRM records' in src) = 0 then
+    raise exception 'readback: import owner matching was lost';
+  end if;
+  if position('create or replace function private.' in src) > 0 then
+    raise exception 'readback: a private helper was added inside the import';
+  end if;
+  if to_regclass('public.crm_leads_import_email_idx') is null
+     or to_regclass('public.contacts_import_email_idx') is null then
+    raise exception 'readback: import email index is missing';
+  end if;
+end
+$readback$;
+
+commit;

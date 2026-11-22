@@ -2,8 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
-import { moneyAmount } from '../js/data/constants.js';
-import { formatMoneyInput } from '../js/pages/money-input.js';
+import { moneyAmount, formatMoneyInput } from '../js/data/constants.js';
 import { tcSupabase } from '../js/data/supabase-tc.js';
 import { toText } from '../js/ui.js';
 import { renderTcOverview } from '../js/pages/tc-overview.js';
@@ -56,7 +55,7 @@ const tc = tcSupabase({ sb, ok, camel: (row) => row, api: { getDeal: async () =>
 const saved = async (raw) => { const before = rpc.length; const out = await tc.updateContractInfo('file-1', { purchasePrice: raw, contractDate: '2026-02-01', listingCommissionPct: '2.5', listingCommissionAmount: '0', buyerCommissionPct: '', buyerCommissionAmount: '', sellerConcessions: '', emdAmount: '0.00', emdHolder: 'CLA', closingDate: '' }); return { args: rpc[rpc.length - 1].args, calls: rpc.length - before, out }; };
 
 const loaded = await saved('12.3.4');
-check(loaded.calls === 1 && cents(loaded.args.p_purchase_price) === 1234 && loaded.args.p_emd_amount === 0 && loaded.args.p_listing_commission_pct === 2.5 && loaded.args.p_buyer_commission_pct === null, 'the contract RPC stores 12.34, a real zero, and a percent');
+check(loaded.calls === 1 && cents(loaded.args.p_purchase_price) === 1234 && loaded.args.p_emd_amount === 0 && loaded.args.p_listing_commission_pct === null && loaded.args.p_buyer_commission_pct === null, 'the contract RPC stores 12.34 and a real zero; commissions are never sent (they are Agent fees since Nov 13)');
 const wide = await saved('1,234.567');
 check(cents(wide.args.p_purchase_price) === 123456, 'the contract RPC stores 1234.56 from 1,234.567');
 let refused = 0; const beforeRefuse = rpc.length;

@@ -4,12 +4,17 @@
 // Fees, lender credits, prorations and summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column, loan
 // disclosures and loan calculations are manual entries (CD details, every save logged). Processor / Admin / Super admin edit; Sales and TCs read.
 import { html, raw, $, $$, guard, toast, toText, fmtDate } from '../ui.js?v=202611161500';
-import { TEST_MARK } from '../data/accounting.js?v=202611070139';
-import { CD_DETAIL_GROUPS } from '../data/cd-pages.js?v=202611070139';
+import { TEST_MARK } from '../data/accounting.js?v=202611247900';
+import { summaryScreens } from '../data/qualia-charges.js?v=202611243300';
+import { CD_DETAIL_GROUPS, LOAN_PAGE_GROUPS, loanPageInput } from '../data/cd-pages.js?v=202611289950';
+import { partyNames, brokerOf } from '../data/statement-parties.js?v=202611222900';
+import { cdBrokerCells } from '../data/lender-file.js?v=202611247700';
+import { fmtPhone } from '../data/constants.js?v=202611247700';
 const m2 = (n) => (n == null || Number(n) === 0 ? '' : (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const m2z = (n) => (Number(n) < 0 ? '-' : '') + '$' + Math.abs(Number(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const mv = (n) => (n == null ? html`<span class="muted">—</span>` : m2z(n));
-const names = (deal, role) => deal.participants.filter((p) => p.role === role && p.contact).map((p) => (p.entity && p.entity.name) || `${p.contact.firstName} ${p.contact.lastName}`).join(', ');
+const names = (deal, role) => partyNames(deal.participants, role);
+const broker = (deal, role) => brokerOf(deal.participants, role);
 const yn = (v) => (v === 'yes' ? html`<strong class="acct-yn yes">YES</strong>` : v === 'no' ? html`<strong class="acct-yn no">NO</strong>` : html`<span class="muted">—</span>`);
 const pageHead = (n, title) => html`<div class="acct-cd-pagehead"><span class="acct-mark" data-print-mark>${TEST_MARK}</span><h3 class="acct-h">${title}</h3><span class="muted small">Page ${n} of 5 &middot; Closing Disclosure (TEST)</span></div>`;
 
@@ -52,11 +57,16 @@ export async function cdPagesView(api, deal, acc, docHead, printBtn, mountPrint)
   // page 3
   const cc = P.page3.cctc; const cctc = html`<table class="tbl acct-cd" data-cd-cctc><thead><tr><th>Calculating Cash to Close</th><th class="num">Loan Estimate</th><th class="num">Final</th><th>Did this change?</th></tr></thead><tbody>
     ${cc.map((r) => html`<tr data-cctc="${r.key}" class="${r.key === 'cashToClose' ? 'acct-total' : ''}"><td>${r.label}</td><td class="num">${r.le == null ? html`<span class="muted">—</span>` : m2z(r.le)}</td><td class="num"><strong data-cctc-final="${r.key}">${m2z(r.final)}</strong></td><td class="small">${r.changed == null ? html`<span class="muted">enter the LE amount</span>` : r.changed ? html`<strong>YES</strong>` : 'NO'}</td></tr>`)}</tbody></table>`;
-  const GROUP = { advance: 'Adjustments for Items Paid by Seller in Advance', unpaid: 'Adjustments for Items Unpaid by Seller' };
-  const summ = (k) => { const S = cd.summaries[k]; if (!S) return ''; let last = null; let i = 0;
-    return html`<div class="acct-summ" data-cd-summary="${k}"><h4>${k}. ${S.label}</h4><table class="tbl"><tbody>${S.rows.length ? S.rows.map((r) => { const g = r.group && r.group !== last ? html`<tr class="acct-sec"><th colspan="2">${GROUP[r.group]}</th></tr>` : ''; last = r.group || last; i++;
-      return html`${g}<tr data-summary-row="${r.id}" ${r.group ? raw(`data-summary-group="${r.group}"`) : ''}><td><span class="cd-line">${String(i).padStart(2, '0')}</span> ${r.label}</td>${n(r.amount)}</tr>`; }) : html`<tr><td class="muted small">None</td><td></td></tr>`}
-    <tr class="acct-subtotal"><td><strong>Total ${k}</strong></td><td class="num"><strong data-summary-total="${k}">${m2z(S.total)}</strong></td></tr></tbody></table></div>`; };
+  // FF-098: page 3 uses the same K/L/M/N lines as the Charges screens, so a proration lands on City/Town Taxes,
+  // County Taxes, Assessments, or the next line in that section, on the document as well as on those screens.
+  const screens = summaryScreens(deal, cd, acc.entries);
+  const SIDE = { K: 'Due from Borrower at Closing', L: 'Paid Already by or on Behalf of Borrower at Closing', M: 'Due to Seller at Closing', N: 'Due from Seller at Closing' };
+  const summ = (k) => { const rows = screens[k]; if (!rows || !rows.length) return '';
+    const body = rows.map((r) => { const show = !!(r.text || r.label || r.amount); const head = r.header ? html`<tr class="acct-sec" data-cd-sum-head="${k}"><th colspan="2">${r.header}</th></tr>` : '';
+      if (!show) return head; const text = r.entry ? (r.label || r.text || '') : (r.text || '');
+      return html`${head}<tr data-cd-sum-line="${k}${r.line}" ${r.entry ? raw(`data-summary-row="${r.entry.id}"`) : ''}><td><span class="cd-line">${r.line}</span> ${text}</td>${n(r.amount)}</tr>`; });
+    return html`<div class="acct-summ" data-cd-summary="${k}"><h4>${k}. ${SIDE[k]}</h4><table class="tbl"><tbody>${body}
+    <tr class="acct-subtotal"><td><strong>Total ${k}</strong></td><td class="num"><strong data-summary-total="${k}">${m2z(screens.totals[k])}</strong></td></tr></tbody></table></div>`; };
   const page3 = html`<section class="acct-cd-page" data-cd-page="3">${pageHead(3, 'Calculating Cash to Close & Summaries of Transactions')}${cctc}
     <div class="acct-summaries"><div><h4 class="acct-side">Borrower's Transaction</h4>${summ('K')}${summ('L')}<p class="acct-cash" data-cash-to-close>Cash to close ${cd.cashToClose >= 0 ? 'from' : 'to'} borrower: <strong>${m2z(Math.abs(cd.cashToClose))}</strong> <span class="muted small">(K - L)</span></p></div>
       ${refi ? '' : html`<div><h4 class="acct-side">Seller's Transaction</h4>${summ('M')}${summ('N')}<p class="acct-cash" data-cash-to-seller>Cash ${cd.cashToSeller >= 0 ? 'to' : 'from'} seller: <strong>${m2z(Math.abs(cd.cashToSeller))}</strong> <span class="muted small">(M - N)</span></p></div>`}</div></section>`;
@@ -72,18 +82,24 @@ export async function cdPagesView(api, deal, acc, docHead, printBtn, mountPrint)
       <dt>Initial Escrow Payment</dt><dd data-cd-initial-escrow>${m2z(p4.initialEscrow)}</dd><dt>Monthly Escrow Payment</dt><dd data-cd-monthly-escrow>${mv(p4.monthlyEscrow)}</dd></dl>`
       : html`<p class="small">Your loan will not have an escrow account.</p><dl><dt>Estimated Property Costs over Year 1</dt><dd>${mv(p4.nonEscrowed)}</dd><dt>Escrow Waiver Fee</dt><dd>${mv(p4.waiverFee)}</dd></dl>`}</div></div>
     ${E ? html`<details class="acct-calc-detail" data-cd-escrow-schedule open><summary class="small">Escrow account calculation (aggregate analysis, first year)</summary>${escrowTable(E)}</details>` : ''}</section>`;
-  // page 5
+  // page 5. Mortgage Broker column is the brokerage saved on the file (FF-090). Address, email and phone are the rows that contact belongs on.
+  const mb = cdBrokerCells(deal, p5.broker);
+  const cell = (v) => v || '—';
+  const lenderPhone = deal.lenderPhone ? fmtPhone(deal.lenderPhone) : '';
   const page5 = html`<section class="acct-cd-page" data-cd-page="5">${pageHead(5, 'Loan Calculations, Other Disclosures & Contact Information')}
     <div class="acct-cd-info"><div data-cd-loan-calcs><h4>Loan Calculations</h4><dl><dt>Total of Payments</dt><dd>${mv(p5.totalOfPayments)}</dd><dt>Finance Charge</dt><dd>${mv(p5.financeCharge)}</dd><dt>Amount Financed</dt><dd>${mv(p5.amountFinanced)}</dd>
       <dt>Annual Percentage Rate (APR)</dt><dd>${p5.apr != null ? p5.apr + '%' : '—'}</dd><dt>Total Interest Percentage (TIP)</dt><dd>${p5.tip != null ? p5.tip + '%' : '—'}</dd></dl></div>
     <div><h4>Other Disclosures</h4><dl><dt>Liability after Foreclosure</dt><dd>${p5.liability === 'protected' ? 'State law may protect you from liability for the unpaid balance.' : p5.liability === 'not protected' ? 'State law does not protect you from liability for the unpaid balance.' : '—'}</dd><dt>Refinance</dt><dd>${p5.refinance || 'Refinancing this loan will depend on your future financial situation, the property value, and market conditions.'}</dd></dl></div></div>
     <table class="tbl acct-cd" data-cd-contacts><thead><tr><th>Contact Information</th><th>Lender</th><th>Mortgage Broker</th>${refi ? '' : html`<th>Real Estate Broker (B)</th><th>Real Estate Broker (S)</th>`}<th>Settlement Agent</th></tr></thead><tbody>
-      <tr><td>Name</td><td>${deal.lenderName || '—'}</td><td>${p5.broker || '—'}</td>${refi ? '' : html`<td>${names(deal, 'Buyer Agent') || '—'}</td><td>${names(deal, 'Listing Agent') || '—'}</td>`}<td>CLA Title &amp; Escrow (test portal)</td></tr>
-      <tr><td>NMLS ID</td><td>${p5.lenderNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr><tr><td>Contact</td><td>${p5.lenderContact || deal.lenderContact || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
-      <tr><td>Contact NMLS ID</td><td>${p5.lenderContactNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr></tbody></table>
+      <tr><td>Name</td><td>${deal.lenderName || '—'}</td><td data-cd-broker-name>${cell(mb.name)}</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').name || '—'}</td><td>${broker(deal, 'Listing Agent').name || '—'}</td>`}<td>CLA Title &amp; Escrow (test portal)</td></tr>
+      <tr><td>Address</td><td>${deal.lenderAddress || '—'}</td><td data-cd-broker-address>${cell(mb.address)}</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
+      <tr><td>NMLS ID</td><td>${p5.lenderNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr><tr><td>Contact</td><td>${p5.lenderContact || deal.lenderContact || '—'}</td><td data-cd-broker-contact>${cell(mb.contact)}</td>${refi ? '' : html`<td>${broker(deal, 'Buyer Agent').contact || '—'}</td><td>${broker(deal, 'Listing Agent').contact || '—'}</td>`}<td>—</td></tr>
+      <tr><td>Contact NMLS ID</td><td>${p5.lenderContactNmls || '—'}</td><td>—</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
+      <tr><td>Email</td><td>${deal.lenderEmail || '—'}</td><td data-cd-broker-email>${cell(mb.email)}</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr>
+      <tr><td>Phone</td><td>${lenderPhone || '—'}</td><td data-cd-broker-phone>${cell(mb.phone)}</td>${refi ? '' : html`<td>—</td><td>—</td>`}<td>—</td></tr></tbody></table>
     <p class="small muted">Confirm Receipt: not used. This is a TEST page built by the portal, not a legal disclosure; the lender's Closing Disclosure is the real one.</p></section>`;
   const warn = X.calcWarnings && X.calcWarnings.length ? html`<div class="notice warn small acct-noprint" data-cd-calc-warnings>${X.calcWarnings.map((w) => html`<div>${w}</div>`)}</div>` : '';
-  const body = html`<div class="acct-toolbar acct-noprint"><span class="muted small">Closing Disclosure pages 1-5. Fees, lender credits, prorations and the summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column and the loan disclosures are entered on <a href="#/deals/${deal.id}/accounting?v=cddetails" data-goto-cddetails>CD details &amp; escrow</a>.</span><span class="spacer"></span>${printBtn('cd')}</div>${warn}
+  const body = html`<div class="acct-toolbar acct-noprint"><span class="muted small">Closing Disclosure pages 1-5. Fees, lender credits, prorations and the summaries come from the fee ledger; loan terms, projected payments, the Loan Estimate column and the loan disclosures are entered on <a href="#/deals/${deal.id}/accounting?v=loan" data-goto-loan>Loan</a> and <a href="#/deals/${deal.id}/accounting?v=cddetails" data-goto-cddetails>CD details &amp; escrow</a>.</span><span class="spacer"></span>${printBtn('cd', deal)}</div>${warn}
     <div class="card acct-doc" data-print-area="cd" data-cd-full>${docHead(deal, 'Closing Disclosure', 'Built from the Accounting fee ledger and the CD details. For testing the portal only.')}${page1}${page2}${page3}${page4}${page5}<div class="acct-mark acct-mark-foot">${TEST_MARK}</div></div>`;
   return { body, mount: mountPrint };
 }
@@ -92,6 +108,29 @@ function escrowTable(E) {
     <table class="tbl acct-escrow" data-escrow-table><thead><tr><th>Month</th><th class="num">Deposit</th><th class="num">Paid out</th><th class="num">Balance</th></tr></thead><tbody>
     <tr><td>At closing</td><td class="num">${m2z(E.initialDeposit)}</td><td></td><td class="num">${m2z(E.initialDeposit)}</td></tr>
     ${E.schedule.map((s) => html`<tr class="${s.balance === E.lowBalance ? 'acct-escrow-low' : ''}"><td>${s.month}</td><td class="num">${m2z(s.deposit)}</td><td class="num">${s.disbursed ? m2z(s.disbursed) : ''}</td><td class="num">${m2z(s.balance)}</td></tr>`)}</tbody></table>`;
+}
+
+// ---------------- Loan (General › Loan): the loan details the Closing Disclosure prints on page 1 ----------------
+export async function loanView(api, deal) {
+  const X = await api.getAccountingCd(deal.id); const v = X.details || {}; const ro = !X.canEdit;
+  const FIELD = Object.fromEntries(CD_DETAIL_GROUPS.flatMap(([, , fields]) => fields.map((f) => [f[0], f])));
+  const field = (k) => { const [, type, label, opts] = FIELD[k]; const val = v[k] ?? ''; const dis = ro ? raw('disabled') : '';
+    if (type === 'select' || type === 'yn') return html`<label>${label}<select name="${k}" ${dis}>${(opts.some(([o]) => o === '') ? opts : [['', '—'], ...opts]).map(([o, l]) => html`<option value="${o}" ${String(o) === String(val) ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
+    return html`<label>${label}<input name="${k}" ${raw(type === 'text' ? 'maxlength="200"' : 'inputmode="decimal"')} value="${val}" autocomplete="off" ${dis}></label>`; };
+  const amount = deal.loanAmount == null || deal.loanAmount === '' ? null : Number(deal.loanAmount);
+  const fromOrder = html`<div class="card acct-form" data-loan-order><div class="acct-card-head"><h3>From the order</h3><span class="muted small">Change these on <a href="#/deals/${deal.id}" data-loan-goto-overview>File Overview</a>, Edit order details.</span></div>
+    <dl class="kv"><dt>Loan amount</dt><dd data-loan-amount>${amount == null ? '—' : m2z(amount)}</dd><dt>Lender</dt><dd data-loan-lender>${deal.lenderName || '—'}</dd></dl></div>`;
+  const form = html`<form class="card acct-form" id="acct-loan-form" data-loan-form novalidate><div class="acct-card-head"><h3>Loan details</h3><span class="muted small" data-loan-saved>${X.updatedAt ? `Last saved ${new Date(X.updatedAt).toLocaleString('en-US')}${X.updatedByName ? ' by ' + X.updatedByName : ''}` : 'Nothing entered yet'}</span></div>
+    <p class="small muted">These print on page 1 of the <a href="#/deals/${deal.id}/accounting?v=cd" data-loan-goto-cd>Closing Disclosure</a>. Leave a box empty if you don't know it yet: the Closing Disclosure shows a dash. ${ro ? html`<strong data-readonly-note>Read only for your role.</strong>` : ''}</p>
+    ${LOAN_PAGE_GROUPS.map(([title, keys]) => html`<fieldset class="acct-cd-group" data-loan-group="${title}"><legend>${title}</legend><div class="form-grid">${keys.map(field)}</div></fieldset>`)}
+    <p class="err-text small" data-loan-err></p>${ro ? '' : html`<div class="acct-form-actions"><button class="m-btn" type="submit" data-save-loan>Save loan details</button><span class="muted small">Logged with your name and the time.</span></div>`}</form>`;
+  return { body: html`<div class="acct-grid" data-loan-page>${fromOrder}${form}</div>`, mount: (root, c = {}) => {
+    const f = $('#acct-loan-form', root); if (!f || !$('[data-save-loan]', f)) return;
+    f.addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-loan-err]', f); err.textContent = '';
+      const typed = Object.fromEntries($$('input,select', f).map((i) => [i.name, i.value]));
+      try { const now = await api.getAccountingCd(deal.id);   // read again, so a change made on CD details in another tab is kept
+        await api.saveAccountingCd(deal.id, loanPageInput(now.details, typed)); toast('Loan details saved'); if (c.refresh) c.refresh(); else location.reload(); }
+      catch (x) { err.textContent = x.message; toast(x.message, 'err'); } }); } };
 }
 
 // ---------------- CD details & the prepaids / escrow calculator ----------------

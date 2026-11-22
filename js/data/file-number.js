@@ -12,6 +12,17 @@ export function filePrefix(state) {
 
 export function buildFileNumber(state, yy, seq) { return `${filePrefix(state)}-${String(yy).padStart(2, '0').slice(-2)}-${seq}`; }
 
+// FF-050: a staff edit of one file's number. New files still use buildFileNumber. 40 matches the length already used when a file number is stored on a feedback note.
+export const FILE_NUMBER_MAX = 40;
+export const FILE_NUMBER_TAKEN = 'That file number is already on another file. Enter a different number.';
+export function cleanFileNumber(raw) {
+  const value = String(raw == null ? '' : raw).trim().replace(/\s+/g, ' ');
+  if (!value) return { ok: false, error: 'Enter a file number.' };
+  if (value.length > FILE_NUMBER_MAX) return { ok: false, error: 'A file number can be up to 40 characters. Shorten it and save again.' };
+  if (!/^[A-Za-z0-9][A-Za-z0-9 ._/#'-]*$/.test(value)) return { ok: false, error: 'Use letters, numbers, and these marks only: space, hyphen, period, slash, and #.' };
+  return { ok: true, value };
+}
+
 /* The number with the new state's prefix, or null when it is not a generated number (e.g. DEMO-100) or nothing changes. */
 export function retagFileNumber(fileNumber, state) {
   const m = FILE_NUMBER_RE.exec(String(fileNumber || ''));

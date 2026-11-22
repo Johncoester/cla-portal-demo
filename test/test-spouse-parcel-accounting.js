@@ -16,14 +16,14 @@ ok(!readFileSync('js/app.js', 'utf8').includes("link('spouse'"), 'the sidebar do
 
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-proc');
-const made = await api.createDeal({ street: '4 Parcel Way', city: 'Miami', state: 'FL', zip: '33131', parcelId: 'PARCEL-1', parcelIds: ['PARCEL-1', 'PARCEL-2'], emdAmount: 5000, emdHeldBy: 'CLA Title', commissionBase: 10000, commissionPercent: 3, commissionPaidBy: 'seller' });
+const made = await api.createDeal({ street: '4 Parcel Way', city: 'Miami', state: 'FL', zip: '33131', parcelId: 'PARCEL-1', parcelIds: ['PARCEL-1', 'PARCEL-2'], emdAmount: 5000, emdHeldBy: 'CLA Title' });
 ok(made.parcelId === 'PARCEL-1' && made.parcelIds[1] === 'PARCEL-2', 'the first parcel stays the primary and the list is kept');
-await api.updateDeal(made.id, { parcelId: 'PARCEL-9', parcelIds: ['PARCEL-9', 'PARCEL-2'], emdHeldBy: 'Listing brokerage', commissionBase: 10000, commissionPercent: 3, commissionPaidBy: 'seller' });
+await api.updateDeal(made.id, { parcelId: 'PARCEL-9', parcelIds: ['PARCEL-9', 'PARCEL-2'], emdHeldBy: 'Listing brokerage' });
 const again = await api.getDeal(made.id);
 ok(again.parcelId === 'PARCEL-9' && parcelList(again).join(',') === 'PARCEL-9,PARCEL-2', 'editing the list updates the primary parcel');
-ok(again.financial.emdHeldBy === 'Listing brokerage' && again.financial.commissionPaidBy === 'seller', 'earnest and commission stay on the order financial record');
+ok(again.financial.emdHeldBy === 'Listing brokerage' && !('commissionPaidBy' in again.financial), 'EMD held by stays on the order financial record; commissions are Agent fees (Nov 13)');
 const acct = readFileSync('js/pages/dealaccounting-contract.js', 'utf8');
-ok(acct.includes('data-earnest-accounting') && acct.includes('emdHeldBy') && acct.includes('commissionPaidBy'), 'the accounting page edits the same earnest fields');
+ok(acct.includes('data-earnest-accounting') && acct.includes('emdHeldBy') && !acct.includes('commissionPaidBy'), 'the accounting page edits the same earnest fields and no commission');
 
 const sql = readFileSync('supabase/migrations/20261112060000_parcel_id_list.sql');
 const roll = readFileSync('supabase/rollbacks/20261112060000_parcel_id_list.sql');

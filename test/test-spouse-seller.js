@@ -36,12 +36,16 @@ const taskOf = async (who, code, role) => {
 
 const sellerPersonal = await taskOf('u-seller', 'personal_info', 'Client-Seller');
 const opened = await api.getTask(sellerPersonal.id);
-const sellerKeys = ['citizenship', 'gender', 'date_of_birth', 'current_address', 'forwarding_address', 'ground_rent', 'front_foot', 'leaving_town', 'travel_dates', 'divorce', 'primary_residence', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter', 'water_meter_where', 'proceeds_ack'];
+const sellerKeys = ['citizenship', 'gender', 'date_of_birth', 'current_address', 'forwarding_address', 'ground_rent', 'front_foot', 'leaving_town', 'travel_dates', 'divorce', 'primary_residence', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter'];
+ok(!opened.fields.some((f) => f.k === 'water_meter_where'), 'FF-068 #12: "Where is the water meter?" was removed');
 for (const key of sellerKeys) ok(opened.fields.some((f) => f.k === key), `the seller form includes ${key}`);
 ok(!opened.fields.some((f) => /ssn|social.?security|spouse/i.test(`${f.k} ${f.label}`)), 'SSN and spouse match are not fields on the seller form');
-const statement = opened.fields.find((f) => f.k === 'proceeds_statement');
+// FF-066 #6 (Francis confirm-back Nov 12 6:14 PM ET): the proceeds acknowledgment moved from Personal information to the proceeds task.
+ok(!opened.fields.some((f) => f.k === 'proceeds_statement' || f.k === 'proceeds_ack'), 'Personal information no longer asks for the proceeds acknowledgment');
+const proceedsTask = await api.getTask((await taskOf('u-seller', 'seller_proceeds', 'Client-Seller')).id);
+const statement = proceedsTask.fields.find((f) => f.k === 'proceeds_statement');
 ok(statement && statement.text === 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.', 'the proceeds statement is the required wording');
-ok(opened.fields.find((f) => f.k === 'proceeds_ack').req === true, 'the acknowledgment is required');
+ok(proceedsTask.fields.find((f) => f.k === 'proceeds_ack').req === true, 'the acknowledgment is required');
 
 const answers = {
   full_name: 'Sara Seller', email: 'sara.seller@example.test', cell_phone: '3015550100', current_address: '22 Seller Lane, Rockville, MD 20850',
@@ -49,19 +53,22 @@ const answers = {
   citizenship: 'U.S. Citizen', gender: 'Female', date_of_birth: '1985-06-15', forwarding_address: '9 Next Street, Rockville, MD 20850',
   ground_rent: 'Yes', front_foot: 'No', leaving_town: 'Yes', travel_dates: 'Dec 1 to Dec 4', divorce: 'No', primary_residence: 'Yes',
   homestead: 'Yes', tenants_after: 'No', water_provider: 'WSSC', deceased_owners: 'No', in_state: 'Yes', name_changed: 'No',
-  existing_survey: 'Yes', bankruptcy: 'No', water_meter: 'Outside', water_meter_where: 'By the front steps',
+  existing_survey: 'Yes', bankruptcy: 'No', water_meter: 'Outside',
 };
 const saved = await api.saveTaskForm(sellerPersonal.id, answers);
 for (const key of Object.keys(answers)) ok(saved.formData[key] === answers[key] || (key === 'cell_phone' && String(saved.formData[key]).includes('301')), `saved ${key}`);
 const again = await api.getTask(sellerPersonal.id);
-for (const key of ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'ground_rent', 'front_foot', 'travel_dates', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter', 'water_meter_where']) {
+for (const key of ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'ground_rent', 'front_foot', 'travel_dates', 'homestead', 'tenants_after', 'water_provider', 'deceased_owners', 'in_state', 'name_changed', 'existing_survey', 'bankruptcy', 'water_meter']) {
   ok(again.formData[key] === answers[key], `reopen keeps ${key}`);
 }
+const done = await api.saveTaskForm(sellerPersonal.id, answers, { complete: true });
+ok(done.status === 'done' && !('proceeds_ack' in done.formData), 'Personal information completes without the proceeds acknowledgment (it moved to the proceeds task)');
+const proceedsAnswers = { method: 'Check at settlement', settlement_ack: true };
 let blocked = '';
-try { await api.saveTaskForm(sellerPersonal.id, answers, { complete: true }); } catch (e) { blocked = e.message; }
-ok(blocked.includes('I acknowledge and understand the above statement.'), 'the form cannot be submitted without the acknowledgment');
-const done = await api.saveTaskForm(sellerPersonal.id, { ...answers, proceeds_ack: true }, { complete: true });
-ok(done.status === 'done' && done.formData.proceeds_ack === true, 'ticking the acknowledgment lets the seller submit');
+try { await api.saveTaskForm(proceedsTask.id, proceedsAnswers, { complete: true }); } catch (e) { blocked = e.message; }
+ok(blocked.includes('I acknowledge and understand the above statement.'), 'the proceeds task cannot be submitted without the acknowledgment');
+const pdone = await api.saveTaskForm(proceedsTask.id, { ...proceedsAnswers, proceeds_ack: true }, { complete: true });
+ok(pdone.status === 'done' && pdone.formData.proceeds_ack === true, 'ticking the acknowledgment lets the seller submit the proceeds task');
 
 const hoa = await taskOf('u-seller', 'hoa_info', 'Client-Seller');
 ok(hoa.title === 'Confirm HOA Information', 'the HOA task is the confirmation task');
@@ -88,7 +95,7 @@ ok(mortgage.title === 'Outstanding Mortgage Information' && mortgage.fields.some
 const loans = [{ lender: 'First Bank', phone: '3015550111', last4: '1111', loan_type: 'First' }, { lender: 'Second Bank', phone: '3015550222', last4: '2222', loan_type: 'HELOC' }];
 await api.saveTaskForm(mortgage.id, { mortgages: JSON.stringify(loans) });
 const loansAgain = JSON.parse((await api.getTask(mortgage.id)).formData.mortgages);
-ok(loansAgain.length === 2 && loansAgain[0].lender === 'First Bank' && loansAgain[1].lender === 'Second Bank' && loansAgain[1].last4 === '2222', 'two mortgages save and reload');
+ok(loansAgain.length === 2 && loansAgain[0].lender === 'First Bank' && loansAgain[1].lender === 'Second Bank' && loansAgain[1].loan_number === '2222', 'two mortgages save and reload');
 let loanErr = '';
 try { await api.saveTaskForm(mortgage.id, { mortgages: '[]' }, { complete: true }); } catch (e) { loanErr = e.message; }
 ok(loanErr.includes('Add at least one mortgage'), 'an empty mortgage list cannot be submitted');
@@ -181,7 +188,8 @@ const beforeOpen = taskList.slice(0, taskList.indexOf('const showIntake'));
 ok(!overview.includes('getSpouse') && !overview.includes('readBuyerSsn') && !dealPage.includes('getSpouse'), 'overview and the file page do not load spouse data');
 ok(!beforeOpen.includes('readBuyerSsn') && !beforeOpen.includes('getSpouse'), 'the task list does not read a number or spouse data while it loads');
 const formHtml = toText(intakeFormHtml(opened, { page: true, state: 'MD' }));
-ok(formHtml.includes('Add another mortgage') === false && formHtml.includes('I acknowledge and understand the above statement.'), 'the seller form shows the acknowledgment');
+ok(formHtml.includes('Add another mortgage') === false && !formHtml.includes('I acknowledge and understand the above statement.'), 'the seller Personal information form no longer shows the proceeds acknowledgment (FF-066: it is on the proceeds task)');
+ok(toText(intakeFormHtml({ ...proceedsTask, canFill: true }, { page: true, state: 'MD' })).includes('I acknowledge and understand the above statement.'), 'the proceeds task shows the acknowledgment');
 const loanHtml = toText(intakeFormHtml({ ...mortgage, formData: { mortgages: JSON.stringify(loans) }, canFill: true }, { page: true }));
 ok(loanHtml.includes('Add another mortgage') && loanHtml.includes('First Bank') && loanHtml.includes('Second Bank'), 'the mortgage form shows every saved mortgage and the add button');
 

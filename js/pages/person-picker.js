@@ -4,12 +4,12 @@
 // Francis, Nov 9: when there is no match, offer "Add … as a new person" in the list so a party can be created from the field itself
 // (Buyers & Sellers / Agents / Lender) without leaving for "Add new user".
 import { html, toText, $, toast } from '../ui.js?v=202611161500';
-import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611101015';
+import { fmtPhone, contactTypeLabel } from '../data/constants.js?v=202611247700';
 
 const MAX = 25;
 const digits = (s) => String(s || '').replace(/\D/g, '');
 export const personLabel = (c) => `${c.firstName || ''} ${c.lastName || ''}`.trim() || (c.company || '').trim() || 'Unnamed contact';
-const detail = (c) => [contactTypeLabel(c.contactType), c.email, fmtPhone(c.phone), c.company].filter(Boolean).join(' \u00b7 ');
+export const detail = (c) => [contactTypeLabel(c.contactType) || c.accountRole, c.email, fmtPhone(c.phone), c.company].filter(Boolean).join(' \u00b7 ');
 // every word typed must match somewhere (name, email, company), or a 3+ digit run must be in the phone number
 export function matchPeople(list, q) {
   const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean); if (!words.length) return list;
@@ -35,7 +35,7 @@ export const pickerHtml = (name, label, { hint = 'Type a name, email, phone or b
 // onCreate(typed) optional: when the typed text has no match and the user picks "Add …", called with the typed string;
 //   may return a contact (or a Promise of one). When it returns a contact, the picker selects it.
 export function mountPicker(el, source, { onSet, onCreate, createVerb = 'person', allowCreate } = {}) {   // onSet(contact) after a pick (Matt, Nov 3 (b): Lender fills its phone / email)
-  // allowCreate() optional: Contacts hides inline create for Transaction Coordinator (needs an Admin-made TC login).
+  // allowCreate() optional: a caller can hide "Add … as a new person" for a role that must be picked from the list.
   // createVerb may be a string or () => string so the Contacts role dropdown can switch lender vs person.
   const q = $('.picker-q', el); const hid = $('input[type=hidden]', el); const ul = $('.picker-list', el); const chosen = $('[data-chosen]', el);
   let hits = []; let active = -1; let creating = false;

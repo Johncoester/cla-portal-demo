@@ -14,9 +14,10 @@
  * DATA CONTRACT (same names in both; see the mock-part-*.js files):
  *   deals:      getWorkQueue, listDeals, getDeal, createDeal, updateDeal, setStage, setDealStatus, listSalesStaff, unreadCount
  *   people:     listContacts, createContact, updateContact, addParticipant (copies current task templates), removeParticipant
- *               Contacts carry contactType: null | 'realtor' | 'lender' | 'buyer_seller' (person-level, for reporting; separate from the
- *               per-file role; CLA staff never have one). createContact / updateContact accept it; adminCreateUser / adminUpdateUser
- *               accept it for outside users; adminListUsers rows carry it.
+ *               Contacts carry contactType: null | 'realtor' | 'lender' | 'buyer_seller' | 'agent_tc' (person-level, for reporting; separate from the
+ *               per-file role; CLA staff never have one). agent_tc is an outside assistant who works for real estate agents, not the CLA staff role.
+ *               createContact / updateContact accept it; adminCreateUser / adminUpdateUser
+ *               accept it for outside users; adminListUsers rows carry it. Existing contacts are not rewritten.
  *   tasks:      listTasks, getTask, createTask, updateTask, saveTaskForm(id, data, {complete}), uploadForTask,
  *               listTaskTemplates, publishTemplateVersion (Admin), sendTaskReminder, queueOverdueReminders, listOutbox (queued only, never sent)
  *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, shareDocumentWithClient (staff: share an upload with the buyer), shareDocumentWithSeller (staff: the same for the seller), getDocumentContent, listDealFolders, createFolder, renameFolder,
@@ -68,14 +69,16 @@
  *               {entity: {name, type, repName, repTitle, repPhone, repEmail}}) for a buyer / seller entity; setParticipantEntity(dealId, participantId, entity|null).
  *               getDeal participants carry entity (rep phone / email blank for the other side's outside users). No API change for the task grid.
  */
+import { importWithRetry } from './import-retry.js?v=202611242200';
+
 let loading = null;
 export function getAdapter() {
-  if (!loading) loading = loadAdapter();
+  if (!loading) loading = loadAdapter().catch((err) => { loading = null; throw err; });
   return loading;
 }
 async function loadAdapter() {
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await import('./supabase-adapter.js?v=202611161400'); return m.createSupabaseAdapter(cfg); }
-  const m = await import('./mock-adapter.js?v=202611160800');
+  if (cfg.mode === 'supabase') { const m = await importWithRetry(() => import('./supabase-adapter.js?v=202611290700')); return m.createSupabaseAdapter(cfg); }
+  const m = await importWithRetry(() => import('./mock-adapter.js?v=202611290700'));
   return m.createMockAdapter();
 }

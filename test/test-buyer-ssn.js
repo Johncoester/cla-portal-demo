@@ -67,8 +67,8 @@ ok(!leaked(activity), 'the activity log does not contain the number');
 
 const buyerHtml = toText(buyerSsnHtml(MASK, false));
 const staffHtml = toText(buyerSsnHtml(NUMBER, true));
-ok(buyerHtml.includes('data-ssn-mask') && buyerHtml.includes(MASK) && !buyerHtml.includes(NUMBER) && buyerHtml.includes('type="password"') && !buyerHtml.includes('name='), 'the buyer input is masked and is not a named answer');
-ok(staffHtml.includes('data-ssn-staff') && staffHtml.includes('type="password"') && !/value="900/.test(staffHtml), 'the staff view is not prefilled into the password box');
+ok(buyerHtml.includes('data-ssn-mask') && buyerHtml.includes(MASK) && !buyerHtml.includes(NUMBER) && buyerHtml.includes('type="text"') && buyerHtml.includes('data-ssn-dash') && !buyerHtml.includes('name='), 'FF-068 #9: the buyer input shows the digits while typing (dashes added), the saved number is masked, and it is not a named answer');
+ok(staffHtml.includes('data-ssn-staff') && staffHtml.includes('data-ssn-dash') && !/value="900/.test(staffHtml), 'the staff view is not prefilled into the SSN box');
 
 const sql = readFileSync('supabase/migrations/20261112010100_buyer_ssn.sql', 'utf8');
 ok(/vault\.decrypted_secrets/.test(sql) && /buyer_ssn_key/.test(sql) && /pgp_sym_encrypt/.test(sql), 'the number is encrypted with the Vault key');

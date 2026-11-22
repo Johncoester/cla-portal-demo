@@ -1,6 +1,7 @@
 import { test, expect, signIn, openMockFile, freshIssues } from '../fixtures.js';
 import { targetMode } from '../helpers/gate.js';
 import { advance, dealId, gotoHash } from '../helpers/portal.js';
+import { reopenSeedBuyerTask } from '../helpers/seed-tasks.js';
 
 test('the staff file header stays on screen while the file scrolls', async ({ page, issues }) => {
   await signIn(page, 'processor');
@@ -43,18 +44,26 @@ test('the buyer sees the agent phone and not themselves on the closing team', as
   await expect(page.locator('[data-agent-tel]').first()).toBeVisible();
   await expect(page.locator('[data-your-agent]')).toContainText(targetMode() === 'test' ? '301-555-0148' : '301-555-0105');
   // Nov 11: '#/deals/deal-2' is a mock id; on TEST it answered 'invalid input syntax for type uuid'. Use the file just opened.
+  // FF-069d: the buyer personal information test completes this task earlier in the run, and a Done task is read-only for
+  // the buyer. Put the seeded buyer's copy back to To do first (see seed-tasks.js).
+  await reopenSeedBuyerTask(dealId(page), 'personal_info');
   await gotoHash(page, `#/deals/${dealId(page)}/tasks`);
   await page.getByRole('link', { name: 'Personal information' }).first().click();
-  const citizenship = page.locator('#tform select[name="citizenship"]');
+  const citizenship = page.locator('#tform input[name="citizenship"]');
   await citizenship.waitFor();
-  const choices = await citizenship.locator('option').allTextContents();
-  for (const label of ['U.S. Citizen', 'Permanent Resident', 'Non-Resident Alien', 'Other']) {
-    expect(choices).toContain(label);
-  }
-  await citizenship.selectOption('U.S. Citizen');
+  await expect(page.locator('#tform select[name="citizenship"]')).toHaveCount(0);
+  await citizenship.fill('U.S. Citizen');
   await page.locator('#tform button[data-mode="save"]').click();
   await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
   await expect(citizenship).toHaveValue('U.S. Citizen');
+  await citizenship.fill('Born in Canada');
+  await page.locator('#tform button[data-mode="save"]').click();
+  await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
+  await expect(citizenship).toHaveValue('Born in Canada');
+  await citizenship.fill('');
+  await page.locator('#tform button[data-mode="save"]').click();
+  await expect(page.locator('.toast', { hasText: 'Progress saved' })).toBeVisible();
+  await expect(citizenship).toHaveValue('');
   expect(freshIssues(issues)).toEqual([]);
 });
 
@@ -69,7 +78,7 @@ test('Place Order fills city, state, county and ZIP from the street line', async
   await expect(page.locator('[data-wiz-step="property"] input[name="city"]')).toHaveValue('Rockville');
   await expect(page.locator('[data-wiz-step="property"] select[name="state"]')).toHaveValue('MD');
   await expect(page.locator('[data-wiz-step="property"] input[name="zip"]')).toHaveValue('20850');
-  await expect(page.locator('[data-wiz-step="property"] input[name="county"]')).toHaveValue('Montgomery');
+  await expect(page.locator('[data-wiz-step="property"] select[name="county"]')).toHaveValue('Montgomery');
   await expect(page.locator('[data-add-parcel]')).toBeVisible();
   expect(freshIssues(issues)).toEqual([]);
 });

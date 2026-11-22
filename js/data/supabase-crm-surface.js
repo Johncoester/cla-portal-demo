@@ -1,12 +1,14 @@
 /* Hosted methods the CRM screens call that were not on the Supabase adapter.
  * Tables only: dashboards, reports, layout sections, dup rules, search columns, activities.
  * Recent items have no table, so they last for this page session only. */
-import { localDate } from './constants.js?v=202611101015';
-import { canUseCrm, crmReadOnly } from './crm.js?v=202611130900';
+import { localDate } from './constants.js?v=202611247700';
+import { canUseCrm, crmReadOnly } from './crm.js?v=202611247700';
 import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-} from './crm-analytics.js?v=202611130900';
+  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys,
+} from './crm-analytics.js?v=202611247700';
+import { cleanHomeTitle, homeChartsMissing, homeChartMessage } from './crm-home-charts.js?v=202611247000';
 
 const RECENT = new Map();
 const row = (o) => o || {};
@@ -31,18 +33,25 @@ const chartTypeFor = (type, chartType) => (type === 'chart' ? (CHART_CODES.inclu
 const componentName = (name, fallback = '') => { const n = String(name == null ? '' : name).replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 100); if (n) return n; if (fallback) return fallback; throw new Error('Component Name is required.'); };
 const componentHeight = (h, missing = 1) => { if (h == null || h === '') return missing; if (h === 's' || h === 1 || h === '1') return 1; return 2; };
 const componentWidth = (w) => { const n = Number(w); return n === 2 || n === 3 ? n : 1; };
-const componentCriteria = (list) => (Array.isArray(list) ? list : []).filter((c) => c && typeof c === 'object').slice(0, 10);
+const componentCriteria = (list) => withPresetKeys((Array.isArray(list) ? list : []).filter((c) => c && typeof c === 'object').slice(0, 10));
 const componentTarget = (spec) => { if (spec.type !== 'target') return null; if (spec.target == null || spec.target === '') return null; const n = Number(spec.target); if (!isFinite(n) || n < 0) throw new Error('Enter the target (a number that is 0 or more).'); return n; };
+// Janine, Nov 18 2026 (Feedback 31 item 2): a cloned dashboard is named "<name> (copy)" and keeps that ending inside the 100-character limit.
+const dashboardCopyName = (sourceName) => {
+  const suffix = ' (copy)';
+  const base = String(sourceName == null ? '' : sourceName).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  return base.slice(0, 100 - suffix.length) + suffix;
+};
+const plainCopy = (v, fallback) => (v == null ? fallback : JSON.parse(JSON.stringify(v)));
 const packMeasure = (spec) => { const fn = ['count', 'sum', 'avg'].includes(spec.measure && spec.measure.fn) ? spec.measure.fn : 'count'; const m = { fn }; if (fn !== 'count' && spec.measure && spec.measure.field) m.field = spec.measure.field; return m; };
-const packGrouping = (spec) => { const g = { ...spec.grouping }; if (spec.grouping2 && spec.grouping2.field) g.grouping2 = spec.grouping2; return g; };
+const packGrouping = (spec) => { const g = groupingWithCalendar({ ...(spec.grouping || {}) }); if (spec.grouping2 && spec.grouping2.field) g.grouping2 = groupingWithCalendar({ ...spec.grouping2 }); return g; };
 const storedParts = (c) => {
   const measure = c.measure && typeof c.measure === 'object' ? { ...c.measure } : { fn: 'count' };
   delete measure.target;
   const target = c.target == null || c.target === '' || !isFinite(Number(c.target)) ? null : Number(c.target);
-  const grouping = c.grouping && typeof c.grouping === 'object' ? { ...c.grouping } : {};
-  const grouping2 = (grouping.grouping2 && grouping.grouping2.field ? grouping.grouping2 : null);
+  const grouping = groupingWithCalendar(c.grouping && typeof c.grouping === 'object' ? { ...c.grouping } : {});
+  const grouping2 = groupingWithCalendar(grouping.grouping2 && grouping.grouping2.field ? grouping.grouping2 : null);
   delete grouping.grouping2;
-  const criteria = Array.isArray(c.criteria) ? c.criteria : [];
+  const criteria = withPresetKeys(Array.isArray(c.criteria) ? c.criteria : []);
   const chartType = c.chart_type || c.chartType || null;
   const config = { module: c.module, measure, grouping, criteria, chartType };
   if (grouping2) config.grouping2 = grouping2;
@@ -75,12 +84,14 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     const share = shareOf(d.share);
     const view = { ...camel(d), shareUsers: share.users, shareRoles: share.roles, shareDepts: share.departments, locked: !!d.locked, retired: !!d.retired_at, mine: d.owner_id === u.id, ownerName: '', builtin: !!d.builtin };
     view.canEdit = dashboardEditable(u, view, crmReadOnly(u));
+    if (view.filters && view.filters.period) view.filters = { ...view.filters, period: presetKey(view.filters.period) };
     return view;
   };
   const repOut = (u, r, folders) => {
     const share = r.share && r.share.mode ? r.share : { mode: r.share_mode || 'all', users: shareOf(r.share).users, roles: shareOf(r.share).roles };
     const folder = (folders || []).find((f) => f.id === r.folder_id);
-    return { ...camel(r), related: r.related || [], columns: r.columns || [], rowGroups: r.row_groups || r.rowGroups || [], aggregates: r.aggregates || [], filters: r.filters || [],
+    const loaded = camel(r);
+    return { ...loaded, ...(Object.prototype.hasOwnProperty.call(loaded, 'bucket') ? { bucket: calendarBucket(loaded.bucket) } : {}), related: r.related || [], columns: r.columns || [], rowGroups: r.row_groups || r.rowGroups || [], aggregates: r.aggregates || [], filters: withPresetKeys(r.filters || []),
       share, folderName: folder ? folder.name : (r.personal_owner ? 'My reports' : ''), personal: !!r.personal_owner, retired: !!r.retired_at, moduleLabel: moduleName(r.module),
       createdByName: '', canEdit: !crmReadOnly(u), canExport: !!u.isAdmin, lastAccessedAt: r.last_accessed_at || null };
   };
@@ -183,6 +194,7 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       if (!id) throw new Error('This browser cannot mint a dashboard id.');
       // No RETURNING on this insert. crm_dashboards_select calls crm_dash_visible, which looks the id up and cannot see this statement's new row.
       const row = { id, name: name.slice(0, 100), description: String(input.description || '').slice(0, 500), owner_id: u.id, visibility: input.visibility || 'me', share, locked: !!input.locked, created_by: u.id };
+      if (input.filters && typeof input.filters === 'object' && !Array.isArray(input.filters)) row.filters = input.filters;
       ok(await sb.from('crm_dashboards').insert(row));
       return dashOut(u, ok(await sb.from('crm_dashboards').select('*').eq('id', id).single()));
     },
@@ -196,7 +208,40 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       if (patch.shareUsers || patch.shareRoles || patch.shareDepts) o.share = { users: patch.shareUsers || [], roles: patch.shareRoles || [], departments: patch.shareDepts || [] };
       return dashOut(u, ok(await sb.from('crm_dashboards').update(o).eq('id', id).select('*').single()));
     },
-    async cloneCrmDashboard(id, { name } = {}) { const d = await this.getCrmDashboard(id); return this.createCrmDashboard({ name: name || `Copy of ${d.name}`, description: d.description, visibility: 'me' }); },
+    // Copies every visible chart in one insert. Retired charts stay on the original only. The original dashboard is not written.
+    async cloneCrmDashboard(id, { name } = {}) {
+      const u = await editor();
+      const asked = name == null ? null : String(name).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+      if (name != null && !asked) throw new Error('Dashboard Name is required.');
+      const src = ok(await sb.from('crm_dashboards').select('*').eq('id', id).maybeSingle());
+      if (!src || !dashboardVisible(u, dashOut(u, src))) throw new Error('Dashboard not found.');
+      const created = await this.createCrmDashboard({
+        name: asked == null ? dashboardCopyName(src.name) : asked.slice(0, 100),
+        description: src.description,
+        visibility: 'me',
+        filters: src.filters && typeof src.filters === 'object' && !Array.isArray(src.filters) ? plainCopy(src.filters, {}) : undefined,
+      });
+      const comps = ok(await sb.from('crm_dash_components').select('*').eq('dashboard_id', id).order('position')) || [];
+      const live = comps.filter((c) => !c.retired_at);
+      if (live.length) {
+        ok(await sb.from('crm_dash_components').insert(live.map((c) => ({
+          dashboard_id: created.id,
+          name: c.name,
+          type: c.type,
+          module: c.module,
+          chart_type: c.chart_type ?? null,
+          measure: plainCopy(c.measure, { fn: 'count' }),
+          grouping: plainCopy(c.grouping, {}),
+          criteria: plainCopy(c.criteria, []),
+          target: c.target == null || c.target === '' ? null : c.target,
+          width: c.width,
+          height: c.height,
+          position: c.position,
+          created_by: u.id,
+        }))));
+      }
+      return created;
+    },
     async retireCrmDashboard(id, retired = true) { const u = await editor(); return dashOut(u, ok(await sb.from('crm_dashboards').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id).select('*').single())); },
     async addCrmComponent(dashboardId, v = {}) {
       const u = await editor(); const spec = componentSpec(v); const module = requireModule(spec.module); const type = componentType(spec.type);
@@ -225,7 +270,7 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       let rows = await rowsOf(module); rows = applyCriteria(rows, componentCriteria(spec.criteria), fields, { logic: 'and', today: localDate() });
       const measure = packMeasure(spec); const chartType = chartTypeFor(type, spec.chartType); const data = chartData(rows, { grouping: spec.grouping || {}, grouping2: spec.grouping2 || {}, measure }, fields, cfg);
       if (type === 'kpi' || type === 'target') { const value = measureOf(rows, measure, fields) || 0; data.value = value; data.count = rows.length; if (type === 'target') { data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; } }
-      const config = { module, measure, grouping: spec.grouping, criteria: componentCriteria(spec.criteria), chartType }; if (spec.grouping2) config.grouping2 = spec.grouping2; if (target != null) config.target = target;
+      const config = { module, measure, grouping: groupingWithCalendar(spec.grouping), criteria: componentCriteria(spec.criteria), chartType }; if (spec.grouping2) config.grouping2 = groupingWithCalendar(spec.grouping2); if (target != null) config.target = target;
       return { name: componentName(spec.name, 'Preview'), type, module, config, data, ownerId: u.id };
     },
     async crmDrillDown() { await who(); return { title: 'Records', rows: [] }; },
@@ -256,12 +301,116 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async retireCrmReport(id, retired = true) { const u = await editor(); ok(await sb.from('crm_reports').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id)); return { ok: true }; },
     async runCrmReport(idOrDef) {
       const u = await who(); const cfg = await self.getCrmSettings();
-      const def = typeof idOrDef === 'string' ? await this.getCrmReport(idOrDef) : idOrDef;
+      const def = typeof idOrDef === 'string' ? await this.getCrmReport(idOrDef) : { ...idOrDef, ...(Object.prototype.hasOwnProperty.call(idOrDef, 'bucket') ? { bucket: calendarBucket(idOrDef.bucket) } : {}) };
       const fields = reportFields(def.module, def.related || [], cfg);
       const rows = await rowsOf(def.module);
       const out = runReport(rows, def, fields, cfg, { today: localDate() });
       return { ...out, filterText: '', groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k) };
     },
     async exportCrmReport(id) { const u = await who(); if (!u.isAdmin) throw new Error('Only an Admin or Super admin can export a report.'); const rep = await this.getCrmReport(id); const out = await this.runCrmReport(id); return { name: `${rep.name}.csv`, csv: reportCsv(out, out.groupFields || []) }; },
+    // Home copies. An empty pin list returns before any chart or module row is read.
+    async listCrmHomeCharts({ countsOnly = false } = {}) {
+      const u = await who();
+      const res = await sb.from('crm_home_charts').select('component_id,title,position').eq('user_id', u.id).order('position');
+      if (res.error) { if (homeChartsMissing(res.error)) return { available: false, charts: [] }; throw new Error(homeChartMessage(res.error)); }
+      const pins = res.data || [];
+      if (!pins.length) return { available: true, charts: [] };
+      if (countsOnly) return { available: true, charts: pins.map((p) => ({ id: p.component_id })) };
+      return { available: true, charts: await homeChartViews(u, pins) };
+    },
+    async addCrmHomeChart(componentId) {
+      const u = await who(); const id = String(componentId || '').trim();
+      if (!id) throw new Error('That chart is not on a dashboard you can open.');
+      const compRes = await sb.from('crm_dash_components').select('id,name,retired_at').eq('id', id).maybeSingle();
+      if (compRes.error) throw new Error(homeChartsMissing(compRes.error) ? 'Add to Home is not ready on this portal yet.' : 'That chart is not on a dashboard you can open.');
+      if (!compRes.data || compRes.data.retired_at) throw new Error('That chart is not on a dashboard you can open.');
+      const have = await sb.from('crm_home_charts').select('component_id,position').eq('user_id', u.id);
+      if (have.error) throw new Error(homeChartsMissing(have.error) ? 'Add to Home is not ready on this portal yet.' : homeChartMessage(have.error));
+      const rows = have.data || [];
+      if (rows.some((r) => r.component_id === id)) throw new Error('That chart is already on your Home.');
+      const position = rows.reduce((n, r) => Math.max(n, Number(r.position) || 0), -1) + 1;
+      const ins = await sb.from('crm_home_charts').insert({ user_id: u.id, component_id: id, title: '', position });
+      if (ins.error) throw new Error(homeChartMessage(ins.error));
+      return { id, name: compRes.data.name, homeTitle: '', position };
+    },
+    async renameCrmHomeChart(componentId, title) {
+      const u = await who(); const id = String(componentId || '').trim(); const name = cleanHomeTitle(title);
+      const res = await sb.from('crm_home_charts').update({ title: name }).eq('user_id', u.id).eq('component_id', id).select('component_id,title').maybeSingle();
+      if (res.error) throw new Error(homeChartMessage(res.error));
+      if (!res.data) throw new Error('That chart is not on your Home.');
+      return { id, homeTitle: res.data.title || '' };
+    },
+    async removeCrmHomeChart(componentId) {
+      const u = await who(); const id = String(componentId || '').trim();
+      const res = await sb.from('crm_home_charts').delete().eq('user_id', u.id).eq('component_id', id);
+      if (res.error) throw new Error(homeChartMessage(res.error));
+      return { ok: true, id };
+    },
+    async reorderCrmHomeCharts(ids = []) {
+      const u = await who();
+      const list = [...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || '').trim()).filter(Boolean))];
+      if (!list.length) return { ok: true };
+      const cur = await sb.from('crm_home_charts').select('component_id,title').eq('user_id', u.id);
+      if (cur.error) throw new Error(homeChartMessage(cur.error));
+      const known = new Map((cur.data || []).map((r) => [r.component_id, r.title || '']));
+      const payload = [];
+      list.forEach((id, i) => { if (!known.has(id)) throw new Error('Those charts are not on your Home.'); payload.push({ user_id: u.id, component_id: id, title: known.get(id), position: i }); });
+      const up = await sb.from('crm_home_charts').upsert(payload, { onConflict: 'user_id,component_id' });
+      if (up.error) throw new Error(homeChartMessage(up.error));
+      return { ok: true };
+    },
+    async refreshCrmHomeChart(componentId) {
+      const u = await who(); const id = String(componentId || '').trim();
+      const res = await sb.from('crm_home_charts').select('component_id,title,position').eq('user_id', u.id).eq('component_id', id).maybeSingle();
+      if (res.error) throw new Error(homeChartMessage(res.error));
+      if (!res.data) throw new Error('That chart is not on your Home.');
+      const charts = await homeChartViews(u, [res.data]);
+      return charts[0];
+    },
   };
+  async function homeChartViews(u, pins) {
+    const ids = pins.map((p) => p.component_id);
+    const compRes = await sb.from('crm_dash_components').select('*').in('id', ids);
+    if (compRes.error) throw new Error(homeChartMessage(compRes.error));
+    const comps = compRes.data || [];
+    const byId = new Map(comps.map((c) => [c.id, c]));
+    const dashIds = [...new Set(comps.map((c) => c.dashboard_id).filter(Boolean))];
+    let dashes = [];
+    if (dashIds.length) {
+      const dashRes = await sb.from('crm_dashboards').select('*').in('id', dashIds);
+      if (dashRes.error) throw new Error(homeChartMessage(dashRes.error));
+      dashes = dashRes.data || [];
+    }
+    const dashById = new Map(dashes.map((d) => [d.id, d]));
+    const cfg = await self.getCrmSettings();
+    const modules = [...new Set(comps.filter((c) => !c.retired_at).map((c) => c.module))];
+    const rows = new Map();
+    for (const m of modules) { try { rows.set(m, await rowsOf(m)); } catch (e) { rows.set(m, e); } }
+    const missing = (id, title) => ({ id, name: title || 'Chart', sourceName: '', homeTitle: title || '', missing: true, type: 'chart', height: 'm', data: {}, config: { chartType: 'column' }, error: 'This chart is no longer on a dashboard you can open. Remove it from Home.' });
+    return pins.map((p) => {
+      const title = String(p.title || '').trim();
+      const c = byId.get(p.component_id);
+      if (!c || c.retired_at) return missing(p.component_id, title);
+      const rawDash = dashById.get(c.dashboard_id);
+      const view = rawDash ? dashOut(u, rawDash) : null;
+      if (!view || !dashboardVisible(u, view)) return missing(c.id, title || c.name);
+      let data = { groups: [], value: 0, measureLabel: 'Record Count' };
+      const bag = rows.get(c.module);
+      if (bag instanceof Error) data = { error: 'This chart could not be loaded. Use Refresh to try again.' };
+      else {
+        try {
+          const parts = storedParts(c); const fields = moduleFields(c.module, cfg);
+          const narrowed = narrowRows(bag || [], fields, parts.criteria, view.filters);
+          data = chartData(narrowed, { grouping: parts.grouping || {}, grouping2: parts.grouping2 || {}, measure: parts.measure }, fields, cfg) || data;
+          if (c.type === 'kpi' || c.type === 'target') {
+            const value = measureOf(narrowed, parts.measure, fields) || 0;
+            data = { ...data, value, count: narrowed.length };
+            if (c.type === 'target') { const target = Number(parts.config.target) || 0; data.target = target; data.pct = target ? Math.round((value / target) * 1000) / 10 : 0; }
+          }
+        } catch { data = { error: 'This chart could not be loaded. Use Refresh to try again.' }; }
+      }
+      const out = compOut(c, data.error ? { error: data.error } : data);
+      return { ...out, id: c.id, name: title || c.name, sourceName: c.name, homeTitle: title, missing: false, dashboardName: view.name || '' };
+    });
+  }
 }

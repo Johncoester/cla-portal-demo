@@ -4,15 +4,17 @@
  * Sales Person / Sales Team read the orders they can see; Transaction Coordinators, agents and clients get nothing.
  * Every add / edit / retire / restore is logged in d.accountingLog (who, when, field, old, new). Fees are RETIRED, never deleted. */
 import { ACCOUNTING_OFF, ACCOUNTING_STAFF_ONLY, ACCOUNTING_READ_ONLY, TEST_MARK, acctCanRead, acctCanEdit, cleanFee, feeChanges, allEntries, ledgerTotals,
-  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611070139';
-import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED } from './contract-terms.js?v=202611091140';
-import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611141000';
+  altaStatement, closingDisclosure, presetsFor, presetAmount, presetFee, CALC_SOURCE_ID, isCalculated, withCalcFlags, liveProration } from './accounting.js?v=202611247900';
+import { blankContract, cleanContractTerms, fromContractRow, toContractRow, contractChanges, contractMismatch, assertContractPersisted, CONTRACT_NOT_SAVED, mergeOtherChargeDetails, otherChargeDetailsChanged } from './contract-terms.js?v=202611247900';
+import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611246500';
 // Caroline Kim, Nov 4 2026: prorations from the settlement date, the rest of the CD (details, prepaids F, initial escrow G), TCs read-only.
-import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611070139';
+import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, diffCdcalc, cdPages, CDCALC_VIA } from './cd-pages.js?v=202611289950';
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.
-const engine = () => import('./fee-engine.js?v=202611070139');
+const engine = () => import('./fee-engine.js?v=202611247900');
+const taxes = () => import('./taxes-fees.js?v=202611247900');
+const taxStore = () => import('./mock-part-tax-rates.js?v=202611247700');
 const VIA = 'CLA rates';
 
 // accountingCd (Caroline, Nov 4): one record of manual Closing Disclosure entries per order; added lazily, so the storage key stays v26
@@ -27,6 +29,7 @@ export function accountingPart(x, flags) {
   const editor = (dealId) => { const r = reader(dealId); if (!acctCanEdit(r.u)) fail(ACCOUNTING_READ_ONLY); return r; };
   const feeOf = (id) => db().accountingFees.find((f) => f.id === id) || fail('Fee not found.');
   const feesOf = (dealId) => db().accountingFees.filter((f) => f.dealId === dealId);
+  const forCalc = (deal) => ({ ...deal, payoffCount: (load().payoffs || []).filter((p) => p.dealId === deal.id && !p.retired).length });
   const logIt = (u, f, action, changes, via) => db().accountingLog.push({ id: nid('alog'), dealId: f.dealId, feeId: f.id, description: f.description, action, at: now(), byId: u.id, byName: nameOf(u.id), changes, ...(via ? { via } : {}) });
   const out = (f) => clone(withCalcFlags(f));
   const activeCalc = (dealId, key) => feesOf(dealId).find((f) => !f.retired && isCalculated(f) && f.calc.key === key);
@@ -45,12 +48,12 @@ export function accountingPart(x, flags) {
         entries: clone(allEntries(deal, fees, { includeRetired }).map(withCalcFlags)), retiredCount: fees.filter((f) => f.retired).length, totals: ledgerTotals(deal, fees) };
     },
     // EXAMPLE presets are REPLACED by this order's CLA-rate lines wherever the calculator has them; the rest stay marked EXAMPLE
-    async listAccountingPresets(dealId) { const { deal } = reader(dealId); const E = await engine(); const ch = E.presetChoices(deal, E.lastOptions(feesOf(dealId), deal));
+    async listAccountingPresets(dealId) { const { deal } = reader(dealId); const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const ch = E.presetChoices(d, E.lastOptions(feesOf(dealId), d), rates.tables);
       return [...ch.calculated, ...presetsFor(deal.state).filter((p) => !ch.replaced.includes(p.key)).map((p) => ({ ...p, exampleAmount: presetAmount(p, deal), fee: presetFee(p.key, deal) }))]; },
     async addAccountingFee(dealId, input) {
       const { u, deal } = editor(dealId);
       if (input && /^cla:/.test(String(input.presetKey || ''))) {   // started from a CLA-rate preset: stored as a calculated line (overridden if changed before saving)
-        const E = await engine(); const P = E.proposeFees(deal, E.lastOptions(feesOf(dealId), deal)); const line = P.lines.find((l) => 'cla:' + l.key === input.presetKey) || fail('That CLA rate does not apply to this order any more. Pick the preset again.');
+        const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const P = E.proposeFees(d, E.lastOptions(feesOf(dealId), d), rates.tables, rates.source); const line = P.lines.find((l) => 'cla:' + l.key === input.presetKey) || fail('That CLA rate does not apply to this order any more. Pick the preset again.');
         const f = addCalculated(E, u, deal, line, P, { ...input, presetKey: 'cla:' + line.key }); save(); return out(f); }
       const clean = cleanFee(input, deal);
       const f = { id: nid('fee'), dealId, ...clean, retired: false, retiredAt: null, retiredBy: null, createdAt: now(), createdBy: u.id, updatedAt: now(), updatedBy: u.id };
@@ -59,18 +62,18 @@ export function accountingPart(x, flags) {
     // key 'cla:<line>' = one CLA-rate line. An EXAMPLE key the calculator covers adds the CLA-rate line(s) instead (e.g. the settlement fee: buyer
     // and seller lines; the first is returned). EXAMPLE keys it does not cover, or an order it cannot calculate yet, add the EXAMPLE amount.
     async addAccountingPreset(dealId, key, overrides = {}) { const { u, deal } = editor(dealId); const E = await engine(); const fees = feesOf(dealId);
-      let P = null; try { P = E.proposeFees(deal, E.lastOptions(fees, deal)); } catch (e) { if (/^cla:/.test(key)) throw e; }
+      const d = forCalc(deal); const rates = await E.loadCalculatorRates(); let P = null; try { P = E.proposeFees(d, E.lastOptions(fees, d), rates.tables, rates.source); } catch (e) { if (/^cla:/.test(key)) throw e; }
       const lines = !P ? [] : /^cla:/.test(key) ? P.lines.filter((l) => 'cla:' + l.key === key) : P.lines.filter((l) => l.replacesPresets.includes(key) && !activeCalc(dealId, l.key));
       if (/^cla:/.test(key) && !lines.length) fail('That CLA rate does not apply to this order.');
       if (!lines.length) return this.addAccountingFee(dealId, { ...presetFee(key, deal), ...overrides });
       const added = lines.map((l, k) => addCalculated(E, u, deal, l, P, k === 0 ? overrides : {})); save(); return { ...out(added[0]), alsoAdded: added.slice(1).map((f) => f.id) }; },
     // ---------- CLA RATES: setup, preview diff, apply (Processor / Admin / Super admin) ----------
-    async getCalculatorSetup(dealId) { const { deal } = editor(dealId); const E = await engine(); return clone(E.calcSetup(deal, feesOf(dealId))); },
-    async previewCalculatedFees(dealId, options) { const { deal } = editor(dealId); const E = await engine(); const opts = E.cleanOptions(options || E.lastOptions(feesOf(dealId), deal));
-      const P = E.proposeFees(deal, opts); return clone(E.previewView(P, E.diffProposal(P, feesOf(dealId)), opts)); },
+    async getCalculatorSetup(dealId) { const { deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); return clone(E.calcSetup(d, feesOf(dealId), rates.tables, rates)); },
+    async previewCalculatedFees(dealId, options) { const { deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const opts = E.cleanOptions(options || E.lastOptions(feesOf(dealId), d));
+      const rates = await E.loadCalculatorRates(); const P = E.proposeFees(d, opts, rates.tables, rates.source); return clone(E.previewView(P, E.diffProposal(P, feesOf(dealId)), opts)); },
     async applyCalculatedFees(dealId, options, { token = null, retireExamples = true } = {}) {
-      const { u, deal } = editor(dealId); const E = await engine(); const opts = E.cleanOptions(options || E.lastOptions(feesOf(dealId), deal));
-      const P = E.proposeFees(deal, opts); const D = E.diffProposal(P, feesOf(dealId));
+      const { u, deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const opts = E.cleanOptions(options || E.lastOptions(feesOf(dealId), d));
+      const rates = await E.loadCalculatorRates(); const P = E.proposeFees(d, opts, rates.tables, rates.source); const D = E.diffProposal(P, feesOf(dealId));
       if (token && token !== D.token) fail('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = now(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
@@ -81,6 +84,23 @@ export function accountingPart(x, flags) {
         else if (row.status === 'retire') { retire(u, feeOf(row.current.id), VIA + ' (no longer calculated for this order)'); r.retired++; }
       }
       if (retireExamples) for (const x of D.examples) { const f = feeOf(x.id); if (!f.retired) { retire(u, f, VIA + ' (EXAMPLE fee replaced)'); r.examplesRetired++; } }
+      save(); return r; },
+    // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
+    async getTaxesFeesSetup(dealId) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const bundle = (await taxStore()).bundleOf(load()); return clone(T.taxesFeesSetup(d, feesOf(dealId), rates.tables, rates, bundle)); },
+    async previewTaxesFees(dealId, worksheet) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const bundle = (await taxStore()).bundleOf(load()); return clone(T.previewTaxesFees(d, worksheet, feesOf(dealId), rates.tables, rates.source, bundle)); },
+    async applyTaxesFees(dealId, worksheet, { token = null, retireExamples = true } = {}) {
+      const { u, deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates();
+      const P = T.proposeTaxesFees(d, worksheet, rates.tables, rates.source, (await taxStore()).bundleOf(load())); const D = T.diffTaxesFees(P, feesOf(dealId));
+      if (token && token !== D.token) fail('The fee ledger or the order changed since the preview. Preview again before applying.');
+      const at = now(); const via = 'Taxes & fees'; const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
+      for (const row of D.rows) {
+        if (row.status === 'new') { const f = addCalculated(E, u, deal, row.proposed, P, {}, at); T.attachTaxDocs(f.calc, P); const last = db().accountingLog[db().accountingLog.length - 1]; if (last && last.feeId === f.id) last.via = via; r.added++; }
+        else if (row.status === 'changed') { const f = feeOf(row.current.id); const clean = cleanFee(E.feeInput(row.proposed), deal, f); const next = T.attachTaxDocs(E.calcBlock(row.proposed, P, at), P);
+          const changes = feeChanges(f, clean); if (f.calc.calculation !== next.calculation) changes.push({ field: 'calculation', old: f.calc.calculation, new: next.calculation });
+          Object.assign(f, clean, { calc: next, updatedAt: at, updatedBy: u.id }); logIt(u, f, 'edited', changes, via); r.updated++; }
+        else if (row.status === 'retire') { retire(u, feeOf(row.current.id), via + ' (no longer calculated for this order)'); r.retired++; }
+      }
+      if (retireExamples) for (const x of D.examples) { const f = feeOf(x.id); if (!f.retired) { retire(u, f, via + ' (example fee replaced)'); r.examplesRetired++; } }
       save(); return r; },
     async updateAccountingFee(id, patch) {
       on(); const f = feeOf(id); const { u, deal } = editor(f.dealId); if (f.retired) fail('This fee is retired. Restore it before editing.');
@@ -139,7 +159,7 @@ export function accountingPart(x, flags) {
       if (prevRow && !contractMismatch(clean, shown)) return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: shown.fields, flags: shown.flags, updatedAt: prevRow.updated_at || null };
       const live = load().deals.find((q) => q.id === dealId);
       const earnestFields = live.transactionType === 'Refinance'
-        ? { emdAmount: null, emdHolder: '', emdDueOn: null, listingCommissionPercent: null, listingCommissionAmount: null, buyerBrokerPercent: null, buyerBrokerAmount: null }
+        ? { emdAmount: null, emdHolder: '', emdDueOn: null }
         : clean.fields;
       applyEarnestToDeal(live, earnestFields);
       const stored = { deal_id: dealId, ...toContractRow({ ...clean, fields: blankSharedEarnest(clean.fields) }), updated_at: now() };
@@ -152,6 +172,23 @@ export function accountingPart(x, flags) {
       assertContractPersisted({ ...clean, fields: { ...clean.fields, ...earnestFromDeal(live) } }, again);
       if (live.purchasePrice !== price || live.loanAmount !== loan || live.emdReceived !== received) fail(CONTRACT_NOT_SAVED);
       return { dealId, saved: true, canEdit: true, posture: 'estimate', blocked: '', fields: again.fields, flags: again.flags, updatedAt: stored.updated_at };
+    },
+    async saveOtherChargeDetails(dealId, input) {
+      const { u, deal } = editor(dealId);
+      const price = deal.purchasePrice; const loan = deal.loanAmount; const emd = deal.emdAmount; const received = deal.emdReceived;
+      const list = db().accountingContractTerms; const prevRow = list.find((x) => x.deal_id === dealId);
+      const prev = prevRow ? fromContractRow(prevRow) : { fields: blankContract(dealId).fields, flags: {} };
+      const clean = mergeOtherChargeDetails(prev, input);
+      if (prevRow && !otherChargeDetailsChanged(prev, clean)) return { dealId, saved: true, canEdit: true, fields: clean.fields, flags: clean.flags };
+      const stored = { deal_id: dealId, ...toContractRow(clean), updated_at: now() };
+      if (prevRow) Object.assign(prevRow, stored); else list.push(stored);
+      const changes = contractChanges(prev, clean);
+      if (changes.length) db().accountingLog.push({ id: nid('alog'), dealId, feeId: 'contract', description: 'Warranty, HOA, condo, and deferred figures', action: prevRow ? 'edited' : 'added', at: now(), byId: u.id, byName: nameOf(u.id), changes, via: 'Other Charges' });
+      save();
+      const live = load().deals.find((q) => q.id === dealId);
+      if (live.purchasePrice !== price || live.loanAmount !== loan || live.emdAmount !== emd || live.emdReceived !== received) fail(CONTRACT_NOT_SAVED);
+      const again = fromContractRow(db().accountingContractTerms.find((x) => x.deal_id === dealId) || {});
+      return { dealId, saved: true, canEdit: true, fields: again.fields, flags: again.flags, updatedAt: stored.updated_at };
     },
   };
 }

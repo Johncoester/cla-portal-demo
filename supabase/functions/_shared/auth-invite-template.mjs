@@ -3,7 +3,10 @@
  * CLA Portal Live Test <testportal@clatitle.com>, subject
  * "You're invited to the CLA Title Portal". The confirmation link Auth
  * filled in is restored here as {{ .ConfirmationURL }}. inviteEmailContent
- * swaps that variable for the portal invite link. Nothing else is rewritten. */
+ * swaps that variable for the portal invite link. Nothing else is rewritten.
+ * FF-073d: supabase/templates/invite.html and invite-subject.txt add the
+ * property address using {{ index .Data "property_address" }}. Paste those
+ * into TEST Auth > Email Templates > Invite user (once). */
 export const AUTH_INVITE_SUBJECT = "You're invited to the CLA Title Portal";
 export const AUTH_INVITE_LINK_VAR = '{{ .ConfirmationURL }}';
 export const AUTH_INVITE_HTML = `<!DOCTYPE html>

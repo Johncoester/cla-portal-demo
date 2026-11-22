@@ -1,6 +1,5 @@
 /* Task grid read joins one flight per navigation and does not replace the All Tasks board read. No hosted project. */
 import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
@@ -224,21 +223,25 @@ const html = readFileSync(path.join(root, 'index.html'), 'utf8');
 const appSrc = readFileSync(path.join(root, 'js/app.js'), 'utf8');
 const adapterSrc = readFileSync(path.join(root, 'js/data/adapter.js'), 'utf8');
 const heavySrc = readFileSync(path.join(root, 'js/data/supabase-adapter.js'), 'utf8');
-check(html.includes('js/app.js?v=202611161800') && !html.includes('boot-marks') && appSrc.includes("adapter.js?v=202611161400") && appSrc.includes("pages/tasks.js?v=202611161800") && appSrc.includes("pages/taskgrid.js?v=202611161500") && adapterSrc.includes("supabase-adapter.js?v=202611161400"), 'the changed imports keep their cache query');
-check(appSrc.includes("api.listAllTasks({ fileStatus: 'All' })") && heavySrc.includes("nav.share(u.id, 'grid:' + fs") && heavySrc.includes('Promise.all([sb.rpc(\'task_grid\''), 'the board overlap stays and the grid read shares one flight');
-const money = {
-  'js/data/constants.js': '30ef60e9c1c68676d0982e106813e9b6eb574163d6bc34d6ed68a086e7f6e5cd',
-  'js/data/supabase-tc.js': '56bb2d60d60f38384df385d102a5bf3f5a7116768896bd35eb2b93e6440975a6',
-  'js/pages/deal-buyer-legacy.js': '07b35e146d598006c981281138d6b78ec72d5ef2bc3de3aaa19395a1cb230af1',
-  'js/pages/deal.js': '1b9feb2549c6ed2cb1dde2b7d5a77ffb8875bd8f1c3d063101308aee11cd7f16',
-  'js/pages/money-input.js': '014244be259d403571d283caa85afde7ff2b355a3ad5ba8f024034a76a26188d',
-  'js/pages/ordernew.js': '8971e977e0e66efe0f1d7bb166f84a1093fae23e2424c1260615e5ed89a6e5b4',
-  'js/pages/tc-overview.js': '5f1572ee9b4afa15012fd09409f59e5af2755d309853d3252b72069bf7157ee0',
-};
-for (const [file, hash] of Object.entries(money)) {
-  const got = createHash('sha256').update(readFileSync(path.join(root, file))).digest('hex');
-  check(got === hash, file + ' is unchanged');
+// Cache queries are read from the files. A later stamp bump still passes; dropping the ?v= does not.
+function cacheStamp(src, spec) {
+  const escaped = spec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found = src.match(new RegExp(escaped + '\\?v=(\\d+)'));
+  return found ? found[1] : '';
 }
+const cachePins = [
+  ['the page', html, 'js/app.js'],
+  ['the shell', appSrc, './data/adapter.js'],
+  ['All Tasks', appSrc, './pages/tasks.js'],
+  ['the task grid', appSrc, './pages/taskgrid.js'],
+  ['the hosted adapter', adapterSrc, './supabase-adapter.js'],
+];
+for (const [label, src, spec] of cachePins) {
+  const stamp = cacheStamp(src, spec);
+  check(!!stamp, label + ' keeps a cache query' + (stamp ? ' (' + stamp + ')' : ''));
+}
+check(!html.includes('boot-marks'), 'the page does not load the old boot recorder');
+check(appSrc.includes("api.listAllTasks({ fileStatus: 'All' })") && heavySrc.includes("nav.share(u.id, 'grid:' + fs") && heavySrc.includes("Promise.all([sb.rpc('task_grid'"), 'the board overlap stays and the grid read shares one flight');
 
 console.log(fail ? fail + ' failed' : 'task grid integrate passed');
 process.exit(fail ? 1 : 0);

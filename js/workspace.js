@@ -16,8 +16,8 @@ export const WORKSPACES = [
   { id: 'admin', label: 'Admin / Settings', desc: 'Users, teams, offices, modules, role access, task templates, email templates, underwriter splits', home: '/users' },
 ];
 export const wsById = (id) => WORKSPACES.find((w) => w.id === id) || null;
-import { modAccess } from './data/modules.js?v=202611101015';
-import { hrVisibleFor } from './data/hr.js?v=202611091730';
+import { modAccess } from './data/modules.js?v=202611247700';
+import { hrVisibleFor } from './data/hr.js?v=202611247700';
 export const hrVisible = (u) => hrVisibleFor(u, modAccess('hr'));
 export const hrOnly = (u) => !!(u && u.role === 'Employee');   // HR-only login: always the HR workspace, no dropdown
 export const usesWorkspaces = (u) => !!(u && (u.isAdmin || (!hrOnly(u) && hrVisible(u))));
@@ -40,12 +40,12 @@ export function routeWs(route) {
   if (p === 'crm') return 'crm';
   if (p === 'hr') return 'hr';
   if (['deal', 'orders', 'orders/new', 'tasks', 'task-grid', 'library', 'activity', 'outbox', 'agent-invites', 'staff-feedback'].includes(p)) return 'portal';   // agent invites live in Portal (+ Everything). Task Grid stays here.
-  if (p === 'templates' || p === 'admin/templates' || p === 'admin/email-templates' || p === 'email-templates' || ['users', 'teams', 'offices', 'modules', 'role-access', 'underwriters'].includes(p)) return 'admin';
+  if (p === 'templates' || p === 'admin/templates' || p === 'admin/email-templates' || p === 'email-templates' || ['users', 'teams', 'offices', 'modules', 'role-access', 'underwriters', 'tax-rates', 'task-builder'].includes(p)) return 'admin';
   return null;
 }
 // nav item id -> workspace (navFor ids)
 const NAV_WS = { dashboard: 'portal', orders: 'portal', tasks: 'portal', 'task-grid': 'portal', library: 'portal', activity: 'portal', outbox: 'portal', 'agent-invites': 'portal', 'staff-feedback': 'portal',
   crm: 'crm', 'crm-home': 'crm', 'crm-deals': 'crm', 'crm-contacts': 'crm', 'crm-leads': 'crm', 'crm-calls': 'crm', 'crm-templates': 'crm',
-  'users/new': 'admin', users: 'admin', teams: 'admin', offices: 'admin', modules: 'admin', 'role-access': 'admin', underwriters: 'admin', templates: 'admin', 'email-templates': 'admin' };
+  'users/new': 'admin', users: 'admin', teams: 'admin', offices: 'admin', modules: 'admin', 'role-access': 'admin', underwriters: 'admin', 'tax-rates': 'admin', templates: 'admin', 'email-templates': 'admin', 'task-builder': 'admin' };
 /* Task Templates is Admin / Settings only. Everything still shows the Portal and the other admin pages, not this one. */
 export const navInWs = (id, ws) => ((id === 'templates' || id === 'email-templates') ? ws === 'admin' : ws === 'everything' || NAV_WS[id] === ws);

@@ -1,26 +1,44 @@
 import { test, expect, signIn, openMockFile, freshIssues } from '../fixtures.js';
 import { gotoHash, dealId } from '../helpers/portal.js';
 import { targetMode } from '../helpers/gate.js';
-import { assertRecipientsAllowed, plusAlias } from '../helpers/allowlist.js';
+import { plusAlias } from '../helpers/allowlist.js';
 import { findRememberedInviteLink, gmailAccessToken, rememberInviteLink } from '../helpers/inbox.js';
 
-test('a buyer agent cannot complete a client task', async ({ page, issues }) => {
+// FF-101a (PR 355, merge 8b2ce856): the buyer agent's Tasks page is My Tasks and lists only that agent's own work.
+// Completing a client's task from this login is out of scope, so the page no longer shows Client-Buyer rows.
+test('a buyer agent sees My Tasks and only their own tasks', async ({ page, issues }) => {
   await signIn(page, 'buyerAgent');
   await openMockFile(page);
   const id = dealId(page);
   await gotoHash(page, `#/deals/${id}/tasks`);
-  const clientRows = page.locator('[data-task-row]', { hasText: 'Client-Buyer' });
-  await expect(clientRows.first()).toBeVisible();
-  await expect(clientRows.locator('[data-tick]')).toHaveCount(0);
-  const forClient = page.getByRole('link', { name: 'Fill in for client' });
-  if (await forClient.count()) {
-    await forClient.first().click();
-    await expect(page.locator('[data-agent-no-complete]')).toBeVisible();
-    await expect(page.locator('[data-mode="complete"]')).toHaveCount(0);
-    await expect(page.locator('[data-mode="save"]')).toBeVisible();
-  } else {
-    await expect(page.locator('[data-mode="complete"]')).toHaveCount(0);
+  const mine = page.locator('[data-file-tasks="mine"]');
+  await expect(mine).toBeVisible();
+  await expect(mine.getByRole('heading', { name: 'My Tasks' })).toBeVisible();
+  await expect(page.locator('[data-co-tab="Tasks"]')).toHaveCount(0);
+  const own = mine.locator('[data-sidebox="buyer-agent"]');
+  await expect(own).toBeVisible();
+  await expect(own.locator('.side-tag')).toHaveText("Buyer's Agent tasks");
+  const countText = (await own.locator('.side-count').innerText()).trim();
+  expect(countText).toMatch(/^\(\d+\)$/);
+  const count = Number(countText.slice(1, -1));
+  expect(count).toBeGreaterThan(0);
+  await expect(own.locator('[data-task-row]')).toHaveCount(count);
+  await expect(mine.locator('[data-sidebox="buyer"]')).toHaveCount(0);
+  await expect(mine.locator('[data-sidebox="seller"]')).toHaveCount(0);
+  await expect(mine.locator('[data-sidebox="listing-agent"]')).toHaveCount(0);
+  const rows = mine.locator('[data-task-row]');
+  const rowCount = await rows.count();
+  expect(rowCount).toBe(count);
+  for (let i = 0; i < rowCount; i += 1) {
+    const row = rows.nth(i);
+    await expect(row).toContainText('Buyer Agent');
+    await expect(row).toHaveAttribute('data-mine', '1');
   }
+  await expect(page.locator('[data-task-row]', { hasText: 'Client-Buyer' })).toHaveCount(0);
+  await expect(page.locator('[data-task-row]', { hasText: 'Client-Seller' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Fill in for client' })).toHaveCount(0);
+  await expect(page.locator('[data-mode="complete"]')).toHaveCount(0);
+  await expect(page.locator('[data-task-row]', { hasText: 'Client-Buyer' }).locator('[data-tick]')).toHaveCount(0);
   expect(freshIssues(issues)).toEqual([]);
 });
 
@@ -120,24 +138,35 @@ async function assertUsedInviteOpensSignIn(browser, link, email) {
       await guestPage.waitForFunction(() => location.hash.includes('/login') || !document.querySelector('[data-usermenu]'));
       await guestPage.goto(link);
     }
-    await expect(guestPage).toHaveURL(/#\/login\?email=/);
+    // John, Nov 14 2026 (t1667u): a used invite goes straight to Sign in. No message page.
+    await expect(guestPage).toHaveURL(/#\/login(?:\?|$)/, { timeout: 30000 });
+    await expect(guestPage).not.toHaveURL(/agent-invite/);
+    await expect(guestPage.locator('#login-form')).toBeVisible();
+    await expect(guestPage.locator('body')).not.toContainText(/already used/i);
+    await expect(guestPage.locator('body')).not.toContainText(/not valid/i);
+    await expect(guestPage.locator('body')).not.toContainText(/expired/i);
+    await expect(guestPage.locator('[data-invite-used]')).toHaveCount(0);
+    await expect(guestPage.locator('[data-client-signup]')).toHaveCount(0);
     await expect(guestPage.locator('#login-form input[name="email"]')).toHaveValue(email);
     await expect(guestPage.locator('#login-form')).toHaveAttribute('data-login-email', email);
-    await expect(guestPage.locator('[data-client-signup]')).toHaveCount(0);
-    await expect(guestPage.locator('body')).not.toContainText(/account exists/i);
-    await expect(guestPage.locator('body')).not.toContainText(/already used/i);
+    await expect(guestPage.locator('#login-form [data-form-err]')).toHaveText('');
   } finally {
     await guest.close();
   }
 }
 
-test('a used invite link opens Sign in with the email', async ({ page, browser, issues }) => {
+test('a used invite link goes straight to Sign in', async ({ page, browser, issues }) => {
   test.setTimeout(180000);
   if (targetMode() !== 'test') {
     await page.goto('/#/agent-invite/demo-used-ai-1');
-    await expect(page).toHaveURL(/#\/login\?email=bianca\.buyeragent%40example\.test/);
-    await expect(page.locator('body')).not.toContainText(/account exists/i);
+    await expect(page).toHaveURL(/#\/login(?:\?|$)/);
+    await expect(page).not.toHaveURL(/agent-invite/);
     await expect(page.locator('body')).not.toContainText(/already used/i);
+    await expect(page.locator('body')).not.toContainText(/not valid/i);
+    await expect(page.locator('body')).not.toContainText(/expired/i);
+    await expect(page.locator('[data-invite-used]')).toHaveCount(0);
+    await expect(page.locator('#pickform')).toBeVisible();
+    await expect(page).toHaveURL(/#\/login\?email=bianca\.buyeragent%40example\.test/);
     await expect(page.locator('#who')).toHaveValue('u-bagent');
     await expect(page.locator('#pickform')).toHaveAttribute('data-login-email', 'bianca.buyeragent@example.test');
     expect(freshIssues(issues)).toEqual([]);
@@ -145,7 +174,6 @@ test('a used invite link opens Sign in with the email', async ({ page, browser, 
   }
 
   const email = plusAlias(process.env.E2E_MAIL_TO, USED_INVITE_TAG);
-  assertRecipientsAllowed([email], { label: 'used invite' });
   const gmail = await gmailAccessToken();
   await signIn(page, 'processor');
   await openMockFile(page);

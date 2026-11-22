@@ -6,13 +6,13 @@
  *  - Custom views / saved filters: public.crm_views, crm_view_criteria, crm_view_columns, crm_view_shares, crm_view_pins,
  *    crm_saved_filters, crm_saved_filter_values. Already on TEST. Views and saved filters are retired, never deleted.
  *    Criteria values are one row per value_index (no JSON). Child rows are read and replaced in batches. */
-import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611101015';
+import { CLA_OFFICES, OFFICE_LOCATION } from './cla-offices.js?v=202611247700';
 import { DISBURSEMENT_FIELDS, cleanDisbursement } from './crm-disbursement.js?v=202611070139';
-import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, cleanFilterValues, SEARCH_COL_MAX } from './crm-views.js?v=202611070139';
-import { moduleFields, cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS } from './crm-analytics.js?v=202611130900';
-import { canUseCrm, crmReadOnly } from './crm.js?v=202611130900';
+import { VIEW_MODULES, VIEW_DEFAULT_COLUMNS, PINS_MAX, nameOk, cleanColumns, placeNameColumn, cleanFilterValues, SEARCH_COL_MAX, viewModuleFields, withViewUserIds, applyUserNames } from './crm-views.js?v=202611247700';
+import { cleanCriteria, applyCriteria, display, SHARE_ROLES, DEPARTMENTS, withPresetKeys } from './crm-analytics.js?v=202611247700';
+import { canUseCrm, crmReadOnly } from './crm.js?v=202611247700';
 import { CRM_OFF, featureFlags } from './features.js?v=202611070139';
-import { localDate } from './constants.js?v=202611101015';
+import { localDate } from './constants.js?v=202611247700';
 const snake = (k) => k.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIST_FN = { contacts: 'listCrmContacts', leads: 'listCrmLeads', accounts: 'listCrmAccounts', deals: 'listCrmDeals' };
@@ -21,6 +21,7 @@ const isAdmin = (u) => !!(u && (u.isAdmin || u.role === 'Admin' || u.role === 'S
 
 export function feedbackNov4Supabase({ sb, ok, me }) {
   const pack = async (q) => ok(await q) || [];
+  let shareCache = null;
   const need = async () => {
     if (!featureFlags().crm) throw new Error(CRM_OFF);
     const u = await me();
@@ -31,8 +32,32 @@ export function feedbackNov4Supabase({ sb, ok, me }) {
   const modOk = (m) => { const s = String(m || '').slice(0, 20); if (!VIEW_MODULES.includes(s)) throw new Error('Pick Clients, Leads, Companies or Deals.'); return s; };
   const fieldsOf = async function (module) {
     const cfg = typeof this.getCrmSettings === 'function' ? await this.getCrmSettings() : null;
-    return { cfg, fields: moduleFields(module, cfg) };
+    return { cfg, fields: viewModuleFields(module, cfg) };
   };
+  // One read of the user ids a view filters on, for rows the list did not already carry. Not one read per row.
+  async function fillViewRows(module, rows, needed) {
+    let out = (rows || []).map(withViewUserIds);
+    const missing = (key) => needed.has(key) && out.some((r) => r[key] == null || r[key] === '');
+    const readIds = async (table, cols) => {
+      const ids = [...new Set(out.map((r) => r.id).filter(Boolean))];
+      if (!ids.length) return new Map();
+      const extra = await pack(sb.from(table).select(cols).in('id', ids));
+      return new Map((extra || []).map((r) => [r.id, r]));
+    };
+    if (module === 'contacts' && (missing('createdBy') || missing('modifiedBy'))) {
+      try {
+        const by = await readIds('contacts', 'id, created_by, modified_by');
+        out = out.map((r) => { const x = by.get(r.id) || {}; return { ...r, createdBy: r.createdBy || x.created_by || null, modifiedBy: r.modifiedBy || x.modified_by || null }; });
+      } catch { /* the view still runs; a user filter matches only ids already on the row */ }
+    }
+    if (module === 'deals' && missing('createdBy')) {
+      try {
+        const by = await readIds('deals', 'id, created_by');
+        out = out.map((r) => { const x = by.get(r.id) || {}; return { ...r, createdBy: r.createdBy || x.created_by || null }; });
+      } catch { /* the view still runs; a user filter matches only ids already on the row */ }
+    }
+    return out;
+  }
   const canEdit = (u, v) => !crmReadOnly(u) && (v.owner_id === u.id || (isAdmin(u) && v.visibility !== 'me'));
   const canSee = (u, v, shareIds) => !v.retired_at && (v.owner_id === u.id || v.visibility === 'all' || (v.visibility === 'custom' && shareIds.includes(u.id)));
   function cleanInput(u, input, module, fields, old) {
@@ -104,7 +129,7 @@ export function feedbackNov4Supabase({ sb, ok, me }) {
     const shareUsers = parts.shares.get(v.id) || [];
     return {
       id: v.id, module: v.module, name: v.name, ownerId: v.owner_id, ownerName: nameMap.get(v.owner_id) || '', visibility: v.visibility, shareUsers: [...shareUsers],
-      logic: v.logic, criteria: criteriaFrom(parts.criteria.get(v.id) || []), columns: (parts.columns.get(v.id) || []).sort((a, b) => a.position - b.position).map((r) => r.column_key),
+      logic: v.logic, criteria: withPresetKeys(criteriaFrom(parts.criteria.get(v.id) || [])), columns: placeNameColumn(v.module, (parts.columns.get(v.id) || []).sort((a, b) => a.position - b.position).map((r) => r.column_key)),
       sortField: v.sort_field, sortDir: v.sort_dir, mine: v.owner_id === u.id, canEdit: canEdit(u, v), retired: !!v.retired_at,
       pinned: pinIds.includes(v.id), pinPosition: pinIds.indexOf(v.id), createdAt: v.created_at, modifiedAt: v.modified_at,
     };
@@ -192,13 +217,16 @@ export function feedbackNov4Supabase({ sb, ok, me }) {
       return list; },
     async listCrmShareTargets() {
       const u = await need();
+      if (shareCache && shareCache.forId === u.id) return shareCache.value;
       let raw = [];
       try { raw = await pack(sb.rpc('crm_assignees')); } catch { raw = []; }
       if (!Array.isArray(raw)) raw = [];
       const users = raw.map((p) => ({ id: p.id, name: p.name || '', role: p.role || '' }));
       if (!users.some((z) => z.id === u.id)) users.push({ id: u.id, name: personName(u), role: u.role || '' });
       users.sort((a, b) => a.name.localeCompare(b.name));
-      return { users, roles: SHARE_ROLES, departments: DEPARTMENTS.map(([id, name, roles]) => ({ id, name, roles })) };
+      const value = { users, roles: SHARE_ROLES, departments: DEPARTMENTS.map(([id, name, roles]) => ({ id, name, roles })) };
+      shareCache = { forId: u.id, value };
+      return value;
     },
     async listCrmViews(module) {
       const u = await need(); const m = modOk(module);
@@ -268,6 +296,8 @@ export function feedbackNov4Supabase({ sb, ok, me }) {
       const fn = this[LIST_FN[v.module]];
       if (typeof fn !== 'function') throw new Error('That list is not available.');
       let rows = withLinks(v.module, await fn.call(this) || []);
+      const needed = new Set([...(v.criteria || []).map((c) => c.field), ...(v.columns || [])]);
+      rows = await fillViewRows(v.module, rows, needed);
       if (v.module === 'deals' && rows.length) {
         const cols = ['deal_id', ...DISBURSEMENT_FIELDS.map(([k]) => snake(k))].join(',');
         const extra = await pack(sb.from('deal_disbursements').select(cols).in('deal_id', rows.map((r) => r.id)));
@@ -282,7 +312,12 @@ export function feedbackNov4Supabase({ sb, ok, me }) {
       const colFields = v.columns.map((k) => fields.find((f) => f.key === k)).filter(Boolean);
       const sf = fields.find((f) => f.key === v.sortField) || colFields[0];
       const sortVal = (r) => { const x = r[sf.key]; return x == null ? '' : typeof x === 'number' ? x : String(display(sf, r, cfg)).toLowerCase(); };
-      const sorted = matched.slice().sort((a, b) => { const A = sortVal(a), B = sortVal(b); const c = typeof A === 'number' && typeof B === 'number' ? A - B : String(A).localeCompare(String(B)); return v.sortDir === 'desc' ? -c : c; });
+      let sorted = matched.slice().sort((a, b) => { const A = sortVal(a), B = sortVal(b); const c = typeof A === 'number' && typeof B === 'number' ? A - B : String(A).localeCompare(String(B)); return v.sortDir === 'desc' ? -c : c; });
+      const userCols = colFields.filter((f) => f.type === 'user' && f.labelKey);
+      if (userCols.some((f) => sorted.some((r) => r[f.key] && !r[f.labelKey]))) {
+        const targets = await this.listCrmShareTargets();
+        sorted = applyUserNames(sorted, userCols, targets.users);
+      }
       const cellOf = (f, r) => ({ text: display(f, r, cfg), link: f.link && !f.encrypted ? r[f.link] || '' : '' });
       return {
         view: v, fields: fields.map((f) => ({ key: f.key, label: f.label, type: f.type, list: f.list || null, options: f.options || null })),

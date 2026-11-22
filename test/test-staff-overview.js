@@ -1,4 +1,4 @@
-/* FF-019: staff file overview. Client and agent markup stays. No database change. */
+/* FF-019 + MF-054 / FF-074: staff file overview. Client and agent markup stays. No database change. */
 import { readFileSync } from 'node:fs';
 import { toText } from '../js/ui.js';
 import { fileIdentityHtml } from '../js/pages/deal.js';
@@ -34,7 +34,10 @@ const agentCard = toText(settlementSectionHtml({ deal: file, user: { role: 'Outs
 ok(agentCard.includes('data-settlement-section') && agentCard.includes('Buyer agent') && agentCard.includes('Listing agent'), 'the agent settlement card is unchanged');
 
 const deal = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
-ok(deal.includes('staffView ? fileIdentityHtml(d) : \'\'') && deal.includes('canWire: staffView ? false : canWire') && deal.includes('staffView ? closingDateSectionHtml(') && deal.includes(': settlementSectionHtml('), 'staff overview uses the identity box and the closing date section, and does not show wire instructions or the settlement card');
+const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+ok(!deal.includes('staffView ? fileIdentityHtml(d)') && deal.includes('canWire: staffView ? false : canWire') && deal.includes("staffView ? '' : settlementSectionHtml(") && !deal.includes('closingDateSectionHtml('), 'staff overview no longer shows the buyer/seller box or the gray Closing Date card, and still does not show wire instructions or the settlement card');
+ok(deal.includes('staffView ? staffStatus : glance') && deal.includes('data-staff-status-extra') && deal.includes("staffView ? '' : html`${moneyRow") && deal.includes('data-source-of-business>Source of business:'), 'staff overview keeps Order Status and Parties (with source of business) and hides the EMD box');
+ok(app.includes('function closingNavMeta') && app.includes('data-nav-closing') && app.includes("tab === 'closing' ? closingNavMeta"), 'the Closing Date button in the left column shows the closing date at the bottom');
 const client = readFileSync(new URL('../js/pages/client-overview.js', import.meta.url), 'utf8');
 const legacy = readFileSync(new URL('../js/pages/deal-buyer-legacy.js', import.meta.url), 'utf8');
 ok(client.includes('id="wirebtn"') && client.includes('Wire instructions') && !client.includes('data-file-identity'), 'the client overview still has wire instructions and no staff identity box');

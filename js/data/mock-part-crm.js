@@ -7,19 +7,20 @@
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
 import { roleAllowed } from './role-access.js?v=202611100100';
 import { CRM_OFF } from './features.js?v=202611070139';
-import { dealDisplayName } from './nov5-rules.js?v=202611131900';
+import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
-  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611130900';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611160600';
-import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611130900';
-import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611130900';
+  canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611247700';
+import { crmOwnerOption } from './crm-owner.js?v=202611289960';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611289960';
+import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611247700';
+import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611247700';
 import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611070139';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611131900';
-import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611130900';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611130900';
-import { crmCallsPart } from './mock-part-crm-calls.js?v=202611130900';
-import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611070139';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611289960';
+import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611247700';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611247700';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611247700';
+import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611247700';
 
 // FF-030 company_lookup. The CRM user said everyone sees every company, so
 // ownerPrivate stays false. The true path remains for a later switch. contains
@@ -67,7 +68,7 @@ export function crmPart(x, flags) {
   // blank owner = unassigned; on CREATE a salesperson's record defaults to themselves. A Sales Person assigns to themselves only. (= private.crm_owner_check)
   const owner = (u, v, current = null, create = false) => { let s = str(v, 60) || null;
     if (!s && create && isSales(u)) s = u.id;
-    if (s && s !== current) { const p = prof(s); if (!p || p.status !== 'active' || !CRM_OWNER_ROLES.includes(p.role)) fail('The owner must be an active Sales Person or Sales Team user.'); }
+    if (s && s !== current && !crmOwnerOption(prof(s))) fail('The owner must be an active user who can own CRM records.');
     if (u.role === 'Sales Person' && !u.isAdmin && s !== current && s !== u.id) fail('A Sales Person can only assign records to themselves.');
     return s; };
   // task owner / meeting host: an active Sales Person, Sales Team or Admin login (default: me). A Sales Person assigns only to themselves.
@@ -76,7 +77,7 @@ export function crmPart(x, flags) {
     if (s !== current && !assignable(prof(s))) fail(`The ${label} must be an active Sales Person, Sales Team or Admin user.`);
     if (u.role === 'Sales Person' && !u.isAdmin && s !== current && s !== u.id) fail(`A Sales Person can only make themselves the ${label}.`);
     return s; };
-  const ctype = (v) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail('Pick a contact type from the list (Realtor, Lender or Buyer/Seller).'); return s; };
+  const ctype = (v) => { const s = str(v, 20); if (!s) return null; if (!C.CONTACT_TYPE_CODES.includes(s)) fail(C.CONTACT_TYPE_ERROR); return s; };
   const oneOf = (v, list, label, dflt) => { const s = str(v, 40); if (!s) { if (dflt !== undefined) return dflt; fail(`${label} is required.`); } if (!list.includes(s)) fail(`Pick a ${label.toLowerCase()} from the list.`); return s; };
   const date = (v, label, { noFuture = false } = {}) => { const s = x.dateOrNull(v, label); if (s && noFuture && s > localDate()) fail(`${label} cannot be in the future.`); return s; };
   const email = (v) => { const e = str(v, 200).toLowerCase(); if (e && !emailOk(e)) fail('Email is not valid.'); return e; };
@@ -244,8 +245,12 @@ export function crmPart(x, flags) {
   const actsFor = (pairs, u = null) => db().crmActivities.filter((a) => pairs.some(([e, id]) => (a.entity === e && a.entityId === id)
     || (a.kind === 'call' && a.relatedEntity === e && a.relatedId === id && !pairs.some(([e2, id2]) => a.entity === e2 && a.entityId === id2) && (!u || seen(u, a.entity, a.entityId))))).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(actOut);
   const invitedTo = (u, pairs) => db().crmActivities.filter((a) => a.kind === 'meeting' && (a.participants || []).some((p) => pairs.some(([e, id]) => p === `${e}:${id}`)) && seen(u, a.entity, a.entityId)).map(actOut);
-  const attachmentsOf = (pairs) => db().crmAttachments.filter((f) => pairs.some(([e, id]) => f.entity === e && f.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+  // A file with noteId belongs to that note. It is not a record attachment.
+  const attachmentsOf = (pairs) => db().crmAttachments.filter((f) => !f.noteId && pairs.some(([e, id]) => f.entity === e && f.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .map((f) => ({ id: f.id, entity: f.entity, entityId: f.entityId, name: f.name, mimeType: f.mimeType, size: f.size, uploadedBy: f.uploadedBy, uploadedByName: nameOf(f.uploadedBy), createdAt: f.createdAt }));
+  const noteFilesOf = (pairs) => db().crmAttachments.filter((f) => f.noteId && pairs.some(([e, id]) => f.entity === e && f.entityId === id)).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .map((f) => ({ id: f.id, noteId: f.noteId, name: f.name, mimeType: f.mimeType, size: f.size, uploadedByName: nameOf(f.uploadedBy), createdAt: f.createdAt }));
+  const recordFiles = (pairs) => ({ attachments: attachmentsOf(pairs), noteFiles: noteFilesOf(pairs), noteFilesReady: true });
   const touch = (r, u) => { r.modifiedBy = u.id; r.modifiedAt = now(); };
   // lead -> client: a lead custom field's value goes to the client field with the same name and type (if the client has none yet). Never removes anything.
   const carryCustom = (l, c) => { const lf = activeFields(cfg(), 'lead'); const cf = activeFields(cfg(), 'contact'); c.custom ||= {};
@@ -304,7 +309,7 @@ export function crmPart(x, flags) {
   }
   const api = {
     async crmMe() { const u = crmUser(); return { email: (prof(u.id) || {}).email || '', canEdit: !crmReadOnly(u), canConfigure: !!u.isAdmin, role: u.role, isAdmin: !!u.isAdmin, id: u.id, name: nameOf(u.id), scope: seesAllCrm(u) ? 'all' : u.role === 'Sales Team' ? 'team' : 'own' }; },
-    async listCrmOwners() { crmUser(); return db().profiles.filter((p) => CRM_OWNER_ROLES.includes(p.role) && p.status === 'active').map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
+    async listCrmOwners() { crmUser(); return db().profiles.filter((p) => crmOwnerOption(p)).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
     // task owners / meeting hosts (Sales Person, Sales Team, Admins) and the "Users" a meeting can include (active CLA staff)
     async listCrmAssignees() { crmUser(); return db().profiles.filter(assignable).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
     async listCrmUsers() { crmUser(); return db().profiles.filter((p) => p.status === 'active' && !C.isOutside(p.role)).map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}`.trim(), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)); },
@@ -312,7 +317,7 @@ export function crmPart(x, flags) {
     // ---------- leads ----------
     async listCrmLeads() { const u = crmUser(); return db().crmLeads.filter((l) => leadSeen(u, l)).map((l) => leadOut(u, l)); },
     async getCrmLead(id) { const u = crmUser(); const l = get.lead(u, id); const pairs = [['lead', l.id]];
-      return { ...leadOut(u, l), activities: actsFor(pairs, u), invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs) }; },
+      return { ...leadOut(u, l), activities: actsFor(pairs, u), invitedMeetings: invitedTo(u, pairs), ...recordFiles(pairs) }; },
     async createCrmLead(input) {
       const u = crmEditor(); const d = db();
       const acc = str(input.accountId, 60) ? get.account(u, str(input.accountId, 60)) : null;   // Janine, Nov 3: Company = an existing company
@@ -386,7 +391,7 @@ export function crmPart(x, flags) {
       const u = crmUser(); const c = get.contact(u, id); const orders = withAccess(u, ordersOf([c.id]));
       const pairs = [['contact', c.id]]; if (c.crmLeadId) pairs.push(['lead', c.crmLeadId]);
       return { ...contactOut(u, c), account: c.accountId ? accountOut(u, accountRow(c.accountId)) : null, orders, totals: orderTotals(orders), activities: actsFor(pairs, u),
-        invitedMeetings: invitedTo(u, pairs), attachments: attachmentsOf(pairs), opportunities: db().crmOpportunities.filter((o) => o.contactId === c.id).map((o) => oppOut(u, o)) };
+        invitedMeetings: invitedTo(u, pairs), ...recordFiles(pairs), opportunities: db().crmOpportunities.filter((o) => o.contactId === c.id).map((o) => oppOut(u, o)) };
     },
     async createCrmContact(input) {
       const u = crmEditor(); const d = db(); const e = email(input.email);
@@ -452,7 +457,7 @@ export function crmPart(x, flags) {
       const u = crmUser(); const a = get.account(u, id); const d = db(); const cs = d.contacts.filter((c) => c.accountId === a.id && inCrm(c));
       const orders = withAccess(u, ordersOf(cs.map((c) => c.id)));
       return { ...accountOut(u, a), contactList: cs.filter((c) => contactSeen(u, c)).map((c) => contactOut(u, c)), orders, totals: orderTotals(orders), activities: actsFor([['account', a.id]], u),
-        invitedMeetings: [], attachments: attachmentsOf([['account', a.id]]), opportunities: d.crmOpportunities.filter((o) => o.accountId === a.id).map((o) => oppOut(u, o)) };
+        invitedMeetings: [], ...recordFiles([['account', a.id]]), opportunities: d.crmOpportunities.filter((o) => o.accountId === a.id).map((o) => oppOut(u, o)) };
     },
     async createCrmAccount(input) {
       const u = crmEditor(); const d = db(); const name = str(input.name, 160) || fail('Company name is required.');
@@ -510,8 +515,9 @@ export function crmPart(x, flags) {
       if (input.kind === 'meeting') fail('Use "New Meeting" for meetings.');
       const u = crmEditor(); const entity = str(input.entity, 20); const parent = entityOf(u, entity, str(input.entityId, 60));
       const kind = oneOf(input.kind, ['call', 'email', 'note'], 'Activity type');
+      const created = now();
       const a = { id: nid('ca'), entity, entityId: parent.id, kind, subject: str(input.subject, 200) || (kind === 'note' ? 'Note' : fail('Subject is required.')), body: str(input.body, 4000),
-        status: 'done', dueDate: null, occurredOn: date(input.occurredOn, 'Date', { noFuture: true }) || localDate(), ownerId: u.id, system: false, createdBy: u.id, createdAt: now(), doneAt: now(), modifiedBy: u.id, modifiedAt: now() };
+        status: 'done', dueDate: null, occurredOn: date(input.occurredOn, 'Date', { noFuture: true }) || localDate(), ownerId: u.id, system: false, createdBy: u.id, createdAt: created, doneAt: now(), modifiedBy: u.id, modifiedAt: kind === 'note' ? created : now() };
       if (kind === 'note' && !a.body && a.subject === 'Note') fail('Write the note first.');
       if (kind === 'call') {   // Nov 3 (b), video 7: Call Type, Call Start Time, Call Duration (minutes)
         a.callType = input.callType ? oneOf(input.callType, ['Outbound', 'Inbound', 'Missed'], 'Call type') : '';
@@ -525,6 +531,40 @@ export function crmPart(x, flags) {
     },
     // Notes related list (Zoho). Notes are never deleted.
     async addCrmNote(entity, entityId, text) { return api.logCrmActivity({ entity, entityId, kind: 'note', subject: str(text, 4000).split('\n')[0].slice(0, 80) || 'Note', body: str(text, 4000) }); },
+    // Janine, Nov 16 (Feedback 27 item 1): fix or add to a note. The author, or an admin. No delete. The note stays on the same record.
+    async updateCrmNote(id, text) {
+      const u = crmEditor(); const a = db().crmActivities.find((z) => z.id === id && z.kind === 'note');
+      if (!a || !seen(u, a.entity, a.entityId)) fail('Note not found.');
+      if (a.system) fail('This note was added by the CRM and cannot be changed.');
+      if (!u.isAdmin && a.createdBy !== u.id) fail('Only the person who wrote this note, or an admin, can change it.');
+      const raw = String(text == null ? '' : text);
+      if (!raw.trim()) fail('Write the note first.');
+      if (raw.trim().length > 4000) fail('A note can be up to 4,000 characters. Shorten it and save again.');
+      const t = str(raw, 4000);
+      const stored = (a.body && String(a.body).trim()) ? String(a.body) : String(a.subject || '');
+      if (t === stored.trim()) return actOut(a);
+      a.subject = t.split('\n')[0].slice(0, 80) || 'Note'; a.body = t; touch(a, u);
+      if (!(String(a.modifiedAt) > String(a.createdAt || ''))) a.modifiedAt = new Date(Date.parse(a.createdAt || a.modifiedAt) + 1000).toISOString();
+      save(); return actOut(a);
+    },
+    // Janine, Nov 16 (Feedback 27 item 2): a file on this note. It is not a record attachment. Notes are still never deleted.
+    async addCrmNoteFile(noteId, { name, mimeType, size, dataUrl } = {}) {
+      const u = crmEditor(); const a = db().crmActivities.find((z) => z.id === noteId && z.kind === 'note');
+      if (!a || !seen(u, a.entity, a.entityId)) fail('Note not found.');
+      if (a.system) fail('This note was added by the CRM and cannot be changed.');
+      if (!['lead', 'contact', 'account'].includes(a.entity)) fail('Attach a file to a note on a lead, client, or company.');
+      if (!u.isAdmin && a.createdBy !== u.id) fail('Only the person who wrote this note, or an admin, can change it.');
+      const full = str(name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
+      if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`${ext ? '.' + ext + ' files are' : 'Files without an extension are'} not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
+      if (!(Number(size) >= 0) || Number(size) > C.MAX_UPLOAD_BYTES) fail(`File is too large (limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB). Choose a smaller file.`);
+      const id = nid('cfile'); const safe = full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full;
+      const f = { id, entity: a.entity, entityId: a.entityId, noteId: a.id, name: safe, mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0, dataUrl: dataUrl || null, uploadedBy: u.id, createdAt: now(), storagePath: `notes/${a.entity}/${a.entityId}/${a.id}/${id}/${safe}` };
+      await x.keepFile(f); db().crmAttachments.push(f); save(); return noteFilesOf([[a.entity, a.entityId]]).find((z) => z.id === f.id);
+    },
+    async getCrmNoteFile(id) {
+      const u = crmUser(); const f = db().crmAttachments.find((z) => z.id === id && z.noteId); if (!f || !seen(u, f.entity, f.entityId)) fail('That file is not on this note.');
+      const content = await x.fileContent(f); return { name: f.name, mimeType: f.mimeType, dataUrl: content || 'data:text/plain;charset=utf-8,' + encodeURIComponent('FAKE DEMO FILE\n' + f.name) };
+    },
 
     // ---------- TASKS (Zoho): Subject*, Due Date*, Status, Priority, Owner, Reminder, Repeat, Description ----------
     async createCrmTask(input) {
@@ -535,7 +575,9 @@ export function crmPart(x, flags) {
       taskExtras(t, input, true); if (t.status === TASK_CLOSED) { t.closedAt = now(); t.doneAt = t.closedAt; }
       db().crmActivities.push(t); save(); return actOut(t);
     },
-    async listCrmTasks() { const u = crmUser(); return db().crmActivities.filter((a) => a.kind === 'task' && seen(u, a.entity, a.entityId)).map(actOut); },
+    // ownerId is the same predicate the hosted query sends as .eq('owner_id'). Home always passes the signed-in user, including an admin.
+    async listCrmTasks(opts) { const u = crmUser(); const ownerId = opts && opts.ownerId ? String(opts.ownerId) : '';
+      return db().crmActivities.filter((a) => a.kind === 'task' && (!ownerId || a.ownerId === ownerId) && seen(u, a.entity, a.entityId)).map(actOut); },
     async getCrmTask(id) { const u = crmUser(); return actOut(taskOf(u, id)); },
     async updateCrmTask(id, patch) {
       const u = crmEditor(); const t = taskOf(u, id); if (t.system) fail('This entry was written by the CRM and cannot be changed.');
@@ -557,6 +599,7 @@ export function crmPart(x, flags) {
       if (a.kind === 'task') { const p = { ...patch }; if (p.status != null) { const map = { open: 'Not Started', done: TASK_CLOSED, cancelled: TASK_CLOSED }; p.status = map[p.status] || p.status; }
         const r = await api.updateCrmTask(id, p); if (patch.status === 'cancelled') { const t = db().crmActivities.find((z) => z.id === id); t.cancelled = true; save(); } return r; }
       if (a.kind === 'meeting') return api.updateCrmMeeting(id, patch);
+      if (a.kind === 'note') { const text = patch.body != null ? patch.body : patch.text != null ? patch.text : patch.subject; if (text == null) fail('Write the note first.'); return api.updateCrmNote(id, text); }
       if (patch.status != null || patch.dueDate !== undefined) fail('Only tasks have a status and a due date.');
       if (patch.subject != null) a.subject = str(patch.subject, 200) || fail('Subject is required.'); if (patch.body != null) a.body = str(patch.body, 4000);
       touch(a, u); save(); return actOut(a);
@@ -600,7 +643,7 @@ export function crmPart(x, flags) {
       await x.keepFile(f); db().crmAttachments.push(f); save(); return attachmentsOf([[entity, parent.id]]).find((z) => z.id === f.id);
     },
     async getCrmAttachmentContent(id) {
-      const u = crmUser(); const f = db().crmAttachments.find((z) => z.id === id); if (!f || !seen(u, f.entity, f.entityId)) fail('Attachment not found.');
+      const u = crmUser(); const f = db().crmAttachments.find((z) => z.id === id); if (!f || f.noteId || !seen(u, f.entity, f.entityId)) fail('Attachment not found.');
       const content = await x.fileContent(f); return { name: f.name, mimeType: f.mimeType, dataUrl: content || 'data:text/plain;charset=utf-8,' + encodeURIComponent('FAKE DEMO FILE\n' + f.name) };
     },
 

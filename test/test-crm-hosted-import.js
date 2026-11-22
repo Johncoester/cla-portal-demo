@@ -1,10 +1,12 @@
 /* Hosted CRM CSV import. FAKE DATA ONLY. Nothing is written to a hosted project.
  * The sample file is marked TEST-SEED-CRM-IMPORT and uses example.test addresses. */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { crmJanineSupabase } from '../js/data/supabase-crm-janine.js';
-import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, sampleCsv, importErrorCsv, loadImportResume } from '../js/data/crm-janine.js';
+import { crmJanineSupabase, reviewImportPerson, plainImportDbMessage } from '../js/data/supabase-crm-janine.js';
+import { IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, sampleCsv, PERSON_IMPORT_FIELDS, loadImportResume } from '../js/data/crm-janine.js';
+import { importErrorCsv, importSkipCsvReady } from '../js/data/crm-import-skip-csv.js';
 import { importRowHref } from '../js/pages/crm-janine.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -120,7 +122,7 @@ ok(msg.includes(String(IMPORT_MAX_ROWS)) && msg.includes('Split the file') && ca
 
 msg = '';
 try { await api.previewCrmImport({ module: 'leads', csv: SAMPLE, defaults: { ownerId: '00000000-0000-4000-8000-000000000099' }, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
-ok(msg === 'The default Owner must be an active Sales Person or Sales Team user.', 'a default owner must be an active salesperson');
+ok(msg === 'The default Owner must be an active user who can own CRM records.', 'a default owner must be someone who can own CRM records');
 
 msg = '';
 try { await api.previewCrmImport({ module: 'contacts', csv: 'Last Name,Relationship Status\nSample,Not A Real Status\n', defaults: { relationshipStatus: 'Not A Real Status' }, fileName: 'clients.csv' }); } catch (e) { msg = e.message; }
@@ -133,8 +135,10 @@ ok(sent.args.p_rows[0].values.state === 'MD' && sent.args.p_rows[0].values.email
 ok(sent.args.p_rows[0].prepNotes.some((n) => n.includes('20852') && n.includes('County')), 'a blank county is filled from the ZIP');
 ok(sent.args.p_defaults.some((d) => d.field === 'ownerId' && d.value === OWNER) && sent.args.p_defaults.some((d) => d.field === 'state' && d.value === 'MD'), 'defaults are the salesperson and the state code');
 ok(preview.committed === false && preview.importId == null && preview.counts.ok === 1 && preview.counts.duplicates === 1, 'preview reports ready rows and duplicates and saves nothing');
+ok(preview.message === 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.', 'a preview that still arrives as P0004 keeps a plain sentence with the rows');
 ok(preview.rows[0].values.state === 'Maryland' && preview.rows[0].values.description === 'TEST-SEED-CRM-IMPORT', 'the preview table still shows the file text');
 ok(preview.rows[0].status === 'ok' && preview.rows[1].status === 'duplicate' && /already used/.test(preview.rows[1].message), 'a duplicate row is reported and not treated as created');
+ok(preview.errorCsv.includes('robin.template@example.test') && preview.errorCsv.includes('Duplicate of existing lead: Robin Template / robin.template@example.test') && !preview.errorCsv.includes('casey.sample@example.test'), 'the error CSV lists the skipped duplicate and names the existing lead');
 ok(preview.rows[0].link.includes('/crm/leads/'), 'the preview payload still names the lead it would create');
 const keptLink = '#/crm/leads/11111111-1111-4111-8111-111111111111';
 ok(importRowHref({ status: 'ok', link: keptLink, name: 'Casey Sample' }, false) === '', 'a preview does not link to a lead that was not saved');
@@ -163,6 +167,7 @@ ok(importChunkRanges(501).map((c) => c.count).join(',') === '500,1', 'a remainde
 const leadTemplate = sampleCsv('leads');
 ok(leadTemplate.includes('Role in Company') && leadTemplate.includes('Relationship Status') && leadTemplate.includes('State'), 'the lead template includes Role in Company, Relationship Status, and State');
 ok(page.includes('data-import-progress') && page.includes('Chunk ${p.chunk} of ${p.chunks}') && page.includes('data-import-partial') && page.includes('data-import-bar') && page.includes("Don't close this tab") && page.includes('beforeunload') && page.includes('data-import-resume') && page.includes('Download error CSV'), 'the import screen shows progress, a stay-open warning, resume, and an error CSV');
+ok(page.includes('data-prev-message') && page.includes('note.textContent = r.message'), 'the preview screen shows the plain sentence above the rows');
 ok(leadRequiredMessages({ lastName: 'Sample' }).join(' ') === 'Role in Company is required. Relationship Status is required. State is required.', 'each missing lead field has its own message');
 ok(leadRequiredMessages({ lastName: 'Sample', state: 'MD' }, [{ field: 'roleInCompany', value: 'Realtor' }, { field: 'relationshipStatus', value: 'Hot Prospect' }]).length === 0, 'defaults fill the required lead fields');
 
@@ -189,9 +194,47 @@ sb.rpc = async (name, args) => {
   return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout', details: JSON.stringify({ rows: [{ line: 2, status: 'ok' }], counts: { total: 1, ok: 1, duplicates: 0, errors: 0 } }) } };
 };
 msg = '';
-try { await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
+let timed = null;
+try { timed = await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
 sb.rpc = held;
-ok(calls.length === 2 && msg === 'canceling statement due to statement timeout', 'a timeout is retried once and is not treated as a preview');
+ok(calls.length === 2 && !msg && timed && timed.rows.length === 2 && timed.rows.every((r) => /took too long/.test(r.message)) && /took too long/.test(timed.message) && timed.counts.errors === 2, 'a timeout is retried once, then each row says the preview took too long');
+ok(timed.rows.every((r) => r.status === 'error' && !/canceling statement/.test(r.message)) && !/canceling statement/.test(timed.message), 'the timeout text from the database is not shown, and the JSON in the error is not treated as a finished preview');
+
+calls.length = 0;
+sb.rpc = async (name, args) => {
+  calls.push({ name, args });
+  return { data: null, error: { code: 'P0004', status: 500, message: 'Import preview only. Nothing was saved.' } };
+};
+msg = '';
+let bare = null;
+try { bare = await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' }); } catch (e) { msg = e.message; }
+sb.rpc = held;
+ok(calls.length === 1 && !msg && bare && bare.rows.length === 2 && bare.rows.every((r) => r.status === 'error' && /did not finish/.test(r.message)) && /did not finish/.test(bare.message) && !/P0004|HTTP 500|Import preview only/.test(bare.message + bare.rows.map((r) => r.message).join(' ')), 'a P0004 that comes back without row details is shown on each row in plain words');
+
+calls.length = 0;
+sb.rpc = async (name, args) => {
+  calls.push({ name, args });
+  if (args && args.p_commit === false) {
+    return { data: { rows: args.p_rows.map((r) => ({ line: r.line, status: 'error', message: 'Email is not valid.', id: null, name: '', link: '', notes: [] })), counts: { total: args.p_rows.length, ok: 0, duplicates: 0, errors: args.p_rows.length }, importId: null, message: 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.' }, error: null };
+  }
+  return held(name, args);
+};
+const returned = await api.previewCrmImport({ module: 'leads', csv: SAMPLE, fileName: 'leads.csv' });
+sb.rpc = held;
+ok(returned.rows.length === 2 && returned.rows.every((r) => r.message === 'Email is not valid.') && returned.message.startsWith('Nothing was saved.'), 'a preview that returns jsonb shows each row reason and the plain sentence');
+
+calls.length = 0;
+sb.rpc = async (name, args) => {
+  if (args && args.p_chunk === 2) {
+    calls.push({ name, args });
+    return { data: null, error: { status: 500, message: 'Internal Server Error' } };
+  }
+  return held(name, args);
+};
+const stopped = await api.previewCrmImport({ module: 'leads', csv: leadFile(1000), fileName: 'leads-stop.csv' });
+sb.rpc = held;
+ok(calls.length === 3 && calls.filter((c) => c.args.p_chunk === 2).length === 2 && !calls.some((c) => c.args.p_chunk > 2), 'a failed preview chunk is retried once and later chunks are not sent');
+ok(stopped.rows.length === 1000 && stopped.rows.slice(0, 500).every((r) => r.status === 'ok') && stopped.rows.slice(500).every((r) => r.status === 'error' && /did not finish/.test(r.message)) && /did not finish/.test(stopped.message) && !/Internal Server Error/.test(stopped.message), 'rows already checked stay, and the failed rows say the preview did not finish');
 
 calls.length = 0;
 const missingLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name\nSample\n', fileName: 'leads.csv' });
@@ -201,6 +244,55 @@ const filledLead = await api.previewCrmImport({ module: 'leads', csv: 'Last Name
 ok(calls.length === 1 && filledLead.rows[0].status === 'ok' && filledLead.counts.errors === 0, 'a default Role, Relationship Status, and State lets the lead through');
 ok(missingLead.errorCsv.includes('Row') && missingLead.errorCsv.includes('Sample') && missingLead.errorCsv.includes('Role in Company is required.') && missingLead.errorCsv.includes('State is required.'), 'the error CSV has the row number, the original fields, and the message');
 ok(importErrorCsv([{ status: 'error', line: 4, values: { lastName: 'Sample' }, message: 'State is required.' }], [['lastName', 'Last Name']]).includes('Last Name') && importErrorCsv([{ status: 'ok', line: 2, values: { lastName: 'Ok' }, message: '' }]).split('\n').filter(Boolean).length === 1, 'the error CSV keeps error rows only');
+ok(page.includes('importSkipCsvReady(r.counts)') && page.includes('importSkipCsvReady(r && r.counts)') && page.includes('The error CSV lists both and says why') && !page.includes('r.counts.errors'), 'the download is offered for duplicates as well as errors');
+ok(page.includes('crm-import-skip-csv.js?v=202611247700') && read('js/data/supabase-crm-janine.js').includes('crm-import-skip-csv.js?v=202611247700') && read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611247700'), 'the duplicate CSV is loaded at stamp 202611242290');
+ok(read('js/app.js').includes('pages/crm-janine.js?v=202611247700') && read('js/pages/crm.js').includes('crm-janine.js?v=202611247700') && read('js/pages/crm-forms.js').includes('crm-janine.js?v=202611247700') && read('js/pages/crm-home.js').includes('crm-janine.js?v=202611247700') && !read('js/app.js').includes('crm-janine.js?v=202611221700') && !read('js/pages/crm.js').includes("from './crm-janine.js?v=202611221700'") && !read('js/pages/crm-forms.js').includes('crm-janine.js?v=202611221700') && !read('js/pages/crm-home.js').includes('crm-janine.js?v=202611221700'), 'the import page is loaded at stamp 202611247100 from the shell and the CRM pages');
+ok(read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611249700') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611290700') && read('js/app.js').includes('adapter.js?v=202611290700') && read('index.html').includes('js/app.js?v=202611290700'), 'the note edit save path stays at 202611249700 and the shell is 202611290610');
+ok(importSkipCsvReady({ errors: 0, duplicates: 2 }) && importSkipCsvReady({ errors: 1, duplicates: 0 }) && !importSkipCsvReady({ errors: 0, duplicates: 0 }), 'a file of only duplicates still has an error CSV');
+
+const dupFields = [['firstName', 'First Name'], ['lastName', 'Last Name'], ['email', 'Email'], ['phone', 'Phone']];
+const dupCsv = importErrorCsv([
+  { status: 'error', line: 2, values: { firstName: 'Casey', lastName: 'Sample', email: 'casey.sample@example.test' }, message: 'State is required.' },
+  { status: 'ok', line: 3, values: { firstName: 'Robin', lastName: 'Template', email: 'robin.template@example.test', phone: '301-555-0101' }, message: '' },
+  { status: 'duplicate', line: 8, values: { firstName: 'Robin', lastName: 'Copy', email: 'ROBIN.template@example.test', phone: '202-555-0199' }, message: 'This email is already used by Lead Robin Template (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'duplicate', line: 5, values: { firstName: 'Jordan', lastName: 'Other', email: 'jordan.other@example.test', phone: '(301) 555-0101' }, message: 'This phone number is already used by Lead Robin Template (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'ok', line: 4, values: { firstName: 'Pat', lastName: 'Kept', email: 'pat.kept@example.test', phone: '703-555-0108' }, message: '' },
+  { status: 'duplicate', line: 6, values: { firstName: 'Casey', lastName: 'Sample', email: 'casey.sample@example.test' }, message: 'This email is already used by Lead Casey Sample (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'duplicate', line: 7, values: { firstName: 'Alex', lastName: 'Client', email: 'alex.client@example.test', phone: '410-555-0177' }, message: 'This email is already used by Client Alex Client (owner none). Duplicates are not allowed.' },
+  { status: 'duplicate', line: 9, values: { email: 'b@example.test', phone: '555' }, message: 'Duplicate: this email or phone is already on a lead or client.' },
+], dupFields, 'contacts');
+ok(dupCsv.includes('State is required.') && dupCsv.split('"Duplicate within file, row 3"').length === 3, 'a repeat of an earlier email or phone is named as row 3, and the comma stays inside one cell');
+const earliest = importErrorCsv([
+  { status: 'duplicate', line: 6, values: { email: 'b.person@example.test', phone: '301-555-0199' }, message: 'This email is already used by Lead B Person (owner Ada Admin). Duplicates are not allowed.' },
+  { status: 'ok', line: 4, values: { email: 'b.person@example.test', phone: '202-555-0199' }, message: '' },
+  { status: 'ok', line: 2, values: { email: 'a.person@example.test', phone: '301-555-0199' }, message: '' },
+], dupFields);
+ok(earliest.includes('"Duplicate within file, row 2"') && !earliest.includes('row 4'), 'a row that matches two earlier rows names the earliest row');
+ok(dupCsv.includes('Duplicate within file, row 3') && dupCsv.includes('ROBIN.template@example.test') && dupCsv.includes('Duplicate of existing lead: Casey Sample / casey.sample@example.test'), 'an error row is not a file duplicate, so the later matching row names the existing lead');
+ok(dupCsv.includes('Duplicate of existing client: Alex Client / alex.client@example.test'), 'a client already on file is named as a client');
+ok(dupCsv.includes('Duplicate of existing client: b@example.test') && !dupCsv.includes('pat.kept@example.test') && !dupCsv.includes(',3,Robin,Template,'), 'a short phone is not a file duplicate, and a ready row is left out of the CSV');
+const noteCsvOut = importErrorCsv([
+  { status: 'ok', line: 2, values: { email: 'casey.sample@example.test', noteTitle: 'Intro', note: 'TEST-SEED-CRM-IMPORT note' }, message: '' },
+  { status: 'duplicate', line: 3, values: { email: 'Casey.Sample@example.test', noteTitle: 'Intro', note: 'TEST-SEED-CRM-IMPORT note' }, message: 'Duplicate: this note is already on Casey Sample.' },
+  { status: 'duplicate', line: 4, values: { email: 'robin.template@example.test', noteTitle: 'Other', note: 'A different note' }, message: 'Duplicate: this note is already on Robin Template.' },
+], [['email', 'Email'], ['noteTitle', 'Note Title'], ['note', 'Note']]);
+ok(noteCsvOut.includes('"Duplicate within file, row 2"') && noteCsvOut.includes('Duplicate of existing lead: Robin Template / robin.template@example.test'), 'a repeated note names the earlier row, and a note already on file names that lead');
+
+const wideFields = PERSON_IMPORT_FIELDS.map(([k, l]) => [k, l]);
+const tenKRows = Array.from({ length: 10000 }, (_, i) => {
+  const line = i + 2;
+  const email = `person${i}@example.test`;
+  if (i % 5 === 0) return { status: 'error', line, values: { lastName: 'Err' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: 'State is required.' };
+  if (i % 5 === 1) return { status: 'ok', line, values: { lastName: 'Ok' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: '' };
+  if (i % 5 === 2) return { status: 'duplicate', line, values: { lastName: 'Copy' + i, email: `person${i - 1}@example.test`, description: 'TEST-SEED-CRM-IMPORT' }, message: 'This email is already used by Lead Ok (owner Ada Admin). Duplicates are not allowed.' };
+  if (i % 5 === 3) return { status: 'duplicate', line, values: { lastName: 'Exist' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: 'This email is already used by Lead Casey Sample (owner Ada Admin). Duplicates are not allowed.' };
+  return { status: 'ok', line, values: { lastName: 'Keep' + i, email, description: 'TEST-SEED-CRM-IMPORT' }, message: '' };
+});
+const tDup = performance.now();
+const tenKDupCsv = importErrorCsv(tenKRows, wideFields);
+const dupMs = performance.now() - tDup;
+const tenKLines = tenKDupCsv.split('\n').filter((line) => line.trim()).length;
+ok(tenKLines === 6001 && tenKDupCsv.includes('Reason') && tenKDupCsv.includes('"Duplicate within file, row 3"') && tenKDupCsv.includes('Duplicate of existing lead: Casey Sample / person3@example.test') && !tenKDupCsv.includes('person4@example.test') && dupMs < 500, '10000 rows put every skipped row in the error CSV in one pass (' + Math.round(dupMs) + ' ms)');
 
 const progress = [];
 const tenKFile = ['Last Name,Email,Role in Company,Relationship Status,State,Description', ...Array.from({ length: 10000 }, (_, i) => `Person${i},person${i}@example.test,Realtor,Hot Prospect,MD,TEST-SEED-CRM-IMPORT`)].join('\n');
@@ -224,6 +316,51 @@ const retried = await api.runCrmImport({ module: 'leads', csv: leadFile(2), file
 failChunk = 0; chunkFailsLeft = null; failStatus = 0;
 ok(calls.length === 2 && calls[0].args.p_chunk === 1 && calls[1].args.p_chunk === 1 && retried.committed === true, 'a 5xx is retried once and then the chunk is kept');
 
+const URL_OK = /^https?:\/\/[^\s/:@]+\.[^\s/:@]+(:[0-9]+)?(\/\S*)?$/i;
+const leadHead = 'Last Name,Phone,Mobile,Website,Role in Company,Relationship Status,State';
+const leadRow = (phone, mobile, site) => `${leadHead}\nSample,${phone},${mobile},${site},Realtor,Hot Prospect,MD\n`;
+calls.length = 0;
+const badPhone = await api.previewCrmImport({ module: 'leads', csv: leadRow('555-0101', '', ''), fileName: 'bad-phone.csv' });
+ok(calls.length === 0 && badPhone.rows[0].status === 'error' && badPhone.counts.errors === 1 && badPhone.counts.ok === 0, 'a short phone is a row error and is not sent');
+ok(badPhone.rows[0].message.includes('Phone must be a 10-digit phone number') && badPhone.rows[0].message.includes('leave it blank') && !/constraint|23514|P0001/i.test(badPhone.rows[0].message), 'the short phone reason is plain words');
+ok(badPhone.errorCsv.includes('555-0101') && badPhone.errorCsv.includes('10-digit'), 'the error CSV keeps the short phone and the reason');
+calls.length = 0;
+const badMobile = await api.previewCrmImport({ module: 'leads', csv: leadRow('', '12345', ''), fileName: 'bad-mobile.csv' });
+ok(calls.length === 0 && badMobile.rows[0].status === 'error' && badMobile.rows[0].message.startsWith('Mobile must be a 10-digit phone number'), 'a short mobile is its own row error');
+calls.length = 0;
+const elevenBad = await api.previewCrmImport({ module: 'leads', csv: leadRow('23015550101', '', ''), fileName: 'eleven.csv' });
+ok(calls.length === 0 && /Phone must be a 10-digit/.test(elevenBad.rows[0].message), '11 digits that do not start with 1 are refused');
+calls.length = 0;
+const leadingOne = await api.previewCrmImport({ module: 'leads', csv: leadRow('1-301-555-0101', '', 'harbor.example.test'), fileName: 'leading-one.csv' });
+ok(calls.length === 1 && leadingOne.rows[0].status === 'ok' && calls[0].args.p_rows[0].values.phone === '301-555-0101', '11 digits starting with 1 are saved as a 10-digit phone');
+ok(calls[0].args.p_rows[0].values.links.website === 'https://harbor.example.test/' && URL_OK.test(calls[0].args.p_rows[0].values.links.website), 'a bare web address is sent with https:// in front');
+ok(leadingOne.rows[0].notes.some((n) => n.includes('Website saved as https://harbor.example.test/')), 'the preview says https:// was added');
+ok(leadingOne.rows[0].values.phone === '1-301-555-0101' && leadingOne.rows[0].values['links.website'] === 'harbor.example.test', 'the preview still shows the phone and web address from the file');
+calls.length = 0;
+const already = await api.previewCrmImport({ module: 'leads', csv: leadRow('301-555-0101', '(703) 555-0199', 'https://harbor.example.test/casey'), fileName: 'already.csv' });
+ok(calls.length === 1 && calls[0].args.p_rows[0].values.phone === '301-555-0101' && calls[0].args.p_rows[0].values.mobile === '703-555-0199' && calls[0].args.p_rows[0].values.links.website === 'https://harbor.example.test/casey', 'a 10-digit phone and a full web address are kept');
+calls.length = 0;
+const badSite = await api.previewCrmImport({ module: 'leads', csv: leadRow('301-555-0101', '', 'not a site'), fileName: 'bad-site.csv' });
+ok(calls.length === 0 && badSite.rows[0].status === 'error' && badSite.rows[0].message.includes('Website') && badSite.rows[0].message.includes('example.com') && !/constraint|crm_leads_zoho_check|23514/i.test(badSite.rows[0].message), 'a web address that is not a site is a plain row error and is not sent');
+calls.length = 0;
+const both = await api.previewCrmImport({ module: 'leads', csv: leadRow('12', '99', 'javascript:alert(1)'), fileName: 'both.csv' });
+ok(calls.length === 0 && both.rows[0].message.includes('Phone must be a 10-digit') && both.rows[0].message.includes('Mobile must be a 10-digit') && both.rows[0].message.includes('Website'), 'phone, mobile, and website problems are all named on the row');
+const reviewed = reviewImportPerson({ phone: '', mobile: '3015550102', links: { website: 'harbor.example.test', linkedin: 'https://www.linkedin.com/in/casey-sample-fake' } }, ['County Montgomery from ZIP 20852']);
+ok(reviewed.problems.length === 0 && reviewed.values.phone === '' && reviewed.values.mobile === '301-555-0102' && reviewed.values.links.website === 'https://harbor.example.test/' && reviewed.values.links.linkedin === 'https://www.linkedin.com/in/casey-sample-fake' && reviewed.prepNotes[0].includes('County'), 'a blank phone stays blank and a full link is unchanged');
+ok(plainImportDbMessage('new row for relation "crm_leads" violates check constraint "crm_leads_zoho_check"').includes('example.com') && !/constraint|crm_leads/.test(plainImportDbMessage('new row for relation "crm_leads" violates check constraint "crm_leads_zoho_check"')), 'a database check error is rewritten in plain words');
+ok(plainImportDbMessage('Role in Company is required.') === 'Role in Company is required.', 'a normal import message is left as it is');
+calls.length = 0;
+const heldRpc = sb.rpc;
+sb.rpc = async (name, args) => {
+  calls.push({ name, args });
+  const rows = args.p_rows.map((r) => ({ line: r.line, status: 'error', message: 'new row for relation "crm_leads" violates check constraint "crm_leads_zoho_check"', id: null, name: '', link: '', notes: [] }));
+  const body = { rows, counts: { total: rows.length, ok: 0, duplicates: 0, errors: rows.length }, importId: null };
+  return { data: null, error: { code: 'P0004', message: 'Import preview only. Nothing was saved.', details: JSON.stringify(body) } };
+};
+const raw = await api.previewCrmImport({ module: 'leads', csv: leadRow('301-555-0101', '', 'https://harbor.example.test/casey'), fileName: 'raw.csv' });
+sb.rpc = heldRpc;
+ok(raw.rows[0].status === 'error' && raw.rows[0].message.includes('Type it like example.com') && !/constraint|crm_leads_zoho_check/.test(raw.rows[0].message), 'a raw database check on a preview row is shown in plain words');
+
 const mem = new Map();
 const storage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
 calls.length = 0;
@@ -241,5 +378,33 @@ const resumed = await api.runCrmImport({ module: 'leads', csv: leadFile(1000), f
 ok(calls.length === 1 && calls[0].args.p_chunk === 2 && calls[0].args.p_import === stored.importId && calls.every((c) => c.args.p_chunk !== 1), 'resume continues at the unsaved chunk and does not resend the saved chunk');
 ok(resumed.committed === true && resumed.counts.total === 500, 'resume imports only the rows that were not saved yet');
 
+const md5 = (s) => createHash('md5').update(s).digest('hex');
+const grabBody = (text) => {
+  const s = text.indexOf('as $fn$');
+  const e = text.lastIndexOf('$fn$;');
+  return text.slice(s + 'as $fn$'.length, e);
+};
+const janine = read('supabase/migrations/20261112050000_crm_janine_deal_name_import.sql');
+const janineAt = janine.indexOf('create or replace function public.crm_import_batch(');
+let patched = janine.slice(janineAt, janine.indexOf('$fn$;', janineAt) + '$fn$;'.length);
+ok((patched.split("role in ('Sales Person', 'Sales Team')").length - 1) === 4, 'the deal-name import still has the four salesperson owner checks this file replaces');
+patched = patched.split("role in ('Sales Person', 'Sales Team')").join('can_own_crm');
+patched = patched.replaceAll('The default Owner must be an active Sales Person or Sales Team user.', 'The default Owner must be an active user who can own CRM records.');
+patched = patched.replaceAll('Owner "%" matches more than one salesperson. Use the email.', 'Owner "%" matches more than one user who can own CRM records. Use the email.');
+patched = patched.replaceAll('Owner "%" is not an active Sales Person or Sales Team user.', 'Owner "%" is not an active user who can own CRM records.');
+const next = read('supabase/migrations/20261125110000_crm_import_preview_row_errors.sql');
+const nextRb = read('supabase/rollbacks/20261125110000_crm_import_preview_row_errors.sql');
+const rbAt = nextRb.indexOf('create or replace function public.crm_import_batch(');
+const rbCreate = nextRb.slice(rbAt, nextRb.indexOf('$fn$;', rbAt) + '$fn$;'.length);
+ok(rbCreate === patched, 'rollback saves the owner-flagged crm_import_batch body from 20261112050000');
+ok(md5(grabBody(nextRb)) === '6bae1cfb092c37b9133f2053eba0544c' && next.includes("distinct from '6bae1cfb092c37b9133f2053eba0544c'"), 'the migration refuses to run unless that before-definition is installed');
+ok(md5(grabBody(next)) === 'e5c509d25c438940c4d497d35b7dc485' && nextRb.includes("distinct from 'e5c509d25c438940c4d497d35b7dc485'"), 'the rollback refuses to run unless the new body is installed');
+ok(next.includes("errcode = 'CRM01'") && next.includes("when sqlstate 'CRM01'") && next.includes('return v_result;'), 'preview catches a private sentinel and returns jsonb');
+ok(!next.includes("errcode = 'P0004', detail") && next.includes('if coalesce(p_commit, false) then\n          raise;'), 'a preview no longer raises P0004, and a commit still re-raises a row assert');
+ok(next.includes('Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.'), 'the returned preview includes the plain sentence');
+ok(!next.split('\n').some((line) => /^\s*create (or replace )?function private\./i.test(line)) && !/create policy|alter policy|on public\.deals|on public\.tasks|on public\.profiles/i.test(next), 'no private helper and no deals, tasks, or profiles policy');
+ok(next.includes('where lower(l.email) = v_em') && nextRb.includes('where lower(l.email) = v_em') && (next.match(/where lower\(l\.email\) = v_em/g) || []).length === (nextRb.match(/where lower\(l\.email\) = v_em/g) || []).length, 'the lead email lookup is unchanged');
+ok(next.includes('security definer') && next.includes('v_n > 500') && next.includes("errcode = '42501'") && next.includes('can own CRM records') && next.includes('grant execute on function public.crm_import_batch(boolean, text, text, text, jsonb, jsonb, uuid, integer) to authenticated'), 'security, the 500-row cap, the admin check, owner wording, and the grant stay');
+ok(read('js/data/supabase-crm.js').includes('supabase-crm-janine.js?v=202611247700') && read('js/data/supabase-adapter.js').includes('supabase-crm.js?v=202611249700') && read('js/data/adapter.js').includes('supabase-adapter.js?v=202611290700') && read('js/app.js').includes("adapter.js?v=202611290700") && read('index.html').includes('js/app.js?v=202611290700'), 'the note importer stays on its stamp; the note edit save path stays at 202611249700 and the shell is 202611290610');
 console.log(fail ? fail + ' failed' : 'crm hosted import passed');
 if (fail) process.exit(1);

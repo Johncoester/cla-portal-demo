@@ -2,8 +2,8 @@
 // contacts / CRM, see each invite's status (pending, accepted, expired, revoked) and Resend (new link) or Revoke (retired, never deleted).
 // Nov 9: Create and Resend email the invite from the inviter's own connected Gmail (gmail-send); the one-time link is also shown to copy.
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611161500';
-import { STATUS_LABEL } from '../data/agent-profile.js?v=202611140100';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611161500';
+import { STATUS_LABEL } from '../data/agent-profile.js?v=202611249900';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611249900';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {
@@ -12,7 +12,7 @@ export async function render({ api, refresh }) {
   const shown = list.filter((i) => !flt || i.status === flt); const count = (s) => list.filter((i) => i.status === s).length;
   const opts = cands.filter((c) => !c.hasLogin).map((c) => html`<option value="${c.contactId}"${c.contactId === pre ? raw(' selected') : ''}${c.pendingInviteId ? raw(' data-pending') : ''}>${c.firstName} ${c.lastName}${c.company ? ` (${c.company})` : ''}${c.files.length ? ` · ${c.files.map((f) => `${f.fileNumber} ${f.role}`).join(', ')}` : ''}${c.pendingInviteId ? ' · invite pending' : ''}</option>`);
   const files = [...new Map(cands.flatMap((c) => c.files).map((f) => [f.dealId, f])).values()];
-  const rows = shown.map((i) => html`<tr data-invite-row="${i.id}" data-invite-status="${i.status}"><td><strong>${i.firstName} ${i.lastName}</strong>${i.inviteKind === 'client' ? html` <span class="pill" data-invite-kind="client">buyer / seller</span>` : ''}<br><span class="muted small">${i.email}</span></td>
+  const rows = shown.map((i) => html`<tr data-invite-row="${i.id}" data-invite-status="${i.status}"><td><strong>${i.firstName} ${i.lastName}</strong>${i.inviteKind === 'client' ? html` <span class="pill" data-invite-kind="client">buyer / seller / TC</span>` : ''}<br><span class="muted small">${i.email}</span></td>
     <td><span class="pill ${PILL[i.status] || ''}" data-status-pill>${STATUS_LABEL[i.status]}</span>${i.resentCount ? html` <span class="muted small">resent ${i.resentCount}&times;</span>` : ''}</td>
     <td>${i.fileNumber || html`<span class="muted">&mdash;</span>`}</td><td class="small">${fmtDateTime(i.createdAt)}<br><span class="muted">by ${i.createdByName}</span></td>
     <td class="small" data-invite-emailed>${i.sentAt ? html`Emailed ${fmtDateTime(i.sentAt)}${i.sendCount > 1 ? html` (${i.sendCount}&times;)` : ''}` : i.sendError ? html`<span class="muted" title="${i.sendError}">Not emailed</span>` : html`<span class="muted">&mdash;</span>`}</td>

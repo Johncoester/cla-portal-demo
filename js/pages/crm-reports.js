@@ -3,10 +3,10 @@
  * Aggregate Columns, Filters (AND / OR), sort. Run, Save, Edit, Clone, Export (CSV: Admin / Super admin only), Send Email (saved, NOT sent).
  * Shared with everyone unless restricted to users / roles. Nothing is deleted: reports are RETIRED (hidden, restorable). Function only. */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText, fmtDateTime } from '../ui.js?v=202611161500';
-import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, isDateType } from '../data/crm-analytics.js?v=202611130900';
-import { tabs, head } from './crm-kit.js?v=202611161500';
-import { criteriaEditor } from './crm-criteria.js?v=202611161500';
-import { composeOverlay } from './crm-compose.js?v=202611161500';
+import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, calendarBucket, isDateType } from '../data/crm-analytics.js?v=202611247700';
+import { tabs, head } from './crm-kit.js?v=202611289980';
+import { criteriaEditor } from './crm-criteria.js?v=202611247700';
+import { composeOverlay } from './crm-compose.js?v=202611247700';
 import { fmtNum } from './crm-charts.js?v=202611161500';
 
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);
@@ -114,7 +114,7 @@ async function builderPage(c, rep) {
           <p><button type="button" class="ghost small" data-col-add>Add &rarr;</button></p></div>
         <div><strong>Selected Columns</strong> <span class="muted small">(drag or use the arrows)</span><ol data-col-list>${s.columns.map((k, i) => html`<li draggable="true" data-col="${k}">${lab(k)} <button type="button" class="linkish" data-col-up="${i}">&uarr;</button><button type="button" class="linkish" data-col-down="${i}">&darr;</button> <button type="button" class="linkish" data-col-x="${k}">&times;</button></li>`)}</ol></div>
         <div><strong>Row Groups</strong> <span class="muted small">(up to 3)</span>${[0, 1, 2].map((i) => html`<p><select data-group="${i}"><option value="">(none)</option>${opts(fields.map((f) => [f.key, f.label]), s.rowGroups[i] || '')}</select></p>`)}
-          <p><label>Date grouping<select data-bucket>${opts(BUCKETS, s.bucket || 'day')}</select></label></p></div>
+          <p><label>Date grouping<select data-bucket>${opts(BUCKETS, calendarBucket(s.bucket || 'day'))}</select></label></p></div>
         <div><strong>Aggregate Columns</strong><div data-aggs>${(s.aggregates.length ? s.aggregates : []).map((a, i) => html`<p data-agg-row="${i}"><select data-agg-fn>${opts(AGG_FNS, a.fn)}</select> of <select data-agg-field>${opts(fields.map((f) => [f.key, f.label]), a.field)}</select> <button type="button" class="linkish" data-agg-x="${i}">&times;</button></p>`)}</div>
           <button type="button" class="ghost small" data-agg-add ${nums.length ? '' : raw('disabled')}>+ Add aggregate</button>
           <p><strong>Sort</strong> <select data-sort><option value="">(none)</option>${opts(fields.map((f) => [f.key, f.label]), (s.sort || {}).field || '')}</select><select data-sort-dir>${opts([['asc', 'Ascending'], ['desc', 'Descending']], (s.sort || {}).dir || 'asc')}</select></p></div>

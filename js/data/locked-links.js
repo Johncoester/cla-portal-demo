@@ -1,4 +1,4 @@
-import { canManageFileTemplates } from './file-email-templates.js?v=202611140400';
+import { canManageFileTemplates } from './file-email-templates.js?v=202611247700';
 /* locked-links.js : ONE LOGIN LINK PER FAKE USER (John, Nov 4). FAKE DATA ONLY, mock mode only.
  * A link like  https://johncoester.github.io/cla-portal-demo/?as=<token>&file=deal-1  signs the visitor in as that one fake user and LOCKS the
  * browser tab to them: no user picker, no switch user, and routes outside that user's own portal are refused (routeAllowed below, enforced in app.js).
@@ -10,16 +10,16 @@ import { canManageFileTemplates } from './file-email-templates.js?v=202611140400
  * VIEW AS (Super admin only): inside a locked link whose OWNER is a Super admin (King John), a "View as" dropdown switches the tab to any fake user and
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
-import { runsOrders, isStaff, isOutside } from './constants.js?v=202611101015';
+import { runsOrders, isStaff, isOutside } from './constants.js?v=202611247700';
 import { canReportStaffFeedback } from './staff-feedback.js?v=202611080400';
-import { titleCanRead } from './title.js?v=202611101015';
+import { titleCanRead } from './title.js?v=202611247700';
 import { fwpCanRead } from './funding-wire-policy.js?v=202611070139';   // John, Nov 4: order > Title route guard
-import { canUseCrm } from './crm.js?v=202611130900';
+import { canUseCrm } from './crm.js?v=202611247700';
 import { canManageRoleAccess } from './role-access.js?v=202611100100';
-import { canInviteAgents } from './agent-profile.js?v=202611140100';
-import { canManageModules } from './modules.js?v=202611101015';
-import { hrSectionAllowed } from './hr.js?v=202611091730';
-import { canManageOffices } from './offices.js?v=202611101015';
+import { canInviteAgents } from './agent-profile.js?v=202611249900';
+import { canManageModules } from './modules.js?v=202611247700';
+import { hrSectionAllowed } from './hr.js?v=202611247700';
+import { canManageOffices } from './offices.js?v=202611247700';
 
 export const LOCK_KEY = 'cla-portal-new:locked:v1';
 export function devPickerOn(w = (typeof window !== 'undefined' ? window : {})) {
@@ -35,7 +35,7 @@ export const LINK_TOKENS = {
   '8f35592f04f1ff466320a8fe': 'u-proc', 'b6662f52b1113fb211268fc3': 'u-preproc', '0647edc4ee2a4d029a0f8930': 'u-sp', '1d23d39566522fce5c6952bd': 'u-team', '3fbd6a653b1b49e5ae4bd016': 'u-tc',
   'f1fefad2347ba878391dd44d': 'u-bagent', '9dd9de8b9c327645419f86bb': 'u-lagent', '6279357492dca5e12fc800d9': 'u-buyer', '6e7d6ca958d6fb3b4285894d': 'u-seller',
   'c356ab42259b4c120f77c9d3': 'u-multi', 'd5be9004fe1a25635731fc06': 'u-selfrep', '3455a01bbb58d0a8fc801ec9': 'u-adam', '50f70c55b90611bcd9a49ce1': 'u-admin', 'f0678aacef75b9ab555e8bbc': 'u-tc2',
-  'd9324aeb920aff3bb132baaf': 'u-hr1', 'c648b06c6b1da945bae4cc6c': 'u-ph1',   // HR (Nov 4): Hana HR-Manager, Pia Processor-PH (HR-only 'Employee' logins; fake, not secrets)
+  'd9324aeb920aff3bb132baaf': 'u-hr1', 'c648b06c6b1da945bae4cc6c': 'u-ph1',   // HR (Nov 4): Hana is an HR-only Employee. Pia is an HR-created Processor (fake, not secrets)
 };
 // LANDING FILE (John, Nov 4, file-first): an optional  &file=<deal id>  only picks the FIRST page (that file's view). It never widens access:
 // the token alone decides the person; the file must be one the person is on (the adapter's getDeal refuses others), and the person can still
@@ -62,7 +62,7 @@ export function canOpenTaskSetup(u, demo) {
 // ROUTE GUARD (every user, locked or not): a page is reachable only if it belongs to that user's portal (the same rules as the menu in app.js navFor).
 export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   const p = route.page;
-  if (p === 'schedule') return true;                                   // public closing-time link
+  if (p === 'schedule' || p === 'schedule-party') return true;         // public closing-time link and the buyer / seller scheduling link
   if (p === 'agent-invite') return !locked;   // one-time agent setup page: never inside a locked test-link session
   if (p === 'hr-invite') return !locked;      // HR: the employee's one-time login setup page, never inside a locked test-link session
   if (p === 'login') return !locked;
@@ -79,10 +79,11 @@ export function routeAllowed(u, route, { locked = false, demo = null } = {}) {
   if (p === 'users' || p === 'teams') return !!u.isAdmin;
   if (p === 'offices') return canManageOffices(u);   // John, Nov 4: Admin > Offices (Admin / Super admin only; others get "Not available")
   if (p === 'admin/email-templates' || p === 'email-templates') return canManageFileTemplates(u);   // John, Nov 9: Admin > Email Templates
-  if (p === 'modules' || p === 'underwriters') return canManageModules(u);
+  if (p === 'modules' || p === 'underwriters' || p === 'tax-rates') return canManageModules(u);
   if (p === 'role-access') return canManageRoleAccess(u);   // John, Nov 9: Super admin only
   if (p === 'orders/new' || p === 'activity') return runsOrders(u) || !!u.isAdmin;
   if (p === 'task-grid' || p === 'templates' || p === 'admin/templates') return canOpenTaskSetup(u, demo);   // Task Templates (all three tabs) and the Task Grid
+  if (p === 'task-builder') return canOpenTaskSetup(u, demo);   // John, Nov 13: Admin > Task Builder (Admin / Super admin only)
   if (p === 'tasks') return !!u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator';
   if (p === 'outbox') return runsOrders(u) || !!u.isAdmin || u.role === 'Transaction Coordinator';
   if (p === 'agent-invites') return canInviteAgents(u);
@@ -99,8 +100,8 @@ const FILE_TABS = ['overview', 'tasks', 'inbox', 'documents', 'closing', 'contac
 const ACCT_VIEWS = ['charges', 'cd', 'cddetails', 'prorations', 'payments', 'ledger', 'alta', 'history', 'payoffs', 'taxes', 'othercontacts'];   // + payoffs / taxes / othercontacts (live28: Qualia Payoffs, Taxes & Prorations, Other Contacts)
 export const SECTIONS = { home: '/dashboard', 'my-tasks': '/dashboard', orders: '/orders', 'place-order': '/orders/new', tasks: '/tasks', 'task-grid': '/task-grid', library: '/library',
   crm: '/crm', 'crm-deals': '/crm/deals', 'crm-leads': '/crm/leads', 'crm-calls': '/crm', 'crm-templates': '/crm/templates', 'crm-pipeline': '/crm/pipeline', 'crm-reports': '/crm/reports',
-  admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', 'admin-offices': '/offices', modules: '/modules', 'role-access': '/role-access', underwriters: '/underwriters', 'agent-invites': '/agent-invites',
-  templates: '/admin/templates', 'email-templates': '/admin/email-templates', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
+  admin: '/users', users: '/users', 'create-user': '/users/new', teams: '/teams', 'admin-offices': '/offices', modules: '/modules', 'role-access': '/role-access', underwriters: '/underwriters', 'tax-rates': '/tax-rates', 'agent-invites': '/agent-invites',
+  templates: '/admin/templates', 'email-templates': '/admin/email-templates', 'task-builder': '/task-builder', outbox: '/outbox', activity: '/activity', profile: '/profile', hr: '/hr', 'my-profile': '/hr/me',
   // HR section links (John, Nov 4: "HR should have a link"). Only pick the first page: app.js still applies hrSectionAllowed + the 'hr' module switch
   // (Super admins only while HR is off; HR managers once Live; an employee only their own profile; HR Settings = Super admin only).
   'hr-home': '/hr', 'hr-employees': '/hr/employees', 'hr-managers': '/hr/settings', 'hr-my-profile': '/hr/me' };   // hr: refused for outside users by routeAllowed

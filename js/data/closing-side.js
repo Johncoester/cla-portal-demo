@@ -1,6 +1,6 @@
 /* Buyer-side and seller-side signing on the closing. Loaded with the deal row. No extra read. */
-import { US_STATES } from './constants.js?v=202611101015';
-import { officeAddress } from './offices.js?v=202611101015';
+import { US_STATES } from './constants.js?v=202611247700';
+import { officeAddress } from './offices.js?v=202611247700';
 
 export const PLACE_KINDS = [['office', 'CLA Title office'], ['mobile_notary', 'Mobile notary address'], ['manual', 'Type an address']];
 export const SIGN_STATUSES = [['pending', 'Pending'], ['signed', 'Signed']];
@@ -20,9 +20,13 @@ export function composeAddress({ street, city, state, zip } = {}) {
 
 export const TYPED_ADDRESS = 'Typed address';
 
+export const MOBILE_NOTARY = 'Mobile notary';
+
+// FF-063 #3: a mobile notary closing can carry the signing address the processor typed (same deal columns as a typed address).
 export function scheduledPlace(sc, deal) {
-  if (!sc || sc.location !== TYPED_ADDRESS) return '';
-  return composeAddress({ street: deal && deal.closingManualStreet, city: deal && deal.closingManualCity, state: deal && deal.closingManualState, zip: deal && deal.closingManualZip });
+  if (!sc || (sc.location !== TYPED_ADDRESS && sc.location !== MOBILE_NOTARY)) return '';
+  const addr = composeAddress({ street: deal && deal.closingManualStreet, city: deal && deal.closingManualCity, state: deal && deal.closingManualState, zip: deal && deal.closingManualZip });
+  return sc.location === MOBILE_NOTARY ? (addr ? `Mobile notary at ${addr}` : '') : addr;
 }
 
 export function cleanManualAddress(input = {}, { required = false } = {}) {
@@ -44,7 +48,8 @@ export function cleanSideSigning(input = {}) {
   if (!side) throw new Error('Pick the buyer side or the seller side.');
   const status = input.status === 'signed' ? 'signed' : 'pending';
   const signedOn = status === 'signed' ? trim(input.signedOn, 10) : '';
-  if (status === 'signed' && !/^\d{4}-\d{2}-\d{2}$/.test(signedOn)) throw new Error('Enter the date this side signed.');
+  if (status === 'signed' && signedOn && !/^\d{4}-\d{2}-\d{2}$/.test(signedOn)) throw new Error('Enter the date this side signed.');
+  if (status === 'signed' && !signedOn && !input.allowBlankSignedOn) throw new Error('Enter the date this side signed.');
   const placeKind = PLACE_KINDS.some(([k]) => k === input.placeKind) ? input.placeKind : '';
   const atDate = trim(input.date, 10);
   const atTime = trim(input.time, 5);

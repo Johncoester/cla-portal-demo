@@ -240,7 +240,11 @@ export async function fillAssignedTasks(page, run, { requireUpload = true } = {}
     const fields = page.locator('#tform input:not([type="hidden"]), #tform select, #tform textarea');
     expect(await fields.count()).toBeGreaterThan(0);
     if (await page.locator('#tform input[type="file"]').count()) sawFile = true;
-    if (!saved) {
+    // Nov 13: Save progress on a filled-in Lender information form completes the task by design (intakeCompletes), and the
+    // page says "Task complete" instead of "Progress saved". The seeded lender form is filled in, so it is not the form
+    // this check saves; the lender test in buyer-seller.spec.js covers that form.
+    const lenderForm = /template lender_info\b/.test(await page.locator('#view, .co-cb').first().innerText());
+    if (!saved && !lenderForm) {
       // Conditional fields (bank name on seller proceeds) stay in the form hidden until their question applies.
       const text = page.locator('#tform textarea:visible, #tform input[type="text"]:visible').first();
       if (await text.count()) {
@@ -261,8 +265,12 @@ export async function fillAssignedTasks(page, run, { requireUpload = true } = {}
     const idTask = page.getByRole('link', { name: /Upload (photo |identification|your )?ID/i }).first();
     if (await idTask.count()) {
       await idTask.click();
-      await page.locator('#tform, [data-task-form-state]').first().waitFor();
+      await page.locator('#tform, [data-task-form-state], [data-task-done-read-only]').first().waitFor();
       if (await page.locator('#tform input[type="file"]').count()) sawFile = true;
+      // FF-069d (Nov 12): a finished task is read-only for the client (no form, a Back button), so a done ID task cannot show
+      // an upload control any more. It counts when the read-only view lists the uploaded ID and offers Back to tasks.
+      else if (await page.locator('[data-task-done-read-only]').count() && await page.locator('[data-task-done-back]').count()
+        && await page.locator('#view dl.answers dd').count()) sawFile = true;
     }
   }
   if (requireUpload) expect(sawFile, 'no assigned form showed an upload control').toBeTruthy();

@@ -70,7 +70,7 @@ let me = null; try { me = await pr2.crmMe(); } catch (e) { me = null; } ok(!!me 
 // the page, nav and route are wired
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8'); const ws = readFileSync(new URL('../js/workspace.js', import.meta.url), 'utf8');
 const mig = readFileSync(new URL('../supabase/migrations/20261110010000_role_module_access.sql', import.meta.url), 'utf8');
-ok(app.includes("'role-access': () => import('./pages/role-access.js?v=") && app.includes("if (canManageRoleAccess(u)) add('role-access', 'Role access', '#/role-access'"), 'Role access page and nav item (Super admin)');
+ok(app.includes("'role-access': () => loadRoute(() => import('./pages/role-access.js?v=") && app.includes("if (canManageRoleAccess(u)) add('role-access', 'Role access', '#/role-access'"), 'Role access page and nav item (Super admin)');
 ok(ws.includes("'role-access': 'admin'") && ws.includes("'modules', 'role-access', 'underwriters'"), 'Role access lives in Admin / Settings');
 ok(!/create or replace function private\.crm_user\(/i.test(mig), 'the migration does not change private.crm_user()');
 ok(/\('Processor', 'crm', true\)/.test(mig) && /\('Sales Person', 'crm_all_deals', false\)/.test(mig), 'the SQL seed keeps Processor CRM on and Sales Person on own deals');

@@ -58,10 +58,13 @@ const sql = readFileSync(new URL('../supabase/migrations/20261110103000_tc_place
 const rollback = readFileSync(new URL('../supabase/rollbacks/20261110103000_tc_place_order_contact.sql', import.meta.url), 'utf8');
 ok(page.includes('data-dup-orders') && page.includes('findDuplicateOrders') && page.includes('You can still place this order.') && page.includes('data-place-order'), 'review asks for duplicates and does not remove Place order');
 ok(!page.includes('dup-block') && page.includes('data-review-ready'), 'a duplicate is a warning, not a thing to fix');
-ok(page.includes('No salespeople are available for this login.') && page.includes('No preprocessor is available for this login.') && page.includes('No transaction coordinator is available for this login.') && page.includes('(none available for this login)'), 'empty Team and TC lists say none are available for this login');
+const salesPicker = readFileSync(new URL('../js/pages/sales-multi.js', import.meta.url), 'utf8');
+ok(salesPicker.includes('No salespeople are available for this login.') && page.includes('No preprocessor is available for this login.'), 'empty sales and preprocessor lists say none are available for this login');
+// FF-088: the agent's coordinator is typed on the order. Place Order no longer has a staff TC dropdown, so it no longer says that list is empty.
+ok(!page.includes('No transaction coordinator is available for this login.') && !page.includes('(none available for this login)') && page.includes('data-agent-tc='), 'the agent coordinator is typed, not a staff list');
 ok(!page.includes('name="p:Sales Team"') && !page.includes('salesParty') && (page.match(/<legend>Salespeople on this order<\/legend>/g) || []).length === 1, 'Place Order keeps one salespeople field and does not restore Sales team member');
 const listCoordinators = adapter.slice(adapter.indexOf('async listCoordinators'), adapter.indexOf('async findDuplicateOrders'));
-ok(listCoordinators.includes('coordinatorRoster') && listCoordinators.includes("eq('role', 'Transaction Coordinator')") && listCoordinators.includes('r.contactId') && !listCoordinators.includes('.insert('), 'the hosted TC list is a read and omits a coordinator who has no contact');
+ok(listCoordinators.includes('coordinatorRoster') && listCoordinators.includes("in('role', PROCESSOR_PICK_ROLES)") && listCoordinators.includes('plan.rows.map') && !listCoordinators.includes('.insert('), 'the hosted TC list is a read of every staff role and does not insert contacts (ANYROLE-1)');
 ok(adapter.includes('findDuplicateOrders'), 'hosted Place Order looks up visible files');
 ok(sql.includes("p.role = 'Transaction Coordinator'") && sql.includes('viewer_is_demo') && sql.includes('profiles_tc_contact') && rollback.includes('drop trigger if exists profiles_tc_contact'), 'the migration backfills TC contacts and the rollback drops that trigger');
 

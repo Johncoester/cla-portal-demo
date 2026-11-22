@@ -1,0 +1,40 @@
+/* FF-063 (Janine's video, Nov 12 "CLA Portal Test - Processor and Seller Screens"; Francis Feedback ticket): after the processor
+   confirmed or rescheduled the closing, the other proposed times stayed "proposed". Fake data plus the migration text. */
+import { readFileSync } from 'node:fs';
+import { createMockAdapter } from '../js/data/mock-adapter.js';
+const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+let fail = 0;
+const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
+const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+await api.signInDev('u-admin');
+const deal = await api.createDeal({ street: '63 Proposal Way', city: 'Alexandria', state: 'VA', zip: '22312', processorId: 'u-proc' });
+await api.addParticipant(deal.id, 'c-seller', 'Client-Seller');
+await api.signInDev('u-seller');
+await api.proposeClosing(deal.id, { at: '2026-12-31T15:00', location: 'CLA Title office' });
+await api.proposeClosing(deal.id, { at: '2026-12-31T18:00', location: 'Mobile notary', note: 'At home' });
+let mine = await api.listClosingProposals(deal.id);
+ok(mine.length === 2 && mine.every((p) => p.status === 'proposed'), 'the seller proposed two times');
+await api.signInDev('u-proc');
+const six = mine.find((p) => p.at.endsWith('18:00'));
+await api.confirmClosing(deal.id, { proposalId: six.id });
+let list = await api.listClosingProposals(deal.id);
+ok(list.find((p) => p.id === six.id).status === 'confirmed' && list.find((p) => p.id !== six.id).status === 'declined', 'confirming one proposal declines the other');
+await api.confirmClosing(deal.id, { at: '2026-12-19T17:00', location: 'CLA Title office' });
+list = await api.listClosingProposals(deal.id);
+ok(list.every((p) => p.status === 'declined'), 'rescheduling to a new time declines the earlier confirmed proposal too');
+await api.signInDev('u-seller');
+await api.proposeClosing(deal.id, { at: '2027-01-05T10:00', location: 'CLA Title office' });
+list = await api.listClosingProposals(deal.id);
+ok(list.filter((p) => p.status === 'proposed').length === 1, 'a new proposal after the reschedule is still open for CLA to confirm');
+let threw = '';
+try { await api.confirmClosing(deal.id, { at: '2027-01-06T10:00', location: 'CLA Title office' }); } catch (e) { threw = e.message; }
+ok(threw !== '' && (await api.listClosingProposals(deal.id)).filter((p) => p.status === 'proposed').length === 1, 'a seller cannot confirm, and nothing is declined when the confirm is refused');
+const page = readFileSync(new URL('../js/pages/dealclosing.js', import.meta.url), 'utf8');
+ok(page.includes("p.status === 'declined' ? html`<span data-proposal-declined>${pill('declined', '')}</span>`"), 'the Proposed closing times list shows declined times as declined, with no Confirm button');
+const sql = readFileSync(new URL('../supabase/migrations/20261116150000_closing_decline_unpicked.sql', import.meta.url), 'utf8');
+ok(sql.includes("array['proposed'::text, 'confirmed'::text, 'declined'::text]"), 'the database allows a declined status');
+ok(sql.includes("update public.closing_proposals set status = 'declined' where deal_id = p_deal and status in ('proposed', 'confirmed') and (p_proposal is null or id <> p_proposal);"), 'confirm_closing declines the other proposals on that file only');
+ok(sql.includes("'96380222d6f681fdcdfcb46bfcca0bb5'") && sql.includes("'Typed address'"), 'the migration refuses to run over a changed function and keeps the typed address');
+ok(sql.includes('cp.created_at < d.scheduled_confirmed_at') && sql.includes('not (cp.status = \'confirmed\' and cp.proposed_at = d.scheduled_at)'), 'the one-time tidy-up only declines proposals made before the confirmed closing that are not the confirmed time');
+console.log(fail ? `FAIL ${fail}` : 'all closing decline checks passed');
+process.exit(fail ? 1 : 0);

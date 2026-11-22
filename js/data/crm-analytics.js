@@ -2,11 +2,11 @@
  * mock adapter, the Supabase adapter, the screens and the unit tests share it. FAKE DATA ONLY.
  *  * MODULES: the CRM modules as flat rows (Clients, Leads, Companies, Deals = the portal's orders, Tasks, Meetings, Calls, Opportunities). The adapter
  *    builds the rows from the records the viewer may see; this file only filters, groups, counts and sums them.
- *  * FILTERS (criteria): [{ field, op, value, value2 }] combined with AND or OR. Date presets (Previous / Current / Next FY, Month, Year...).
+ *  * FILTERS (criteria): [{ field, op, value, value2 }] combined with AND or OR. Date presets (Previous / Current / Next Year, Month...).
  *  * GROUPING with date buckets (By Day, By Calendar Week, By Month, By Quarter, By Year) and measures (Record Count, Sum / Avg of a number field).
  *  * REPORTS: columns, row groups ("Owner (count)"), aggregate columns (sum, avg, min, max, count), CSV.
  *  * SEARCH: words in name / email, phone by digits only. */
-import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611130900';
+import { optLabel, activeFields, customDisplay, cfKey } from './crm-config.js?v=202611247700';
 
 // ---------- modules ----------
 export const MODULES = [['contacts', 'Clients'], ['leads', 'Leads'], ['accounts', 'Companies'], ['deals', 'Deals'], ['tasks', 'Tasks'], ['meetings', 'Meetings'], ['calls', 'Calls'], ['opportunities', 'Opportunities']];
@@ -17,9 +17,24 @@ export const REPORT_MODULES = ['contacts', 'leads', 'accounts', 'deals', 'tasks'
 export const DASH_MODULES = MODULE_CODES;   // video 9: every module
 // the custom-field entity behind a module (CRM Settings)
 export const CF_ENTITY_OF = { contacts: 'contact', leads: 'lead', accounts: 'account', opportunities: 'opportunity' };
-// Deals = the portal's orders. Zoho's deal stages seen in video 10 were Active, Closed, Won, Lost, Cancelled, On Hold; an order is Open (= Active), Closed, On Hold or Cancelled.
-export const DEAL_STAGES = [['Active', 'Active'], ['Closed', 'Closed'], ['On Hold', 'On Hold'], ['Cancelled', 'Cancelled']];
-export const dealStageOf = (status) => (status === 'Open' ? 'Active' : status || '');
+// Deals = the portal's orders. The CRM Stage words are Opened, Closed, On Hold, and Canceled.
+// The order itself still stores Open, Closed, On Hold, and Cancelled. Open used to read as Active.
+export const DEAL_STAGES = [['Opened', 'Opened'], ['Closed', 'Closed'], ['On Hold', 'On Hold'], ['Canceled', 'Canceled']];
+export function dealStageOf(status) {
+  const s = status == null ? '' : String(status);
+  if (s === 'Open' || s === 'Active' || s === 'Opened') return 'Opened';
+  if (s === 'Cancelled' || s === 'Canceled') return 'Canceled';
+  if (s === 'Closed' || s === 'On Hold') return s;
+  return s;
+}
+// The order status saved when someone picks a CRM stage. Opened is still stored as Open.
+export function statusForDealStage(stage) {
+  const s = dealStageOf(stage);
+  if (s === 'Opened') return 'Open';
+  if (s === 'Canceled') return 'Cancelled';
+  if (s === 'Closed' || s === 'On Hold') return s;
+  return '';
+}
 export const CALL_TYPES = [['Outbound', 'Outbound'], ['Inbound', 'Inbound'], ['Missed', 'Missed']];
 
 // field: { key, label, type, list (picklist key in CRM Settings) | options ([[v, l]]), labelKey (user / lookup display), link (row key holding a link) }
@@ -40,7 +55,7 @@ const BASE = {
     F('ownerId', 'Company Owner', 'user', { labelKey: 'ownerName' }), F('contacts', 'Clients', 'number'), F('orders', 'Total Orders', 'number'), F('volume', 'Order Volume', 'currency'), F('archived', 'Archived', 'boolean'),
     F('createdBy', 'Created By', 'user', { labelKey: 'createdByName' }), F('createdAt', 'Created Time', 'datetime'), F('modifiedAt', 'Modified Time', 'datetime'), F('lastActivityAt', 'Last Activity Time', 'datetime')],
   deals: [F('name', 'Deal Name', 'text', { link: '_link' }), F('fileNumber', 'File Number', 'text', { link: '_link' }), F('propertyAddress', 'Property Address', 'text', { link: '_link' }), F('amount', 'Amount', 'currency'),
-    F('loanAmount', 'Loan Amount', 'currency'), F('stage', 'Stage', 'picklist', { options: DEAL_STAGES }), F('closingDate', 'Closing Date', 'date'), F('openDate', 'Open Date', 'date'),
+    F('loanAmount', 'Loan Amount', 'currency'), F('stage', 'Stage', 'picklist', { options: DEAL_STAGES, dealStage: true }), F('closingDate', 'Closing Date', 'date'), F('openDate', 'Open Date', 'date'),
     F('clientName', "Client's Name", 'text', { link: '_clientLink' }), F('contactName', 'Contact Name'), F('ownerId', 'Deal Owner', 'user', { labelKey: 'ownerName' }), F('salesReps', 'Sales Reps'),
     F('county', 'County'), F('city', 'City'), F('transactionType', 'Transaction Type'), F('lenderName', 'Lender'), F('createdAt', 'Created Time', 'datetime'), F('modifiedAt', 'Modified Time', 'datetime'), F('lastActivityAt', 'Last Activity Time', 'datetime'),
     // Janine, Nov 4 (video "Disbursement Details - Deals"): the Disbursement Details section of a deal (crm-disbursement.js; table deal_disbursements)
@@ -89,7 +104,7 @@ export function display(field, row, cfg) {
   if (row[field.key + '_text'] != null && field.custom) return row[field.key + '_text'];
   if (v == null || v === '') return '';
   switch (field.type) {
-    case 'picklist': if (field.list) return optLabel(cfg, field.list, v); return ((field.options || []).find(([k]) => k === String(v)) || [null, String(v)])[1];
+    case 'picklist': { const shown = field.dealStage ? dealStageOf(v) : v; if (field.list) return optLabel(cfg, field.list, shown); return ((field.options || []).find(([k]) => k === String(shown)) || [null, String(shown)])[1]; }
     case 'currency': return money(v);
     case 'percent': return `${v}%`;
     case 'boolean': return v === true || v === 'yes' ? 'Yes' : 'No';
@@ -100,23 +115,36 @@ export function display(field, row, cfg) {
 }
 
 // ---------- date presets (video 10) ----------
-// Fiscal year = calendar year (CLA's fiscal year was not given; FY_START_MONTH would move it).
+// Year presets are the calendar year. Older saved filters used prev_fy, cur_fy, and next_fy. Those load as Previous Year, Current Year, and Next Year.
 export const FY_START_MONTH = 1;
-export const DATE_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['prev_fy', 'Previous FY'], ['cur_fy', 'Current FY'], ['next_fy', 'Next FY'], ['prev_month', 'Previous Month'], ['cur_month', 'Current Month'],
-  ['next_month', 'Next Month'], ['this_year', 'This Year'], ['prev_year', 'Previous Year'], ['next_year', 'Next Year']];
-export const presetLabel = (k) => (DATE_PRESETS.find(([c]) => c === k) || [null, k])[1];
+const OLD_FY_PRESET = { prev_fy: 'prev_year', cur_fy: 'cur_year', next_fy: 'next_year' };
+export function presetKey(key) {
+  const raw = key == null ? '' : String(key);
+  return OLD_FY_PRESET[raw] || raw;
+}
+export function withPresetKeys(criteria) {
+  return (Array.isArray(criteria) ? criteria : []).map((c) => {
+    if (!c || typeof c !== 'object') return c;
+    const out = { ...c };
+    if (typeof out.value === 'string') out.value = presetKey(out.value);
+    if (typeof out.value2 === 'string') out.value2 = presetKey(out.value2);
+    return out;
+  });
+}
+export const DATE_PRESETS = [['today', 'Today'], ['yesterday', 'Yesterday'], ['prev_year', 'Previous Year'], ['cur_year', 'Current Year'], ['next_year', 'Next Year'], ['prev_month', 'Previous Month'], ['cur_month', 'Current Month'],
+  ['next_month', 'Next Month'], ['this_year', 'This Year']];
+export const presetLabel = (k) => (DATE_PRESETS.find(([c]) => c === presetKey(k)) || [null, presetKey(k)])[1];
 // [from, to] inclusive 'YYYY-MM-DD' for a preset, relative to today ('YYYY-MM-DD')
 export function presetRange(key, today) {
+  const use = presetKey(key);
   const [y, m] = today.split('-').map(Number); const D = (yy, mm, dd) => ymd(new Date(yy, mm - 1, dd));
   const month = (off) => [D(y, m + off, 1), D(y, m + off + 1, 0)];
-  const fyStartYear = m >= FY_START_MONTH ? y : y - 1; const fy = (off) => [D(fyStartYear + off, FY_START_MONTH, 1), D(fyStartYear + off + 1, FY_START_MONTH, 0)];
   const year = (off) => [D(y + off, 1, 1), D(y + off, 12, 31)];
-  switch (key) {
+  switch (use) {
     case 'today': return [today, today];
     case 'yesterday': { const t = D(y, m, Number(today.slice(8)) - 1); return [t, t]; }
-    case 'prev_fy': return fy(-1); case 'cur_fy': return fy(0); case 'next_fy': return fy(1);
     case 'prev_month': return month(-1); case 'cur_month': return month(0); case 'next_month': return month(1);
-    case 'this_year': return year(0); case 'prev_year': return year(-1); case 'next_year': return year(1);
+    case 'cur_year': case 'this_year': return year(0); case 'prev_year': return year(-1); case 'next_year': return year(1);
     default: return null;
   }
 }
@@ -157,8 +185,9 @@ export function matchOne(field, c, row, today) {
     }
   }
   if (['picklist', 'user', 'boolean'].includes(field.type)) {
-    const want = (Array.isArray(c.value) ? c.value : String(c.value == null ? '' : c.value).split('|')).map(String).filter((x) => x !== '');
-    const have = field.type === 'boolean' ? (v === true || v === 'yes' ? 'yes' : 'no') : String(v == null ? '' : v);
+    const norm = (x) => (field.dealStage ? dealStageOf(x) : String(x));
+    const want = (Array.isArray(c.value) ? c.value : String(c.value == null ? '' : c.value).split('|')).map(norm).filter((x) => x !== '');
+    const have = field.type === 'boolean' ? (v === true || v === 'yes' ? 'yes' : 'no') : norm(v);
     const hit = want.includes(have); return op === 'isnt' ? !hit : op === 'is' ? hit : false;
   }
   // text / email / phone (phone compares digits when the value is all digits / punctuation)
@@ -172,9 +201,10 @@ export function cleanCriteria(list, fields) {
   return (Array.isArray(list) ? list : []).filter((c) => c && c.field).slice(0, 20).map((c) => { const f = fields.find((z) => z.key === c.field);
     if (!f) throw new Error('A filter uses a field that is not in this module.');
     const ops = opsFor(f.type).map(([k]) => k); if (!ops.includes(c.op)) throw new Error(`Pick an operator for "${f.label}".`);
-    const value = NO_VALUE.includes(c.op) ? '' : Array.isArray(c.value) ? c.value.map((x) => String(x).slice(0, 200)) : String(c.value == null ? '' : c.value).slice(0, 200);
+    const stored = (v) => { const s = String(v == null ? '' : v).slice(0, 200); return isDateType(f.type) ? presetKey(s) : s; };
+    const value = NO_VALUE.includes(c.op) ? '' : Array.isArray(c.value) ? c.value.map((x) => stored(x)) : stored(c.value);
     if (!NO_VALUE.includes(c.op) && blank(value)) throw new Error(`Enter a value for "${f.label}".`);
-    const out = { field: f.key, op: c.op, value }; if (['between', 'not_between'].includes(c.op)) { out.value2 = String(c.value2 == null ? '' : c.value2).slice(0, 200); if (!out.value2) throw new Error(`Enter both values for "${f.label}".`); }
+    const out = { field: f.key, op: c.op, value }; if (['between', 'not_between'].includes(c.op)) { out.value2 = stored(c.value2); if (!out.value2) throw new Error(`Enter both values for "${f.label}".`); }
     return out; });
 }
 export function applyCriteria(rows, criteria, fields, { logic = 'and', today }) {
@@ -183,38 +213,49 @@ export function applyCriteria(rows, criteria, fields, { logic = 'and', today }) 
 }
 export function criteriaText(criteria, fields, cfg, logic = 'and', users = []) {
   return (criteria || []).map((c) => { const f = fields.find((z) => z.key === c.field) || { label: c.field, type: 'text' };
-    const val = (x) => (DATE_PRESETS.some(([k]) => k === x) ? presetLabel(x) : f.type === 'picklist' || f.type === 'user' || f.type === 'boolean' ? String(x).split('|').map((v) => valueLabel(f, v, cfg, users)).join(', ') : x);
+    const val = (x) => (DATE_PRESETS.some(([k]) => k === presetKey(x)) ? presetLabel(x) : f.type === 'picklist' || f.type === 'user' || f.type === 'boolean' ? String(x).split('|').map((v) => valueLabel(f, v, cfg, users)).join(', ') : x);
     return `${f.label} ${opLabel(f.type, c.op)}${NO_VALUE.includes(c.op) ? '' : ' ' + val(Array.isArray(c.value) ? c.value.join('|') : c.value)}${c.value2 ? ' and ' + val(c.value2) : ''}`; }).join(logic === 'or' ? ' OR ' : ' AND ');
 }
 export function valueLabel(f, v, cfg, users = []) {
   if (f.type === 'boolean') return v === 'yes' || v === true ? 'Yes' : 'No';
   if (f.type === 'user') { const u = users.find((z) => z.id === v); return u ? u.name : v; }
-  if (f.type === 'picklist') return f.list ? optLabel(cfg, f.list, v) : ((f.options || []).find(([k]) => k === v) || [null, v])[1];
+  if (f.type === 'picklist') { const shown = f.dealStage ? dealStageOf(v) : v; return f.list ? optLabel(cfg, f.list, shown) : ((f.options || []).find(([k]) => k === shown) || [null, shown])[1]; }
   return v;
 }
 
 // ---------- grouping ----------
-// video 9 list: By Day, By Calendar Week, By Fiscal Week, By Month, By Fiscal Quarter, By Fiscal Year (+ calendar quarter / year). CLA's fiscal year
-// starts in January (FY_START_MONTH), so fiscal week / quarter / year group exactly like the calendar ones; the label says "FY".
-export const BUCKETS = [['day', 'By Day'], ['week', 'By Calendar Week'], ['fweek', 'By Fiscal Week'], ['month', 'By Month'], ['quarter', 'By Quarter'], ['fquarter', 'By Fiscal Quarter'], ['year', 'By Year'], ['fyear', 'By Fiscal Year']];
+// By Day, By Calendar Week, By Month, By Quarter, By Year. Older saved reports and charts may still say fweek, fquarter, or fyear.
+// Those load as week, quarter, and year. An unknown code loads as day, so opening one never fails.
+const OLD_BUCKET = { fweek: 'week', fquarter: 'quarter', fyear: 'year' };
+export const BUCKETS = [['day', 'By Day'], ['week', 'By Calendar Week'], ['month', 'By Month'], ['quarter', 'By Quarter'], ['year', 'By Year']];
+export function calendarBucket(bucket) {
+  const raw = bucket == null || bucket === '' ? '' : String(bucket);
+  if (!raw) return 'day';
+  const mapped = OLD_BUCKET[raw] || raw;
+  return BUCKETS.some(([code]) => code === mapped) ? mapped : 'day';
+}
+export function groupingWithCalendar(grouping) {
+  if (!grouping || typeof grouping !== 'object' || !Object.prototype.hasOwnProperty.call(grouping, 'bucket')) return grouping;
+  const bucket = calendarBucket(grouping.bucket);
+  return bucket === grouping.bucket ? grouping : { ...grouping, bucket };
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // [key, label] of a date in a bucket (keys sort in time order)
 export function bucketOf(day, bucket = 'day') {
   if (!day) return ['', '(no date)']; const [y, m, d] = day.split('-').map(Number);
-  switch (bucket) {
+  switch (calendarBucket(bucket)) {
     case 'week': { const t = new Date(y, m - 1, d - new Date(y, m - 1, d).getDay()); const k = ymd(t); return [k, `Week of ${MONTHS[t.getMonth()]} ${t.getDate()}, ${t.getFullYear()}`]; }
     case 'month': return [`${y}-${p2(m)}`, `${MONTHS[m - 1]} ${y}`];
     case 'quarter': { const q = Math.floor((m - 1) / 3) + 1; return [`${y}-Q${q}`, `Q${q} ${y}`]; }
     case 'year': return [String(y), String(y)];
-    case 'fweek': { const [k, l] = bucketOf(day, 'week'); return [k, `FY${y} ${l}`]; }
-    case 'fquarter': { const q = Math.floor((m - 1) / 3) + 1; return [`${y}-Q${q}`, `FY${y} Q${q}`]; }
-    case 'fyear': return [String(y), `FY${y}`];
     default: return [day, `${MONTHS[m - 1]} ${d}, ${y}`];
   }
 }
 // group key + label of a row for a grouping { field, bucket }
 export function groupOf(field, row, cfg, bucket) {
-  if (!field) return ['', '(all)']; const v = row[field.key];
+  if (!field) return ['', '(all)'];
+  if (field.dealStage) { const shown = dealStageOf(row[field.key]); if (blank(shown)) return ['', '(blank)']; const label = (field.options || []).find(([k]) => k === shown); return [shown, label ? label[1] : shown]; }
+  const v = row[field.key];
   if (isDateType(field.type)) return bucketOf(dayOf(v), bucket || 'day');
   if (field.type === 'boolean') return v === true || v === 'yes' ? ['yes', 'Yes'] : ['no', 'No'];
   if (blank(v)) return ['', field.type === 'user' ? '(none)' : '(blank)'];
@@ -241,7 +282,7 @@ export function chartData(rows, { grouping, grouping2, measure }, fields, cfg) {
     if (g2) out.parts = [...series.keys()].map((k2) => { const sub = e.rows.filter((r) => groupOf(g2, r, cfg, grouping2.bucket)[0] === k2); return { key: k2, label: series.get(k2), value: measureOf(sub, measure, fields), count: sub.length, ids: sub.map((r) => r.id) }; });
     return out; });
   return { groups, series: [...series.entries()].map(([key, label]) => ({ key, label })), total: measureOf(rows, measure, fields), count: rows.length, measureLabel: measureLabel(measure, fields),
-    groupLabel: g1 ? `${g1.label}${isDateType(g1.type) ? ` (${(BUCKETS.find(([b]) => b === (grouping.bucket || 'day')) || [, ''])[1]})` : ''}` : '' };
+    groupLabel: g1 ? `${g1.label}${isDateType(g1.type) ? ` (${(BUCKETS.find(([b]) => b === calendarBucket(grouping.bucket || 'day')) || [, ''])[1]})` : ''}` : '' };
 }
 function pickOrder(f, cfg, key) { if (key === '') return 9999; const list = f.list ? ((cfg && cfg.picklists && cfg.picklists[f.list]) || []).map((o) => o.value) : (f.options || []).map(([k]) => k); const i = list.indexOf(key); return i < 0 ? 999 : i; }
 
@@ -277,8 +318,9 @@ export function runReport(rows0, def, fields, cfg, { today } = {}) {
     currency: a.f.type === 'currency' && a.fn !== 'count' }));
   const cell = (r) => cols.map((f) => ({ key: f.key, text: display(f, r, cfg), link: f.link && !f.encrypted ? r[f.link] || '' : '' }));
   const groupFields = (def.rowGroups || []).map((k) => fields.find((f) => f.key === k)).filter(Boolean).slice(0, 3);
+  const bucket = calendarBucket(def.bucket || 'day');
   const nest = (list, level) => { if (level >= groupFields.length) return null; const g = groupFields[level]; const by = new Map();
-    list.forEach((r) => { const [k, l] = groupOf(g, r, cfg, def.bucket || 'day'); const e = by.get(k) || { key: k, label: l, rows: [] }; e.rows.push(r); by.set(k, e); });
+    list.forEach((r) => { const [k, l] = groupOf(g, r, cfg, bucket); const e = by.get(k) || { key: k, label: l, rows: [] }; e.rows.push(r); by.set(k, e); });
     return [...by.values()].sort((a, b) => (a.key === '' ? 1 : b.key === '' ? -1 : a.label.localeCompare(b.label, 'en', { numeric: true })))
       .map((e) => ({ field: g.label, key: e.key, label: e.label, count: e.rows.length, header: `${e.label} (${e.rows.length})`, aggregates: aggOf(e.rows), groups: nest(e.rows, level + 1), rows: level === groupFields.length - 1 ? e.rows.map((r) => ({ id: r._rowId || r.id, cells: cell(r) })) : null })); };
   return { columns: cols.map((f) => ({ key: f.key, label: f.label, type: f.type })), total: sorted.length, aggregates: aggOf(sorted), groups: nest(sorted, 0),

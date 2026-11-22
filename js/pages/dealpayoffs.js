@@ -5,6 +5,7 @@
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import * as PO from '../data/payoffs.js?v=202611070139';
 import { QUALIA_TABS, PRORATION_CYCLES, computeProration } from '../data/prorations.js?v=202611070139';
+import { defaultProrationDraft, prorationBasis } from '../data/prorate-defaults.js?v=202611223100';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
 const money = (n) => (n == null || n === '' ? '' : PO.usd(n));   // Qualia shows $301,485.00 in the inputs
 const usd = PO.usd;
@@ -30,7 +31,7 @@ export async function payoffsView(api, deal, acc, q, base, user = {}) {
       : html`<p class="notice info small">No payoff on this tab yet.</p>`}
     ${can && !P.payoffs.length ? html`<p class="small muted po-demo">Testing? <button type="button" class="linkish" data-po-demo>Load the FAKE demo payoff</button> (a fake lender, HOA, FFB utility, ground rent leaseholder and the H lines; nothing is sent).</p>` : ''}` : '';
   const form = lender ? payoffForm(cur, lender, pos, P, can) : '';
-  const head = html`<p class="notice info small" data-payoff-not-contract>Payoffs are a separate worksheet. HOA, condo, deferred, and tax contract figures stay on Contract figures. A certificate balance is not a payoff and not a disbursement.</p><div class="qc-page-head"><span class="qc-chip big" aria-hidden="true">&#9638;</span><h3 data-qc-title>Mortgage Payoffs</h3><span class="spacer"></span>
+  const head = html`<p class="notice info small" data-payoff-not-contract>Payoffs are a separate worksheet. A certificate balance is not a payoff and not a disbursement. HOA, condo, and deferred charges that are paid at closing are entered under Other Charges. Taxes are on Taxes &amp; Prorations.</p><div class="qc-page-head"><span class="qc-chip big" aria-hidden="true">&#9638;</span><h3 data-qc-title>Mortgage Payoffs</h3><span class="spacer"></span>
     <span class="small muted" data-po-sum>${P.payoffs.length ? html`${P.payoffs.length} payoff${P.payoffs.length === 1 ? '' : 's'} &middot; total due <strong data-po-all-total>${usd(P.totalDue)}</strong> &middot; on the ${P.refi ? 'borrower' : 'seller'} side of the CD` : 'No payoffs yet'}</span></div>`;
   const body = html`<div class="qc-wrap po-wrap" data-qc-page="payoffs" data-po-page><div class="qc-main">${head}${can ? '' : html`<p class="notice info small" data-readonly-note>Read only for your role: only a Processor, Admin or Super admin changes payoffs.</p>`}
       ${tabs}${empty}${form}</div>${helpCards('Payoff Total Due', PO.TOTAL_DUE_HELP + '. Precalculated using the value entered for ' + PO.TOTAL_DUE_FROM.join(', ') + '.')}</div>
@@ -187,12 +188,12 @@ export async function taxesView(api, deal, acc, q, base) {
   const plusPop = can ? html`<form class="qc-card po-pop" data-tx-plus-pop hidden><span class="qc-label">PRORATION TYPE</span><div class="seg qc-seg small" data-tx-ptype>${[['basic', 'Basic'], ['tax', 'Tax'], ['rent', 'Rent']].map(([k, l], i) => html`<button type="button" class="seg-btn ${i === 0 ? 'on' : ''}" data-tx-ptype-btn="${k}">${l}</button>`)}</div>
       ${fld('TAX / PRORATION NAME', html`<input class="qc-input" name="pname" maxlength="80" placeholder="e.g. Front Foot Benefit">`)}<button class="m-btn small" type="submit" data-tx-create>Create Tax / Proration</button></form>` : '';
   const body = acc.refi ? html`<p class="notice info" data-proration-refi>A refinance has no seller side, so there is nothing to prorate between a buyer and a seller.</p>` : taxForm(fee, tab, label, type, sd, can);
-  return { body: html`<div class="qc-wrap" data-qc-page="taxes" data-tx-page="${tab}"><div class="qc-main">${head}${tabBar}${plusPop}${body}</div>${helpCards('Proration Date', 'The proration date is the closing (settlement) date from the order. Prorated Amount = number of days times the per diem (4 decimals). The period end date is the first day of the next period. With "Proration date debited to Seller" (Qualia\'s setting in the video) the seller has the proration day.')}</div>`,
+  return { body: html`<div class="qc-wrap" data-qc-page="taxes" data-tx-page="${tab}"><div class="qc-main">${head}${tabBar}${plusPop}${body}</div>${helpCards('Proration Date', 'The proration date is the closing (settlement) date from the order. Prorated Amount = number of days times the per diem (4 decimals). The period end date is the first day of the next period. A new proration charges the settlement day to the buyer. Switch "Proration date debited to" if this file should charge the seller instead.')}</div>`,
     mount: (root, c = {}) => mountTaxes(root, api, deal, acc, fee, tab, label, type, base, c.refresh || (() => location.reload())) };
 }
 
 function taxForm(fee, tab, label, type, sd, can) {
-  const p = fee ? fee.proration : { cycle: type === 'basic' && tab === 'hoa' ? 'monthly' : 'annual', debitedTo: 'seller', prorateUsing: type === 'tax' ? 'installment' : 'perDiem', daysPerYear: '365', status: 'paid' };
+  const p = fee ? fee.proration : defaultProrationDraft(tab, type);
   const dis = can ? '' : 'disabled'; const inst = (p.prorateUsing || (type === 'tax' ? 'installment' : 'perDiem')) === 'installment';
   const L = inst ? { len: 'PAYMENT SCHEDULE', amt: 'INSTALLMENT AMOUNT', start: 'INSTALLMENT START DATE', end: 'INSTALLMENT END DATE' } : { len: 'PERIOD LENGTH', amt: 'TOTAL AMOUNT', start: 'PERIOD START DATE', end: 'PERIOD END DATE' };
   const ti = p.taxInfo || {};
@@ -213,7 +214,8 @@ function taxForm(fee, tab, label, type, sd, can) {
     <div class="po-prorated" data-tx-result><div><span class="po-green po-res-l" data-tx-result-label>Prorated Amount</span><input class="qc-input" disabled data-tx-amount></div>
       <div><span class="qc-label">Debited Party</span><div class="seg qc-seg" data-tx-party>${[['paid', 'Buyer Owes Seller'], ['unpaid', 'Seller Owes Buyer']].map(([k, l]) => html`<button type="button" class="seg-btn ${(p.status || 'paid') === k ? 'on' : ''}" data-tx-party-btn="${k}" ${raw(dis)}>${l}</button>`)}</div></div></div>
     <p class="small" data-tx-msg></p>
-    ${can ? html`<div class="acct-form-actions"><button class="m-btn" type="submit" data-tx-save>${fee ? 'Save proration' : 'Add proration'}</button><span class="muted small">On the fee ledger (ALTA Prorations / Adjustments; CD K / M when the buyer owes the seller, L / N when the seller owes the buyer). Logged.</span></div>` : ''}
+    <p class="small" data-tx-posted></p>
+    ${can ? html`<div class="acct-form-actions"><button class="m-btn" type="submit" data-tx-save>${fee ? 'Save proration' : 'Add proration'}</button><span class="muted small">A finished calculation is saved on the fee ledger and on the Closing Disclosure (K and M when the buyer owes the seller, L and N when the seller owes the buyer). Logged.</span></div>` : ''}
     <p class="err-text small" data-tx-err></p></form>`;
 }
 
@@ -227,10 +229,9 @@ function mountTaxes(root, api, deal, acc, fee, tab, label, type, base, refresh) 
   const minus = $('[data-tx-minus]', root); if (minus && fee) minus.addEventListener('click', guard(async () => { if (!confirm(`Retire the ${label} proration? It comes off the ALTA and CD; it is kept in the history.`)) return; await api.retireAccountingFee(fee.id, true); toast('Proration retired (kept in the history).'); refresh(); }));
   const f = $('[data-tx-form]', root); if (!f) return;
   const on = (sel, attr) => { const b = $(sel + '.on', f); return b ? b.dataset[attr] : null; };
-  const seg = (sel) => $$(sel, f).forEach((b) => b.addEventListener('click', () => { $$(sel, f).forEach((x) => x.classList.toggle('on', x === b)); calc(); }));
   const read = () => { const g = (n) => (f.elements[n] ? f.elements[n].value : '');
-    const dpy = on('[data-tx-dpy-btn]', 'txDpyBtn') || '365'; const using = on('[data-tx-using-btn]', 'txUsingBtn') || 'perDiem';
-    const p = { item: TAB_ITEM[tab] || (type === 'rent' ? 'groundRent' : type === 'tax' ? 'countyTaxes' : 'other'), cycle: g('cycle'), cycleAmount: g('cycleAmount'), periodStart: g('periodStart'), basis: dpy === '360' ? '360' : 'installment', status: on('[data-tx-party-btn]', 'txPartyBtn') || 'paid',
+    const dpy = on('[data-tx-dpy-btn]', 'txDpyBtn') || '365'; const using = on('[data-tx-using-btn]', 'txUsingBtn') || (type === 'tax' ? 'installment' : 'perDiem');
+    const p = { item: TAB_ITEM[tab] || (type === 'rent' ? 'groundRent' : type === 'tax' ? 'countyTaxes' : 'other'), cycle: g('cycle'), cycleAmount: g('cycleAmount'), periodStart: g('periodStart'), basis: prorationBasis(using, dpy), status: on('[data-tx-party-btn]', 'txPartyBtn') || 'paid',
       debitedTo: on('[data-tx-deb-btn]', 'txDebBtn') || 'buyer', perDiemDp: 4, tab, prorateUsing: using, daysPerYear: dpy };
     const nm = g('name') || label; p.name = nm;
     if (type === 'tax') p.taxInfo = Object.fromEntries([['annualAmount', g('annualAmount')], ['parcelId', g('parcelId')], ['paidThru', g('paidThru')], ['nextDue', g('nextDue')], ['schedule', g('schedule')]].filter(([, x]) => x));
@@ -239,13 +240,28 @@ function mountTaxes(root, api, deal, acc, fee, tab, label, type, base, refresh) 
     try { const c = computeProration(p, acc.closingDate); $('[data-tx-end]', f).value = c.endExclusive; $('[data-tx-days]', f).value = c.totalDays; $('[data-tx-perdiem]', f).value = '$' + c.perDiem.toFixed(4);
       $('[data-tx-amount]', f).value = usd(c.amount); $('[data-tx-result-label]', f).textContent = `Prorated Amount (${c.days} days times $${String(Number(c.perDiem.toFixed(4)))})`; msg.textContent = c.text; msg.className = 'small muted'; return c; }
     catch (e) { msg.textContent = e.message; msg.className = 'small warn-text'; $('[data-tx-amount]', f).value = ''; return null; } };
+  // FF-098: a finished calculation is written to the ledger (and so to K/M or L/N) without a separate step.
+  const snap = (p) => JSON.stringify({ item: p.item, cycle: p.cycle, cycleAmount: String(p.cycleAmount || '').replace(/[$,\s]/g, ''), periodStart: p.periodStart || '', basis: p.basis, status: p.status, debitedTo: p.debitedTo || 'buyer', daysPerYear: String(p.daysPerYear || ''), prorateUsing: p.prorateUsing || '', name: p.name || '', taxInfo: p.taxInfo || null });
+  let savedId = fee ? fee.id : null; let lastSnap = ''; let queue = Promise.resolve();
+  const postedText = (p) => (p.status === 'unpaid' ? 'Saved. On the Closing Disclosure this is in Adjustments for Items Unpaid by Seller (L and N).' : 'Saved. On the Closing Disclosure this is in Adjustments for Items Paid by Seller in Advance (K and M).');
+  const persist = () => {
+    const run = queue.then(async () => { const err = $('[data-tx-err]', f); if (!err || !f.isConnected) return false; err.textContent = ''; const p = read(); const now = snap(p);
+      if (now === lastSnap) return true; if (!calc()) return false;
+      const input = { kind: 'credit', altaSection: 'prorations', cdSection: '', description: p.name || label, proration: p, presetKey: 'qtab:' + tab, note: '' };
+      try { if (savedId) await api.updateAccountingFee(savedId, input); else { const row = await api.addAccountingFee(deal.id, input); savedId = row.id; }
+        lastSnap = now; const note = $('[data-tx-posted]', f); if (note) note.textContent = postedText(p); return true; }
+      catch (x) { err.textContent = x.message; throw x; } });
+    queue = run.catch(() => false); return run; };
+  const seg = (sel) => $$(sel, f).forEach((b) => b.addEventListener('click', () => { $$(sel, f).forEach((x) => x.classList.toggle('on', x === b)); calc(); guard(() => persist())(); }));
   ['[data-tx-party-btn]', '[data-tx-dpy-btn]', '[data-tx-deb-btn]', '[data-tx-using-btn]'].forEach(seg);
-  $$('[data-tx-calc], input, select', f).forEach((i) => i.addEventListener(i.tagName === 'SELECT' ? 'change' : 'input', calc));
-  f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const err = $('[data-tx-err]', f); err.textContent = ''; const p = read();
-    const input = { kind: 'credit', altaSection: 'prorations', cdSection: '', description: p.name || label, proration: p, presetKey: 'qtab:' + tab, note: '' };
-    try { if (fee) { await api.updateAccountingFee(fee.id, input); toast('Proration saved (logged).'); } else { await api.addAccountingFee(deal.id, input); toast('Proration added (logged).'); } location.hash = `${base}?v=taxes&t=${tab}`; refresh(); }
-    catch (x) { err.textContent = x.message; throw x; } }));
-  calc();
+  $$('[data-tx-calc], input, select', f).forEach((i) => { if (i.disabled) return; i.addEventListener('input', calc); i.addEventListener('change', guard(() => persist())); });
+  f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const err = $('[data-tx-err]', f); const saved = await persist();
+    if (!saved) { err.textContent = err.textContent || ($('[data-tx-msg]', f).textContent || 'Enter the amount and the start date. Then it can go on the Closing Disclosure.'); return; }
+    toast('Proration saved (logged).'); location.hash = `${base}?v=taxes&t=${tab}`; refresh(); }));
+  const shell = root.closest('[data-accounting]');
+  if (shell && acc.canEdit) shell.addEventListener('click', (e) => { const a = e.target.closest('a[href]'); const href = a && a.getAttribute('href') || ''; if (!a || !href.startsWith('#/deals/') || !calc() || snap(read()) === lastSnap) return;
+    e.preventDefault(); guard(async () => { await persist(); location.hash = href; })(); });
+  calc(); lastSnap = snap(read());
 }
 
 // =====================================================================  OTHER CONTACTS  =====================================================================

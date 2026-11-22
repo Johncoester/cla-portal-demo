@@ -2,9 +2,10 @@
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
 import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
+import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const full = (p) => `${p.firstName || ''} ${p.lastName || ''}`.trim();
+const full = (p) => tidyPersonName(p).name;
 const safeName = (n, mime) => uploadFileName(n, mime);
 const sideOf = (role) => ({ 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Listing Agent': 'seller', 'Client-Seller': 'seller' }[role] || 'staff');
 // A client task upload is buyer or seller. Staff and library uploads stay staff. 'all' is never sent from a task.
@@ -40,7 +41,7 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
   };
   const directory = async () => {
     await needAdmin();
-    const profiles = camel(ok(await sb.from('profiles').select('id, email, first_name, last_name, phone, role, is_admin, status').order('last_name'))) || [];
+    const profiles = camel(ok(await sb.from('profiles').select('id, email, first_name, last_name, phone, role, is_admin, status, can_own_crm').order('last_name'))) || [];
     const contacts = camel(ok(await sb.from('contacts').select('id, profile_id, contact_type'))) || [];
     const parts = camel(ok(await sb.from('deal_participants').select('deal_id, contact_id, role'))) || [];
     const deals = camel(ok(await sb.from('deals').select('id, file_number'))) || [];
@@ -62,15 +63,18 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
   };
   return {
     async listSalesStaff() {
-      await uid();
-      const rows = camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').in('role', ['Sales Person', 'Sales Team']).eq('status', 'active').order('first_name'))) || [];
-      return rows.map((p) => ({ ...p, name: full(p) }));
+      const u = await uid();
+      const rows = camel(ok(await sb.from('profiles').select('id, first_name, last_name, email, role, status, is_demo').in('role', SALES_PICK_ROLES).eq('status', 'active').order('first_name'))) || [];
+      return rows.filter((p) => !!p.isDemo === !!u.isDemo).map((p) => {
+        const n = tidyPersonName(p);
+        return { ...p, firstName: n.firstName, lastName: n.lastName, name: n.name };
+      });
     },
     async adminListUsers() { return directory(); },
     async adminGetUser(id) { const row = (await directory()).find((u) => u.id === id); if (!row) throw new Error('User not found.'); return row; },
     async adminCreateUser() { throw new Error(LOGIN_CLOSED); },
     async adminUpdateUser(id, patch = {}) {
-      await needAdmin();
+      const actor = await needAdmin();
       const row = {};
       if (patch.firstName != null) row.first_name = String(patch.firstName);
       if (patch.lastName != null) row.last_name = String(patch.lastName);
@@ -78,6 +82,10 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
       if (patch.role != null) row.role = patch.role;
       if (patch.status != null) row.status = patch.status;
       if (patch.isAdmin != null) row.is_admin = patch.isAdmin === true || patch.isAdmin === 'on' || patch.isAdmin === 'true';
+      if (patch.canOwnCrm != null) {
+        if (actor.role !== 'Admin' && actor.role !== 'Super admin') throw new Error('Only an Admin or Super admin can change who can own CRM records.');
+        row.can_own_crm = patch.canOwnCrm === true || patch.canOwnCrm === 'on' || patch.canOwnCrm === 'true';
+      }
       if (Object.keys(row).length) ok(await sb.from('profiles').update(row).eq('id', id).select('id').single());
       if (patch.contactType !== undefined) {
         const c = (camel(ok(await sb.from('contacts').select('id, profile_id').eq('profile_id', id))) || [])[0];

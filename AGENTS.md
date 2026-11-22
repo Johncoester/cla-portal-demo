@@ -9,6 +9,8 @@
 7. Every email sent from jcoester@clatitle.com has a subject starting with '[Written by AI]'.
 8. Portal invite emails are sent from testportal@clatitle.com.
 9. If the walkthrough on main is failing, fix it before starting any new feature.
+<!-- Rule 23 is a permanent rule added after rule 22 (John, Nov 13 2026, 8:39 AM ET), so it keeps the next free number. -->
+23. A general instruction from John like 'get everything fixed' never waives a numbered rule. If a rule is in your way, stop and ask John to waive that rule by number.
 
 ## Build standards
 
@@ -33,6 +35,21 @@ John, Nov 11 2026 (t1510u, option B at t1512u). Two builders work in this repo: 
 
 17. Owner. Grok builds everything by default. Claude builds only the items John assigns to Claude by name (today: the Documents search and sorting, PR 205). The tracker's Owner column says Claude only for those items. Grok leaves the files in Claude's open pull request alone until it merges.
 18. Pull requests. Each builder has at most one open pull request. Merges still happen one at a time, in John's order. Whichever pull request merges second updates onto the latest main and redoes its cache stamps.
-19. Merging. Grok merges Claude's pull requests only after the required checks pass AND John says OK in chat. Claude never merges.
+19. Merging (John, Nov 21 2026, 8:09 PM ET). Any pull request, Claude's or a bot's own, is merged by Grok as soon as all required checks are green and it is up to date with main. John's OK is no longer needed. After the merge, Grok applies on TEST any database file the pull request lists. Rules 3, 4 and 6 still apply: one pull request at a time, Live only after the database file is applied on TEST, and TEST only. Never turn on or try Task Builder flows or templates; John tests those himself. Claude never merges.
 20. Reviews. Grok and Claude review each other's pull requests against the Build standards (rules 10-16). A review is not testing. Every pull request still needs proof on TEST: the walkthrough (e2e-roles) or a person testing it. Claude can only open TEST through John's browser, so Grok or a tester usually provides that proof.
 21. Claude follows this file too, but never emails the team as John without asking John first.
+
+## Merge duties and team testing (John, Nov 21 2026, 1:42 PM ET "Yes, set it up" / 1:44 PM ET "lets do it"; requester-test emails at 1:46 PM ET)
+
+Starts once the walkthrough (e2e-roles) on main is green after PR 297 merges. Until then the Leader relays merges.
+
+These rules do not replace rules 1-23. Rule 3 still applies: one pull request at a time, all 4 checks green, and the branch updated onto main first if main moved.
+
+24. Same rule for every bot: each bot merges its own green PRs without asking the CLA Title Portal Leader, and updates the PR onto main first if main moved. This replaces asking the Leader for a 'go'. Rule 3 (one PR at a time, all 4 checks green, branch up to date) still applies.
+25. A bot may apply its own area's database files on TEST only after the file is merged in the repo. Portal-wide database changes stay with the Leader.
+26. Claude's PRs: whichever bot is free merges it as soon as all required checks are green (rule 19; John's OK is no longer needed). Claude does not merge.
+27. Any PR touching accounting, sign-in, or who can see what needs a review comment from another builder before merge.
+28. Claude will replace the version-stamp chain. When that lands, it merges while nothing else is mid-merge, it must still force browsers to load new code after each merge, and the stamp-test change is explained under rule 5.
+
+<!-- Rule 29 is in force now. It does not wait on the walkthrough or PR 297. -->
+29. In force now (John, Nov 21 2026, 1:46 PM ET). After something is built and we need live testing from the team, email the person who requested the change to test it. If you need to follow up, do it through email. Do not ask John to send the emails. Have the bots just send it. The building bot emails the requester (Matt, Francis or Janine) from jcoester@clatitle.com once the item is live on TEST, with a subject starting with '[Written by AI]', CC jcoester-6jkr3p+portal@mail.grokbot.com, plain test steps, and a request for PASS or what's wrong. It follows up by email and marks the tracker "Waiting on requester test".

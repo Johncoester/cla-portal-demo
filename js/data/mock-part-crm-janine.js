@@ -6,14 +6,15 @@
  *     No email is sent, no calendar is touched.
  *   - Company duplicate lookup for the Company form (live warning with a link to the existing record).
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
-import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
-import { importedStatusDecision } from './crm-import-status.js?v=202611131900';
+import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611247700';
+import { importedStatusDecision } from './crm-import-status.js?v=202611247700';
 import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH, EMAIL_RECIPIENT_CAP } from './crm-match.js?v=202611160400';
 import { appendCrmNote, noteStamp } from './crm-bulk.js?v=202611160300';
-import { ensureSettings } from './crm-config.js?v=202611130900';
-import { companyKey, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
-import { US_STATE_NAMES } from './constants.js?v=202611101015';
+import { ensureSettings } from './crm-config.js?v=202611247700';
+import { companyKey } from './crm.js?v=202611247700';
+import { canOwnCrmRecords } from './crm-owner.js?v=202611289960';
+import { US_STATE_NAMES } from './constants.js?v=202611247700';
 
 const seenData = new WeakSet();
 // runs on every CRM read (cheap after the first time for one in-memory copy); changes are saved with the next save. Never removes a value.
@@ -37,8 +38,9 @@ export function crmJaninePart(x, ctx) {
   const stateCode = (v) => { const s = str(v, 40); if (!s) return ''; if (s.length === 2) return s.toUpperCase(); const hit = US_STATE_NAMES.find(([, n]) => n.toLowerCase() === s.toLowerCase()); return hit ? hit[0] : s; };
   const isDup = (m) => /already (used|exists|a client)|duplicate/i.test(String(m || ''));
   const ownerByText = (t) => { const s = str(t, 200).toLowerCase(); if (!s) return '';
-    const p = db().profiles.find((z) => z.status === 'active' && CRM_OWNER_ROLES.includes(z.role) && (String(z.email || '').toLowerCase() === s || `${z.firstName} ${z.lastName}`.trim().toLowerCase() === s));
-    if (!p) fail(`Owner "${t}" is not an active Sales Person or Sales Team user.`); return p.id; };
+    const hits = db().profiles.filter((z) => canOwnCrmRecords(z) && (z.id.toLowerCase() === s || String(z.email || '').toLowerCase() === s || `${z.firstName} ${z.lastName}`.trim().toLowerCase() === s));
+    if (hits.length > 1) fail(`Owner "${t}" matches more than one user who can own CRM records. Use the email.`);
+    if (!hits.length) fail(`Owner "${t}" is not an active user who can own CRM records.`); return hits[0].id; };
 
   function readInput(input, fields) {
     const text = input.csv != null ? String(input.csv) : null;
@@ -60,7 +62,7 @@ export function crmJaninePart(x, ctx) {
     Object.keys(raw).forEach((k) => { if (!IMPORT_DEFAULT_KEYS.includes(k)) fail(`"${k}" cannot have a default value.`); });
     const cfg = ensureSettings(db().crmSettings || null);
     return IMPORT_DEFAULT_FIELDS.map(([k]) => [k, str(raw[k], 200)]).filter(([, v]) => v).map(([k, v]) => {
-      if (k === 'ownerId') { const p = prof(v); if (!p || p.status !== 'active' || !CRM_OWNER_ROLES.includes(p.role)) fail('The default Owner must be an active Sales Person or Sales Team user.'); }
+      if (k === 'ownerId') { if (!canOwnCrmRecords(prof(v))) fail('The default Owner must be an active user who can own CRM records.'); }
       if (k === 'state') { const c = stateCode(v); if (!/^[A-Z]{2}$/.test(c)) fail('Pick a state for the default State.'); return { field: k, value: c }; }
       if (k === 'relationshipStatus') { const resolved = importedStatusDecision(cfg, module, v);
         if (resolved.error) fail(resolved.error);

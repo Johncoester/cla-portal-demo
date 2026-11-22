@@ -6,7 +6,8 @@
 //    View Submission, Modify -> Submit Revision (every revision kept).
 //  * Request Update topics, Share Access permissions (invites are RECORDED only, nothing is sent), invite email preview ("Complete Requests Now").
 //  * Rich-text message HTML sanitizer (Bold, Italic, Underline, bullet / numbered lists, links; nothing else survives).
-import { STAGES, phoneOk, fmtPhone, isRealDate } from './constants.js?v=202611101015';
+import { STAGES, phoneOk, fmtPhone, isRealDate } from './constants.js?v=202611247700';
+import { SCHEDULE_CODE, cleanScheduleAnswers, scheduleTaskTitle } from './scheduling-details.js?v=202611247700';
 
 export const PHASES = ['Title Processing', 'Closing Prep', 'Scheduled Closing Date', 'Closed'];
 // stage indexes (constants.js STAGES): 0-2 Opened / EMD Receipt / Buyer Info Received -> Title Processing; 3-6 Schedule Closing .. Buyer Final Doc
@@ -30,9 +31,11 @@ export const AGENT_TASKS = [
   { code: 'agent_client_contacts', title: 'Confirm Client Contact Information', dueDays: 3,
     about: 'Tell us which of the clients on this order you represent and confirm how to reach them (and their spouse, if married). Add anyone we are missing.' },
   { code: 'agent_transaction_info', title: 'Confirm Your Transaction Information', dueDays: 3,
-    about: 'Check the closing date and price we have, give your commission split, any fees or credits for the settlement statement, the earnest money, and the people on your team.' },
+    about: 'Check the closing date and price we have, the earnest money, and the people on your team. Your commission and fees are confirmed in the Agent fees box under your agent task section on Tasks.' },
   { code: 'agent_home_warranty', title: 'Confirm Home Warranty Information', dueDays: 5,
     about: 'Let us know whether you or someone else will be purchasing a home warranty for this property.' },
+  { code: SCHEDULE_CODE, title: 'Schedule the Settlement for [property address]', dueDays: 3,
+    about: 'Choose the settlement date, a CLA office or another location, and a time between 9:00 AM and 6:00 PM. You can ask the buyer or the seller to schedule instead. The seller can ask for remote online notarization. A link is queued in the outbox. Nothing is emailed from this build.' },
 ];
 export const agentTaskDef = (code) => AGENT_TASKS.find((t) => t.code === code);
 export const CLIENT_ROLE_OF = { 'Buyer Agent': 'Client-Buyer', 'Listing Agent': 'Client-Seller' };
@@ -44,7 +47,7 @@ const num = (v) => { if (v === '' || v == null) return null; const n = Number(St
 const rows = (v, max = 20) => (Array.isArray(v) ? v.slice(0, max) : []);
 
 // Validate + clean one agent task submission. Throws an Error with .fieldErrors [{k, msg}] (k = 'clients.0.email' style paths).
-export function validateAgentAnswers(code, input = {}, { clients = [] } = {}) {
+export function validateAgentAnswers(code, input = {}, { clients = [], side = '', offices = [] } = {}) {
   const errs = []; const e = (k, msg) => errs.push({ k, msg });
   const person = (p, k, { needEmail = true, needPhone = true } = {}) => {
     const o = { firstName: s(p.firstName, 80), lastName: s(p.lastName, 80), email: s(p.email, 200).toLowerCase(), phone: s(p.phone, 40) };
@@ -65,23 +68,17 @@ export function validateAgentAnswers(code, input = {}, { clients = [] } = {}) {
     if (!out.clients.length && !out.added.length) e('added', 'Add at least one client contact.');
   } else if (code === 'agent_transaction_info') {
     out = { closingDate: s(input.closingDate, 10), purchasePrice: num(input.purchasePrice), emdAmount: num(input.emdAmount), holdingEmd: s(input.holdingEmd, 3), licenseId: s(input.licenseId, 40),
-      commissions: rows(input.commissions).map((c, i) => { const o = { name: s(c.name, 80) || 'Commission', percent: num(c.percent), amount: num(c.amount) };
-        if (Number.isNaN(o.percent) || (o.percent != null && o.percent > 100)) e(`commissions.${i}.percent`, 'Percent must be 0 to 100.');
-        if (Number.isNaN(o.amount)) e(`commissions.${i}.amount`, 'Amount must be a positive number.');
-        if (o.percent == null && o.amount == null) e(`commissions.${i}.amount`, 'Give a percent or an amount.'); return o; }),
-      fees: rows(input.fees).map((f, i) => { const o = { name: s(f.name, 80), type: s(f.type, 10), amount: num(f.amount), paidBy: s(f.paidBy, 10) };
-        if (!o.name) e(`fees.${i}.name`, 'Name the fee or credit.'); if (!['Fee', 'Credit'].includes(o.type)) e(`fees.${i}.type`, 'Fee or Credit?');
-        if (o.amount == null || Number.isNaN(o.amount)) e(`fees.${i}.amount`, 'Amount is required.'); if (!['Buyer', 'Seller'].includes(o.paidBy)) e(`fees.${i}.paidBy`, 'Paid by Buyer or Seller?'); return o; }),
       team: rows(input.team).map((p, i) => ({ ...person(p, `team.${i}`, { needPhone: false }), company: s(p.company, 120), licenseId: s(p.licenseId, 40) })) };
     if (!out.closingDate) e('closingDate', 'Estimated closing date is required.'); else if (!isRealDate(out.closingDate)) e('closingDate', 'Enter a real date (YYYY-MM-DD).');
     if (out.purchasePrice == null || Number.isNaN(out.purchasePrice)) e('purchasePrice', 'Purchase price is required.');
-    if (!out.commissions.length) e('commissions', 'Add your commission (percent or amount).');
     if (out.emdAmount == null || Number.isNaN(out.emdAmount)) e('emdAmount', 'Earnest deposit amount is required (0 if none).');
     if (!YES_NO.includes(out.holdingEmd)) e('holdingEmd', 'Are you holding earnest money given to you by the buyer? Choose Yes or No.');
   } else if (code === 'agent_home_warranty') {
     out = { willPurchase: s(input.willPurchase, 3) }; if (!YES_NO.includes(out.willPurchase)) e('willPurchase', 'Choose Yes or No.');
     if (out.willPurchase === 'Yes') { out.purchaser = s(input.purchaser, 20); out.company = s(input.company, 120);
       if (!['Me', 'Someone else'].includes(out.purchaser)) e('purchaser', 'Who is purchasing it: you or someone else?'); }
+  } else if (code === SCHEDULE_CODE) {
+    out = cleanScheduleAnswers(input, { side, offices });
   } else throw new Error('Unknown agent task.');
   if (errs.length) { const err = new Error(`Please fix ${errs.length} field(s).`); err.fieldErrors = errs; throw err; }
   return out;
@@ -128,7 +125,7 @@ export function ensureAgentPortal(d) {
     const c = contactOf(p.contactId); if (!c || !c.profileId) return;
     AGENT_TASKS.forEach((def) => { if (d.tasks.some((t) => t.participantId === p.id && t.templateCode === def.code && t.status !== 'cancelled')) return;
       if ((d.taskSwitches || []).some((z) => z.code === def.code && z.enabled === false)) return;   // Task switch OFF (task-switches.js): not created; existing copies kept
-      d.tasks.push({ id: `t-ap-${p.id}-${def.code}`, dealId: q.id, participantId: p.id, templateId: null, templateCode: def.code, templateVersion: 1, kind: 'agent', title: def.title, description: def.about,
+      d.tasks.push({ id: `t-ap-${p.id}-${def.code}`, dealId: q.id, participantId: p.id, templateId: null, templateCode: def.code, templateVersion: 1, kind: 'agent', title: def.code === SCHEDULE_CODE ? scheduleTaskTitle(q) : def.title, description: def.about,
         assignedRole: p.role, status: 'todo', dueDate: addDays(def.dueDays), formData: {}, savedAt: null, savedBy: null, completedAt: null, completedBy: null, createdBy: q.processorId || 'u-proc', createdAt: at }); });
   }));
   return d;

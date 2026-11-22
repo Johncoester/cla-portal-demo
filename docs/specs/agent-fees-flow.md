@@ -1,7 +1,7 @@
 # Agent fees flow (commissions, admin fees, other agent fees)
 
 **Requested by:** John Coester, Nov 12 2026 (chat t1542u).
-**Status:** Partial. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
+**Status:** AF-1 to AF-6 Live on TEST. AF-7 is on TEST but not Live until the permission follow-up is applied and Place Order is checked there. See [ROADMAP.md](../../ROADMAP.md#agent-fees-flow).
 **Audit:** Grok, Nov 12 2026, against main `3966fd07` and the TEST database (read only).
 
 ## What John asked for
@@ -41,7 +41,7 @@ Answers from John, Nov 12 2026, 2:33 PM ET (chat t1544u):
 1. **Commission is % or $, always in sync.** The agent can enter the commission as a percent or a dollar amount. Changing the % recalculates the $ from the sales price, and changing the $ recalculates the %. They can never differ.
 2. **Fields for each agent side (listing agent and buyer's agent):**
    - Commission: % and $, kept in sync.
-   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file.
+   - Admin fee, next to or below the commission. By default the buyer pays the buyer's agent admin fee and the seller pays the listing agent admin fee. Who pays can be changed per file. Payable by is Buyer, Seller, or Split (Buyer and Seller). Split is half and half. See [admin-fee-payable-by.md](admin-fee-payable-by.md).
    - Other fees: a section with a + button, up to 5 fees, each with a typed description, an amount and who it's paid to (for example, the brokerage).
    - All of these post automatically to the correct Accounting lines.
 3. **A staff change to an agent-confirmed fee only notifies the agent.** There's no re-approval and no review step.
@@ -131,6 +131,43 @@ Adjusted to John's Nov 12 answers.
 
 **Where it sits:** John's hold applies (AGENTS.md rule 9). No new feature starts until the e2e-roles walkthrough on main is green, which needs Gmail connected for the E2E Processor. Agent fees stays behind FF-055 and the work confirmed today.
 
+## AF-1 as built (database)
+
+Migration `supabase/migrations/20261117100000_agent_fees.sql` (rollback in `supabase/rollbacks/`), test `test/test-agent-fees-sql.sh`.
+
+- `deal_agent_fees`: one row per file, side (`listing`, `buyer`), kind (`commission`, `admin`, `other`) and slot (0, or 1-5 for other fees). Commission rows keep a `basis` (`percent` or `amount`, whichever was typed), `pct` (8 decimals) and `amount` (cents). Every row has `payer` (`buyer` or `seller`; default buyer on the buyer's agent side, seller on the listing side), `source` (`staff`, `agent`, `tc`, `system`) and `confirmed_by` / `confirmed_role` (`agent` or `tc`) / `confirmed_at`.
+- `deal_agent_fee_log`: every change with old and new value (JSON), reason, source, who and when. Confirming an unchanged value is logged with reason "Confirmed".
+- Nobody reads or writes the tables directly (no grants, row security on). Functions: `agent_fees(deal)` and `agent_fee_history(deal)` return what the caller may see (staff who can open the file: both sides; an agent: their side; a TC: the side of an agent they coordinate for, or both sides if they're the file's TC; buyers and sellers: nothing). `save_agent_fees(deal, side, fees, reason)` replaces one side's fees, checks every value with plain messages, and needs a reason (3+ characters) when staff change or remove a fee an agent or TC confirmed. An agent or TC saving confirms every fee on their side. Staff saving keeps the confirmation record (no re-approval, Decision 3).
+- A trigger on `deals.purchase_price` works each commission out again from its basis and logs it as `system`.
+- Not yet used by any screen (AF-2). The older commission columns on `deals` are untouched until AF-2 moves the screens over.
+
+## AF-2 as built (Agent fees box)
+
+Migration `supabase/migrations/20261118010000_agent_fee_sides.sql` adds `agent_fee_sides(deal)`: the sides the caller may see, with `read` or `edit` (none for buyers, sellers or a refinance).
+
+- `js/data/agent-fees.js`: the shared rules (% and $ from the sales price, payer defaults, other-fee checks, plain error messages). `js/data/supabase-agent-fees.js` calls the database functions; `js/data/mock-part-agent-fees.js` is the demo copy with the same rules.
+- `js/pages/agent-fees-box.js`: reusable Agent fees cards. FF-101c (Francis Nov 18, confirmed by John): each side sits under that side's task section on Tasks (`js/pages/dealtasks.js`), not on File Overview. Accounting still uses the read-only summary. It shows nothing when the viewer has no side, the file is a refinance, or the database functions aren't there.
+- Tests: `test/test-agent-fees.js` (rules and the demo adapter), `test/test-agent-fees-sql.sh` (AF-1 and the sides function).
+
+## AF-3 as built (agent and TC changes, notices to the CLA team)
+
+Migration `supabase/migrations/20261118020000_agent_fee_notify.sql` re-creates `save_agent_fees` so that a save by an agent or TC calls `private.agent_fee_notify`: one portal notice (kind `agent_fee`, link to the file) to the file's processor, pre-processor and TC, plus the side's agents when a TC saved. The notice names who, the file, and each change as old → new. One email per person is queued in `public.outbox` (subject "Agent fees changed on <file>" or "Agent fees confirmed on <file>"). The TEST portal never sends outbox email.
+
+- The box (`js/pages/agent-fees-box.js`) shows the agent or TC a check screen before saving: "You're changing … from $A to $B", "Yes, save and confirm", "Go back" (keeps what was typed). The TC's overview (`renderTcOverview` in `js/pages/deal.js`) now shows the box.
+- `feeText` / `feeChanges` in `js/data/agent-fees.js` build the old → new lines for the check screen; the database builds the same text for notices.
+
+## AF-4 as built (agent told about staff changes)
+
+Migration `supabase/migrations/20261118030000_agent_fee_staff_notice.sql` re-creates `private.agent_fee_notify` with a staff branch: when CLA staff change a side that was confirmed (or give a reason), only that side's agents get the portal notice ("<name> (CLA Title) changed your fees on <file>: … Reason: …") and a queued email saying no approval is needed. The demo adapter does the same.
+
+## AF-5 as built (posting to Accounting)
+
+Migration `supabase/migrations/20261118040000_agent_fee_ledger.sql` adds a trigger on `deal_agent_fees` (`private.agent_fee_ledger_sync`) and a link table `deal_agent_fee_ledger` (fee → ledger line, plus what was last posted). Each fee keeps one `accounting_fees` line: kind charge, ALTA `commission`, CD `H`, `preset_key` `agent_fee:<side>:<kind>:<slot>`, paid by the fee's payer (the whole amount on that side). A $0 or removed fee retires its line. A line whose description, payee, amount or payer no longer match what was last posted was changed by hand and is left alone. The ledger's own guard and history triggers still run, so the Accounting history shows each automatic change. `agentFeeLedgerInput` in `js/data/agent-fees.js` builds the same line for the demo adapter.
+
+## AF-6 as built (Generate CD / Generate ALTA)
+
+The Print buttons on Accounting's CD and Settlement Statement tabs (`js/pages/dealaccounting.js`, `js/pages/dealaccounting-cd.js`) are now **Generate CD** and **Generate ALTA**. They set the document name to "<file> - Closing Disclosure - TEST" / "<file> - ALTA Settlement Statement - TEST" and open the print window, where "Save as PDF" makes the file. The PDF is what the live tab shows (still marked TEST). `test/test-agent-fees.js` checks that posted agent fees appear in CD section H and the ALTA Commission section.
+
 ## Open questions (resolved Nov 12 2026 by John)
 
 All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under Decisions above.
@@ -142,3 +179,23 @@ All seven were answered at 2:33 PM ET (t1544u). The answers are recorded under D
 5. ~~Should buyers and sellers see commissions?~~ No (Decision 5).
 6. ~~Generate buttons or live tabs?~~ Both. Keep the tabs and add PDF buttons (Decision 6).
 7. ~~Can a TC confirm fees for the agent?~~ Yes, logged as confirmed by the TC, and the agent is notified (Decision 7).
+
+## Follow-ups as built (AF-7, John Nov 13 2026; assigned to Claude)
+
+What John asked (Nov 13): make the older commission boxes use the Agent fees records so there is one source, and lock the order's old commission fields so buyers and sellers can't read them; remove the commission and fee questions from the agent's "Confirm Your Transaction Information" task; add a walkthrough test; AF-1 choices approved as written.
+
+- **One place.** Agent fees are the only home for commissions. Place Order has, per agent side, Commission % / $ (kept in step with the purchase price typed on the form), Commission Paid By (Buyer, Seller, or Split; FF-089), and an admin fee (`placeOrderFeesHtml` / `readPlaceOrderFees` in `js/pages/agent-fees-box.js`); they are saved with `saveAgentFees` after the agents are added, so the Accounting line names the agent's company. A failure there doesn't lose the order: Place Order lists it and says to use the Agent fees box. Edit order details, Accounting > Contract figures and the TC's contract figures no longer take a commission: they point to the Agent fees box (`agentFeesPointer`), and Accounting shows both sides read only (`agentFeesSummaryHtml`). Editing after opening happens in one place, the box, so the reason rule and the agent's confirmation screen can't be skipped from another form.
+- **Database** (`supabase/migrations/20261119030000_agent_fee_one_source.sql`, rollback in `supabase/rollbacks/`): moves any commission still on an order (the four `deals` commission columns and the commission keys of `deals.financial`) into `deal_agent_fees` as a staff entry, unless that side already has one; every move, and any figure that couldn't be moved (no sales price, or above the price), is in the change history. Then it empties those fields and adds a guard that refuses a commission written to the order with "Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved." EMD held by stays. The demo adapter refuses the same way. That file also took away the signed-in user's right to run the key list the guard calls, so on TEST every save of an order failed with a permission error. `supabase/migrations/20261119180000_old_commission_keys_permissions.sql` (rollback alongside it; [PR 259](https://github.com/Johncoester/cla-portal-demo/pull/259)) gives that right back, keeps the same nine keys, and does not mark AF-7 Live. It is not applied on TEST by the pull request.
+- **Agent task:** no commission splits and no fees/credits rows; a note points to the Agent fees box. Answers already submitted are still shown.
+- **Contract sheet:** the Buyer broker % / $ and Listing commission % / $ boxes are gone; the group is "Seller credit".
+- **Tests:** `test/test-agent-fees-sql.sh` (move, history, guard, rollback, and a signed-in insert and update that must not get a permission error), `test/test-agent-fees-one-place.js`, `test/test-earnest-accounting-sync.js` (rewritten for one place), walkthrough `tests/e2e-roles/specs/agent-fees.spec.js` and Place Order agent fees in `order-entry.spec.js`.
+
+## AF-8 as built (John Nov 14 2026; assigned to Claude)
+
+The old agent task "Commission information" (template `commissions`) kept `commission_amount` and `paid_by` in `tasks.form_data` only, so Agent fees (and Accounting, the CD and the ALTA statement) never saw it. `supabase/migrations/20261123010000_commission_task_agent_fees.sql`:
+- Backfill: per file side, the newest commissions task with an amount (a submitted one before a draft) becomes that side's Agent fees commission when the side has none. Basis $, % from the sales price (`private.agent_fee_sync`), payer from Paid by (Seller / Buyer, anything else the side's default), `source = 'agent'`, `updated_by` = whoever saved it; a submitted task also sets the agent confirmation (an agent saving in the box does the same), a draft doesn't. Moves and anything not moved (no price, above the price, refinance, not a number) are in `deal_agent_fee_log`, each task noted once. AF-5 posts it to Accounting.
+- Template: a new version without Commission ($) and Paid by, with an info note pointing to the Agent fees box. Open copies (to do, in progress, blocked) move to it and keep their answers; finished copies stay on the version they were answered on.
+- Guard: `tasks_commission_task_guard` refuses a new `commission_amount` on a commissions task with "Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved." It runs no helper function, so a signed-in agent's save can't hit a permission error (the AF-7 lesson, PR 259).
+- Demo adapter: `backfillCommissionTasks` and `applyCommissionTaskV2` do the same at load; `saveTaskForm` refuses the same way.
+- Tests: `test/test-agent-fees-sql.sh` (AF-8 block, including the guard as a signed-in user), `test/test-commission-task-agent-fees.js`.
+

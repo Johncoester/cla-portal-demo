@@ -3,14 +3,17 @@
 // Matt, Nov 9: processors get a denser list (more rows on screen), one Expand all that opens every buyer and seller intake
 // section for editing on this page, and a green / navy / red cue for done / open / overdue. Buyer, seller and agent lists stay the same shape.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast, toText } from '../ui.js?v=202611161500';
-import { runsOrders, DEAL_ROLES as ROLES, isProcessor, localDate, isRefi } from '../data/constants.js?v=202611101015';
-import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611140100';
-import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611131900';
-import { taskOpenHref } from '../data/task-actions.js?v=202611141400';
+import { runsOrders, DEAL_ROLES as ROLES, isProcessor, isAgent, localDate, isRefi } from '../data/constants.js?v=202611247700';
+import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611247700';
+import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
+import { partyDisplayName } from '../data/party-name.js?v=202611102000';
+import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611247700';
+import { taskOpenHref } from '../data/task-actions.js?v=202611269900';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
+import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=202611247700';
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
-export const LABEL = { todo: 'to do', in_progress: 'started', done: 'done', blocked: 'blocked', cancelled: 'cancelled' };
+export const LABEL = { todo: 'to do', in_progress: 'started', done: 'Done', blocked: 'blocked', cancelled: 'cancelled' };
 
 let intakeDeal = '';
 const intakeOpen = new Set();
@@ -19,12 +22,15 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611161800')).render(ctx);
-  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611161500');
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611289950')).render(ctx);
+  const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611249900');
   const allTasks = tasksWithLenderOnFile(await api.listTasks(deal.id), deal);
   const taskQuery = new URLSearchParams(location.hash.split('?')[1] || '');
-  const mineOnly = taskQuery.get('mine') === '1';
-  const focusSection = taskQuery.get('section') || '';
+  // FF-101a: agents (and a TC acting as them) always see only their own tasks — the general Tasks list is gone for them.
+  const fileAgent = (deal.myRoles || [deal.myRole || user.role]).some((r) => isAgent(r))
+    || isAgent(user.role) || (user.roles || []).some((r) => isAgent(r));
+  const mineOnly = taskQuery.get('mine') === '1' || fileAgent;
+  const focusSection = fileAgent ? '' : (taskQuery.get('section') || '');
   // BUYER (Nov 4 call): the agreements are to-dos that open the agreement (no Agreements tab for the buyer); the buyer never gets a Listing Agent box (listing agent never shown)
   // SELLER MIRROR (Nov 4): the pure seller gets the same To-do list (agreements as to-dos) and never a Buyer's Agent box (the buyer's agent is never shown to the seller)
   const pure = user.accountRole && isPureClient(user); const hideBox = pure ? (isPureSeller(user) ? 'buyer-agent' : 'listing-agent') : null;
@@ -34,10 +40,26 @@ export async function render(ctx) {
   const dense = manage && !pure;
   const productionView = !pure && new URLSearchParams(location.hash.split('?')[1] || '').get('lane') === 'production';
   const laneTasks = pure ? allTasks : allTasks.filter((t) => (productionView ? taskLaneOf(t) === 'production' : isPortalTask(t)));
-  const tasks = pure ? laneTasks.filter((t) => t.mine) : laneTasks; const ownBox = pure ? (isPureSeller(user) ? 'seller' : 'buyer') : null;
+  const ownTasks = pure ? laneTasks.filter((t) => t.mine) : laneTasks; const ownBox = pure ? (isPureSeller(user) ? 'seller' : 'buyer') : null;
+  const namedForParty = (list) => {
+    const byId = new Map(((deal && deal.participants) || []).filter((p) => p && p.id).map((p) => [p.id, partyDisplayName(p)]));
+    if (!byId.size) return list;
+    return list.map((t) => {
+      if (!t || (t.ownerName && String(t.ownerName).trim())) return t;
+      const name = byId.get(t.participantId) || '';
+      return name && name !== 'Unnamed contact' ? { ...t, ownerName: name } : t;
+    });
+  };
+  // Staff see one side's progress. A buyer or seller still sees only their own copy, done or not.
+  const tasks = (manage && !pure) ? annotatePartyTaskProgress(namedForParty(ownTasks)) : ownTasks;
   const today = localDate(); const refi = isRefi(deal);
   const open = (t) => ['todo', 'in_progress', 'blocked'].includes(t.status);
-  const toneOf = (t) => t.status === 'done' ? 'is-done' : t.status === 'cancelled' ? 'is-cancelled' : open(t) && t.dueDate && t.dueDate < today ? 'is-overdue' : 'is-open';
+  const toneOf = (t) => {
+    if (!partyTaskStillOpen(t) && t.status === 'done') return 'is-done';
+    if (t.status === 'cancelled') return 'is-cancelled';
+    if (open(t) && t.dueDate && t.dueDate < today) return 'is-overdue';
+    return 'is-open';
+  };
   const intakeSide = (t) => { const s = boxOfRole(t.assignedRole); return t.kind === 'form' && (s === 'buyer' || s === 'seller') ? s : ''; };
   const answerList = (t) => { if (dense || !manage || t.status !== 'done' || !t.formData) return ''; const rows = Object.entries(t.formData).filter(([, v]) => v != null && v !== '' && v !== false);
     return rows.length ? html`<dl class="task-answers" data-task-answers="${t.id}">${rows.map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>` : ''; };
@@ -56,26 +78,43 @@ export async function render(ctx) {
   const row = (t) => html`<tr class="${toneOf(t)}" data-task-row="${t.id}" data-task-tone="${toneOf(t)}" data-mine="${t.mine ? '1' : '0'}">
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
       <td><div class="task-line"><strong>${taskOpenHref(t) ? html`<a href="${taskOpenHref(t)}">${t.title}</a>` : t.title}</strong>${t.notYours ? html` <span class="muted small" data-not-yours>Not yours to open</span>` : ''}${t.taskGroup ? html` <span class="pill" data-task-group>${t.taskGroup}</span>` : ''}${dense ? html` ${kindBit(t, true)}` : ''}</div>${t.description ? (dense ? html`<div class="task-desc muted">${t.description}</div>` : html`<br><span class="muted">${t.description}</span>`) : ''}${t.switchedOff ? html` <span class="pill warn" data-switched-off title="Switched off on Task Templates > Task switches: kept, hidden from everyone except Admin / Super admin">Switched off (admins only)</span>` : ''}${dense ? '' : kindBit(t, false)}${answerList(t)}${dense && intakeSide(t) ? html`<div class="intake-slot" data-intake-slot="${t.id}" hidden></div>` : ''}</td>
-      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}</td>
-      <td class="task-due ${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(LABEL[t.status], CLS[t.status])}${t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
+      <td>${t.ownerName || t.assignedRole}${t.ownerName ? html`<br><span class="muted small">${t.assignedRole}</span>` : ''}${t.mine ? html` ${pill(t.forAgent ? 'your agent' : user.selfRep ? `you, as ${t.assignedRole}` : 'you', 'info')}` : ''}</td>
+      <td class="task-due ${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(partyTaskStillOpen(t) && t.status === 'done' ? t.partyProgress.label : LABEL[t.status], partyTaskStillOpen(t) && t.status === 'done' ? 'info' : CLS[t.status])}${partyTaskStillOpen(t) ? html`<br><span class="muted small" data-party-progress="${t.id}">${t.partyProgress.label}${t.partyProgress.remainingLabel ? html` · ${t.partyProgress.remainingLabel}` : ''}</span>` : ''}${!partyTaskStillOpen(t) && t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
       <td class="nowrap">${actions(t)}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
-  const shown = mineOnly ? tasksForViewer(user, mineFirst) : mineFirst;
-  const groups = boxTasks(shown).filter((g) => (pure ? g.key === ownBox : g.key !== hideBox) && (!mineOnly || g.tasks.length));
+  // E2E-FIX-C (John, Nov 19): an agent's My Tasks lists only that agent's own copies. A second agent on the same side
+  // has their own copy of a per-person form; it was showing here as "Not yours to open". Staff and TCs are unchanged.
+  const shown = mineOnly ? tasksForViewer(user, mineFirst).filter((t) => manage || !fileAgent || t.mine) : mineFirst;
+  // FF-101c: Agent fees under buyer-agent / listing-agent task sections (same roles that saw them on File Overview)
+  const fees = pure ? { bySide: {}, mount() {} } : await agentFeesPanel(ctx, deal);
+  const feeHtmlForBox = (boxKey) => {
+    const side = Object.keys(FEE_SIDE_TASK_BOX).find((k) => FEE_SIDE_TASK_BOX[k] === boxKey);
+    return side && fees.bySide[side] ? fees.bySide[side] : '';
+  };
+  const feeBoxKeys = new Set(Object.keys(fees.bySide || {}).map((s) => FEE_SIDE_TASK_BOX[s]).filter(Boolean));
+  const groups = boxTasks(shown).filter((g) => (pure ? g.key === ownBox : g.key !== hideBox) && (!mineOnly || g.tasks.length || feeBoxKeys.has(g.key)));
   const intakeOf = (side) => tasks.filter((t) => intakeSide(t) && (!side || intakeSide(t) === side));
   const hasIntake = intakeOf('').length > 0;
   const sideExpand = (g) => dense && (g.key === 'buyer' || g.key === 'seller') && g.tasks.some((t) => intakeSide(t)) ? html`<p class="side-expand"><button type="button" class="ghost small" data-expand-side="${g.key}">Expand all</button></p>` : '';
+  const sideBody = (g) => {
+    const feesBlock = feeHtmlForBox(g.key);
+    const tasksBlock = g.tasks.length
+      ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>`
+      : (feesBlock ? '' : html`<p class="muted small" data-side-empty>None on this side.</p>`);
+    return html`${sideExpand(g)}${tasksBlock}${feesBlock}`;
+  };
+  const hasTaskList = tasks.length || feeBoxKeys.size;
   const body = html`<div class="file-tasks${dense ? ' file-tasks-dense' : ''}" data-file-tasks="${mineOnly ? 'mine' : dense ? 'dense' : 'roles'}">${pure ? html`<div class="box-title"><h2><span class="h-ico"></span>Agreements to acknowledge</h2></div>${agreementNote}` : ''}<div class="box-title"><h2><span class="h-ico"></span>${mineOnly ? 'My Tasks' : pure ? 'To-do list' : 'All Tasks'}</h2>${manage && !mineOnly ? html`<button class="m-btn right" id="addtask">+ Add task</button>` : ''}</div>
-    ${!pure && tasks.some((t) => t.participantId) ? html`<p data-view-switch><strong>${productionView ? 'Title Production' : 'Task list'}</strong> &middot; <a href="#/deals/${deal.id}/tasks?view=people" data-intake-by-person>Intake by person</a> <span class="muted small">(each buyer, seller and agent with all their intake answers on one page)</span>${allTasks.some((t) => taskLaneOf(t) === 'production') ? html` &middot; <a href="#/deals/${deal.id}/tasks${productionView ? '' : '?lane=production'}" data-production-tasks>${productionView ? 'Portal tasks' : 'Title Production'}</a>` : ''}</p>` : ''}
+    ${!pure && !fileAgent && tasks.some((t) => t.participantId) ? html`<p data-view-switch><strong>${productionView ? 'Title Production' : 'Task list'}</strong> &middot; <a href="#/deals/${deal.id}/tasks?view=people" data-intake-by-person>Intake by person</a> <span class="muted small">(each buyer, seller and agent with all their intake answers on one page)</span>${allTasks.some((t) => taskLaneOf(t) === 'production') ? html` &middot; <a href="#/deals/${deal.id}/tasks${productionView ? '' : '?lane=production'}" data-production-tasks>${productionView ? 'Portal tasks' : 'Title Production'}</a>` : ''}</p>` : ''}
     ${dense && hasIntake ? html`<p class="task-expand-bar" data-expand-bar><button type="button" class="m-btn" data-expand-all="1" aria-expanded="false" title="Open every buyer and seller intake section on this page and edit the answers">Expand all</button> <button type="button" class="ghost" data-expand-all="0">Collapse all</button> <span class="muted small">Buyer and seller intake, editable here.</span></p>` : ''}
     ${pure && !tasks.some(open) && !agTodo.length ? html`<div class="notice info" data-all-caught-up>You’re all caught up. There is nothing for you to do on this order right now; we will let you know when there is.</div>` : ''}
-    ${tasks.length ? html`${pure ? '' : html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>`}${groups.map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" ${dense && !g.tasks.length ? '' : raw('open')}>
+    ${hasTaskList ? html`${pure ? '' : html`<p class="muted small" data-side-total>${tasks.length} task(s) on this file, grouped by side (from each task's assigned role).</p>`}${groups.map((g) => html`<details class="side-box side-${g.key}" data-sidebox="${g.key}" data-count="${g.tasks.length}" ${dense && !g.tasks.length && !feeHtmlForBox(g.key) ? '' : raw('open')}>
       <summary><span class="side-tag">${g.key === 'buyer' && refi ? 'Borrower tasks' : g.label}</span> <span class="side-count">(${g.tasks.length})</span></summary>
-      ${sideExpand(g)}
-      ${g.tasks.length ? html`<div class="side-scroll"><table class="tbl striped"><thead><tr><th></th><th>Task</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${g.tasks.map(row)}</tbody></table></div>` : html`<p class="muted small" data-side-empty>None on this side.</p>`}</details>`)}` : pure ? '' : html`<p class="muted" data-tasks-empty>No tasks have been created on this file yet.</p>`}
+      ${sideBody(g)}</details>`)}` : pure ? '' : html`<p class="muted" data-tasks-empty>No tasks have been created on this file yet.</p>`}
     <p class="muted small">Tasks are never deleted; use Edit &rarr; Cancelled to retire one. Reminders are queued in the outbox only and never sent from this build.</p></div>`;
   const AUDS = [['buyer', 'Buyer'], ['seller', 'Seller'], ['listing_agent', 'Listing agent'], ['buyer_agent', 'Buyer agent'], ['sales_team', 'Sales team'], ['transaction_coordinator', 'Transaction coordinator'], ['internal', 'Internal only']];
   return { title: 'Tasks', crumbs: [['All Tasks']], body, mount(root) {
+    fees.mount(root);
     $$('[data-tick]', root).forEach((c) => c.addEventListener('change', guard(async () => { try { await api.updateTask(c.dataset.tick, { status: c.checked ? 'done' : 'todo' }); } finally { refresh(); } })));
     $$('[data-remind]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = await api.sendTaskReminder(b.dataset.remind); toast(r.queued ? 'Reminder queued in the outbox (not sent)' : 'Already queued today'); })));
     const ab = $('#addtask', root); if (ab) ab.addEventListener('click', () => form(null));
@@ -83,8 +122,8 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611161800');
-      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611161500');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611289950');
+      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611247700');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
       await Promise.all(ids.map(async (id) => {

@@ -1,0 +1,605 @@
+#!/bin/sh
+# AF-1 agent fees (John, Nov 12 2026 decisions). Disposable database only: applies
+# supabase/migrations/20261117100000_agent_fees.sql on a small stand-in schema and checks the rules.
+# The one-source section also signs in as role authenticated, in a fresh connection, and checks
+# insert and update of an order. Running those checks as the superuser (or later in the same
+# connection) hid "permission denied for function old_commission_keys".
+# Does not connect to the hosted TEST project and does not use its data.
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+DB=cla_agent_fees_$$
+psql_super() { sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -d "$DB" "$@"; }
+cleanup() { sudo -u postgres psql -X -q -d postgres -c "drop database if exists $DB;" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+sudo -u postgres psql -X -q -v ON_ERROR_STOP=1 -d postgres -c "drop database if exists $DB;" -c "create database $DB;"
+psql_super <<'SQL'
+set check_function_bodies = off;
+create schema if not exists auth;
+create schema if not exists private;
+do $$ begin
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
+  if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
+end $$;
+create or replace function auth.uid() returns uuid language sql stable as $$
+  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+grant usage on schema auth, public, private to authenticated;
+grant execute on function auth.uid() to authenticated;
+create table public.profiles (id uuid primary key, role text, status text default 'active', is_admin boolean default false,
+  first_name text, last_name text, is_demo boolean default false, email text);
+create table public.deals (id uuid primary key, purchase_price numeric, transaction_type text default 'Purchase',
+  tc_user_id uuid, preprocessor_user_id uuid, is_demo boolean default false, processor_id uuid, file_number text);
+create table public.notifications (id uuid primary key default gen_random_uuid(), profile_id uuid, kind text, deal_id uuid, title text, link text, created_at timestamptz default now());
+create table public.outbox (id uuid primary key default gen_random_uuid(), channel text, status text check (status = 'queued'), sent_at timestamptz check (sent_at is null),
+  to_profile_id uuid, to_email text, to_name text, subject text, body text, deal_id uuid, created_by uuid, kind text, sender_type text);
+create or replace function private.notify(p_ids uuid[], p_kind text, p_deal uuid, p_title text, p_link text) returns void language sql security definer set search_path to pg_catalog, public as $$
+  insert into public.notifications (profile_id, kind, deal_id, title, link)
+  select distinct x, p_kind, p_deal, left(p_title, 200), coalesce(p_link, '') from unnest(p_ids) x join public.profiles p on p.id = x and p.status = 'active'
+  where x is distinct from private.effective_uid() $$;
+create or replace function private.person_name(pid uuid) returns text language sql stable security definer set search_path to pg_catalog, public as $$
+  select coalesce((select trim(first_name || ' ' || last_name) from public.profiles where id = pid), 'Unknown') $$;
+create table public.contacts (id uuid primary key, profile_id uuid, company text);
+create table public.accounting_fees (id uuid primary key default gen_random_uuid(), deal_id uuid, kind text default 'charge', description text, alta_section text default 'misc',
+  cd_section text default '', cd_line text default '', payee text default '', amount numeric(12,2), paid_by text, split_buyer numeric(12,2) default 0, split_seller numeric(12,2) default 0,
+  split_lender numeric(12,2) default 0, split_other numeric(12,2) default 0, timing text default 'at', note text default '', preset_key text, retired_at timestamptz,
+  check (amount > 0 and split_buyer + split_seller + split_lender + split_other <= amount and cd_line ~ '^((0[1-9])|([1-9][0-9]))?$'));
+create rule accounting_fees_no_delete as on delete to public.accounting_fees do instead nothing;
+create table public.deal_participants (id uuid primary key default gen_random_uuid(), deal_id uuid, contact_id uuid, role text, created_at timestamptz default now());
+create table public.deal_sales_people (deal_id uuid, sales_id uuid);
+create table public.team_members (team_id uuid, profile_id uuid, member_role text);
+create or replace function private.effective_uid() returns uuid language sql stable as $$ select auth.uid() $$;
+create or replace function private.is_viewing_as() returns boolean language sql stable as $$ select false $$;
+create or replace function private.view_as_readonly() returns trigger language plpgsql as $$
+begin if private.is_viewing_as() then raise exception 'View as is read-only.' using errcode = '42501'; end if; return coalesce(new, old); end $$;
+create or replace function private.me_role() returns text language sql stable security definer set search_path to pg_catalog, public as $$
+  select role from public.profiles where id = private.effective_uid() and status = 'active' $$;
+create or replace function private.is_admin() returns boolean language sql stable security definer set search_path to pg_catalog, public as $$
+  select coalesce((select is_admin from public.profiles where id = private.effective_uid() and status = 'active'), false) $$;
+create or replace function private.my_contact_id() returns uuid language sql stable security definer set search_path to pg_catalog, public as $$
+  select id from public.contacts where profile_id = private.effective_uid() $$;
+-- same bodies as TEST (Nov 12 2026)
+create or replace function private.can_access_deal(d uuid) returns boolean language sql stable security definer set search_path to pg_catalog, public as $$
+  select private.me_role() is not null and (
+    private.is_admin() or private.me_role() in ('Processor', 'Sales Team', 'Transaction Coordinator')
+    or (private.me_role() = 'Preprocessor' and exists (select 1 from public.deals x where x.id = d and x.preprocessor_user_id = private.effective_uid()))
+    or (private.me_role() in ('Sales Person', 'Sales Team') and exists (select 1 from public.deal_sales_people s where s.deal_id = d and s.sales_id = private.effective_uid()))
+    or exists (select 1 from public.deal_participants p where p.deal_id = d and p.contact_id = private.my_contact_id())) $$;
+create or replace function private.is_preprocessor() returns boolean language sql stable as $$ select coalesce(private.me_role() = 'Preprocessor', false) $$;
+create or replace function private.is_processor() returns boolean language sql stable as $$
+  select coalesce(private.me_role() in ('Processor', 'Preprocessor'), false) or private.is_admin() $$;
+create or replace function private.can_run_deal(d uuid) returns boolean language sql stable security definer set search_path to pg_catalog, public as $$
+  select (not private.is_preprocessor() and private.is_processor()) or (private.is_preprocessor() and exists (select 1 from public.deals x where x.id = d and x.preprocessor_user_id = private.effective_uid())) $$;
+create or replace function private.is_staffish() returns boolean language sql stable as $$
+  select private.is_admin() or coalesce(private.me_role() in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'), false) $$;
+create or replace function private.file_roles_of(pid uuid, d uuid) returns text[] language sql stable security definer set search_path to pg_catalog, public as $$
+  select case when pr.role is null then '{}'::text[] when pr.role <> 'Outside user' then array[pr.role]
+    else coalesce((select array_agg(x.role order by array_position(array['Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller'], x.role))
+                   from (select distinct p.role from public.deal_participants p join public.contacts c on c.id = p.contact_id
+                         where p.deal_id = d and c.profile_id = pid and p.role in ('Buyer Agent', 'Listing Agent', 'Client-Buyer', 'Client-Seller')) x), array['Outside user']) end
+  from (select (select role from public.profiles where id = pid) as role) pr $$;
+grant select on public.profiles, public.deals to authenticated;
+grant update (purchase_price) on public.deals to authenticated;
+grant execute on all functions in schema private to authenticated;
+
+-- people: a processor, a sales person, a buyer's agent, a listing agent, a buyer, a TC on the listing agent's team, another TC
+insert into public.profiles (id, role, first_name, last_name) values
+  ('00000000-0000-0000-0000-0000000000a1', 'Processor', 'Pat', 'Processor'),
+  ('00000000-0000-0000-0000-0000000000a2', 'Sales Person', 'Sam', 'Sales'),
+  ('00000000-0000-0000-0000-0000000000b1', 'Outside user', 'Bea', 'Buyeragent'),
+  ('00000000-0000-0000-0000-0000000000b2', 'Outside user', 'Lou', 'Listingagent'),
+  ('00000000-0000-0000-0000-0000000000c1', 'Outside user', 'Joy', 'Buyer'),
+  ('00000000-0000-0000-0000-0000000000d1', 'Transaction Coordinator', 'Tia', 'Coordinator'),
+  ('00000000-0000-0000-0000-0000000000d2', 'Transaction Coordinator', 'Ted', 'Other');
+insert into public.contacts values
+  ('10000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000b1'),
+  ('10000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b2'),
+  ('10000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000c1');
+insert into public.deals (id, purchase_price) values ('22222222-2222-2222-2222-222222222222', 300000), ('33333333-3333-3333-3333-333333333333', null);
+update public.deals set processor_id = '00000000-0000-0000-0000-0000000000a1', file_number = 'MD-26-00001' where id = '22222222-2222-2222-2222-222222222222';
+update public.profiles set email = lower(first_name) || '@example.test';
+insert into public.deals (id, purchase_price, transaction_type) values ('44444444-4444-4444-4444-444444444444', 250000, 'Refinance');
+insert into public.deal_participants (deal_id, contact_id, role) values
+  ('22222222-2222-2222-2222-222222222222', '10000000-0000-0000-0000-0000000000b1', 'Buyer Agent'),
+  ('22222222-2222-2222-2222-222222222222', '10000000-0000-0000-0000-0000000000b2', 'Listing Agent'),
+  ('22222222-2222-2222-2222-222222222222', '10000000-0000-0000-0000-0000000000c1', 'Client-Buyer');
+insert into public.team_members values
+  ('55555555-5555-5555-5555-555555555555', '00000000-0000-0000-0000-0000000000b2', 'agent'),
+  ('55555555-5555-5555-5555-555555555555', '00000000-0000-0000-0000-0000000000d1', 'coordinator');
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
+# applying twice is harmless
+psql_super -f "$ROOT/supabase/migrations/20261117100000_agent_fees.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118010000_agent_fee_sides.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118020000_agent_fee_notify.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118030000_agent_fee_staff_notice.sql"
+psql_super -f "$ROOT/supabase/migrations/20261118040000_agent_fee_ledger.sql"
+
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.as_user(p uuid) returns void language sql as $$ select set_config('request.jwt.claim.sub', p::text, false) $$;
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on all functions in schema pg_temp to authenticated;
+
+-- 1. staff enter the buyer's agent side: 3% of $300,000, an admin fee (buyer pays by default), two other fees
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+set role authenticated;
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer',
+  '{"commission":{"basis":"percent","percent":"3"},"admin":{"amount":"395"},"other":[{"description":"Referral fee","amount":"500","paidTo":"ABC Referrals"},{"description":"Transaction fee","amount":"150.5","paidTo":"Bright Realty"}]}');
+reset role;
+select pg_temp.ok((select amount = 9000 and pct = 3 and basis = 'percent' and source = 'staff' and confirmed_at is null
+  from public.deal_agent_fees where side = 'buyer' and kind = 'commission'), 'staff 3% of $300,000 = $9,000, source staff, not confirmed');
+select pg_temp.ok((select payer = 'buyer' and amount = 395 from public.deal_agent_fees where side = 'buyer' and kind = 'admin'), 'admin fee on the buyer''s agent side: the buyer pays by default');
+select pg_temp.ok((select count(*) = 2 from public.deal_agent_fees where side = 'buyer' and kind = 'other'), 'two other fees saved');
+select pg_temp.ok((select count(*) = 4 from public.deal_agent_fee_log where source = 'staff' and old_value is null), 'each new fee is in the history');
+
+-- 2. listing side by dollar amount: the % is worked out and gives back the same cents
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+set role authenticated;
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing',
+  '{"commission":{"basis":"amount","amount":"7,777.77"},"admin":{"amount":"250"}}');
+reset role;
+select pg_temp.ok((select amount = 7777.77 and round(300000 * pct / 100, 2) = amount and basis = 'amount'
+  from public.deal_agent_fees where side = 'listing' and kind = 'commission'), '$7,777.77 on $300,000: % and $ agree to the cent');
+select pg_temp.ok((select payer = 'seller' from public.deal_agent_fees where side = 'listing' and kind = 'admin'), 'admin fee on the listing side: the seller pays by default');
+
+-- 3. plain errors
+set role authenticated;
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('33333333-3333-3333-3333-333333333333', 'buyer', '{"commission":{"basis":"percent","percent":"3"}}')$q$)
+  like 'Add the sales price before entering a commission%', 'no sales price: plain message');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"commission":{"basis":"percent","percent":"abc"}}')$q$)
+  = 'Commission % must be a number.', 'bad number: plain message');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"commission":{"basis":"percent","percent":"101"}}')$q$)
+  = 'Commission % must be a number from 0 to 100.', 'over 100%: plain message');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"other":[{"description":"a","amount":1,"paidTo":"x"},{"description":"a","amount":1,"paidTo":"x"},{"description":"a","amount":1,"paidTo":"x"},{"description":"a","amount":1,"paidTo":"x"},{"description":"a","amount":1,"paidTo":"x"},{"description":"a","amount":1,"paidTo":"x"}]}')$q$)
+  = 'Up to 5 other fees per agent.', 'six other fees: refused');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"other":[{"description":"Referral","amount":"10"}]}')$q$)
+  = 'Other fee 1: enter who it is paid to.', 'other fee without paid to: refused');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('44444444-4444-4444-4444-444444444444', 'buyer', '{"admin":{"amount":"1"}}')$q$)
+  = 'A refinance has no agent fees.', 'refinance: refused');
+reset role;
+select pg_temp.ok((select count(*) = 6 from public.deal_agent_fees), 'refused saves changed nothing');
+
+-- 4. who sees what
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+set role authenticated;
+select pg_temp.ok((select string_agg(side || ':' || access, ',') = 'listing:edit,buyer:edit' from public.agent_fee_sides('22222222-2222-2222-2222-222222222222')), 'AF-2: the processor may change both sides');
+select pg_temp.ok((select count(*) = 0 from public.agent_fee_sides('44444444-4444-4444-4444-444444444444')), 'AF-2: a refinance has no agent sides');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+select pg_temp.ok((select string_agg(side || ':' || access, ',') = 'buyer:edit' from public.agent_fee_sides('22222222-2222-2222-2222-222222222222')), 'AF-2: the buyer''s agent gets only their side');
+select pg_temp.ok((select count(*) = 4 and bool_and(side = 'buyer') and bool_and(can_edit) from public.agent_fees('22222222-2222-2222-2222-222222222222')), 'the buyer''s agent sees only the buyer''s agent side');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing', '{"admin":{"amount":"1"}}')$q$)
+  = 'You can''t change agent fees on this file.', 'the buyer''s agent can''t change the listing side');
+select pg_temp.ok(pg_temp.err('select count(*) from public.deal_agent_fees') like 'permission denied%', 'nobody reads the fee table directly');
+select pg_temp.ok(pg_temp.err('select count(*) from public.deal_agent_fee_log') like 'permission denied%', 'nobody reads the history table directly');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
+select pg_temp.ok((select count(*) = 0 from public.agent_fees('22222222-2222-2222-2222-222222222222')), 'the buyer sees no agent fees');
+select pg_temp.ok((select count(*) = 0 from public.agent_fee_sides('22222222-2222-2222-2222-222222222222')), 'AF-2: the buyer gets no agent sides');
+select pg_temp.ok((select count(*) = 0 from public.agent_fee_history('22222222-2222-2222-2222-222222222222')), 'the buyer sees no fee history');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"1"}}')$q$)
+  = 'You can''t change agent fees on this file.', 'the buyer can''t change agent fees');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"1"}}')$q$)
+  = 'You can''t change agent fees on this file.', 'a sales person not on the file can''t change agent fees');
+reset role;
+
+-- 5. the buyer's agent changes their commission to 2.5%: agent confirmed, logged as the agent
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
+set role authenticated;
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer',
+  '{"commission":{"basis":"percent","percent":"2.5"},"admin":{"amount":"395"},"other":[{"description":"Referral fee","amount":"500","paidTo":"ABC Referrals"},{"description":"Transaction fee","amount":"150.50","paidTo":"Bright Realty"}]}');
+select pg_temp.ok((select confirmed_role = 'agent' and confirmed_by_name = 'Bea Buyeragent' and source = 'agent' from public.agent_fees('22222222-2222-2222-2222-222222222222') where kind = 'commission'), 'agent change: Agent confirmed, by the agent');
+reset role;
+select pg_temp.ok((select amount = 7500 and pct = 2.5 from public.deal_agent_fees where side = 'buyer' and kind = 'commission'), 'agent 2.5% of $300,000 = $7,500');
+select pg_temp.ok((select count(*) = 4 from public.deal_agent_fees where side = 'buyer' and confirmed_role = 'agent'), 'saving confirms every fee on the agent''s side');
+select pg_temp.ok((select (old_value ->> 'amount')::numeric = 9000 and (new_value ->> 'amount')::numeric = 7500 and source = 'agent'
+  from public.deal_agent_fee_log where side = 'buyer' and kind = 'commission' order by id desc limit 1), 'history: old $9,000, new $7,500, source agent');
+select pg_temp.ok((select count(*) = 3 from public.deal_agent_fee_log where side = 'buyer' and source = 'agent' and reason = 'Confirmed'), 'unchanged fees are logged as confirmed');
+select pg_temp.ok((select count(*) = 0 from public.notifications where kind = 'agent_fee' and profile_id <> '00000000-0000-0000-0000-0000000000a1')
+  and (select title = 'Bea Buyeragent changed the buyer''s agent fees on MD-26-00001: Commission: 3% / $9,000.00 (paid by Buyer) → 2.5% / $7,500.00 (paid by Buyer) (+3 more)'
+       from public.notifications where kind = 'agent_fee' and profile_id = '00000000-0000-0000-0000-0000000000a1'), 'AF-3: the processor gets a portal notice with who, the file and the change');
+select pg_temp.ok((select count(*) = 1 and bool_and(status = 'queued' and sent_at is null and to_email = 'pat@example.test' and subject = 'Agent fees changed on MD-26-00001'
+       and body like '%Commission: 3% / $9,000.00 (paid by Buyer) → 2.5% / $7,500.00 (paid by Buyer)%' and body like '%TEST PORTAL: queued only; never sent.%')
+  from public.outbox where kind = 'agent_fee'), 'AF-3: an email to the processor is queued (never sent) with each change');
+
+-- 6. staff change an agent-confirmed fee: a reason is required, the agent is not asked to re-approve
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+set role authenticated;
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"commission":{"basis":"percent","percent":"2.75"},"admin":{"amount":"395"},"other":[{"description":"Referral fee","amount":"500","paidTo":"ABC Referrals"},{"description":"Transaction fee","amount":"150.50","paidTo":"Bright Realty"}]}')$q$)
+  = 'The agent confirmed these fees. Enter a reason for the change.', 'staff change to an agent-confirmed fee without a reason: refused');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"commission":{"basis":"percent","percent":"2.5"},"admin":{"amount":"395"},"other":[{"description":"Referral fee","amount":"500","paidTo":"ABC Referrals"}]}')$q$)
+  = 'The agent confirmed these fees. Enter a reason for the change.', 'staff removing an agent-confirmed fee without a reason: refused');
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer',
+  '{"commission":{"basis":"percent","percent":"2.75"},"admin":{"amount":"395"},"other":[{"description":"Referral fee","amount":"500","paidTo":"ABC Referrals"},{"description":"Transaction fee","amount":"150.50","paidTo":"Bright Realty"}]}', 'Per the signed commission agreement');
+reset role;
+select pg_temp.ok((select amount = 8250 and source = 'staff' and confirmed_role = 'agent' from public.deal_agent_fees where side = 'buyer' and kind = 'commission'),
+  'staff change saved with a reason; the agent''s confirmation record stays (no re-approval)');
+select pg_temp.ok((select reason = 'Per the signed commission agreement' and source = 'staff' and changed_by = '00000000-0000-0000-0000-0000000000a1'
+  from public.deal_agent_fee_log where side = 'buyer' and kind = 'commission' order by id desc limit 1), 'history: who, reason, source staff');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fee_log where side = 'buyer' and kind <> 'commission' and source = 'staff' and old_value is not null), 'unchanged fees are not logged as staff changes');
+select pg_temp.ok((select count(*) = 1 from public.notifications where kind = 'agent_fee' and profile_id = '00000000-0000-0000-0000-0000000000b1'
+  and title = 'Pat Processor (CLA Title) changed the buyer''s agent fees on MD-26-00001: Commission: 2.5% / $7,500.00 (paid by Buyer) → 2.75% / $8,250.00 (paid by Buyer). Reason: Per the signed commission agreement'),
+  'AF-4: the buyer''s agent is told: who, old, new and the reason');
+select pg_temp.ok((select count(*) = 0 from public.notifications where kind = 'agent_fee' and title like 'Pat Processor%' and profile_id <> '00000000-0000-0000-0000-0000000000b1'), 'AF-4: only the agent is told (not the listing agent, not the buyer)');
+select pg_temp.ok((select count(*) = 1 and bool_and(to_email = 'bea@example.test' and status = 'queued' and body like '%Reason: Per the signed commission agreement%' and body like '%You don''t need to approve this change.%')
+  from public.outbox where kind = 'agent_fee' and to_profile_id = '00000000-0000-0000-0000-0000000000b1'), 'AF-4: an email to the agent is queued (never sent), no re-approval asked');
+-- staff changing an unconfirmed fee needs no reason
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+set role authenticated;
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing', '{"commission":{"basis":"amount","amount":"7777.77"},"admin":{"amount":"300","payer":"buyer"}}');
+reset role;
+select pg_temp.ok((select amount = 300 and payer = 'buyer' from public.deal_agent_fees where side = 'listing' and kind = 'admin'), 'unconfirmed fee: staff change with no reason; admin payer changed to buyer for this file');
+
+-- 7. a TC on the listing agent's team confirms the listing side; they can't touch the buyer side; another TC can't either
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000d1');
+set role authenticated;
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing', '{"commission":{"basis":"amount","amount":"7777.77"},"admin":{"amount":"300","payer":"buyer"}}');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"1"}}')$q$)
+  = 'You can''t change agent fees on this file.', 'the TC can''t change the other agent''s side');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000d2');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing', '{"admin":{"amount":"1"}}')$q$)
+  = 'You can''t change agent fees on this file.', 'a TC who doesn''t work for the agent can''t change their fees');
+reset role;
+select pg_temp.ok((select bool_and(confirmed_role = 'tc' and source = 'tc') from public.deal_agent_fees where side = 'listing'), 'TC confirmation is logged as Confirmed by TC');
+select pg_temp.ok((select count(*) = 1 from public.notifications where kind = 'agent_fee' and profile_id = '00000000-0000-0000-0000-0000000000b2'
+  and title = 'Tia Coordinator (TC) confirmed the listing agent fees on MD-26-00001'), 'AF-3: when the TC confirms, the listing agent is told');
+select pg_temp.ok((select count(*) = 0 from public.notifications where profile_id = '00000000-0000-0000-0000-0000000000b1' and title like '%listing agent fees%'), 'AF-3: the other side''s agent is not told');
+select pg_temp.ok((select count(*) = 0 from public.notifications where kind = 'agent_fee' and title like 'Pat Processor%listing%'), 'AF-4: staff changes to fees nobody confirmed tell nobody');
+
+-- 8. the sales price changes: % basis keeps the %, $ basis keeps the $, both stay in step
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+update public.deals set purchase_price = 320000 where id = '22222222-2222-2222-2222-222222222222';
+select pg_temp.ok((select amount = 8800 and pct = 2.75 from public.deal_agent_fees where side = 'buyer' and kind = 'commission'), 'price $320,000: buyer side 2.75% = $8,800');
+select pg_temp.ok((select amount = 7777.77 and round(320000 * pct / 100, 2) = 7777.77 from public.deal_agent_fees where side = 'listing' and kind = 'commission'), 'price $320,000: listing side keeps $7,777.77 and its % follows');
+select pg_temp.ok((select count(*) = 2 from public.deal_agent_fee_log where source = 'system' and reason = 'Sales price changed from $300,000.00 to $320,000.00'), 'price change is in the history');
+update public.deals set purchase_price = 5000 where id = '22222222-2222-2222-2222-222222222222';
+select pg_temp.ok((select basis = 'percent' and round(5000 * pct / 100, 2) = amount from public.deal_agent_fees where side = 'listing' and kind = 'commission'),
+  'a fixed $ commission bigger than the new price switches to keeping its % (still in step)');
+select pg_temp.ok((select bool_and(round(d.purchase_price * f.pct / 100, 2) = f.amount) from public.deal_agent_fees f join public.deals d on d.id = f.deal_id where f.kind = 'commission'),
+  'every commission: % and $ agree with the sales price');
+-- 9. AF-5: every fee posts to the fee ledger (ALTA Commission, CD section H), kept in step, never overwriting a hand change
+reset role;
+select pg_temp.ok((select count(*) = (select count(*) from public.deal_agent_fees where amount > 0) from public.accounting_fees where preset_key like 'agent_fee:%' and retired_at is null),
+  'AF-5: one live ledger line per agent fee');
+select pg_temp.ok((select bool_and(f.amount = a.amount and a.alta_section = 'commission' and a.cd_section = 'H' and a.kind = 'charge' and a.paid_by = coalesce(f.payer, case f.side when 'buyer' then 'buyer' else 'seller' end)
+    and (case a.paid_by when 'buyer' then a.split_buyer else a.split_seller end) = a.amount)
+  from public.deal_agent_fees f join public.accounting_fees a on a.preset_key = 'agent_fee:' || f.side || ':' || f.kind || ':' || f.slot and a.deal_id = f.deal_id where f.amount > 0),
+  'AF-5: ledger amount, payer, ALTA Commission and CD section H match each fee');
+select pg_temp.ok((select description = 'Real estate commission - buyer''s agent (2.75%)' and amount = 137.5 from public.accounting_fees where preset_key = 'agent_fee:buyer:commission:0'),
+  'AF-5: the commission line followed the price change');
+-- a processor changes the buyer commission line by hand; a later price change leaves it alone, but the listing line still follows
+update public.accounting_fees set amount = 999 where preset_key = 'agent_fee:buyer:commission:0';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+update public.deals set purchase_price = 400000 where id = '22222222-2222-2222-2222-222222222222';
+reset role;
+select pg_temp.ok((select amount = 999 from public.accounting_fees where preset_key = 'agent_fee:buyer:commission:0'), 'AF-5: a line changed by hand on Accounting is never overwritten');
+select pg_temp.ok((select a.amount = f.amount and f.amount > 137.5 from public.accounting_fees a join public.deal_agent_fees f on f.side = 'listing' and f.kind = 'commission' where a.preset_key = 'agent_fee:listing:commission:0'),
+  'AF-5: other lines keep following the fees');
+-- removing a fee retires its line (fees are never deleted from the ledger)
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing',
+  (select jsonb_build_object('commission', jsonb_build_object('basis', 'amount', 'amount', amount::text)) from public.deal_agent_fees where side = 'listing' and kind = 'commission'), 'Admin fee waived');
+reset role;
+select pg_temp.ok((select count(*) = 1 from public.accounting_fees where preset_key = 'agent_fee:listing:admin:0' and retired_at is not null)
+  and (select count(*) = 0 from public.accounting_fees where preset_key = 'agent_fee:listing:admin:0' and retired_at is null), 'AF-5: a removed fee''s ledger line is retired, not deleted');
+select pg_temp.ok((select count(*) = 0 from public.accounting_fees where deal_id = '44444444-4444-4444-4444-444444444444'), 'AF-5: a refinance posts nothing');
+SQL
+
+# Agent fees follow-ups (Nov 13): one source. Older order commission fields are moved into Agent fees, emptied, and guarded.
+psql_super <<'SQL'
+alter table public.deals add column listing_commission_pct numeric, add column listing_commission_amount numeric,
+  add column buyer_commission_pct numeric, add column buyer_commission_amount numeric, add column financial jsonb not null default '{}'::jsonb;
+insert into public.deals (id, purchase_price, listing_commission_pct, financial) values
+  ('66666666-6666-6666-6666-666666666666', 200000, 2.5, '{"emdHeldBy":"CLA Title","commissionPaidBy":"buyer","commissionPercent":2,"commissionTotal":4000,"commissionBase":200000}'),
+  ('77777777-7777-7777-7777-777777777777', null, null, '{"commissionPaidBy":"seller","commissionTotal":5000}');
+insert into public.deals (id, purchase_price, transaction_type, buyer_commission_amount) values ('88888888-8888-8888-8888-888888888888', 300000, 'Refinance', 900);
+update public.deals set buyer_commission_amount = 1 where id = '22222222-2222-2222-2222-222222222222';
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119030000_agent_fee_one_source.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select pg_temp.ok((select basis = 'percent' and pct = 2.5 and amount = 5000 and source = 'staff' and confirmed_at is null
+  from public.deal_agent_fees where deal_id = '66666666-6666-6666-6666-666666666666' and side = 'listing' and kind = 'commission'),
+  'one source: the order''s listing 2.5% moved into Agent fees ($5,000 on $200,000)');
+select pg_temp.ok((select basis = 'amount' and amount = 4000 and pct = 2 and payer = 'buyer'
+  from public.deal_agent_fees where deal_id = '66666666-6666-6666-6666-666666666666' and side = 'buyer' and kind = 'commission'),
+  'one source: the Place Order commission (paid by buyer, $4,000) moved to the buyer''s agent side');
+select pg_temp.ok((select count(*) = 2 from public.deal_agent_fee_log where deal_id = '66666666-6666-6666-6666-666666666666' and source = 'system' and reason like 'Moved from the order%'),
+  'one source: each move is in the change history');
+select pg_temp.ok((select count(*) = 1 from public.accounting_fees where deal_id = '66666666-6666-6666-6666-666666666666' and preset_key = 'agent_fee:buyer:commission:0' and amount = 4000),
+  'one source: a moved commission posts to Accounting like any other agent fee');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = '77777777-7777-7777-7777-777777777777')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = '77777777-7777-7777-7777-777777777777' and new_value is null and old_value ->> 'amount' = '5000' and reason like 'Older commission field cleared%'),
+  'one source: a commission with no sales price is kept in the history, not lost');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = '88888888-8888-8888-8888-888888888888'), 'one source: a refinance gets no agent fees');
+select pg_temp.ok((select buyer_commission_amount is null and listing_commission_pct is null from public.deals where id = '22222222-2222-2222-2222-222222222222')
+  and (select amount <> 1 from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'commission')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = '22222222-2222-2222-2222-222222222222' and old_value ->> 'amount' = '1' and reason like 'Older commission field cleared: Agent fees already%'),
+  'one source: a side that already had Agent fees keeps them; the older figure is kept in the history');
+select pg_temp.ok((select count(*) = 0 from public.deals where listing_commission_pct is not null or listing_commission_amount is not null
+    or buyer_commission_pct is not null or buyer_commission_amount is not null or financial ?| private.old_commission_keys()),
+  'one source: no order has a commission in its older fields any more (buyers and sellers can''t read one)');
+select pg_temp.ok((select financial = '{"emdHeldBy":"CLA Title"}'::jsonb from public.deals where id = '66666666-6666-6666-6666-666666666666'), 'one source: EMD held by stays');
+select pg_temp.ok(pg_temp.err($q$update public.deals set listing_commission_pct = 3 where id = '66666666-6666-6666-6666-666666666666'$q$)
+  = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'one source: writing an older commission field is refused with a plain message');
+select pg_temp.ok(pg_temp.err($q$update public.deals set financial = '{"commissionPercent":3}' where id = '66666666-6666-6666-6666-666666666666'$q$) like 'Commissions are now kept%',
+  'one source: a commission in financial is refused too');
+select pg_temp.ok(pg_temp.err($q$update public.deals set financial = '{"emdHeldBy":"Bright Realty"}', purchase_price = 210000 where id = '66666666-6666-6666-6666-666666666666'$q$) = 'no error',
+  'one source: EMD held by and the sales price still save');
+SQL
+# The stand-in only let authenticated change purchase_price. Place Order inserts a row and
+# updates other columns, so this check grants that on the disposable table. Not a migration.
+psql_super -c "grant insert, update on public.deals to authenticated;"
+# Fresh connection: the superuser block above already ran the guard, and PL/pgSQL would reuse
+# that plan for a later SET ROLE in the same connection, which hides the permission error.
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.errstate(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlstate || ' ' || sqlerrm; end $$;
+create or replace function pg_temp.eq(got text, expected text, msg text) returns void language plpgsql as $$
+begin if got is distinct from expected then raise exception 'FAIL % (saw: %)', msg, got; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on function pg_temp.errstate(text), pg_temp.eq(text, text, text) to authenticated;
+begin;
+set local role authenticated;
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = purchase_price where id = '66666666-6666-6666-6666-666666666666'$q$),
+  '42501 permission denied for function old_commission_keys',
+  'before the permission fix, a signed-in user cannot update an order');
+select pg_temp.eq(pg_temp.errstate($q$insert into public.deals (id, purchase_price, financial) values ('99999999-9999-9999-9999-999999999999', 180000, '{"emdHeldBy":"CLA Title"}')$q$),
+  '42501 permission denied for function old_commission_keys',
+  'before the permission fix, a signed-in user cannot insert an order');
+rollback;
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119180000_old_commission_keys_permissions.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.errstate(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlstate || ' ' || sqlerrm; end $$;
+create or replace function pg_temp.eq(got text, expected text, msg text) returns void language plpgsql as $$
+begin if got is distinct from expected then raise exception 'FAIL % (saw: %)', msg, got; end if; raise notice 'PASS  %', msg; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on function pg_temp.errstate(text), pg_temp.eq(text, text, text), pg_temp.ok(boolean, text) to authenticated;
+begin;
+set local role authenticated;
+insert into public.deals (id, purchase_price, financial) values ('99999999-9999-9999-9999-999999999999', 180000, '{"emdHeldBy":"CLA Title"}');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = 181000, financial = '{"emdHeldBy":"Bright Realty"}' where id = '99999999-9999-9999-9999-999999999999'$q$),
+  'no error', 'signed-in user can update an order that has no old commission');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = 220000 where id = '66666666-6666-6666-6666-666666666666'$q$),
+  'no error', 'signed-in user can update the sales price on an order that already has agent fees');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set listing_commission_pct = 3 where id = '99999999-9999-9999-9999-999999999999'$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in user writing an old commission column gets the plain message, not permission denied');
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set financial = '{"emdHeldBy":"CLA Title","commissionPercent":3}' where id = '99999999-9999-9999-9999-999999999999'$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in user writing a commission key in financial gets the plain message, not permission denied');
+select pg_temp.eq(pg_temp.errstate($q$insert into public.deals (id, purchase_price, buyer_commission_amount) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 1000, 50)$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in insert of an old commission column gets the plain message, not permission denied');
+select pg_temp.eq(pg_temp.errstate($q$insert into public.deals (id, financial) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', '{"listingCommissionAmount":9}')$q$),
+  'P0001 Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter them there. Nothing was saved.',
+  'signed-in insert of a commission key in financial gets the plain message, not permission denied');
+select pg_temp.ok((select purchase_price = 181000 and financial = '{"emdHeldBy":"Bright Realty"}'::jsonb and listing_commission_pct is null
+  from public.deals where id = '99999999-9999-9999-9999-999999999999'),
+  'the signed-in save kept the sales price and EMD held by, and did not keep a refused commission');
+select pg_temp.ok((select purchase_price = 220000 from public.deals where id = '66666666-6666-6666-6666-666666666666'),
+  'the signed-in sales price update was saved');
+select pg_temp.ok((select count(*) = 0 from public.deals where id in ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2')),
+  'a refused commission insert saved nothing');
+select pg_temp.ok(private.old_commission_keys() = array['commissionBase', 'commissionPercent', 'commissionAdditional', 'commissionTotal', 'commissionPaidBy',
+  'listingCommissionPercent', 'listingCommissionAmount', 'buyerCommissionPercent', 'buyerCommissionAmount']::text[],
+  'a signed-in user still gets the same nine commission keys');
+commit;
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119180000_old_commission_keys_permissions.sql"
+psql_super -c "do \$\$ begin if not (select prosecdef and proconfig = array['search_path=public'] and has_function_privilege('authenticated', 'private.old_commission_keys()', 'execute') and not has_function_privilege('anon', 'private.old_commission_keys()', 'execute') from pg_proc where oid = 'private.old_commission_keys()'::regprocedure) then raise exception 'FAIL permission fix did not stick when applied twice'; end if; raise notice 'PASS  applying the permission fix twice is harmless'; end \$\$;"
+psql_super -f "$ROOT/supabase/rollbacks/20261119180000_old_commission_keys_permissions.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.errstate(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlstate || ' ' || sqlerrm; end $$;
+create or replace function pg_temp.eq(got text, expected text, msg text) returns void language plpgsql as $$
+begin if got is distinct from expected then raise exception 'FAIL % (saw: %)', msg, got; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on function pg_temp.errstate(text), pg_temp.eq(text, text, text) to authenticated;
+begin;
+set local role authenticated;
+select pg_temp.eq(pg_temp.errstate($q$update public.deals set purchase_price = purchase_price where id = '99999999-9999-9999-9999-999999999999'$q$),
+  '42501 permission denied for function old_commission_keys',
+  'rolling back the permission fix blocks a signed-in update again');
+rollback;
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261119030000_agent_fee_one_source.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261119030000_agent_fee_one_source.sql"
+psql_super -c "update public.deals set listing_commission_pct = 3 where id = '66666666-6666-6666-6666-666666666666';" \
+  -c "do \$\$ begin if to_regprocedure('private.deal_old_commission_guard()') is not null then raise exception 'FAIL one-source rollback'; end if; raise notice 'PASS  one-source rollback removes the guard'; end \$\$;"
+# AF-8 (Nov 14): the old "Commission information" task (template commissions) is moved into Agent fees and stops asking for an amount.
+psql_super <<'SQL'
+create table public.task_templates (id uuid primary key default gen_random_uuid(), code text, version int, title text, description text, roles text[],
+  due_days int, due_anchor text default 'opened', fields jsonb, active boolean, published_at timestamptz, agent_roles text[] default '{}', client_only boolean default false,
+  lane text default 'party', audiences text[], retired_at timestamptz);
+create table public.tasks (id uuid primary key default gen_random_uuid(), deal_id uuid, title text, description text, assigned_role text, status text, kind text default 'form',
+  participant_id uuid, owner_profile_id uuid, template_id uuid, template_code text, template_version int, form_data jsonb default '{}'::jsonb, saved_at timestamptz,
+  saved_by uuid, completed_at timestamptz, completed_by uuid, created_at timestamptz default now());
+grant select, update (form_data, saved_at) on public.tasks to authenticated;
+insert into public.task_templates (id, code, version, title, description, roles, due_days, fields, active) values ('aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+  'Commission information', 'Confirm your commission for the settlement statement.', array['Buyer Agent', 'Listing Agent'], 10,
+  '[{"k":"brokerage","label":"Brokerage","type":"text","req":true},{"k":"license_id","label":"License ID","type":"text","req":true},{"k":"commission_amount","label":"Commission ($)","type":"money","req":true},{"k":"paid_by","label":"Paid by","type":"select","req":true,"opts":["Seller","Buyer","Split"]},{"k":"notes","label":"Notes","type":"textarea","req":false}]', true);
+insert into public.deals (id, purchase_price, transaction_type) values
+  ('a1000000-0000-0000-0000-000000000001', 950000, 'Purchase'), ('a1000000-0000-0000-0000-000000000002', 400000, 'Purchase'),
+  ('a1000000-0000-0000-0000-000000000003', null, 'Purchase'), ('a1000000-0000-0000-0000-000000000004', 500000, 'Purchase'),
+  ('a1000000-0000-0000-0000-000000000005', 300000, 'Refinance');
+insert into public.deal_agent_fees (deal_id, side, kind, slot, basis, pct, amount, payer, source) values ('a1000000-0000-0000-0000-000000000002', 'buyer', 'commission', 0, 'percent', 2, 8000, 'buyer', 'staff');
+insert into public.tasks (id, deal_id, title, assigned_role, status, template_id, template_code, template_version, form_data, saved_at, saved_by, completed_at, completed_by) values
+  -- MD-26-97260: the buyer's agent submitted $28,500, paid by Seller
+  ('b1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000001', 'Commission information', 'Buyer Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"paid_by":"Seller","brokerage":"CLA Broker","license_id":"1209183","commission_amount":"28,500"}', '2026-11-13 16:14+00', '00000000-0000-0000-0000-0000000000b1', '2026-11-13 16:14+00', '00000000-0000-0000-0000-0000000000b1'),
+  -- a newer unfinished draft on the same side loses to the submitted task
+  ('b1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000001', 'Commission information', 'Buyer Agent', 'in_progress', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"1"}', '2026-11-14 10:00+00', '00000000-0000-0000-0000-0000000000b1', null, null),
+  -- Agent fees already has this side: left alone
+  ('b1000000-0000-0000-0000-000000000003', 'a1000000-0000-0000-0000-000000000002', 'Commission information', 'Buyer Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"9,999","paid_by":"Seller"}', now(), null, now(), null),
+  -- no sales price: kept in the history only
+  ('b1000000-0000-0000-0000-000000000004', 'a1000000-0000-0000-0000-000000000003', 'Commission information', 'Listing Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"20,000","paid_by":"Seller"}', now(), null, now(), null),
+  -- an unfinished draft: moved, not confirmed; Split -> the side's default payer
+  ('b1000000-0000-0000-0000-000000000005', 'a1000000-0000-0000-0000-000000000004', 'Commission information', 'Listing Agent', 'in_progress', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"$10,000.00","paid_by":"Split","brokerage":"Bright Realty"}', now(), '00000000-0000-0000-0000-0000000000b2', null, null),
+  -- a refinance: never moved
+  ('b1000000-0000-0000-0000-000000000006', 'a1000000-0000-0000-0000-000000000005', 'Commission information', 'Buyer Agent', 'done', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{"commission_amount":"500"}', now(), null, now(), null),
+  -- an untouched to-do copy
+  ('b1000000-0000-0000-0000-000000000007', 'a1000000-0000-0000-0000-000000000004', 'Commission information', 'Buyer Agent', 'todo', 'aaaaaaaa-0000-0000-0000-000000000001', 'commissions', 1,
+   '{}', null, null, null, null);
+SQL
+psql_super -f "$ROOT/supabase/migrations/20261123010000_commission_task_agent_fees.sql"
+# applying twice changes nothing
+psql_super -f "$ROOT/supabase/migrations/20261123010000_commission_task_agent_fees.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+grant execute on all functions in schema pg_temp to authenticated;
+select pg_temp.ok((select amount = 28500 and pct = 3 and basis = 'amount' and payer = 'seller' and source = 'agent' and confirmed_role = 'agent'
+    and confirmed_by = '00000000-0000-0000-0000-0000000000b1' and updated_by = '00000000-0000-0000-0000-0000000000b1'
+  from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and side = 'buyer' and kind = 'commission'),
+  'AF-8: MD-26-97260 now shows $28,500 / 3%, paid by Seller, confirmed by the agent who submitted it');
+select pg_temp.ok((select count(*) = 1 from public.deal_agent_fee_log where deal_id = 'a1000000-0000-0000-0000-000000000001' and source = 'agent' and reason like 'From the agent''s Commission information task (submitted Nov 13, 2026)'),
+  'AF-8: the move is in the change history, with the submitted date');
+select pg_temp.ok((select count(*) = 1 from public.accounting_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and preset_key = 'agent_fee:buyer:commission:0' and amount = 28500 and paid_by = 'seller'),
+  'AF-8: the commission posts to Accounting (so Contract figures, the CD and the ALTA statement show it)');
+select pg_temp.ok((select amount = 8000 and source = 'staff' from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000002' and side = 'buyer' and kind = 'commission'),
+  'AF-8: a side that already has an Agent fees commission is left alone');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000003')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = 'a1000000-0000-0000-0000-000000000003' and new_value is null and old_value ->> 'amountTyped' = '20,000' and reason like 'Commission information task not moved: Add the sales price%'),
+  'AF-8: with no sales price the figure is kept in the history, not lost');
+select pg_temp.ok((select amount = 10000 and pct = 2 and payer = 'seller' and source = 'agent' and confirmed_at is null and updated_by = '00000000-0000-0000-0000-0000000000b2'
+  from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000004' and side = 'listing' and kind = 'commission'),
+  'AF-8: an unfinished draft is moved but not confirmed; Split uses the side''s default payer');
+select pg_temp.ok((select count(*) = 0 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000005')
+  and (select count(*) = 1 from public.deal_agent_fee_log where deal_id = 'a1000000-0000-0000-0000-000000000005' and reason like '%a refinance has no agent fees%'),
+  'AF-8: a refinance gets no agent fees');
+select pg_temp.ok((select count(*) = 1 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and kind = 'commission'), 'AF-8: running the file twice adds nothing');
+-- the template
+select pg_temp.ok((select count(*) = 1 from public.task_templates where code = 'commissions' and active) and (select version = 2 and fields::text not like '%commission_amount%' and fields::text not like '%"paid_by"%'
+    and fields::text like '%agent_fees_note%' and fields::text like '%license_id%' and fields::text like '%brokerage%' from public.task_templates where code = 'commissions' and active),
+  'AF-8: the task no longer asks for Commission ($) or Paid by; Brokerage and License ID stay, with a note pointing to Agent fees');
+select pg_temp.ok((select bool_and(template_version = 2) from public.tasks where id in ('b1000000-0000-0000-0000-000000000002', 'b1000000-0000-0000-0000-000000000005', 'b1000000-0000-0000-0000-000000000007'))
+  and (select bool_and(template_version = 1) from public.tasks where status = 'done'),
+  'AF-8: open copies move to the new version; finished copies keep the version they were answered on');
+select pg_temp.ok((select form_data ->> 'brokerage' = 'Bright Realty' from public.tasks where id = 'b1000000-0000-0000-0000-000000000005'), 'AF-8: a moved copy keeps its answers');
+-- the guard, as a signed-in user (a guard that fails on permissions would block every task save)
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000b2', false);
+set role authenticated;
+select pg_temp.ok(pg_temp.err($q$update public.tasks set form_data = form_data || '{"commission_amount":"12,000"}' where id = 'b1000000-0000-0000-0000-000000000007'$q$)
+  = 'Commissions are now kept in the Agent fees box on the file overview. Reload the page and enter it there. Nothing was saved.',
+  'AF-8: a new commission amount on the task is refused with a plain message');
+select pg_temp.ok(pg_temp.err($q$update public.tasks set form_data = '{"brokerage":"Bright Realty","license_id":"X-1"}', saved_at = now() where id = 'b1000000-0000-0000-0000-000000000007'$q$) = 'no error',
+  'AF-8: a signed-in agent can still save Brokerage and License ID');
+select pg_temp.ok(pg_temp.err($q$update public.tasks set saved_at = now() where id = 'b1000000-0000-0000-0000-000000000001'$q$) = 'no error'
+  and pg_temp.err($q$update public.tasks set form_data = form_data || '{"notes":"thanks"}' where id = 'b1000000-0000-0000-0000-000000000001'$q$) = 'no error',
+  'AF-8: a finished task that already holds an amount still saves when the amount does not change');
+reset role;
+SQL
+# MF-051: the panel fields. Applied after AF-8 so the $28,500 row is already there, then rolled back before the older rollbacks.
+psql_super -f "$ROOT/supabase/migrations/20261123040000_earnest_commission_panels.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select pg_temp.ok((select amount = 28500 and pct = 3 and payer = 'seller' and base_amount is null and additional_amount = 0
+  from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and side = 'buyer' and kind = 'commission'),
+  'MF-051: MD-26-97260 is still $28,500 / 3%, paid by Seller');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', false);
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing',
+  '{"commission":{"basis":"percent","percent":"3","additional":"1000","payer":"split","splitBuyer":"6000","splitSeller":"7000"}}', 'Panel layout test');
+select pg_temp.ok((select amount = 13000 and pct = 3 and additional_amount = 1000 and payer = 'split' and split_buyer = 6000 and split_seller = 7000
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'commission'),
+  'MF-051: additional amount is added on, and Split stores both dollar amounts');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"commission":{"basis":"percent","percent":"3","payer":"split","splitBuyer":"1","splitSeller":"1"}}')$q$)
+  like 'Split needs a dollar amount%', 'MF-051: a split that does not add up is refused in plain words');
+SQL
+# FF-093: Admin fee Payable by, including a 50/50 split. Applied on top of the panel migration, then rolled back before the older rollbacks.
+psql_super -f "$ROOT/supabase/migrations/20261125130000_admin_fee_payable_by.sql"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', false);
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"395","payer":"split"}}', 'Admin fee split');
+select pg_temp.ok((select amount = 395 and payer = 'split' and split_buyer = 197.50 and split_seller = 197.50
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'admin'),
+  'FF-093: a $395 admin fee split is $197.50 and $197.50');
+select pg_temp.ok((select paid_by = 'split' and amount = 395 and split_buyer = 197.50 and split_seller = 197.50 and retired_at is null
+  from public.accounting_fees where deal_id = '22222222-2222-2222-2222-222222222222' and preset_key = 'agent_fee:buyer:admin:0'),
+  'FF-093: the fee ledger gives the buyer and the seller each half');
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"10.01","payer":"split"}}', 'Odd cent');
+select pg_temp.ok((select split_buyer = 5.00 and split_seller = 5.01 and round(split_buyer + split_seller, 2) = amount
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'admin'),
+  'FF-093: an odd cent goes to the seller');
+select pg_temp.ok((select split_buyer = 5.00 and split_seller = 5.01
+  from public.accounting_fees where deal_id = '22222222-2222-2222-2222-222222222222' and preset_key = 'agent_fee:buyer:admin:0' and retired_at is null),
+  'FF-093: the ledger keeps the odd cent on the seller');
+select count(*) from public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'listing',
+  '{"commission":{"basis":"percent","percent":"3","additional":"1000","payer":"split","splitBuyer":"6000","splitSeller":"7000"},"admin":{"amount":"250","payer":"buyer"}}',
+  'Buyer pays the listing admin fee');
+select pg_temp.ok((select amount = 250 and payer = 'buyer' and split_buyer is null and split_seller is null
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'admin'),
+  'FF-093: Buyer still stores no split amounts');
+select pg_temp.ok((select paid_by = 'buyer' and split_buyer = 250 and split_seller = 0
+  from public.accounting_fees where deal_id = '22222222-2222-2222-2222-222222222222' and preset_key = 'agent_fee:listing:admin:0'),
+  'FF-093: a buyer-paid admin fee stays on the buyer column');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"10","payer":"lender"}}')$q$)
+  = 'Payable by must be Buyer, Seller, or Split (Buyer and Seller).', 'FF-093: a bad Payable by is refused in plain words');
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"other":[{"description":"Referral","amount":"10","paidTo":"Example Co","payer":"split"}]}')$q$)
+  = 'Paid by must be Buyer or Seller.', 'FF-093: an other fee is still Buyer or Seller only');
+select pg_temp.ok((select amount = 13000 and payer = 'split' and split_buyer = 6000 and split_seller = 7000
+  from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'commission'),
+  'FF-093: a commission split with its own amounts is left as it was');
+SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261125130000_admin_fee_payable_by.sql"
+psql_super -c "do \$\$ begin
+  if pg_get_constraintdef((select oid from pg_constraint where conname = 'deal_agent_fees_split_check' and conrelid = 'public.deal_agent_fees'::regclass)) ilike '%kind = ''admin''%' then
+    raise exception 'FAIL FF-093 rollback still allows an admin split';
+  end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'listing' and kind = 'commission' and payer = 'split' and split_buyer = 6000) then
+    raise exception 'FAIL FF-093 rollback dropped the commission split';
+  end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = '22222222-2222-2222-2222-222222222222' and side = 'buyer' and kind = 'admin' and payer = 'buyer' and split_buyer is null) then
+    raise exception 'FAIL FF-093 rollback left an admin fee on Split';
+  end if;
+  raise notice 'PASS  FF-093 rollback removes admin Split and keeps a commission Split';
+end \$\$;"
+psql_super -o /dev/null <<'SQL'
+create or replace function pg_temp.err(p_sql text) returns text language plpgsql as $$
+begin execute p_sql; return 'no error'; exception when others then return sqlerrm; end $$;
+create or replace function pg_temp.ok(c boolean, msg text) returns void language plpgsql as $$
+begin if c is not true then raise exception 'FAIL %', msg; end if; raise notice 'PASS  %', msg; end $$;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', false);
+select pg_temp.ok(pg_temp.err($q$select public.save_agent_fees('22222222-2222-2222-2222-222222222222', 'buyer', '{"admin":{"amount":"10","payer":"split"}}')$q$)
+  = 'Paid by must be Buyer or Seller.', 'FF-093 rollback: an admin fee split is refused again');
+SQL
+psql_super -f "$ROOT/supabase/rollbacks/20261123040000_earnest_commission_panels.sql"
+psql_super -c "do \$\$ begin
+  if exists (select 1 from information_schema.columns where table_name = 'deal_agent_fees' and column_name = 'base_amount') then raise exception 'FAIL MF-051 rollback columns'; end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001' and amount = 28500 and payer = 'seller') then raise exception 'FAIL MF-051 rollback keeps the commission'; end if;
+  raise notice 'PASS  MF-051 rollback removes the extra fields and keeps the commission'; end \$\$;"
+psql_super -f "$ROOT/supabase/rollbacks/20261123010000_commission_task_agent_fees.sql"
+psql_super -c "do \$\$ begin
+  if to_regprocedure('private.commission_task_guard()') is not null then raise exception 'FAIL AF-8 rollback guard'; end if;
+  if (select version from public.task_templates where code = 'commissions' and active) <> 1 then raise exception 'FAIL AF-8 rollback template'; end if;
+  if exists (select 1 from public.tasks where template_version = 2 and status <> 'done') then raise exception 'FAIL AF-8 rollback copies'; end if;
+  if not exists (select 1 from public.deal_agent_fees where deal_id = 'a1000000-0000-0000-0000-000000000001') then raise exception 'FAIL AF-8 rollback keeps fees'; end if;
+  raise notice 'PASS  AF-8 rollback removes the guard and restores the previous version; moved fees stay'; end \$\$;"
+psql_super -f "$ROOT/supabase/rollbacks/20261118040000_agent_fee_ledger.sql"
+psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fee_ledger') is not null then raise exception 'FAIL AF-5 rollback'; end if; raise notice 'PASS  AF-5 rollback stops the posting'; end \$\$;"
+psql_super -f "$ROOT/supabase/rollbacks/20261118030000_agent_fee_staff_notice.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261118020000_agent_fee_notify.sql"
+psql_super -c "do \$\$ begin if to_regprocedure('private.agent_fee_notify(uuid,text,text,text)') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is null then raise exception 'FAIL AF-3 rollback'; end if; raise notice 'PASS  AF-3 rollback keeps the AF-1 save and drops the notices'; end \$\$;"
+psql_super -f "$ROOT/supabase/rollbacks/20261118010000_agent_fee_sides.sql"
+psql_super -f "$ROOT/supabase/rollbacks/20261117100000_agent_fees.sql"
+psql_super -c "do \$\$ begin if to_regclass('public.deal_agent_fees') is not null or to_regprocedure('public.save_agent_fees(uuid,text,jsonb,text)') is not null then raise exception 'FAIL rollback'; end if; raise notice 'PASS  rollback removes the tables and functions'; end \$\$;"
+echo "agent fees SQL checks passed"

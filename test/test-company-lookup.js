@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
-import { companyLookupFlags } from '../js/data/mock-part-crm.js?v=202611160600';
+import { companyLookupFlags } from '../js/data/mock-part-crm.js?v=202611289960';
 import { ACCOUNT_KINDS, companyKey } from '../js/data/crm.js';
 import { ensureSettings } from '../js/data/crm-config.js';
 import { companyDuplicateFromLookup } from '../js/pages/crm-janine.js';
@@ -61,6 +61,8 @@ ok(companyDuplicateFromLookup([{ id: 'acc-harbor', name: 'Harbor Realty (fake)',
 
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-admin');
+await api.adminUpdateUser('u-team', { canOwnCrm: true });
+await api.adminUpdateUser('u-sp', { canOwnCrm: true });
 const made = await api.createCrmAccount({ name: 'Lookup Only Realty', kind: 'brokerage', state: 'MD', ownerId: 'u-team', city: 'Rockville', phone: '301-555-0199' });
 await api.createCrmAccount({ name: 'Lookup Only Realty Group', kind: 'brokerage', state: 'VA', ownerId: 'u-team' });
 const prefix = await api.lookupCompanies('Lookup Only Realty', 20);

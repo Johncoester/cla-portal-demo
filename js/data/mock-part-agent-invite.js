@@ -4,11 +4,13 @@
 //  d.agentProfiles {profileId: {cellPhone, officePhone, brokerage, licenseNumber, street, city, state, zip, otherContact, photo (data URL), photoShape, updatedAt}}
 //  d.agentBirthMD  {profileId: 'MM-DD'}  (month / day only; kept apart like d.agentBirthdates, the existing optional birthdate it reuses)
 // NOTHING IS SENT. createAgentInvite / resendAgentInvite return the one-time link path; the page shows it for staff to copy.
-import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611140100';
-import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611101015';
+import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611249900';
+import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611247700';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
-// demo data (fake, lazily added once): Bianca + Larry accepted (placeholder initials avatars), Lena (deal-4 listing agent, no login yet) pending, one expired
+const fromNow = (n) => new Date(Date.now() + n * 864e5).toISOString();
+// demo data (fake, lazily added once): Bianca + Larry accepted (placeholder initials avatars).
+// Lena stays pending (7 days from now) and Evan stays expired (1 day ago). A fixed calendar date was going stale.
 export function ensureAgentInvites(d) {
   if (Array.isArray(d.agentInvites)) return d;
   d.agentInvites = []; d.agentProfiles = d.agentProfiles || {}; d.agentBirthMD = d.agentBirthMD || {};
@@ -19,8 +21,8 @@ export function ensureAgentInvites(d) {
   acc('ai-1', 'u-bagent', 'c-bagent', 'deal-1', { brokerage: 'Harbor Realty (fake)', licenseNumber: 'FAKE-MD-0505', officePhone: '410-555-0150', city: 'Annapolis', state: 'MD', photo: initialsAvatar('Bianca', 'Buyer-Agent', '#89cff0'), photoShape: 'circle' });
   acc('ai-2', 'u-lagent', 'c-lagent', 'deal-1', { brokerage: 'Oak Street Realty (fake)', licenseNumber: 'FAKE-MD-0606', city: 'Rockville', state: 'MD', photo: initialsAvatar('Larry', 'Listing-Agent', '#bfe6f8'), photoShape: 'square' });
   const lena = d.contacts.find((c) => c.id === 'c-lena');
-  if (lena) d.agentInvites.push({ ...base, id: 'ai-3', token: 'demo-lena-pending-0001', contactId: 'c-lena', dealId: 'deal-4', firstName: lena.firstName, lastName: lena.lastName, email: lena.email, status: 'pending', createdAt: '2026-11-03T15:00:00Z', expiresAt: '2026-11-17T15:00:00Z', acceptedAt: null, acceptedProfileId: null });
-  d.agentInvites.push({ ...base, id: 'ai-4', token: 'demo-expired-0001', contactId: null, firstName: 'Evan', lastName: 'Example', email: 'evan.example@example.test', status: 'pending', createdAt: '2026-10-01T15:00:00Z', expiresAt: '2026-10-15T15:00:00Z', acceptedAt: null, acceptedProfileId: null });
+  if (lena) d.agentInvites.push({ ...base, id: 'ai-3', token: 'demo-lena-pending-0001', contactId: 'c-lena', dealId: 'deal-4', firstName: lena.firstName, lastName: lena.lastName, email: lena.email, status: 'pending', createdAt: '2026-11-03T15:00:00Z', expiresAt: fromNow(7), acceptedAt: null, acceptedProfileId: null });
+  d.agentInvites.push({ ...base, id: 'ai-4', token: 'demo-expired-0001', contactId: null, firstName: 'Evan', lastName: 'Example', email: 'evan.example@example.test', status: 'pending', createdAt: '2026-10-01T15:00:00Z', expiresAt: fromNow(-1), acceptedAt: null, acceptedProfileId: null });
   return d;
 }
 export function agentInvitePart(x) {
@@ -74,7 +76,7 @@ export function agentInvitePart(x) {
       if (!dealId || !dealsFor(u).some((z) => z.id === dealId)) fail('Order not found.');
       const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
       const parts = d.participants.filter((p) => p.dealId === dealId && p.contactId === c.id && !p.removed && PORTAL_INVITE_ROLES.includes(p.role));
-      if (!parts.length) fail('Only a buyer, seller, buyer agent or listing agent on this file can be invited.');
+      if (!parts.length) fail("Only a buyer, seller, buyer agent or listing agent on this file, or an agent's transaction coordinator, can be invited.");
       const role = (parts.find((p) => inviteKindForRole(p.role) === 'agent') || parts[0]).role; const kind = inviteKindForRole(role);
       if (c.profileId && (prof(c.profileId) || {}).status === 'active') fail(`${c.firstName} ${c.lastName} already has a portal login.`);
       if (!String(c.firstName || '').trim() || !String(c.lastName || '').trim()) fail('Add a first and last name to this contact (Edit) before inviting.');
@@ -87,6 +89,27 @@ export function agentInvitePart(x) {
       const at = now(); const inv = { id: nid('inv'), token: rnd() + rnd(), contactId: c.id, dealId, firstName: v.firstName, lastName: v.lastName, email: v.email, status: 'pending', expiresAt: plusDays(at, INVITE_DAYS),
         resentCount: 0, createdBy: u.id, createdAt: at, acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null, inviteKind: kind };
       d.agentInvites.push(inv); log(dealId, u.id, kind === 'agent' ? 'agent.invited' : 'client.invited', 'agent_invite', inv.id, `${v.firstName} ${v.lastName} (${role}) invited to the portal (link shown, nothing sent)`); save();
+      return { ...row(inv, true), role, sent: false }; },
+    // FF-073e: a new invite for a changed buyer / seller / agent email. Revokes this contact's
+    // pending invites first. Does not refuse just because they already had a login on the old email;
+    // it does refuse when the new email already belongs to someone else's login.
+    async inviteAfterEmailChange({ dealId = null, contactId = null } = {}) { const u = needInviter(); const d = db();
+      if (!dealId || !dealsFor(u).some((z) => z.id === dealId)) fail('Order not found.');
+      const c = d.contacts.find((z) => z.id === contactId) || fail('Contact not found.');
+      const parts = d.participants.filter((p) => p.dealId === dealId && p.contactId === c.id && !p.removed && PORTAL_INVITE_ROLES.includes(p.role) && !/ TC$/.test(p.role));   // TC-INVITE-1: email-change invites stay buyer / seller / agent (mirrors rpc_invite_after_email_change)
+      if (!parts.length) fail('Only a buyer, seller, buyer agent or listing agent on this file can be invited.');
+      const role = (parts.find((p) => inviteKindForRole(p.role) === 'agent') || parts[0]).role; const kind = inviteKindForRole(role);
+      if (!String(c.firstName || '').trim() || !String(c.lastName || '').trim()) fail('Add a first and last name to this contact (Edit) before inviting.');
+      const em = String(c.email || '').trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) fail('Enter a valid email for this person.');
+      const ownProfile = c.profileId && prof(c.profileId);
+      if (d.profiles.some((p) => p.email.toLowerCase() === em && p.status === 'active' && p.id !== (ownProfile && ownProfile.id))) fail('Someone with that email already has a portal login.');
+      d.agentInvites.forEach((i) => {
+        if (i.contactId === c.id && inviteStatus(i, now()) === 'pending') { i.status = 'revoked'; i.revokedAt = now(); i.revokedBy = u.id; i.token = null; }
+      });
+      const at = now(); const inv = { id: nid('inv'), token: rnd() + rnd(), contactId: c.id, dealId, firstName: c.firstName.trim(), lastName: c.lastName.trim(), email: em, status: 'pending', expiresAt: plusDays(at, INVITE_DAYS),
+        resentCount: 0, createdBy: u.id, createdAt: at, acceptedAt: null, acceptedProfileId: null, revokedAt: null, revokedBy: null, inviteKind: kind };
+      d.agentInvites.push(inv); log(dealId, u.id, kind === 'agent' ? 'agent.invited' : 'client.invited', 'agent_invite', inv.id, `${c.firstName.trim()} ${c.lastName.trim()} (${role}) invited to the portal after an email change`); save();
       return { ...row(inv, true), role, sent: false }; },
     async resendAgentInvite(id) { const u = needInviter(); const inv = db().agentInvites.find((i) => i.id === id && tcScope(u, i)) || fail('Invite not found.');
       if (inv.status === 'accepted') fail('This invite was already accepted.'); if (inv.status === 'revoked') fail('This invite was revoked. Make a new invite instead.');

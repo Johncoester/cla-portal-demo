@@ -3,13 +3,16 @@
  * NOTHING is sent: an invite is a preview row + an .ics built in the browser.
  * CSV import parses in the browser (same limits and mapping as the demo) and
  * asks crm_import_batch to apply the database rules, 500 rows at a time.
- * Preview rolls back inside each call (P0004). A commit reuses one batch id.
- * Nothing is emailed. */
-import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, importErrorCsv, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611101600';
-import { US_STATE_NAMES, US_STATES } from './constants.js?v=202611101015';
-import { ensureSettings, findOption } from './crm-config.js?v=202611130900';
-import { importedStatusDecision } from './crm-import-status.js?v=202611131900';
-import { LINK_KEYS } from './crm.js?v=202611130900';
+ * A preview returns each row's reason and rolls the writes back inside the call.
+ * Until that database file is applied, a P0004 detail is still read, and a preview
+ * that comes back as a failure is shown on each row instead of as one generic error.
+ * A commit reuses one batch id. Nothing is emailed. */
+import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611247700';
+import { importErrorCsv } from './crm-import-skip-csv.js?v=202611247700';
+import { US_STATE_NAMES, US_STATES, fmtPhone, phoneOk } from './constants.js?v=202611247700';
+import { ensureSettings, findOption } from './crm-config.js?v=202611247700';
+import { importedStatusDecision } from './crm-import-status.js?v=202611247700';
+import { LINK_KEYS, LINK_FIELDS, cleanUrl } from './crm.js?v=202611247700';
 
 const DEFAULT_LABEL = Object.fromEntries(IMPORT_DEFAULT_FIELDS.map(([k, l]) => [k, l]));
 const clip = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
@@ -74,6 +77,54 @@ function personValues(rec) {
   };
 }
 
+// The import screen checks these before the database sees the row.
+// A phone that is not 10 digits is kept off the save (11 digits starting with 1 counts as 10).
+// A web address with no http:// or https:// gets https:// in front. One that is still not a web address
+// is a row error in plain words, instead of the database check constraint.
+const LINK_LABEL = Object.fromEntries(LINK_FIELDS);
+const IMPORT_URL_OK = /^https?:\/\/[^\s/:@]+\.[^\s/:@]+(:[0-9]+)?(\/\S*)?$/i;
+export function importPhoneReason(label) {
+  return `${label} must be a 10-digit phone number, like 301-555-0101. A leading 1 is fine. Correct it in the file, or leave it blank.`;
+}
+function importLinkReason(label, raw) {
+  const shown = String(raw == null ? '' : raw).trim().slice(0, 60);
+  return `${label} "${shown}" is not a web address. Type it like example.com or https://example.com.`;
+}
+export function plainImportDbMessage(message) {
+  const s = String(message || '');
+  if (/check constraint|crm_links_ok|crm_url_ok|_zoho_check/i.test(s)) {
+    return 'This web address could not be saved. Type it like example.com or https://example.com, then preview again.';
+  }
+  return s;
+}
+export function reviewImportPerson(values, prepNotes = []) {
+  const next = { ...values, links: { ...(values && values.links || {}) } };
+  const problems = [];
+  const notes = (prepNotes || []).slice();
+  [['phone', 'Phone'], ['mobile', 'Mobile']].forEach(([key, label]) => {
+    const raw = String(next[key] == null ? '' : next[key]).trim();
+    if (!raw) { next[key] = ''; return; }
+    if (!phoneOk(raw)) { problems.push(importPhoneReason(label)); return; }
+    next[key] = fmtPhone(raw);
+  });
+  const links = {};
+  const linkErrors = [];
+  const linkNotes = [];
+  LINK_KEYS.forEach((key) => {
+    const raw = String(next.links[key] == null ? '' : next.links[key]).trim();
+    if (!raw) return;
+    const label = LINK_LABEL[key] || 'Web address';
+    let href = '';
+    try { href = cleanUrl(raw); } catch (e) { linkErrors.push(importLinkReason(label, raw)); return; }
+    if (!href || href.length > 500 || !IMPORT_URL_OK.test(href)) { linkErrors.push(importLinkReason(label, raw)); return; }
+    links[key] = href;
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) linkNotes.push(`${label} saved as ${href}`);
+  });
+  if (linkErrors.length) problems.push(...linkErrors);
+  else { next.links = links; notes.push(...linkNotes); }
+  return { values: next, prepNotes: notes, problems };
+}
+
 async function cleanDefaults(self, raw0, kind, module) {
   if (kind !== 'records' || !raw0) return [];
   const raw = Array.isArray(raw0) ? Object.fromEntries(raw0.map((z) => [z.field, z.value])) : raw0;
@@ -86,7 +137,7 @@ async function cleanDefaults(self, raw0, kind, module) {
   return picked.map(([k, v]) => {
     if (k === 'ownerId') {
       const p = owners.find((o) => o.id === v);
-      if (!p || (p.role && !['Sales Person', 'Sales Team'].includes(p.role))) throw new Error('The default Owner must be an active Sales Person or Sales Team user.');
+      if (!p) throw new Error('The default Owner must be an active user who can own CRM records.');
       return { field: k, value: v };
     }
     if (k === 'state') {
@@ -107,14 +158,50 @@ async function cleanDefaults(self, raw0, kind, module) {
   });
 }
 
-// P0004 is assert_failure. Only that code is a preview. A timeout or any
-// other error is a failure, even when its text happens to contain JSON.
+const PREVIEW_OK_MESSAGE = 'Nothing was saved. Each row shows whether it is ready, a duplicate, or what to fix.';
+
+// P0004 is assert_failure. Only that code carries a finished preview in its
+// detail. A timeout or any other error is a failure, even when its text
+// happens to contain JSON.
 function previewBody(error) {
   if (!error || error.code !== 'P0004') return null;
   const details = error.details != null ? error.details : error.detail;
   if (details && typeof details === 'object') return details;
   if (typeof details !== 'string' || !details.trim().startsWith('{')) return null;
   try { return JSON.parse(details); } catch { return null; }
+}
+
+// The preview call failed before the row reasons came back (often a P0004
+// that PostgREST turned into HTTP 500, with the detail dropped). Put a plain
+// reason on every row that was sent, plus one sentence for the top of the screen.
+function previewFailure(remote, error) {
+  const code = String(error && error.code || '');
+  const status = Number(error && (error.status || error.statusCode) || 0);
+  const raw = String(error && error.message || '').trim();
+  const timeout = code === '57014' || /statement timeout|canceling statement/i.test(raw);
+  const technical = !raw || code === 'P0004' || timeout || status >= 500 || /internal server error|^PGRST|SQLSTATE|syntax error/i.test(raw);
+  const rowReason = timeout
+    ? 'This row was not checked because the preview took too long. Nothing was saved. Try the preview again.'
+    : technical
+      ? 'This row was not checked because the preview did not finish. Nothing was saved. Try the preview again.'
+      : plainImportDbMessage(raw).slice(0, 500);
+  const message = timeout
+    ? 'Nothing was saved. The preview took too long. Each row shows that it was not checked.'
+    : 'Nothing was saved. The preview did not finish. Each row shows what happened.';
+  return {
+    rows: remote.map((row) => ({
+      line: row.line,
+      status: 'error',
+      message: rowReason,
+      id: null,
+      name: '',
+      link: '',
+      notes: Array.isArray(row.prepNotes) ? row.prepNotes : [],
+    })),
+    counts: { total: remote.length, ok: 0, duplicates: 0, errors: remote.length },
+    importId: null,
+    message,
+  };
 }
 
 function addCounts(a, b) {
@@ -203,6 +290,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
     const fieldPairs = fields.map(([k, l]) => [k, l]);
     let rows = [];
     let counts = { total: 0, ok: 0, duplicates: 0, errors: 0 };
+    let notice = '';
     let importId = input.importId || null;
     const startChunk = Number(input.startChunk) || 1;
     const saved = [];
@@ -222,7 +310,8 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       counts,
       importId,
       committed: !!commit,
-      errorCsv: importErrorCsv(rows, fieldPairs),
+      errorCsv: importErrorCsv(rows, fieldPairs, module),
+      message: notice,
       ...extra,
     });
     for (const range of ranges) {
@@ -236,11 +325,18 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       const local = [];
       const remote = [];
       slice.forEach((row) => {
+        let fieldProblems = [];
+        if (kind === 'records') {
+          const reviewed = reviewImportPerson(row.values, row.prepNotes);
+          row.values = reviewed.values;
+          row.prepNotes = reviewed.prepNotes;
+          fieldProblems = reviewed.problems;
+        }
         const missing = module === 'leads' && kind === 'records' ? leadRequiredMessages(row.values, defaults) : [];
         const statusRaw = kind === 'records' ? row.values.relationshipStatus : '';
         const statusDecision = statusCfg && String(statusRaw || '').trim() ? importedStatusDecision(statusCfg, module, statusRaw) : null;
         if (statusDecision && !statusDecision.error && statusDecision.value) row.values.relationshipStatus = statusDecision.value;
-        const problems = [...missing, ...(statusDecision && statusDecision.error ? [statusDecision.error] : [])];
+        const problems = [...missing, ...(statusDecision && statusDecision.error ? [statusDecision.error] : []), ...fieldProblems];
         if (!problems.length) { remote.push(row); return; }
         local.push({
           line: row.line, status: 'error', message: problems.join(' '), id: null, name: '', link: '', notes: [],
@@ -249,6 +345,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
       });
       if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to, done: range.from - 1, total: payload.length });
       let body = { rows: [], counts: { total: 0, ok: 0, duplicates: 0, errors: 0 }, importId: null };
+      let stopPreview = false;
       if (remote.length) {
         const args = {
           p_commit: !!commit,
@@ -268,13 +365,17 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
           if (!retryableImportError(e)) throw e;
           try { res = await sb.rpc('crm_import_batch', args); } catch (again) { res = { data: null, error: again }; }
         }
-        if (res.error && res.error.code === 'P0004') {
-          body = previewBody(res.error);
-          if (!body) throw new Error(res.error.message || 'Import preview failed.');
-        } else if (res.error || !res.data) {
-          const message = (res.error && res.error.message) || 'Import failed.';
-          if (!commit) throw new Error(message);
-          const partial = { saved, failed: range, message, code: (res.error && res.error.code) || '', importId, rowsSaved: saved.reduce((n, part) => n + part.count, 0), startChunk: range.chunk };
+        const parsedPreview = res && res.error ? previewBody(res.error) : null;
+        if (res && !res.error && res.data) {
+          body = res.data;
+        } else if (parsedPreview) {
+          body = parsedPreview;
+        } else if (!commit) {
+          body = previewFailure(remote, res && res.error);
+          stopPreview = true;
+        } else {
+          const message = plainImportDbMessage((res && res.error && res.error.message) || 'Import failed.');
+          const partial = { saved, failed: range, message, code: (res && res.error && res.error.code) || '', importId, rowsSaved: saved.reduce((n, part) => n + part.count, 0), startChunk: range.chunk };
           const err = new Error(importPartialReport(partial));
           err.partial = partial;
           if (commit && importId) {
@@ -284,17 +385,19 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
             });
           }
           throw err;
-        } else {
-          body = res.data;
         }
         if (commit && body.importId) importId = body.importId;
         saved.push(range);
         slice.forEach((row) => recorded.add(row.line));
       }
+      if (!commit) {
+        if (!body.message) body.message = PREVIEW_OK_MESSAGE;
+        notice = body.message;
+      }
       const remoteRows = (body.rows || []).map((r) => ({
         line: r.line,
         status: r.status,
-        message: r.message || '',
+        message: plainImportDbMessage(r.message || ''),
         id: r.id || null,
         name: r.name || '',
         link: r.link || '',
@@ -307,6 +410,7 @@ export function crmJanineSupabase({ sb, ok, camel, on, rpc, me, self }) {
         total: local.length, ok: 0, duplicates: 0, errors: local.length,
       }));
       if (progress) progress({ chunk: range.chunk, chunks: ranges.length, from: range.from, to: range.to, done: range.to, total: payload.length });
+      if (stopPreview) return finish();
     }
     if (commit && importId) {
       try {

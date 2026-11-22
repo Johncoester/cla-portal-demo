@@ -1,8 +1,8 @@
 /* Hosted task rows do not carry mine / canFill / canTick. These helpers add them
  * from the signed-in profile. They do not add tasks, do not return another person's
  * answers, and do not treat Demo view-only as a missing task. */
-import { runsOrders, viewOnly, maskAccount } from './constants.js?v=202611101015';
-import { fieldsForRole, maskedFields } from './templates.js?v=202611141400';
+import { runsOrders, viewOnly, maskAccount } from './constants.js?v=202611247700';
+import { fieldsForRole, maskedFields } from './templates.js?v=202611247700';
 
 export const HOSTED_TASK_COLUMNS = 'id, deal_id, title, description, assigned_role, status, due_date, completed_at, completed_by, created_by, created_at, kind, participant_id, owner_profile_id, template_id, template_code, template_version, saved_at, saved_by';
 
@@ -10,6 +10,8 @@ export function camelHosted(o) {
   return Array.isArray(o) ? o.map(camelHosted) : o && typeof o === 'object'
     ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), camelHosted(v)])) : o;
 }
+
+const TC_AGENT_ROLE = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
 
 export function shapeListedTask(t, user, opts = {}) {
   if (!t) return t;
@@ -20,7 +22,12 @@ export function shapeListedTask(t, user, opts = {}) {
   const held = new Set([...roles, ...fileRoles].filter(Boolean));
   const mineIds = opts.myParticipantIds || [];
   const ownsCopy = !!(t.participantId && mineIds.includes(t.participantId) && (!owner || owner === user.id));
-  const mine = !!(user && (owner === user.id || ownsCopy || (!t.participantId && held.has(t.assignedRole))));
+  const ownMine = !!(user && (owner === user.id || ownsCopy || (!t.participantId && held.has(t.assignedRole))));
+  // TC-VIS-1 (John, Nov 20-21): a transaction coordinator on the file sees and works their agent's tasks, open and closed.
+  // The database only returns the agent's tasks on the coordinator's side, so the side check here is enough.
+  const actsFor = new Set(fileRoles.map((r) => TC_AGENT_ROLE[r]).filter(Boolean));
+  const forAgent = !!(user && !ownMine && owner !== user.id && actsFor.has(t.assignedRole));
+  const mine = ownMine || forAgent;
   const manager = !!(user && (runsOrders(user) || user.role === 'Transaction Coordinator'));
   const kind = t.kind || (t.templateId ? 'form' : 'simple');
   const readOnly = viewOnly(user);
@@ -34,6 +41,7 @@ export function shapeListedTask(t, user, opts = {}) {
     ...t,
     kind,
     mine,
+    forAgent,
     canFill,
     canComplete,
     canTick,

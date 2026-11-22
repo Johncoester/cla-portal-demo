@@ -1,20 +1,23 @@
 /* crm-deals.js : DEALS in the CRM (Zoho's Deals module) = the portal's orders you can already see. #/crm/deals[/<id>]. Read-only here (orders are run
  * in the portal); a deal has Send Email (saved, NOT sent) and its Emails list. Function only. */
 import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, toast } from '../ui.js?v=202611161500';
-import { crmSort } from '../data/crm.js?v=202611130900';
-import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from '../data/crm-deal-cols.js?v=202611070139';
-import { display, moduleFields } from '../data/crm-analytics.js?v=202611130900';
-import { crmDealName, columnKey, loadColumns, normalizeColumns, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
-import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611161500';
-import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611161500';
+import { crmSort } from '../data/crm.js?v=202611247700';
+import { DEAL_COLS } from '../data/crm-deal-cols.js?v=202611070139';
+import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } from '../data/crm-analytics.js?v=202611247700';
+import { runsOrders } from '../data/constants.js?v=202611247700';
+import { crmDealName, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
+import { allListCatalogKeys, allListDefaultKeys, allListFirstPaint } from '../data/crm-all-columns.js?v=202611249850';
+import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611249870';
+import { tabs, head, money, wireRowOpen, pageSizeControl, pageNav, dateOpControl, wireDateOps } from './crm-kit.js?v=202611289980';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
-import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611161500';
-import { viewsBar, wireViewsBar } from './crm-views.js?v=202611161500';
+import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
+import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611289980';
+import { viewsBar, wireViewsBar } from './crm-views.js?v=202611290610';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { DISBURSEMENT_FIELDS } from '../data/crm-disbursement.js?v=202611070139';
 import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bulk.js?v=202611160300';
 import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
-import { bulkBar, wireBulk } from './crm-bulk.js?v=202611161500';
+import { bulkBar, wireBulk } from './crm-bulk.js?v=202611247100';
 
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 
@@ -23,12 +26,6 @@ export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsLis
 // see every deal and filter by Deal Owner and Client; a Sales Person sees ONLY their own deals and filters by Source. Everyone can filter by Status
 // (Open by default) and Source, search, sort and hide columns.
 const arrows = html`<span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>`;
-function dealColumnState(storage, userId, known) {
-  try { if (storage && storage.getItem(columnKey(userId, 'deals'))) return loadColumns(storage, userId, 'deals', { known, defaults: known }); } catch (e) { /* use the older hide-list */ }
-  const hidden = new Set(loadHidden(storage, userId));
-  const legacy = DEAL_COLS.map(([k]) => k).filter((k) => known.includes(k) && !hidden.has(k));
-  return normalizeColumns(legacy.length ? legacy : known.filter((k) => !DEFAULT_HIDDEN.includes(k)), known, known);
-}
 async function dealsList(c) {
   const { api, me, cfg = {} } = c; const fl = await api.listCrmDealFilters(); const all = fl.scope === 'all';
   const canBulk = me.canEdit || me.isAdmin || ['Processor', 'Preprocessor'].includes(me.role);
@@ -41,9 +38,10 @@ async function dealsList(c) {
   const dealFields = moduleFields('deals', cfg);
   const have = new Set(DEAL_COLS.map(([k]) => k));
   const extra = dealFields.filter((f) => !have.has(f.key) && !(f.labelKey && have.has(f.labelKey))).map((f) => [f.key, f.label]);
-  const catalog = [...DEAL_COLS, ...extra];
+  const built = [...DEAL_COLS, ...extra];
+  const catalog = allListCatalogKeys('deals', cfg).map((k) => built.find((c) => c[0] === k)).filter(Boolean);
   const known = catalog.map(([k]) => k);
-  let visible = dealColumnState(storage, me.id || fl.me.id, known);
+  let visible = allListFirstPaint('deals', cfg, storage, me.id || fl.me.id);
   const useCols = () => visible.map((k) => catalog.find((c) => c[0] === k)).filter(Boolean);
   const sel = (name, label, list, value, blank) => html`<label>${label}<select name="${name}" data-deal-filter="${name}" aria-label="${label}">${blank ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(value) ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
   // Deals have created_at, open_date, and closing_date. Last activity is the latest crm_activities row. There is no modified_at, so Modified Time is not offered here.
@@ -106,7 +104,7 @@ async function dealsList(c) {
         const next = '#/crm/deals' + (p.toString() ? '?' + p.toString() : ''); if (location.hash === next) { f.q.value = o.q || ''; apply(); } else location.hash = next; },
       count: (o) => { const same = (o.status || 'Open') === cur.status && (o.owner || '') === cur.ownerId && (o.client || '') === cur.clientId && (o.source || '') === cur.source;
         if (!same) return '·'; const words = String(o.q || '').toLowerCase().split(/\s+/).filter(Boolean); return rows.filter((r) => { const hay = [r.name, r.fileNumber, r.propertyAddress, r.clientName, r.contactName, r.ownerName, r.salesReps, r.sourceText].join(' ').toLowerCase(); return words.every((w) => hay.includes(w)); }).length; } });
-    const defaults = normalizeColumns(DEAL_COLS.map(([k]) => k).filter((k) => !DEFAULT_HIDDEN.includes(k)), known, known);
+    const defaults = allListDefaultKeys('deals', cfg);
     const dealUser = me.id || fl.me.id;
     const wiredCols = wireColumnChooser(root, { module: 'deals', userId: dealUser, fields: catalog.map(([k, l]) => ({ key: k, label: l })), visible, defaults, known, storage, api, onChange: (next) => { visible = next; apply(); } });
     if (api && typeof api.getUserUiPrefs === 'function') {
@@ -153,13 +151,27 @@ async function dealPage(c) {
   const people = Array.isArray(d.people) ? d.people : []; const emails = Array.isArray(d.emails) ? d.emails : []; const portal = d._portalLink || `#/deals/${d.id}`;
   const row = (l, v) => html`<tr><th>${l}</th><td>${v}</td></tr>`;
   const dealName = crmDealName(d);
+  const stageNow = dealStageOf(d.stage || d.status);
+  const stageChoices = DEAL_STAGES.some(([v]) => v === stageNow) ? DEAL_STAGES : [...DEAL_STAGES, [stageNow, stageNow]];
+  const canSetStage = runsOrders(me) && typeof api.setDealStatus === 'function';
+  const stageField = html`<select data-deal-stage aria-label="Stage" ${canSetStage ? '' : raw('disabled')}>${stageChoices.map(([v, l]) => html`<option value="${v}" ${v === stageNow ? raw('selected') : ''}>${l}</option>`)}</select>`;
   const body = html`${tabs('deals')}${head(dealName, me, html`<span data-record-actions>${sendEmailBtn('deal', d.id, me)} <a class="ghost" href="${portal}" data-open-order>Open the order</a></span>`)}
-    <div class="card" data-deal-summary><table class="tbl">${row('Deal Name', dealName)}${row('File Number', d.fileNumber)}${row('Property Address', d.propertyAddress || dealName)}${row('Amount', money(d.amount))}${row('Loan Amount', money(d.loanAmount))}
-      ${row('Stage', d.stage)}${row('Closing Date', fmtDate(d.closingDate))}${row('Open Date', fmtDate(d.openDate))}${row('Deal Owner', d.ownerName)}${row('Sales Reps', d.salesReps)}${row('Transaction Type', d.transactionType)}</table></div>
+    ${recordShell(html`<div class="card" data-deal-summary><table class="tbl">${row('Deal Name', dealName)}${row('File Number', d.fileNumber)}${row('Property Address', d.propertyAddress || dealName)}${row('Amount', money(d.amount))}${row('Loan Amount', money(d.loanAmount))}
+      ${row('Stage', stageField)}${row('Closing Date', fmtDate(d.closingDate))}${row('Open Date', fmtDate(d.openDate))}${row('Deal Owner', d.ownerName)}${row('Sales Reps', d.salesReps)}${row('Transaction Type', d.transactionType)}</table></div>
     <div class="card" data-deal-people><h3>People on the file</h3><table class="tbl"><thead><tr><th>Role</th><th>Name</th><th>Email</th></tr></thead><tbody>${people.map((p) => html`<tr><td>${p.role}</td><td>${p.link ? html`<a href="${p.link}">${p.name}</a>` : p.name}</td><td>${p.email}</td></tr>`)}</tbody></table></div>
     ${disbCard(disb)}
-    ${emailsCard(emails)}`;
-  return { title: dealName, crumbs: [['CRM', '#/crm'], ['Deals', '#/crm/deals'], [d.fileNumber]], body, mount(root) { wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireDisb(root, api, d.id, disb, refresh); void $; } };
+    ${emailsCard(emails)}`)}`;
+  return { title: dealName, crumbs: [['CRM', '#/crm'], ['Deals', '#/crm/deals'], [d.fileNumber]], body, mount(root) {
+    wireShortcuts(root);
+    wireSendEmail(root, api, me, refresh); wireEmails(root, api, emails); wireDisb(root, api, d.id, disb, refresh);
+    const stageSel = $('[data-deal-stage]', root);
+    if (stageSel && canSetStage) stageSel.addEventListener('change', guard(async () => {
+      const next = stageSel.value; const status = statusForDealStage(next);
+      if (!status) { stageSel.value = stageNow; throw new Error('Pick Opened, Closed, On Hold, or Canceled.'); }
+      try { await api.setDealStatus(d.id, status); } catch (e) { stageSel.value = stageNow; throw new Error('That stage was not saved. Pick Opened, Closed, On Hold, or Canceled, and try again.'); }
+      toast('Stage saved'); refresh();
+    }));
+  } };
 }
 
 // Janine, Nov 4 (video "Disbursement Details - Deals"): Zoho's Disbursement Details section. Typed amounts + a date; Admin / Super admin edit; every change logged.

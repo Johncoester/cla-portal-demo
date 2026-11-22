@@ -43,7 +43,10 @@ function json(headers, status, body) {
 }
 
 // deps: { sha256(text), gate(key)->bool, email(kind, token)->string|null, createUser({email,password,email_confirm})->{id}, deleteUser(id), accept(kind, token, userId, profile),
-//         findStub(email)->{id, invited, hasProfile}|null, claimStub(id, password) }   (an Auth invite-only login, Nov 11)
+//         findStub(email)->{id, invited, hasProfile}|null, claimStub(id, password), hasProfile(id)->bool }   (an Auth invite-only login, Nov 11)
+// FF-073a (Janine video, Nov 12): a double-click or second tab ran the error cleanup and deleted the login the first
+// submit had just linked. Cleanup now deletes only a login this same request created AND that still has no portal profile.
+// A claimed invite-only login is never deleted, and a request whose login is already linked to a profile answers ok.
 export async function handleAcceptInvite(req, deps) {
   const origin = req.headers.get('origin') || '';
   const { allow, headers } = corsFor(origin);
@@ -61,8 +64,10 @@ export async function handleAcceptInvite(req, deps) {
     const email = await deps.email(checked.kind, checked.token);
     if (!email || typeof email !== 'string' || !email.includes('@')) return json(headers, 400, { error: GENERIC });
     let user;
+    let createdHere = false;
     try {
       user = await deps.createUser({ email, password: checked.password, email_confirm: true });
+      createdHere = !!(user && user.id);
     } catch {
       // John, Nov 11: the invite email now comes from TEST Auth (testportal@clatitle.com), which makes an invite-only
       // login first. That login is claimed here only if Auth invited it and it never became a portal user.
@@ -76,7 +81,13 @@ export async function handleAcceptInvite(req, deps) {
     try {
       await deps.accept(checked.kind, checked.token, user.id, checked.profile);
     } catch (err) {
-      try { await deps.deleteUser(user.id); } catch { /* the login was not linked */ }
+      // linked: true / false, or null when the check itself failed (then nothing is deleted).
+      let linked = null;
+      try { linked = typeof deps.hasProfile === 'function' ? !!(await deps.hasProfile(user.id)) : null; } catch { linked = null; }
+      if (linked === true) return json(headers, 200, { ok: true });   // a duplicate submit: the first one already linked this login
+      if (createdHere && linked === false) {
+        try { await deps.deleteUser(user.id); } catch { /* the login was not linked */ }
+      }
       const msg = err && err.code === '22023' && SAFE_FIELD.has(err.message) ? err.message : GENERIC;
       return json(headers, 400, { error: msg });
     }

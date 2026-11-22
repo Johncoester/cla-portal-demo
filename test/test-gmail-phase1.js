@@ -1,15 +1,13 @@
 /* Gmail phase 1 (John, Nov 9): the gmail-* edge function logic with fake Google + fake database. No network, no secrets. */
 import { readFileSync } from 'node:fs';
-import { isAllowedTestRecipient, parseAddressList, subjectWithTag, formatPropertyAddress, fileTag, sanitizeHtml, buildMime, b64url, b64urlToText, bytesToB64, estimateMimeBytes, MAX_MESSAGE_BYTES, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope, matchUploadKeys } from '../supabase/functions/_shared/gmail-core.mjs';
+import { parseAddressList, subjectWithTag, formatPropertyAddress, fileTag, sanitizeHtml, buildMime, b64url, b64urlToText, bytesToB64, estimateMimeBytes, MAX_MESSAGE_BYTES, hasWireDetails, parseGmailMessage, authUrl, SCOPES, REDIRECT_URI, extOk, SETTINGS_SCOPE, pickSendAsSignature, withSignature, hasSettingsScope, matchUploadKeys } from '../supabase/functions/_shared/gmail-core.mjs';
 import { handleOauthStart, handleOauthCallback, handleSend, handleSync } from '../supabase/functions/_shared/gmail-handlers.mjs';
 let fail = 0;
 const ok = (c, m) => { if (c) console.log('ok', m); else { fail++; console.log('FAIL', m); } };
 const JOHN = '149e612a-6e14-4ee1-9890-0f29d6f89156'; const DEAL = 'f2c086d7-8043-46c4-99b1-03ee5b061897';
 const SECRET = 'client-secret-do-not-leak'; const REFRESH = 'refresh-token-do-not-leak';
 
-// ---- allowlist ----
-for (const a of ['clatestportal@gmail.com', 'clatestportal+buyer@gmail.com', 'CLAtestportal+Seller.1@gmail.com', 'fsantos@clatitle.com', 'jcoester-6jkr3p@mail.grokbot.com', 'testbuyerjohnc@gmail.com', 'TestSellerGael@gmail.com', 'johncoester@gmail.com', 'ListingAgentRosy@gmail.com']) ok(isAllowedTestRecipient(a), `allowed on Live Test: ${a}`);
-for (const a of ['someone@gmail.com', 'clatestportal+x@gmail.com.evil.com', 'x@clatitle.com.evil.com', 'x@sub.clatitle.com', 'clatestportal+@gmail.com', 'c.latestportal@gmail.com', 'jcoester@mail.grokbot.com', 'buyer@example.com', 'a@clatitle.co', 'testbuyerjohnc+x@gmail.com', 'testsellergael@yahoo.com', 'listingagentrosy@gmail.com.evil.com']) ok(!isAllowedTestRecipient(a), `refused on Live Test: ${a}`);
+// ---- addresses (Nov 13, John: no test-address list on TEST; any valid address may be emailed) ----
 const pl = parseAddressList('Pat <PAT@clatitle.com>, pat@clatitle.com; not an address');
 ok(pl.ok.length === 1 && pl.ok[0] === 'pat@clatitle.com' && pl.bad.length === 1, 'address list: names stripped, duplicates merged, junk reported');
 ok(formatPropertyAddress({ street: '123 Main St', city: 'Rockville', state: 'MD', zip: '20850' }) === '123 Main St, Rockville MD 20850', 'address format: street, city state zip');
@@ -124,10 +122,8 @@ async function cbWith(google) { const f = fakeDeps({ google }); const s = await 
 
 // ---- send ----
 const sendBody = (o = {}) => ({ dealId: DEAL, to: 'clatestportal+buyer@gmail.com', subject: 'Introduction', html: '<p>Hello</p>', ...o });
-{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ to: 'realbuyer@gmail.com, clatestportal+b@gmail.com', cc: 'agent@remax.com' })), f.deps); const j = await r.json();
-  ok(r.status === 403 && j.refused.join() === 'realbuyer@gmail.com,agent@remax.com' && !f.calls.fetch.length && !f.calls.svc.some((c) => c.fn === 'gmail_svc_token'), 'send: non-test recipients refused server-side before any token or Google call');
-  ok(f.calls.svc.some((c) => c.fn === 'gmail_svc_audit' && c.args.p_action === 'mail.refused'), 'send: the refusal is audited'); }
-{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ bcc: 'boss@gmail.com', dryRun: true })), f.deps); ok(r.status === 403 && !f.calls.svc.length && !f.calls.fetch.length, 'send dry run: refusal reported, nothing written, Google never called'); }
+{ const f = fakeDeps(); const r = await handleSend(post(sendBody({ to: 'realbuyer@gmail.com, clatestportal+b@gmail.com', cc: 'agent@remax.com', bcc: 'boss@gmail.com', dryRun: true })), f.deps); const j = await r.json();
+  ok(r.status === 200 && j.dryRun && !(j.refused || []).length && !f.calls.svc.some((c) => c.args && c.args.p_action === 'mail.refused') && !f.calls.fetch.length, 'send dry run: real (non-test) addresses are accepted, nothing refused, Google never called'); }
 { const f = fakeDeps({ ctx: { mailbox: null, mailboxStatus: null } }); const r = await handleSend(post(sendBody({ dryRun: true, documentIds: ['d1'] })), f.deps); const j = await r.json();
   ok(r.status === 200 && j.dryRun && j.connected === false && j.subject === 'Introduction [CLA #MD-26-97207 - 10423 John Glenn Street #502, Lanham MD 20706]' && j.attachments.length === 1 && !f.calls.fetch.length && !f.calls.svc.length, 'send dry run: allowed recipients pass, tag added, no Google call, works before connecting'); }
 { const f = fakeDeps({ ctx: { mailbox: null, mailboxStatus: null } }); const r = await handleSend(post(sendBody()), f.deps); ok(r.status === 409 && !f.calls.fetch.length, 'send: not connected -> 409, nothing sent'); }

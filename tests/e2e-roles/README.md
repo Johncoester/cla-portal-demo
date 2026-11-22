@@ -26,7 +26,7 @@ That serves the static site on `http://127.0.0.1:4173` and signs in through the 
 
 Mock portal checks use the built-in file **MD-26-97183** (145 Main Street, `deal-1`). Those fake people already hold the roles. Order Entry places a new file whose street starts with `100 E2E Test File`, checks the edit, parties, referral source, and state prefix, then sets the status to Cancelled. The browser context is thrown away with the run.
 
-A failure leaves a screenshot and a trace under `tests/e2e-roles/test-results/`. The pass/fail list is printed and written to `tests/e2e-roles/test-results/summary.md`.
+A failure leaves a screenshot and a trace under `tests/e2e-roles/test-results/` (`trace-1.zip`, `trace-2.zip`, ...: the trace pauses while a test signs in, so typed login values and the sign-in request are never in it; see `fixtures.js`). The pass/fail list is printed and written to `tests/e2e-roles/test-results/summary.md`.
 
 ## Run it against TEST
 
@@ -73,7 +73,7 @@ Nothing here is a password. GitHub Actions reads the same names from repository 
 | `SUPABASE_URL` | `https://aqcervntopidtcazcmlv.supabase.co` for the seed script only. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Seed script only. Repo secret for the workflow_dispatch seed. Do not put it on a developer machine if you use that job, and never in the browser. |
 
-On TEST the seeded emails are `clatestportal+e2e-<role>@gmail.com`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `clatestportal+e2e-invitee@gmail.com`. The harness aborts before send if any recipient is outside that set, or if Live Test's own allowlist would refuse it (`clatestportal@gmail.com`, `clatestportal+tag@gmail.com`, or `@clatitle.com`).
+On TEST the seeded emails are `clatestportal+e2e-<role>@gmail.com`, for example `clatestportal+e2e-buyer@gmail.com`. An invitee with no login is `clatestportal+e2e-invitee@gmail.com`. The email spec sends only to `E2E_MAIL_TO`. Addresses on the test file are not recipients. If `E2E_MAIL_TO` is unset, that test skips and does not send. The portal itself still emails the address on the file when a person sends (John, Nov 13).
 
 The Processor login on TEST must already have Gmail connected. That is the staff mailbox the file email is sent from. The suite's own inbox is separate. See "Connect the test inbox" below.
 
@@ -127,11 +127,11 @@ The nightly run does not need `E2E_GMAIL_CLIENT_ID`, `E2E_GMAIL_CLIENT_SECRET`, 
 
 These portals send three kinds of mail. The suite covers those and nothing else.
 
-- **Invites** from a file (agent, buyer, seller). The Sales Team check only copies the link. A route blocks `gmail-send` so that check cannot email anyone. On TEST, the email spec sends one invite to an allowlisted address and polls the inbox.
-- **File email** from the file Email tab: a template, no leftover `{{ }}`, subject shaped `[CLA #file - property address]`, and one attachment larger than 5 MB (the FF-006 size). Arrival is polled for up to 3 minutes. Latency is the time until the inbox returns the message.
+- **Invites** from a file (agent, buyer, seller). The Sales Team check only copies the link. A route blocks `gmail-send` so that check cannot email anyone. On TEST, the email spec sends the invite only when the address already on that row is exactly `E2E_MAIL_TO`. Any other address is left unsent.
+- **File email** from the file Email tab, to `E2E_MAIL_TO` only (the log does not print addresses from the file): a template, no leftover `{{ }}`, subject shaped `[CLA #file - property address]`, and one attachment larger than 5 MB (the FF-006 size). Arrival is polled for up to 3 minutes. Latency is the time until the inbox returns the message.
 - **Replies.** The test inbox replies on that Gmail thread with one PDF. Check for replies must show the inbound message, and the attachment must land on Documents once.
 
-Mock mode checks the composer, the subject hint, merge output, and the allowlist. It does not send. Live delivery is skipped unless `E2E_TARGET=test`.
+Mock mode checks the composer, the subject hint, merge output, and that mock mode cannot send (there is no test-address list any more, John, Nov 13). It does not send. Live delivery is skipped unless `E2E_TARGET=test`.
 
 HR staff invites are the same sender, but the HR module is not opened. Task reminders and the seller/agent preview (`automation.js`) do not send mail. They are not in this suite.
 

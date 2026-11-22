@@ -21,6 +21,8 @@ on:
 
 permissions:
   contents: read
+  # actions: write lets a skipped run cancel itself, so it never shows as a green "success" (John, Nov 13).
+  actions: write
 
 # One suite at a time. A later run waits, so two browsers never share TEST's 20 PostgREST connections.
 concurrency:
@@ -90,6 +92,26 @@ jobs:
             echo "main is at ${tip}, this deploy was ${RUN_SHA}. The newer deploy runs the smoke."
             echo "skip=1" >> "$GITHUB_OUTPUT"
           fi
+
+      # John, Nov 13 8:49 AM ET: the 8:29 AM cron slot skipped every test but the run still read "success", and that was
+      # taken for a passing walkthrough. A run that skips the tests now cancels itself, so it ends "cancelled" (grey), never
+      # green, and its summary says why. Only a run that actually ran the tests can pass or fail.
+      - name: A skipped run is not a pass
+        if: steps.clock.outputs.skip == '1' || steps.fresh.outputs.skip == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "**SKIPPED: no tests ran.** This is not a pass."
+            if [ "${{ steps.clock.outputs.skip }}" = "1" ]; then echo "Reason: this cron slot is the other daylight-saving hour. The real nightly run is at 2 AM Eastern."; fi
+            if [ "${{ steps.fresh.outputs.skip }}" = "1" ]; then echo "Reason: a newer commit on main replaced this deploy. Its own run does the walkthrough."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::Skipped: no tests ran. This run cancels itself so it does not show as a pass."
+          gh run cancel "${GITHUB_RUN_ID}" -R "${GITHUB_REPOSITORY}"
+          # Wait for the cancel to land. If it does not, fail rather than let the run end green.
+          sleep 60
+          echo "::error::The skipped run did not cancel. Failing so it does not show as a pass."
+          exit 1
 
       - name: Checkout
         if: steps.clock.outputs.skip != '1' && steps.fresh.outputs.skip != '1'

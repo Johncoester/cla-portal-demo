@@ -12,8 +12,8 @@
  *                  of closing (always "before"; shown as a memo on the ALTA, in the Before Closing column on the CD). titlePrefix = "Title - " on the CD.
  *   kind 'credit'  money moved between the sides: from (buyer | seller | lender | deposit | other) -> to (buyer | seller). The "from" side is
  *                  debited, the "to" side credited. Prorations / adjustments, seller credits, deposits and the loan amount are credits.
- * Auto entries (never stored, always in step with the order): Sales price (buyer -> seller), Deposit / EMD (deposit -> buyer), Loan amount
- * (lender -> buyer). A refinance has no seller side: no sales price, no deposit, no seller amounts. */
+ * Order lines (never stored, read from the order each time): Sales price (buyer -> seller), Deposit / EMD (deposit -> buyer), Loan amount
+ * (lender -> buyer). A refinance has no seller side: no sales price, no deposit, no seller amounts. Shown read-only, from the order. */
 import { roleAllowed } from './role-access.js?v=202611100100';
 export const ACCOUNTING_OFF = 'Accounting is turned off on this portal.';
 export const ACCOUNTING_STAFF_ONLY = 'Accounting is for CLA staff only.';
@@ -54,9 +54,11 @@ export const round2 = (n) => d(c(n));
 const fail = (m) => { throw new Error(m); };
 const s = (v, max) => String(v == null ? '' : v).trim().slice(0, max);
 import { computeProration, cleanProration, prorationRange, PRORATION_ITEMS } from './prorations.js?v=202611070139';
+import { waterEscrowFeeInput, WATER_ESCROW_KEY } from './prorate-defaults.js?v=202611223100';
+import { excessDepositOf } from './earnest-commission.js?v=202611246500';
 const flag0 = (x) => !!x && x !== 'false' && x !== '0';
 // QUALIA layout (John, Nov 4 2026): per-line payments + section settings (meta), the CD text of a line, E.01 recording fees as one line
-import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611070139';
+import { cleanMeta, cdText, recTypeOf, recordingText } from './qualia-charges.js?v=202611243300';
 export const closingDateOf = (deal) => (deal && (deal.closingDate ?? deal.closing_date)) || null;
 const isRefiDeal = (deal) => !!deal && (deal.transactionType === 'Refinance' || deal.transaction_type === 'Refinance');
 const buyerWord = (deal) => (isRefiDeal(deal) ? 'Borrower' : 'Buyer');
@@ -150,12 +152,40 @@ export const isOverridden = (f) => isCalculated(f) && CALC_FIELDS.some((k) => !s
 // what the page and the statements see: the stored fee + overridden (derived)
 export const withCalcFlags = (f) => (isCalculated(f) ? { ...f, overridden: isOverridden(f) } : f);
 
-// ---------- order figures are not ledger lines ----------
-// A contract sale price, loan, or earnest-money promise is not funds received and not a Closing Disclosure line.
-// Those amounts are entered on Contract figures (an estimate). This stays empty so a filled order cannot post them by itself.
-export function autoEntries(deal) {
+// ---------- order figures, read each time, never stored (QF-1, John Nov 15: the Qualia way) ----------
+// Sale price, deposit and loan amount feed K/L/M and Cash to Close. They are not saved as fee rows (Nov 7: no second copy of the contract).
+// Change them on File Overview. A typed fee that already uses the same name is left as the one copy, so the order figure is not added again.
+const orderRaw = (deal, key) => {
+  if (key === 'excessDeposit') return excessDepositOf(deal);
+  const raw = key === 'salesPrice' ? (deal.purchasePrice ?? deal.purchase_price) : key === 'deposit' ? (deal.emdAmount ?? deal.emd_amount) : (deal.loanAmount ?? deal.loan_amount);
+  if (raw === '' || raw == null) return null;
+  const n = Number(raw); return Number.isFinite(n) ? round2(n) : null;
+};
+const ORDER_FIGURES = {
+  salesPrice: { description: 'Sale Price of Property', from: 'buyer', to: 'seller', purchaseOnly: true },
+  deposit: { description: 'Deposit', from: 'deposit', to: 'buyer', purchaseOnly: true },
+  loanAmount: { description: 'Loan Amount', from: 'lender', to: 'buyer', purchaseOnly: false },
+  // EXCESS DEPOSIT (Qualia "excess earnest", CD line N.01): the part of the deposit someone else held and already paid to the seller.
+  // The buyer still gets credit for the whole deposit (L.01). The seller already has this money, so it comes off the seller's proceeds, and
+  // it never reaches CLA's escrow account, so it comes off the funds CLA expects to receive.
+  excessDeposit: { description: 'Excess Deposit', from: 'seller', to: 'deposit', purchaseOnly: true,
+    note: 'Deposit already paid to the seller. From the order. Change it under Accounting, Basic Info, Earnest money.' },
+};
+export function manualOrderFigure(fees, key) {
+  const name = new RegExp('^' + ORDER_FIGURES[key].description.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
+  return (fees || []).find((f) => f && !f.retired && !f.auto && (f.autoKey === key || name.test(String(f.description || '').trim()))) || null;
+}
+export function autoEntries(deal, fees = []) {
   if (!deal) return [];
-  return [];
+  const refi = isRefiDeal(deal); const out = [];
+  for (const [key, spec] of Object.entries(ORDER_FIGURES)) {
+    if (refi && spec.purchaseOnly) continue;
+    const amount = orderRaw(deal, key);
+    if (!(amount > 0) || manualOrderFigure(fees, key)) continue;
+    out.push({ id: 'auto-' + key, auto: true, autoKey: key, kind: 'credit', description: spec.description, amount, from: spec.from, to: spec.to,
+      altaSection: 'financial', cdSection: '', cdLine: '', payee: '', note: spec.note || 'From the order. Change it on File Overview.', timing: 'at', poc: false, titlePrefix: false, retired: false });
+  }
+  return out;
 }
 // PRORATIONS follow the order's CURRENT settlement date (Caroline, Nov 4: "calculated automatically from the settlement date"): the statements
 // use the live calculation; prorationStale says the saved amount / date differ (an editor re-saves it, which logs the change).
@@ -167,7 +197,7 @@ export function liveProration(f, deal) {
     return { ...f, amount: c.amount, from: c.from, to: c.to, prorationLive: c, prorationStale: stale ? { savedAmount: Number(f.amount), savedDate: saved.settlementDate || null } : null };
   } catch (e) { return { ...f, prorationError: e.message }; }
 }
-export const allEntries = (deal, fees, { includeRetired = false } = {}) => [...autoEntries(deal), ...(fees || []).filter((f) => includeRetired || !f.retired).map((f) => liveProration(f, deal))];
+export const allEntries = (deal, fees, { includeRetired = false } = {}) => [...autoEntries(deal, fees), ...(fees || []).filter((f) => includeRetired || !f.retired).map((f) => liveProration(f, deal))];
 
 // ---------- running totals + balance check ----------
 export function ledgerTotals(deal, fees) {
@@ -185,9 +215,18 @@ export function ledgerTotals(deal, fees) {
       t.receiptsIn += c(sp.lender) + c(sp.other); t.disbursed += g * amt;
     } else {
       const amt = c(e.amount);
+      if (e.autoKey === 'excessDeposit') { t.sD += amt; t.receiptsIn -= amt; continue; }   // the seller already has it: off the proceeds, and CLA never receives it
       if (e.from === 'buyer') t.bD += amt; else if (e.from === 'seller') t.sD += amt; else t.receiptsIn += amt;   // lender / deposit / other money comes in
       if (e.to === 'buyer') t.bC += amt; else if (e.to === 'seller') t.sC += amt; else issues.push(`"${e.description}": credit has no receiving side.`);
     }
+  }
+  if (!refi && !(orderRaw(deal, 'salesPrice') > 0)) issues.push('Enter the sale price on File Overview. This purchase is not balanced until the sale price is on the order.');
+  if (!refi && orderRaw(deal, 'excessDeposit') > (orderRaw(deal, 'deposit') || 0)) issues.push('The deposit already paid to the seller is more than the deposit on the order. Fix it under Basic Info, Earnest money.');
+  if (orderRaw(deal, 'loanAmount') == null) issues.push('Enter the loan amount on File Overview. Use 0 if this file has no loan. This file is not balanced until the loan amount is on the order.');
+  for (const [key, spec] of Object.entries(ORDER_FIGURES)) {
+    if (refi && spec.purchaseOnly) continue;
+    const typed = manualOrderFigure(fees, key);
+    if (typed && orderRaw(deal, key) > 0) warnings.push(`${spec.description} is already on the fee ledger, so the amount on the order was not added again. Remove the typed "${typed.description}" line if File Overview should be the source.`);
   }
   const dueFromBuyer = Math.max(0, t.bD - t.bC), dueToBuyer = Math.max(0, t.bC - t.bD), dueFromSeller = Math.max(0, t.sD - t.sC), dueToSeller = Math.max(0, t.sC - t.sD);
   const receipts = t.receiptsIn + dueFromBuyer + dueFromSeller; const disbursements = t.disbursed + dueToBuyer + dueToSeller;
@@ -219,6 +258,7 @@ export function altaStatement(deal, fees, view = 'combined') {
     } else {
       if (e.from === 'buyer') row.buyerDebit = e.amount; if (e.from === 'seller') row.sellerDebit = e.amount;
       if (e.to === 'buyer') row.buyerCredit = e.amount; if (e.to === 'seller') row.sellerCredit = e.amount;
+      if (e.autoKey === 'excessDeposit') row.memo.push('Deposit already paid to the seller (CD line N.01)');
       if (e.lenderCredit) row.memo.push('Lender credit (CD section J)'); else if (['lender', 'deposit', 'other'].includes(e.from)) row.memo.push(FROM_LABEL[e.from]);
       if (e.proration && e.prorationLive) row.memo.push(`${prorationRange(e.prorationLive)} · ${e.prorationLive.days} day${e.prorationLive.days === 1 ? '' : 's'} × $${e.prorationLive.perDiem.toFixed(5)}/day (${e.proration.basis === 'installment' ? 'installment' : e.proration.basis + '-day year'}, ${e.from === 'buyer' ? 'paid in advance by seller' : 'unpaid by seller'})`);
       if (e.prorationError) row.memo.push('CHECK: ' + e.prorationError);
@@ -290,6 +330,7 @@ export function closingDisclosure(deal, fees) {
       if (e.autoKey === 'salesPrice') { add(K, 'Sale Price of Property', e.amount, e.id); add(M, 'Sale Price of Property', e.amount, e.id); continue; }
       if (e.autoKey === 'deposit') { add(Lr, 'Deposit', e.amount, e.id); continue; }
       if (e.autoKey === 'loanAmount') { add(Lr, 'Loan Amount', e.amount, e.id); continue; }
+      if (e.autoKey === 'excessDeposit') { add(N, 'Excess Deposit', e.amount, e.id); continue; }
       const tag = pr ? (e.from === 'buyer' ? 'Adjustment for item paid by seller in advance: ' : 'Adjustment for item unpaid by seller: ') : '';
       if (e.from === 'buyer') add(K, tag + e.description, e.amount, e.id);
       if (e.to === 'buyer') add(Lr, (e.from === 'seller' && !pr ? 'Seller Credit: ' : tag) + e.description, e.amount, e.id);
@@ -302,6 +343,7 @@ export function closingDisclosure(deal, fees) {
   if (c(J.borrowerAt) > 0) K.splice(K.findIndex((x) => x.id === 'auto-salesPrice') + 1, 0, { label: 'Closing Costs Paid at Closing (J)', amount: J.borrowerAt, id: 'J-borrower' });
   else if (c(J.borrowerAt) < 0) Lr.push({ label: 'Lender Credits in excess of Closing Costs (J)', amount: round2(-J.borrowerAt), id: 'J-excess' });
   if (!refi && c(J.sellerAt)) N.unshift({ label: 'Closing Costs Paid at Closing (J)', amount: J.sellerAt, id: 'J-seller' });
+  { const x = N.findIndex((r) => r.id === 'auto-excessDeposit'); if (x > 0) N.unshift(N.splice(x, 1)[0]); }   // N.01 Excess Deposit, then N.02 closing costs (TRID / Qualia)
   const total = (l) => round2(l.reduce((t, x) => t + c(x.amount), 0) / 100);
   const Kt = total(K), Lt = total(Lr), Mt = total(M), Nt = total(N);
   return { refi, sections: CD_FEE_SECTIONS.map(([k]) => sec[k]), D, I, J,
@@ -353,6 +395,7 @@ export function presetAmount(p, deal) {
   return round2(Math.round(base / 1000 * p.example * 100) / 100);
 }
 export function presetFee(key, deal) {
+  if (key === WATER_ESCROW_KEY) { const fee = waterEscrowFeeInput(deal); if (!fee) fail('This state has no default water escrow. Virginia has none. Maryland and DC are $400. Florida is $250.'); return fee; }
   const p = FEE_PRESETS.find((x) => x.key === key) || fail('Unknown fee preset.');
   const refi = isRefiDeal(deal); const amount = presetAmount(p, deal);
   let paidBy = p.paidBy; let split = null;

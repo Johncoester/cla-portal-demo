@@ -4,59 +4,64 @@
  * Deliberately absent: any way to delete a document (no method, no UI, no policy) - Admin included.
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
-  isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611101015';
+  isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
+  phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611247700';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
-import { buildSeed, DEAL_FOLDERS } from './seed.js?v=202611141400';
+import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
+import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611249300';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks } from './templates.js?v=202611141400';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611160800';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611247700';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611249300';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611141400';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611141400';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611289960';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611247700';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
-import { adminUsersTeams } from './mock-part-admin.js?v=202611070139';
+import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
-import { closingSchedule } from './mock-part-schedule.js?v=202611101015';
+import { closingSchedule } from './mock-part-schedule.js?v=202611247700';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
-import { mattP2 } from './mock-part-matt.js?v=202611120500';
-import { mattNov2 } from './mock-part-nov2.js?v=202611140100';
-import { crmPart } from './mock-part-crm.js?v=202611160600';
+import { mattP2 } from './mock-part-matt.js?v=202611247700';
+import { mattNov2 } from './mock-part-nov2.js?v=202611247700';
+import { crmPart } from './mock-part-crm.js?v=202611289960';
 import { featureFlags } from './features.js?v=202611070139';
-import { crmZohoUpgrade } from './crm.js?v=202611130900';
-import { ensureEmailTemplates } from './crm-templates.js?v=202611130900';
+import { crmZohoUpgrade } from './crm.js?v=202611247700';
+import { ensureEmailTemplates } from './crm-templates.js?v=202611247700';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
-import { ensureAgentPortal } from './agent-portal.js?v=202611101015';
-import { agentPortal } from './mock-part-agent.js?v=202611101015';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611141400';
-import { ensureSettings, optLabel } from './crm-config.js?v=202611130900';
-import { referralLabel } from './place-order.js?v=202611092320';
-import { upgradeCalls } from './crm-calls.js?v=202611070139';
-import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611141000';
-import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611070139';
-import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611101015';
+import { ensureAgentPortal } from './agent-portal.js?v=202611247700';
+import { agentPortal } from './mock-part-agent.js?v=202611247700';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611247700';
+import { ensureSettings, optLabel } from './crm-config.js?v=202611247700';
+import { referralLabel } from './place-order.js?v=202611247700';
+import { upgradeCalls } from './crm-calls.js?v=202611247700';
+import { accountingPart, ensureAccounting } from './mock-part-accounting.js?v=202611289950';
+import { taxRatesPart } from './mock-part-tax-rates.js?v=202611247700';
+import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611247900';
+import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611247700';
 import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
-import { taskShownTo } from './task-switches.js?v=202611141400';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611141400';
-import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611101015';
-import { underwriterPart } from './mock-part-underwriter.js?v=202611070139';
-import { agentInfoPart } from './mock-part-agentinfo.js?v=202611101015';
-import { agentInvitePart } from './mock-part-agent-invite.js?v=202611141400';
-import { automationPart } from './automation.js?v=202611101015';
-import { gmailMock } from './supabase-gmail.js?v=202611140900';
-import { hrPart, ensureHr } from './mock-part-hr.js?v=202611141400';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611141400';
-import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611140800';
-import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611101015';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
-import { officesPart, officeById } from './mock-part-offices.js?v=202611101015';
-import { closingLocationPart } from './mock-part-closing-location.js?v=202611120500';
-import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611141400';
+import { taskShownTo } from './task-switches.js?v=202611247700';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611247700';
+import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611247700';
+import { underwriterPart } from './mock-part-underwriter.js?v=202611247900';
+import { agentInfoPart } from './mock-part-agentinfo.js?v=202611247700';
+import { agentInvitePart } from './mock-part-agent-invite.js?v=202611249900';
+import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611289960';
+import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611247900';
+import { automationPart } from './automation.js?v=202611247700';
+import { gmailMock } from './supabase-gmail.js?v=202611247700';
+import { hrPart, ensureHr } from './mock-part-hr.js?v=202611247700';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611247700';
+import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
+import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611247700';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
+import { officesPart, officeById } from './mock-part-offices.js?v=202611247700';
+import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611290700';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
+import { closingLocationPart } from './mock-part-closing-location.js?v=202611247700';
+import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611247700';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
-import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611131900';
-import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611141400';
+import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611247700';
+import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611247700';
 import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611080400';
-import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611070139';
-import { seedFwp as FSEED } from './fwp-seed.js?v=202611070139';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
+import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611247900';
+import { seedFwp as FSEED } from './fwp-seed.js?v=202611247700';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
 import { claRepresentationLabel } from './cla-representation.js?v=202611090950';
 
 const KEY = 'cla-portal-new:data:v30';   // v29: HR WORKSPACE PHASE 1 (John + Francis, Nov 4; feature/hr-workspace): the hr* collections (departments, designations, employees, HR manager assignments, invite links, change history) + the two fake HR-only logins (Hana HR-Manager, Pia Processor-PH, account role 'Employee') and the 'hr' module switch (off = Super admins only). upgradeToV29 runs from v28 (or anything older through upgradeToV28); nothing existing is changed or removed. v28: RELEASE live28 (John, Nov 4): payoffs / HOA / FFB / ground rent collections (ensurePayoffs) + the Nov 4 seed (ensureSeedBenTc) are guaranteed on every carried-forward copy; upgradeToV28 runs from v27 (seed already there) or v26 (the live27 demo: adds Morgan Coordinator + deal-5 Willow Drive). Nothing existing is changed or removed. v27: SEED (John, Nov 4): Ben's file MD-26-97183 gets Morgan Coordinator (a TC login, Harbor team) as its Transaction Coordinator; upgradeToV27 adds her to stored v26 data if missing, nothing else changes. v26: ACCOUNTING (John, Nov 3; feature/accounting-fees): every order can carry a fee ledger (accountingFees) and its edit log (accountingLog); upgradeToV26 adds the two empty collections, nothing else changes. Stored v25..v21 data is CARRIED FORWARD (v21..v24 go through upgradeToV25 first). v25: CRM calls (Janine's Zoho video 11, Nov 3): Schedule a call / Log a call / Mark as Completed; calls logged with the Nov 3 (b) form (duration in minutes) become logged, Completed calls with the minutes kept and copied to seconds (upgradeToV25). Stored v24 (left to the refi / deal-filters branch), v23, v22 and v21 data are CARRIED FORWARD. v24 is reserved for feature/refi-deal-filters. v23: Matt, Nov 3 (b) (Processor notes): personal_info v4 (+ Entity Representative), orders get sourceOfBusiness, buyer / seller rows may carry an entity (Place Order). Stored v22 (Janine's CRM Nov 3 b) and v21 data are CARRIED FORWARD through the chain v21 -> v22 -> v23 (upgradeToV22 then upgradeToV23). v22: CRM Nov 3 (b), Janine's Zoho videos 7-10 (John): global search + recent items, Send Email records (NEVER SENT), the 24 Zoho custom field types with permissions and layout sections, dashboards, reports (upgradeToV22 adds the collections, the built-in dashboards and the fake sample reports). v21: WIRE INSTRUCTIONS = BUYER CLIENTS + CLA STAFF ONLY (John, Nov 3): every document carries wireInstructions (true when staff mark it, or its name says wire instructions); agents never see one. Stored v20 data is CARRIED FORWARD (upgradeToV21 flags existing wire files, so a wire PDF already sent into an agent's conversation disappears for the agent). v20: Qualia-style agent portal (Francis Santos, Nov 3): agent tasks, update requests, access invites, message attachments; stored v19 data is CARRIED FORWARD (upgradeToV20). v19: CRM email templates (John / Janine, Nov 3, Zoho video 6): folders, templates, favorites, signatures, template files; stored v18 data is CARRIED FORWARD (upgradeToV19 adds the collections and the 3 fake templates). v18: Matt, Nov 3: personal info v3 (POA follow-ups, + Add entity with entity documents, settlement type for sellers only) and title vesting v2 (vesting help); stored v17 data is CARRIED FORWARD (upgradeToV18: new template versions added, untouched open copies moved to them). v17: CRM matched to Zoho (client / lead fields, Zoho picklists, tasks, meetings, attachments; stored v16 data is CARRIED FORWARD, see upgradeToV17; John, Nov 2). v16: County on orders (seeded fake files get one; stored v15 data is CARRIED FORWARD, see upgradeData; John, Nov 2). v15: the CRM (leads, accounts, opportunities, activities, CRM fields on contacts; John, Nov 2). v14: contact type on every contact (realtor / lender / buyer_seller; John, Nov 2). v13: EMD amount + due date on orders, Place Order documents,
@@ -136,7 +141,7 @@ export function ensurePreprocessorSeed(d) {
 export function upgradeToV30(d, from = 'v29') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v29') upgradeToV29(d, from); ensurePreprocessorSeed(d); d.upgradedFrom = from; return d; }
 export function ensureMattNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 export function ensureBuyerPersonal(d) { applyBuyerPersonal(d); return d; }
-export function ensureSellerTasks(d) { applySellerTasks(d); return d; }
+export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCommissionTaskV3(d); applyCitizenshipFreeText(d); return d; }   // AF-8: commission task -> Agent fees, then v2. FF-101b: v3 broker fee + payout. JN-CITIZEN-1: Citizenship is a typed line; saved answers stay.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -171,9 +176,9 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     let d = fresh ? ensureTitle(ensureTc(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(data)))))))))), { seed: !!flags.title }) : ensureTitle(ensureTc(data), { seed: !!flags.title });
     d = ensurePreprocessorSeed(d); d = ensureEmailSenders(d); d = ensureRealtorName(d); d = ensureRecording(d, { seed: !!flags.accounting }); d = ensureFwp(d, { seed: !!flags.policy || !!flags.funding || !!flags.wires }); d = ensureBuyerPersonal(d); d = ensureSellerTasks(d); return ensureNov5(d);
   };
-  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; if (seeded || renamed) save(); return db; }
+  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow || db.citizenshipTextNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; if (seeded || renamed) save(); return db; }
     const prev = loadPrevious();
-    if (prev) { const [pk, data] = prev; db = ensureAll(data); delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; const old = store.getItem(pk);
+    if (prev) { const [pk, data] = prev; db = ensureAll(data); delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; const old = store.getItem(pk);
       try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }
       store.removeItem(pk); return db; }
     db = ensureAll(buildSeed(), { fresh: true }); if (typeof store.key === 'function') dropStale(); save(); return db; }
@@ -197,11 +202,18 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   function dealsFor(u) {
     const d = load();
     if (seesAll(u)) return d.deals;
-    if (u.role === 'Preprocessor') return d.deals.filter((q) => q.preprocessorUserId === u.id);
+    if (u.role === 'Preprocessor') {
+      const c = contactOf(u.id);
+      const mine = new Set(c ? d.participants.filter((p) => p.contactId === c.id).map((p) => p.dealId) : []);
+      return d.deals.filter((q) => q.preprocessorUserId === u.id || mine.has(q.id));
+    }
     // John / Francis, Nov 9 (option B): a Transaction Coordinator sees every file, like a Processor (migration 20261109190000)
     if (u.role === 'Transaction Coordinator') return d.deals;
     const c = contactOf(u.id);
     const ids = new Set(c ? d.participants.filter((p) => p.contactId === c.id).map((p) => p.dealId) : []);
+    // TC-3: a linked coordinator can open every file where their agent is the buyer's agent or the listing agent.
+    if (c) (d.agentTcLinks || []).forEach((l) => { if (l.tcContactId !== c.id) return;
+      d.participants.forEach((p) => { if (p.contactId === l.agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent')) ids.add(p.dealId); }); });
     // every salesperson linked to the file (John, Nov 2: several per file) sees it, as the single sales person did before
     if (C_SALES.includes(u.role)) (d.dealSalesPeople || []).forEach((s) => { if (s.salesId === u.id) ids.add(s.dealId); });
     return d.deals.filter((x) => ids.has(x.id));
@@ -213,15 +225,110 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // SELF-REPRESENTATION (migration 11): one person may hold a client role AND their side's agent role on one order. Then `role` is the AGENT
   // role (the wider of the two: an agent already sees everything on its side) and `roles` lists both, so their own client copies,
   // client-assigned tasks and the union of both roles apply. Mirrored by private.deal_roles(deal) / private.file_roles_of in SQL.
+  // TC-3: the coordinator is treated as their agent on this file (Buyer Agent or Listing Agent).
+  const TC_AGENT_ROLE = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
+  function linkedAgentRoles(profileId, dealId) {
+    const c = contactOf(profileId); if (!c || !dealId) return [];
+    const d = load(); const roles = [];
+    (d.agentTcLinks || []).forEach((l) => {
+      if (l.tcContactId !== c.id) return;
+      d.participants.forEach((p) => {
+        if (p.dealId === dealId && p.contactId === l.agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent') && !roles.includes(p.role)) roles.push(p.role);
+      });
+    });
+    // TC-VIS-1: on this file as that side's coordinator, and that side has an agent (private.linked_agent_roles).
+    d.participants.forEach((x) => {
+      const role = TC_AGENT_ROLE[x.role];
+      if (!role || x.dealId !== dealId || x.contactId !== c.id || roles.includes(role)) return;
+      if (d.participants.some((a) => a.dealId === dealId && a.role === role)) roles.push(role);
+    });
+    return roles;
+  }
+  function tcForAgent(actorId, agentProfileId, dealId, role) {
+    if (!actorId || !agentProfileId || actorId === agentProfileId || !dealId) return null;
+    if (role !== 'Buyer Agent' && role !== 'Listing Agent') return null;
+    const tc = contactOf(actorId); const agent = contactOf(agentProfileId);
+    if (!tc || !agent) return null;
+    const d = load();
+    if (!d.participants.some((p) => p.dealId === dealId && p.contactId === agent.id && p.role === role)) return null;
+    // TC-VIS-1: linked to the agent, or on this file as that side's coordinator (private.tc_for_agent).
+    const linked = (d.agentTcLinks || []).some((l) => l.tcContactId === tc.id && l.agentContactId === agent.id);
+    const onFile = d.participants.some((x) => x.dealId === dealId && x.contactId === tc.id && x.role === `${role} TC`);
+    if (!linked && !onFile) return null;
+    return { agentProfileId, role, roleLabel: 'Transaction coordinator' };
+  }
+  // When an agent is added, or a link is saved, put each linked coordinator on that side.
+  // dealId set: that file only. dealId empty: every file the agent is on (TC-ASSIGN-1: open, closed, on hold). Never a refinance.
+  // Removing the agent does not remove the coordinator.
+  function placeAgentTcs(d, agentContactId, dealId, actorId) {
+    const links = (d.agentTcLinks || []).filter((l) => l.agentContactId === agentContactId && l.tcContactId !== agentContactId);
+    if (!links.length) return 0;
+    let n = 0;
+    d.participants.filter((p) => p.contactId === agentContactId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent') && (!dealId || p.dealId === dealId)).forEach((p) => {
+      const deal = d.deals.find((z) => z.id === p.dealId);
+      if (!deal || deal.transactionType === 'Refinance') return;
+      const role = p.role === 'Listing Agent' ? 'Listing Agent TC' : 'Buyer Agent TC';
+      links.forEach((l) => {
+        if (d.participants.some((x) => x.dealId === p.dealId && x.contactId === l.tcContactId && x.role === role)) return;
+        if (d.participants.some((x) => x.dealId === p.dealId && x.role === p.role && samePerson(d, x.contactId, l.tcContactId))) return;
+        d.participants.push({ id: nid('dp'), dealId: p.dealId, contactId: l.tcContactId, role, createdAt: now() });
+        const tc = d.contacts.find((c) => c.id === l.tcContactId);
+        log(p.dealId, actorId || null, 'participant.added', 'contact', l.tcContactId, `${tc ? `${tc.firstName} ${tc.lastName}`.trim() : 'Coordinator'} added as ${role}`);
+        n += 1;
+      });
+    });
+    return n;
+  }
+  function samePerson(d, a, b) {
+    if (a === b) return true;
+    const x = d.contacts.find((c) => c.id === a); const y = d.contacts.find((c) => c.id === b);
+    const ex = String((x && x.email) || '').trim().toLowerCase();
+    return !!(ex && ex === String((y && y.email) || '').trim().toLowerCase());
+  }
+  // TC-ASSIGN-1 (private.link_tcs_from_file): someone added within a file links a coordinator and that side's agent, then the
+  // coordinator goes on all of the agent's files. A CLA staff login is never linked. Coordinators placed by a link do not link onward.
+  function linkFromFile(d, dealId, contactId, role, actorId) {
+    const deal = d.deals.find((z) => z.id === dealId);
+    if (!deal || deal.transactionType === 'Refinance') return 0;
+    const tcRole = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
+    const staff = (cid) => { const c = d.contacts.find((z) => z.id === cid); const p = c && c.profileId && d.profiles.find((z) => z.id === c.profileId); return !!(p && p.status !== 'removed' && p.role !== 'Outside user'); };
+    let pairs = [];
+    if (tcRole[role]) { if (staff(contactId)) return 0; pairs = d.participants.filter((x) => x.dealId === dealId && x.role === tcRole[role]).map((x) => [x.contactId, contactId]); }
+    else if (role === 'Buyer Agent' || role === 'Listing Agent') pairs = d.participants.filter((x) => x.dealId === dealId && x.role === `${role} TC` && !staff(x.contactId)).map((x) => [contactId, x.contactId]);
+    if (!Array.isArray(d.agentTcLinks)) d.agentTcLinks = [];
+    let n = 0;
+    pairs.forEach(([agentId, tcId]) => {
+      if (samePerson(d, agentId, tcId) || d.agentTcLinks.some((l) => l.agentContactId === agentId && l.tcContactId === tcId)) return;
+      d.agentTcLinks.push({ id: nid('atc'), agentContactId: agentId, tcContactId: tcId, createdBy: actorId || null, createdAt: now() });
+      n += placeAgentTcs(d, agentId, null, actorId);
+    });
+    return n;
+  }
+  function partyRolesOnFile(profileId, dealId) {
+    const c = contactOf(profileId); if (!c || !dealId) return [];
+    const mine = load().participants.filter((z) => z.dealId === dealId && z.contactId === c.id).map((z) => z.role);
+    const held = new Set([...OUTSIDE_FILE_ROLES.filter((r) => mine.includes(r)), ...linkedAgentRoles(profileId, dealId)]);
+    return OUTSIDE_FILE_ROLES.filter((r) => held.has(r));
+  }
+  function sidesOfUser(u) {
+    return [...new Set(((u && (u.roles || [u.role])) || []).map(sideOf).filter(Boolean))];
+  }
   function fileRoles(profileId, dealId) {
     const p = load().profiles.find((x) => x.id === profileId); if (!p) return [];
-    if (!isOutside(p.role)) return [p.role];
-    const c = contactOf(p.id); if (!c || !dealId) return [OUTSIDE];
-    const mine = load().participants.filter((z) => z.dealId === dealId && z.contactId === c.id).map((z) => z.role);
-    const held = OUTSIDE_FILE_ROLES.filter((r) => mine.includes(r)); return held.length ? held : [OUTSIDE];   // agent roles sort first
+    const held = partyRolesOnFile(profileId, dealId);
+    if (!isOutside(p.role)) return held.length ? [p.role, ...held] : [p.role];
+    if (!contactOf(p.id) || !dealId) return [OUTSIDE];
+    return held.length ? held : [OUTSIDE];   // agent roles sort first
   }
   const fileRole = (profileId, dealId) => fileRoles(profileId, dealId)[0];
-  const fileRoleText = (profileId, dealId) => { const rs = fileRoles(profileId, dealId); return rs.length ? fileRoleLabel(rs) : undefined; };   // display: 'Buyer + Buyer\'s Agent' or the one role
+  const TC_FILE_LABEL = 'Transaction Coordinator';
+  // TC-PROFILE-1: an outside coordinator on a file only through the agent they work for is labelled Transaction Coordinator there
+  // (the same rule as private.rpc_my_file_roles_full). Their roles stay the agent side, so access is unchanged.
+  const tcOnlyOn = (profileId, dealId) => { const p = load().profiles.find((x) => x.id === profileId); const c = contactOf(profileId);
+    if (!p || !isOutside(p.role) || !c || !dealId || !linkedAgentRoles(profileId, dealId).length) return false;
+    return !load().participants.some((z) => z.dealId === dealId && z.contactId === c.id && OUTSIDE_FILE_ROLES.includes(z.role)); };
+  const fileLabelOn = (profileId, dealId, rs) => (tcOnlyOn(profileId, dealId) ? TC_FILE_LABEL : fileRoleLabel(rs));
+  const fileRoleText = (profileId, dealId) => { const rs = fileRoles(profileId, dealId); return rs.length ? fileLabelOn(profileId, dealId, rs) : undefined; };   // display: 'Buyer + Buyer\'s Agent' or the one role
   const holds = (u, r) => (u.roles || [u.role]).includes(r);
   // BUYER-ONLY RULES (Matt / John, Nov 4 call): a buyer on this file who is not also an agent on it
   const pureBuyer = (u) => !!u && !isStaffView(u) && holds(u, 'Client-Buyer') && !(u.roles || [u.role]).some((r) => isAgent(r));
@@ -239,14 +346,23 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   const hiddenFromClient = hiddenFromBuyer;
   const selfRep = (roles) => roles.length === 2 && pairAllowed(roles[0], roles[1]);
   // The signed-in user as they act on ONE order (all deal-scoped rules take this, never the bare session user).
-  const scopeTo = (u, dealId) => { if (!u || !isOutside(u.role)) return u; const roles = fileRoles(u.id, dealId);
-    return { ...u, role: roles[0], roles, selfRep: selfRep(roles), accountRole: u.role }; };
+  const scopeTo = (u, dealId) => {
+    if (!u) return u;
+    const held = partyRolesOnFile(u.id, dealId);
+    // Staff who run orders keep their staff view. Other staff on the file as a buyer/seller/agent act in that file role.
+    if (!isOutside(u.role)) {
+      if (held.length && !runsOrders(u)) return { ...u, role: held[0], roles: held, selfRep: selfRep(held), accountRole: u.role };
+      return held.length ? { ...u, roles: [u.role, ...held], selfRep: selfRep(held) } : u;
+    }
+    const roles = fileRoles(u.id, dealId);
+    return { ...u, role: roles[0], roles, selfRep: selfRep(roles), accountRole: u.role };
+  };
   const onDeal = (u, id) => { dealOr404(u, id); return scopeTo(u, id); };
   // Roles an outside user holds across their files (for the dashboard groups and the login picker)
   const fileRolesOf = (u) => [...new Set(dealsFor(u).flatMap((x) => fileRoles(u.id, x.id)).filter((r) => r && r !== OUTSIDE))].sort((a, b) => OUTSIDE_FILE_ROLES.indexOf(a) - OUTSIDE_FILE_ROLES.indexOf(b));
   // the same, as one label per kind of file ('Buyer + Buyer's Agent' for a self-represented file) for the login picker / top bar
-  const LABEL_ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller'];
-  const fileLabelsOf = (u) => [...new Set(dealsFor(u).map((x) => fileRoleLabel(fileRoles(u.id, x.id))).filter((r) => r && r !== OUTSIDE))].sort((a, b) => LABEL_ORDER.indexOf(a) - LABEL_ORDER.indexOf(b));
+  const LABEL_ORDER = ['Buyer Agent', 'Listing Agent', "Buyer + Buyer's Agent", 'Seller + Listing Agent', 'Client-Buyer', 'Client-Seller', TC_FILE_LABEL];
+  const fileLabelsOf = (u) => [...new Set(dealsFor(u).map((x) => fileLabelOn(u.id, x.id, fileRoles(u.id, x.id))).filter((r) => r && r !== OUTSIDE))].sort((a, b) => LABEL_ORDER.indexOf(a) - LABEL_ORDER.indexOf(b));
   const log = (dealId, actorId, action, entity, entityId, detail) => { load().activity.push({ id: nid('a'), dealId, actorId, action, entity, entityId, detail: str(detail, 300), createdAt: now() }); };
   const prof = (id) => load().profiles.find((x) => x.id === id);
   const nameOf = (id) => { if (typeof id === 'string' && id.startsWith('link:')) return `Scheduling link (${id.slice(5)} side)`; const p = prof(id); return p ? `${p.firstName} ${p.lastName}`.trim() + (p.status === 'removed' ? ' (removed)' : '') : 'Unknown'; };
@@ -285,7 +401,8 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     if (f && f.staffOnly) return false;
     if (doc.visibility === 'all') return true;
     if (doc.visibility === 'staff') return false;
-    return doc.visibility === sideOf(u.role);
+    const sides = sidesOfUser(u);
+    return sides.includes(doc.visibility);
   };
   const threadVisible = (u, t) => runsOrders(u) || u.isAdmin || (u.role === 'Transaction Coordinator' && dealsFor(u).some((q) => q.id === t.dealId)) || t.participantIds.includes(u.id);
   const unreadIn = (u, t) => { const d = load(); const r = d.reads.find((x) => x.threadId === t.id && x.profileId === u.id); const last = r ? r.at : ''; return d.messages.filter((m) => m.threadId === t.id && m.authorId !== u.id && m.createdAt > last).length; };
@@ -297,7 +414,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const sides = [...new Set(fileRoles(profileId, dealId).map(sideOf).filter(Boolean))]; return sides.length === 1 ? sides[0] : null; };
   // NO CROSS-SIDE MESSAGING (Matt, Oct 31): an outside user may message CLA staff and people on their OWN side of the order only.
   const canMessage = (u, targetId, dealId) => { if (isStaffView(u)) return true; const t = personSide(targetId, dealId); if (t === 'staff') return true;
-    const mine = sideOf(u.role); return !!mine && t === mine; };
+    const mine = sidesOfUser(u); return mine.length > 0 && mine.includes(t); };
   // A conversation never mixes the two sides: its outside users are all on one side (a side-less outside user only talks to staff).
   const mixedSides = (ids, dealId) => { const outside = ids.filter((id) => !String(id).startsWith('contact:')).map((id) => personSide(id, dealId)).filter((sd) => sd !== 'staff');
     return outside.includes(null) ? outside.length > 1 : new Set(outside).size > 1; };
@@ -305,9 +422,10 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // Staff see everything. A client also does not see the other side's client at all (unchanged). Mirrored by public.deal_contacts() in SQL (migration 13).
   const hideContact = (c) => ({ ...c, email: '', phone: '', contactHidden: true });
   function participantsOf(dealId, viewer) {
-    const d = load(); const staff = isStaffView(viewer); const mySide = sideOf(viewer.role);
+    const d = load(); const staff = isStaffView(viewer);
     let rows = d.participants.filter((p) => p.dealId === dealId).map((p) => { const c = d.contacts.find((z) => z.id === p.contactId); const pr = c && c.profileId && prof(c.profileId);
-      const opposing = !staff && !!sideOf(p.role) && sideOf(p.role) !== mySide && !(c && c.profileId === viewer.id);
+      const mySides = sidesOfUser(viewer);
+      const opposing = !staff && !!sideOf(p.role) && !mySides.includes(sideOf(p.role)) && !(c && c.profileId === viewer.id);
       return { ...clone(p), ...(p.entity && opposing ? { entity: { ...p.entity, repPhone: '', repEmail: '' } } : {}), contact: c ? (opposing ? hideContact(clone(c)) : clone(c)) : c, removed: !!(pr && pr.status === 'removed') }; });
     if (pureBuyer(viewer)) rows = rows.filter((p) => p.role !== 'Listing Agent');   // the buyer never sees the listing agent (Nov 4 call)
     if (pureSeller(viewer)) rows = rows.filter((p) => p.role !== 'Buyer Agent');   // ... and the seller never sees the buyer's agent (seller mirror, Nov 4)
@@ -325,8 +443,14 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     // CLIENT TASK PRIVACY (Matt, Nov 5, live40: "it should not show tasks belonging to other parties to buyer and seller users"): a pure Client-Buyer / Client-Seller
     // only ever gets tasks assigned to THEM: their own participant copy, or an unowned task for the client role they hold. Never another party's, never a fallback list.
     if (pureClientSide(u)) return t.participantId ? ownerOf(t) === u.id : isClient(t.assignedRole) && holds(u, t.assignedRole);
-    if (t.participantId) return ownerOf(t) === u.id || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
-    return holds(u, t.assignedRole) || (isAgent(u.role) && sideOf(t.assignedRole) === sideOf(u.role));
+    // FF-101a: a buyer / listing agent (and a TC acting for them) sees only their own tasks — not every task on their side.
+    if (t.participantId) {
+      const owner = ownerOf(t);
+      if (owner === u.id) return true;
+      if (isAgent(t.assignedRole) && tcForAgent(u.id, owner, t.dealId, t.assignedRole)) return true;
+      return false;
+    }
+    return holds(u, t.assignedRole);
   };
   // DELEGATION: an agent may fill a CLIENT's intake copy for them when the template allows that agent role, the template is not a
   // personal (client-only) item, the client is on the agent's own side, and the agent is on that order in that role. Mirrored by private.agent_can_fill (SQL).
@@ -356,12 +480,13 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     const sc0 = x.scheduledClosing ? { ...clone(x.scheduledClosing), officeName: x.scheduledClosing.officeId ? ((officeById(d, x.scheduledClosing.officeId) || {}).name || '') : '', officeRetired: !!(x.scheduledClosing.officeId && officeById(d, x.scheduledClosing.officeId) && !officeById(d, x.scheduledClosing.officeId).active) } : x.scheduledClosing;
     // John, Nov 4: deal notes are staff/agent working notes; Client-Buyer / Client-Seller never get them (may name the other side's agent)
     const clientOnly = (u.roles || [u.role]).every((r) => isClient(r));
-    return { ...clone(x), notes: clientOnly ? '' : (x.notes || ''), scheduledClosing: sc0, sourceOfBusiness: src, sourceOfBusinessLabel: srcLabel, claRepresentation: staffView ? (x.claRepresentation || null) : null, claRepresentationLabel: staffView ? claRepresentationLabel(x.claRepresentation) : '', myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, displayName: propertyAddressOf(x), stageName: STAGES[x.stage],
-      openTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status)).length,
+    const taskCounts = staffTaskCounts(tasks, localDate());
+    return { ...clone(x), notes: clientOnly ? '' : (x.notes || ''), scheduledClosing: sc0, sourceOfBusiness: src, sourceOfBusinessLabel: srcLabel, claRepresentation: staffView ? (x.claRepresentation || null) : null, claRepresentationLabel: staffView ? claRepresentationLabel(x.claRepresentation) : '', myRole: u.role, myRoles: u.roles || [u.role], myRoleLabel: tcOnlyOn(u.id, x.id) ? TC_FILE_LABEL : fileRoleLabel(u.roles, u.role), selfRep: !!u.selfRep, agentParties: staffView ? parties : [], county: x.county || '', address: `${x.street}, ${x.city}, ${x.state} ${x.zip}`, displayName: propertyAddressOf(x), stageName: STAGES[x.stage],
+      openTasks: taskCounts.open,
       myOpenTasks: tasks.filter((t) => ['todo', 'in_progress'].includes(t.status) && (ownerOf(t) === u.id || (!t.participantId && holds(u, t.assignedRole)))).length,
       unread: mine.reduce((n, t) => n + unreadIn(u, t), 0),
       // Matt, Nov 2: order-list filters. Overdue = open tasks this person can see that are past due; partyNames = the names this person may see on the file (search)
-      overdueTasks: tasks.filter((t) => ['todo', 'in_progress', 'blocked'].includes(t.status) && t.dueDate && t.dueDate < localDate()).length,
+      overdueTasks: taskCounts.overdue,
       // John, Nov 2: several buyers / sellers; fileTitle = 'Buyer last names / Seller last names' of the people this viewer may see
       fileTitle: fileTitleOf(participantsOf(x.id, u)),
       partyNames: [...new Set(participantsOf(x.id, u).flatMap((p) => [partyDisplayName(p), p.contact ? fullName(p.contact) : '']).filter(Boolean))],
@@ -375,7 +500,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   }
 
   const api = { mode: 'mock', features: { ...flags } };
-  const ctx = { api, DEAL_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName,
+  const ctx = { api, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS, store, sess, SESSION_KEY, KEY, load, save, nid, me, needUser, needProcessor, needAdmin, isManager, notViewOnly, contactOf, salesOf, seesAll, teamAgentIds, dealsFor, dealOr404, fileRole, fileRoles, fileRoleText, holds, scopeTo, onDeal, fileRolesOf, fileLabelsOf, log, prof, nameOf, roleOf, fullName, placeAgentTcs, linkFromFile, tcForAgent, linkedAgentRoles,
     folderOf, docVisible, wireAllowed, isWireDoc, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY, threadVisible, unreadIn, participantsOf, isStaffView, personSide, canMessage, mixedSides, ownerOf, taskVisible, agentCanFill, pureBuyer, pureSeller, pureClientSide, hiddenFromBuyer, hiddenFromClient, EMD_RECEIPT, formDataVisible, notify, dealProfileIds, dealView, clone, now, fail, str, emailOk, money, zipOk, stateCode, dateOrNull, localDate, localDayOf, phone,
     forget() { db = null; },   // drop the in-memory copy; the next call reloads the last SAVED state (CRM import preview, Janine Nov 3)
     reset() { store.removeItem(KEY); PREV_KEYS.forEach(([k]) => store.removeItem(k)); db = null; if (files) files.clearAll().catch(() => {}); load(); },
@@ -384,9 +509,10 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     async keepFile(doc) { if (!files || !doc.dataUrl) return doc; try { await files.put(doc.id, doc.dataUrl); } catch (e) { throw new Error('This browser could not store the file (private browsing or storage full). Try a smaller file or another browser.'); }
       doc.dataUrl = null; doc.hasFile = true; return doc; },
     async fileContent(z) { if (z.dataUrl) return z.dataUrl; if (z.hasFile && files) return (await files.get(z.id)) || null; return null; },
-    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, contactTypeLabel , COUNTY_MAX } };
+    C: { ROLES, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel , COUNTY_MAX } };
   Object.assign(api, devAuth(ctx), dealsAndAuth(ctx), contactsTasksDocs(ctx), tasksAndForms(ctx), messagesActivity(ctx), adminUsersTeams(ctx), libraryFolders(ctx), closingSchedule(ctx), notificationsPart(ctx), mattP2(ctx), mattNov2(ctx), crmPart(ctx, flags), agentPortal(ctx));
   Object.assign(api, accountingPart(ctx, flags));
+  Object.assign(api, taxRatesPart(ctx));
   Object.assign(api, gmailMock());   // Gmail phase 1 runs on CLA Portal Live Test only
   Object.assign(api, payoffsPart(ctx, flags, api));   // John, Nov 4: Qualia payoffs / HOA / FFB / ground rent (same `accounting` flag; staff only)   // John, Nov 3: the Accounting tab (behind the `accounting` flag; off = every method refuses)
   Object.assign(api, mattNov3b(ctx));   // Matt, Nov 3 (b): source-of-business options for Place Order
@@ -397,9 +523,12 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, emailSendersPart(ctx));   // John, Nov 3: Admin-only Modules page, one "Live" switch per module (off = beta: Admins only)
   Object.assign(api, underwriterPart(ctx));
   Object.assign(api, closingLocationPart(ctx));   // John, Nov 4: in the property's state at closing? (RON / embassy flag, staff signing method)
+  Object.assign(api, taskBuilderPart(ctx));   // John, Nov 13: Admin > Task Builder, TB-1 (list of flows; Admin / Super admin)
   Object.assign(api, officesPart(ctx));       // John, Nov 4: Admin > Offices (add, edit, reorder, retire / reactivate; the closing office picker reads them)   // John, Nov 3 call: per-state underwriter split (Admin edits, logged)
   Object.assign(api, agentInfoPart(ctx));     // John, Nov 3 call: optional agent birthdate (agent + staff only)
+  Object.assign(api, agentFeesPart(ctx));       // AF-2 (John, Nov 12): agent fees per side (commission, admin fee, other fees)
   Object.assign(api, agentInvitePart(ctx));   // John, Nov 4: agent invites (link shown, nothing sent), agent profiles, the clients' "Your agent" card
+  Object.assign(api, agentTcLinksPart(ctx));   // TC-2: link outside transaction coordinators to a real estate agent
   Object.assign(api, recordingPart(ctx, flags, api));
   Object.assign(api, fwpPart(ctx, flags, api));
   Object.assign(api, nov5Part(ctx));   // Nov 5: task admin, alert groups, entity attorneys, CPL prices, file coverage
@@ -431,6 +560,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   for (const k of ['proposeClosing', 'createSettlementRequest']) { const f = api[k]; api[k] = async function (dealId, ...a) { const r = await f.call(this, dealId, ...a); api._sweepClosingLocationReminders(dealId); return r; }; }
   { const addP = api.addParticipant; api.addParticipant = async function (...a) { const r = await addP.apply(this, a); ensureAgentPortal(load()); save(); return r; }; }
   Object.assign(api, staffFeedbackPart(ctx));
+  watchTaskFlowEvents(api, load);   // TB-2: Task Builder flows start on order opened / EMD received / closing date set; waits checked on reads
   // Every call is all-or-nothing: if it throws (validation error, or browser storage full), drop the in-memory copy so the next call
   // reloads the last SAVED state. Without this a half-applied edit (e.g. a rejected lender email) stayed in memory and broke later saves.
   for (const [k, fn] of Object.entries(api)) if (typeof fn === 'function') api[k] = async function (...a) {

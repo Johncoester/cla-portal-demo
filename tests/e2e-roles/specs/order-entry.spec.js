@@ -41,15 +41,44 @@ test('Place Order, edit details, parties, referral source, and the file-number p
 
   await advance(page, 'loan');
   await expect(page.locator('[data-wiz-step="loan"] [data-earnest-commission]')).toBeVisible();
+  // Agent fees at file opening (Nov 13): the listing agent's commission is typed as a %, the $ fills in from the purchase price
+  await page.locator('[data-wiz-step="loan"] input[name="purchasePrice"]').fill('400,000');
+  await page.locator('[data-wiz-step="loan"] input[name="af.listing.percent"]').fill('3');
+  await expect(page.locator('[data-wiz-step="loan"] input[name="af.listing.amount"]')).toHaveValue('12000.00');
+  await page.locator('[data-wiz-step="loan"] input[name="af.buyer.admin"]').fill('395');
   await advance(page, 'agents');
-  await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator"]')).toBeVisible();
-  await expect(page.locator('[data-wiz-step="agents"] select[name="p:Transaction Coordinator:2"]')).toBeVisible();
+  // TC-5: one Transaction coordinator. With no linked agent, the side is chosen from the agents on this order.
+  const buyerTcName = `Zzqe2e${run.slice(-4)} BuyerTC`;
+  const agentName = `Zzqe2e${run.slice(-4)} Agent`;
+  await page.locator('[data-agent-card="Buyer Agent"] [data-dir-field="person"]').fill(agentName);
+  const buyerTc = page.locator('[data-agent-tc="Transaction coordinator"]');
+  await expect(buyerTc.locator('[data-dir-field="person"]')).toBeVisible();
+  await expect(page.locator('[data-agent-tc="Buyer Agent TC"]')).toHaveCount(0);
+  await buyerTc.locator('[data-dir-field="person"]').fill(buyerTcName);
+  await buyerTc.locator('[data-dir-field="email"]').fill(`zzqe2e${run.slice(-4)}-buyertc@example.test`);
+  await buyerTc.locator('[data-dir-field="phone"]').fill('301-555-0142');
+  await expect(buyerTc.locator('[data-tc-which]')).toBeVisible();
+  await buyerTc.locator('[data-tc-agent]').selectOption('buyer');
   await advance(page, 'team');
   await expect(page.locator('[data-wiz-step="team"] input[name="closerName"]')).toBeVisible();
-  const sales = page.locator('[data-wiz-step="team"] input[name="salesIds"]');
+  // FF-092: salespeople are a search box with chips. The checkbox list is gone. The saved field is still salesIds.
+  // Sam Demo is a demo user, so the non-demo E2E Processor never sees that name. On TEST the salesperson is E2E Salesperson.
+  const salesName = targetMode() === 'test' ? 'E2E Salesperson' : 'Sam';
+  const salesBox = page.locator('[data-sales-multi] .picker-q');
   await expect(page.locator('[data-sales-picker] legend')).toHaveText('Salespeople on this order');
-  await expect(sales.first()).toHaveAttribute('type', 'checkbox');
-  if (await sales.count()) await sales.first().check();
+  await expect(salesBox).toHaveAttribute('role', 'combobox');
+  await expect(page.locator('[data-wiz-step="team"] input[type="checkbox"][name="salesIds"]')).toHaveCount(0);
+  await salesBox.fill('zzzz-not-a-person');
+  await expect(page.locator('[data-sales-multi] [data-none]')).toContainText('No match');
+  await salesBox.fill(salesName);
+  await expect(page.locator('#sales-people-list [role="option"]').first()).toContainText(salesName);
+  await salesBox.press('Enter');
+  await expect(page.locator('[data-sales-chip]')).toContainText(salesName);
+  await page.locator('[data-sales-remove]').click();
+  await expect(page.locator('[data-sales-chip]')).toHaveCount(0);
+  await salesBox.fill(salesName);
+  await salesBox.press('Enter');
+  await expect(page.locator('[data-sales-values] input[name="salesIds"]')).toHaveCount(1);
   await page.locator('[data-wiz-step="team"] textarea[name="notes"]').fill(`E2E-RUN-${run}`);
   await advance(page, 'review');
   await page.locator('[data-place-order]').click();
@@ -64,21 +93,32 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   console.log(`E2E placed file ${number[0]}`);
   await expect(page.locator('[data-parties]')).toContainText(buyer);
   await expect(page.locator('[data-parties]')).toContainText(seller);
-  await expect(page.locator('[data-parcel-id]')).toContainText(parcel);
-  await expect(page.locator('[data-file-identity]')).toBeVisible();
+  await expect(page.locator('[data-parties]')).toContainText(buyerTcName);
+  await expect(page.locator('[data-party="Transaction coordinator"]')).toContainText(buyerTcName);
   await expect(page.locator('[data-file-address]')).toContainText('100 E2E Test File');
   await expect(page.locator('[data-file-order]')).toContainText(number[0]);
-  await expect(page.locator('[data-file-buyers]')).toContainText(buyer);
-  await expect(page.locator('[data-file-sellers]')).toContainText(seller);
+  await expect(page.locator('[data-order-header]')).toContainText('Settlement date');
+  await expect(page.locator('[data-file-identity]')).toHaveCount(0);
+  await expect(page.locator('[data-emd-box]')).toHaveCount(0);
+  await expect(page.locator('[data-earnest-commission]')).toHaveCount(0);
   await expect(page.locator('[data-wire-box]')).toHaveCount(0);
   await expect(page.locator('[data-settlement-section]')).toHaveCount(0);
   await expect(page.locator('[data-order-contacts]')).toHaveCount(0);
-  await expect(page.locator('[data-closing-date] [data-settlement-row="date"]')).toBeVisible();
-  await expect(page.locator('[data-closing-date] [data-settlement-row="time"]')).toBeVisible();
-  await expect(page.locator('[data-closing-location]')).toBeVisible();
-  await expect(page.locator('[data-closer]')).toBeVisible();
+  await expect(page.locator('[data-closing-date]')).toHaveCount(0);
+  await expect(page.locator('[data-nav-closing-date]')).toBeVisible();
+  await expect(page.locator('[data-status-bar]')).toBeVisible();
+  // FF-101c: Place Order figures show as Agent fees under the agent task sections on Tasks
+  const placedId = dealId(page);
+  await gotoHash(page, `#/deals/${placedId}/tasks`);
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-percent]')).toContainText('3%');
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('$12,000');
+  await expect(page.locator('[data-sidebox="listing-agent"] [data-agent-fees] [data-agent-fee-side="listing"] [data-af-commission]')).toContainText('paid by Seller');
+  await expect(page.locator('[data-sidebox="buyer-agent"] [data-agent-fees] [data-agent-fee-side="buyer"] [data-af-admin]')).toContainText('$395');
+  await gotoHash(page, `#/deals/${placedId}`);
 
   await page.locator('#editdeal').click();
+  await expect(page.locator('#edf input[name="parcelId"]')).toHaveValue(parcel);
+  await expect(page.locator('#edf [data-closer-input]')).toBeVisible();
   await page.locator('#edf select[name="state"]').selectOption('FL');
   await page.locator('#edf input[name="city"]').fill('Miami');
   await page.locator('#edf input[name="purchasePrice"]').fill('450000');
@@ -86,11 +126,11 @@ test('Place Order, edit details, parties, referral source, and the file-number p
   await expect(page.locator('.toast', { hasText: 'Order saved' })).toBeVisible();
   await expect(page.locator('[data-op-address]')).toContainText('Miami');
   await expect(page.locator('[data-op-order-no]')).toContainText(`FL-${number[2]}-${number[3]}`);
-  await expect(page.locator('[data-purchase-price]')).toContainText('450,000');
+  await expect(page.locator('[data-oh-purchase]')).toContainText('450,000');
   await page.reload();
   await expect(page.locator('[data-op-order-no]')).toContainText(`FL-${number[2]}-${number[3]}`);
   await expect(page.locator('[data-op-address]')).toContainText('Miami');
-  await expect(page.locator('[data-purchase-price]')).toContainText('450,000');
+  await expect(page.locator('[data-oh-purchase]')).toContainText('450,000');
 
   await page.locator('input[data-referral-source^="buyer:"]').first().check();
   await expect(page.locator('[data-source-of-business]')).toContainText(/Buyer/i);

@@ -8,15 +8,17 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, BUCKETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611130900';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611247700';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
-import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611130900';
-import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611130900';
-import { crmReadOnly, CRM_OWNER_ROLES } from './crm.js?v=202611130900';
-import { dealDisplayName } from './nov5-rules.js?v=202611131900';
+import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611247700';
+import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611247700';
+import { crmReadOnly } from './crm.js?v=202611247700';
+import { crmOwnerOption } from './crm-owner.js?v=202611289960';
+import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { roleAllowed } from './role-access.js?v=202611100100';
-import { referralLabel, REFERRALS } from './place-order.js?v=202611092320';
+import { referralLabel, REFERRALS } from './place-order.js?v=202611247700';
+import { cleanHomeTitle } from './crm-home-charts.js?v=202611247000';
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,8 +56,8 @@ export function crmNov3bPart(x, h) {
       loanAmount: q.loanAmount == null ? null : q.loanAmount, stage: dealStageOf(q.status), status: q.status, closingDate: q.closingDate || null, openDate: q.openDate || null,
       clientName: [...new Set(clients.map(fullName))].join(', '), _clientLink: firstClient && contactSeen(u, firstClient) ? `#/crm/contacts/${firstClient.id}` : '',
       contactName: [...new Set(agents.map(fullName))].join(', '), ownerId: sales[0] ? sales[0].salesId : null, ownerName: sales[0] ? nameOf(sales[0].salesId) : '', salesReps: sales.map((s) => nameOf(s.salesId)).join(', '),
-      county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdAt: q.createdAt || null, modifiedAt: q.updatedAt || null,
-      lastActivityAt: [...(d.crmActivities || []).filter((a) => a.entity === 'deal' && a.entityId === q.id && a.createdAt).map((a) => a.createdAt), ...(d.crmEmails || []).filter((m) => m.entity === 'deal' && m.entityId === q.id && m.createdAt).map((m) => m.createdAt)].reduce((a, b) => (a > b ? a : b), null),
+      county: q.county || '', city: q.city, transactionType: q.transactionType || '', lenderName: q.lenderName || '', createdBy: q.createdBy || null, createdByName: q.createdBy ? nameOf(q.createdBy) : '', createdAt: q.createdAt || null, modifiedAt: q.updatedAt || null,
+      ...(() => { const latest = [...(d.crmActivities || []).filter((a) => a.entity === 'deal' && a.entityId === q.id && a.createdAt).map((a) => ({ at: a.createdAt, by: a.createdBy })), ...(d.crmEmails || []).filter((m) => m.entity === 'deal' && m.entityId === q.id && m.createdAt).map((m) => ({ at: m.createdAt, by: m.createdBy }))].reduce((a, b) => (a && a.at > b.at ? a : b), null); return { lastActivityAt: latest ? latest.at : null, lastActivityBy: latest ? latest.by || null : null, lastActivityByName: latest && latest.by ? nameOf(latest.by) : '' }; })(),
       _link: `#/crm/deals/${q.id}`, _portalLink: `#/deals/${q.id}`,
       // John, Nov 3: SOURCE = the order's Source of business (the CRM Settings Lead Source list, staff only; Matt Nov 3 b) = who / what sent us the deal
       source: q.sourceOfBusiness || '', sourceText: q.sourceOfBusiness ? (referralLabel(q.sourceOfBusiness, (id) => { const c = cOf(id); return c ? fullName(c) : ''; }) || L(cfg, 'leadSource', q.sourceOfBusiness)) : '', salesIds: sales.map((z) => z.salesId),
@@ -79,13 +81,22 @@ export function crmNov3bPart(x, h) {
     return { ...base, callType: a.callType || '', callStart: start, callDuration: a.callDuration == null ? null : a.callDuration, callStatus: a.callStatus || 'Completed', ownerId: a.ownerId || a.createdBy, ownerName: a.ownerName || a.createdByName, _link: `#/crm/calls/${a.id}`,
       callTypeText: a.callType || '', callStartText: display({ type: a.callStart ? 'datetime' : 'date', key: 'a' }, { a: start }), callDurationText: a.callDurationText || (a.callDuration == null ? '' : `${a.callDuration} min`) };
   }
+  // One pass over activities and emails. The person on the latest stamp is Last Activity By. Not one lookup per row.
+  function latestActors(entity) {
+    const best = new Map(); const d = db();
+    const take = (id, at, by) => { if (!id || !at) return; const prev = best.get(id); if (!prev || String(at) > String(prev.at)) best.set(id, { at, by: by || null }); };
+    (d.crmActivities || []).forEach((a) => { if (a.entity === entity) take(a.entityId, a.createdAt, a.createdBy); });
+    (d.crmEmails || []).forEach((m) => { if (m.entity === entity) take(m.entityId, m.createdAt, m.createdBy); });
+    return best;
+  }
+  const acted = (map, id) => { const hit = map.get(id); const by = hit ? hit.by : null; return { lastActivityBy: by, lastActivityByName: by ? nameOf(by) : '' }; };
   function rowsOf(u, module, cfg = cfgFor(u)) {
     const d = db();
     switch (module) {
-      case 'contacts': return d.contacts.filter((c) => contactSeen(u, c)).map((c) => { const r = flat(cfg, 'contact', contactOut(u, c));
-        return { ...r, createdBy: c.createdBy || null, createdByName: c.createdBy ? nameOf(c.createdBy) : '', createdAt: c.createdAt || null, modifiedAt: c.modifiedAt || null, tags: (c.tags || []).join(', '), _link: `#/crm/contacts/${c.id}`, _companyLink: c.accountId ? `#/crm/accounts/${c.accountId}` : '' }; });
-      case 'leads': return d.crmLeads.filter((l) => leadSeen(u, l)).map((l) => { const r = flat(cfg, 'lead', leadOut(u, l)); return { ...r, createdByName: l.createdBy ? nameOf(l.createdBy) : '', leadSourceText: L(cfg, 'leadSource', r.leadSource), _link: `#/crm/leads/${l.id}` }; });
-      case 'accounts': return d.crmAccounts.filter((a) => accountSeen(u, a)).map((a) => ({ ...flat(cfg, 'account', accountOut(u, a)), createdByName: a.createdBy ? nameOf(a.createdBy) : '', _link: `#/crm/accounts/${a.id}` }));
+      case 'contacts': { const act = latestActors('contact'); return d.contacts.filter((c) => contactSeen(u, c)).map((c) => { const r = flat(cfg, 'contact', contactOut(u, c));
+        return { ...r, ...acted(act, c.id), createdBy: c.createdBy || null, createdByName: c.createdBy ? nameOf(c.createdBy) : '', modifiedBy: c.modifiedBy || null, modifiedByName: c.modifiedBy ? nameOf(c.modifiedBy) : '', createdAt: c.createdAt || null, modifiedAt: c.modifiedAt || null, tags: (c.tags || []).join(', '), _link: `#/crm/contacts/${c.id}`, _companyLink: c.accountId ? `#/crm/accounts/${c.accountId}` : '' }; }); }
+      case 'leads': { const act = latestActors('lead'); return d.crmLeads.filter((l) => leadSeen(u, l)).map((l) => { const r = flat(cfg, 'lead', leadOut(u, l)); return { ...r, ...acted(act, l.id), createdByName: l.createdBy ? nameOf(l.createdBy) : '', modifiedByName: l.modifiedBy ? nameOf(l.modifiedBy) : (r.modifiedByName || ''), leadSourceText: L(cfg, 'leadSource', r.leadSource), _link: `#/crm/leads/${l.id}` }; }); }
+      case 'accounts': { const act = latestActors('account'); return d.crmAccounts.filter((a) => accountSeen(u, a)).map((a) => ({ ...flat(cfg, 'account', accountOut(u, a)), ...acted(act, a.id), createdByName: a.createdBy ? nameOf(a.createdBy) : '', modifiedByName: a.modifiedBy ? nameOf(a.modifiedBy) : '', _link: `#/crm/accounts/${a.id}` })); }
       case 'opportunities': return d.crmOpportunities.filter((o) => oppSeen(u, o)).map((o) => ({ ...flat(cfg, 'opportunity', oppOut(u, o)), _link: '#/crm/pipeline', _contactLink: o.contactId ? `#/crm/contacts/${o.contactId}` : '', _accountLink: o.accountId ? `#/crm/accounts/${o.accountId}` : '' }));
       case 'deals': return crmDealsFor(u).map((q) => dealRow(u, q, cfg));
       case 'tasks': case 'meetings': case 'calls': { const kind = { tasks: 'task', meetings: 'meeting', calls: 'call' }[module];
@@ -156,7 +167,7 @@ export function crmNov3bPart(x, h) {
     const fn = str((c.measure || {}).fn, 10) || 'count'; if (!['count', 'sum', 'avg'].includes(fn)) fail('Measure must be Record Count, Sum or Average.');
     let measure = { fn: 'count' }; if (fn !== 'count') { const f = fk(str((c.measure || {}).field, 80)); if (!f || !NUMERIC.includes(f.type)) fail('Pick a number or currency field to sum or average.'); measure = { fn, field: f.key }; }
     const grp = (g, need) => { if (!g || !g.field) { if (need) fail('Pick a Grouping field.'); return null; } const f = fk(str(g.field, 80)); if (!f) fail('The grouping field is not in this module.');
-      const bucket = isDateType(f.type) ? (BUCKETS.some(([b]) => b === g.bucket) ? g.bucket : 'day') : undefined; return bucket ? { field: f.key, bucket } : { field: f.key }; };
+      const bucket = isDateType(f.type) ? calendarBucket(g.bucket) : undefined; return bucket ? { field: f.key, bucket } : { field: f.key }; };
     const config = { module, measure, criteria: cleanCriteria(c.criteria, fields) };
     if (type === 'chart' || type === 'funnel') config.grouping = grp(c.grouping, true);
     if (type === 'chart') { config.chartType = CHART_CODES.includes(c.chartType) ? c.chartType : 'column'; config.grouping2 = config.chartType === 'stacked' ? grp(c.grouping2, false) : null; }
@@ -174,8 +185,9 @@ export function crmNov3bPart(x, h) {
     if (comp.type === 'target') { const v = measureOf(rows, cf.measure, fields) || 0; return { ...base, value: v, target: cf.target, pct: Math.round((v / cf.target) * 1000) / 10, count: rows.length, ids: rows.map((r) => r.id) }; }
     return { ...base, ...chartData(rows, cf, fields, cfg) };
   }
-  const compOut = (u, c, dash, cfg) => { let data = null, error = ''; try { data = componentData(u, c, dash, cfg); } catch (e) { error = e.message; } return { ...clone(c), data, error }; };
-  const dashOut = (u, d) => ({ ...clone(d), ownerName: d.ownerId ? nameOf(d.ownerId) : 'CLA (built-in)', canEdit: dashboardEditable(u, d, crmReadOnly(u)), mine: d.ownerId === u.id, retired: !!d.retiredAt,
+  const compOut = (u, c, dash, cfg) => { const view = clone(c); if (view.config) { view.config = { ...view.config, grouping: groupingWithCalendar(view.config.grouping), ...(Array.isArray(view.config.criteria) ? { criteria: withPresetKeys(view.config.criteria) } : {}) }; if (view.config.grouping2) view.config.grouping2 = groupingWithCalendar(view.config.grouping2); }
+    let data = null, error = ''; try { data = componentData(u, view, dash, cfg); } catch (e) { error = e.message; } return { ...view, data, error }; };
+  const dashOut = (u, d) => ({ ...clone(d), ...(d.filters && d.filters.period ? { filters: { ...d.filters, period: presetKey(d.filters.period) } } : {}), ownerName: d.ownerId ? nameOf(d.ownerId) : 'CLA (built-in)', canEdit: dashboardEditable(u, d, crmReadOnly(u)), mine: d.ownerId === u.id, retired: !!d.retiredAt,
     components: db().crmDashComponents.filter((c) => c.dashboardId === d.id && !c.retiredAt).length });
 
   // ---------- reports ----------
@@ -201,7 +213,7 @@ export function crmNov3bPart(x, h) {
     if (has('filters')) r.filters = cleanCriteria(input.filters, fields);
     if (has('logic')) { const l = str(input.logic, 3).toLowerCase() || 'and'; if (!['and', 'or'].includes(l)) fail('Combine filters with AND or OR.'); r.logic = l; }
     if (has('sort')) { const s = input.sort && input.sort.field ? { field: String(input.sort.field), dir: input.sort.dir === 'desc' ? 'desc' : 'asc' } : null; if (s && !fk(s.field)) fail('The sort field is not in this report.'); r.sort = s; }
-    if (has('bucket')) r.bucket = BUCKETS.some(([b]) => b === input.bucket) ? input.bucket : 'day';
+    if (has('bucket')) r.bucket = calendarBucket(input.bucket);
     if (has('share')) { const s = input.share || {}; const mode = s.mode === 'custom' ? 'custom' : 'all'; const users = mode === 'custom' ? [...new Set((s.users || []).map((v) => str(v, 60)).filter(Boolean))] : []; const roles = mode === 'custom' ? [...new Set((s.roles || []).map(String))] : [];
       users.forEach((id) => { const p = prof(id); if (!p || p.status !== 'active' || C.isOutside(p.role)) fail('Share only with CLA users.'); }); roles.forEach((x2) => { if (!roleOk(x2)) fail('Pick roles from the list.'); });
       if (mode === 'custom' && !users.length && !roles.length) fail('Pick at least one user or role to share with (or share with everyone).'); r.share = { mode, users, roles }; }
@@ -214,9 +226,18 @@ export function crmNov3bPart(x, h) {
     const out = runReport(rows, def, fields, cfg, { today: today() });
     return { ...out, groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k), filterText: criteriaText(def.filters, fields, cfg, def.logic, userNames()) };
   }
-  const reportOut = (u, r) => ({ ...clone(r), moduleLabel: moduleName(r.module), folderName: folderName(r.folderId), personal: isPersonalFolder(r.folderId), createdByName: nameOf(r.createdBy), modifiedByName: r.modifiedBy ? nameOf(r.modifiedBy) : '',
+  const reportOut = (u, r) => ({ ...clone(r), ...(Object.prototype.hasOwnProperty.call(r, 'bucket') ? { bucket: calendarBucket(r.bucket) } : {}), filters: withPresetKeys(r.filters), moduleLabel: moduleName(r.module), folderName: folderName(r.folderId), personal: isPersonalFolder(r.folderId), createdByName: nameOf(r.createdBy), modifiedByName: r.modifiedBy ? nameOf(r.modifiedBy) : '',
     canEdit: reportEditable(u, r), canExport: !!u.isAdmin, retired: !!r.retiredAt });
   const asDef = (u, input, cfg) => (typeof input === 'string' ? reportOf(u, input) : cleanReport(u, { name: 'Unsaved report', ...input }, null, cfg));
+  const homeMissing = (id, title) => ({ id, name: title || 'Chart', sourceName: '', homeTitle: title || '', missing: true, type: 'chart', height: 'm', data: {}, config: { chartType: 'column' }, error: 'This chart is no longer on a dashboard you can open. Remove it from Home.' });
+  function homeChartView(u, pin, cfg) {
+    const title = String(pin.title || '').trim();
+    const c = db().crmDashComponents.find((z) => z.id === pin.componentId);
+    const d = c && db().crmDashboards.find((z) => z.id === c.dashboardId);
+    if (!c || c.retiredAt || !d || !dashboardVisible(u, d)) return homeMissing(pin.componentId, title);
+    const view = compOut(u, c, d, cfg);
+    return { ...view, id: c.id, name: title || c.name, sourceName: c.name, homeTitle: title, missing: false, dashboardName: d.name };
+  }
 
   const api = {
     // ---------- search ----------
@@ -257,7 +278,7 @@ export function crmNov3bPart(x, h) {
     // the filter choices for the viewer: Deal Owner and Client only for the 'all' scope (a Sales Person filters by Source); Source = the Lead Source list
     // (active options, plus a retired one still on a visible deal)
     async listCrmDealFilters() { const u = crmUser(); const scope = dealScope(u); const rows = rowsOf(u, 'deals'); const d = db(); const cfg = cfgFor(u);
-      const owners = scope === 'all' ? d.profiles.filter((p) => CRM_OWNER_ROLES.includes(p.role) && (p.status === 'active' || rows.some((r) => r.salesIds.includes(p.id))))
+      const owners = scope === 'all' ? d.profiles.filter((p) => crmOwnerOption(p))
         .map((p) => ({ id: p.id, name: nameOf(p.id), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)) : [];
       const clients = scope === 'all' ? [...new Set(rows.flatMap((r) => r.clientIds))].map((id) => d.contacts.find((c) => c.id === id)).filter(Boolean)
         .map((c) => ({ id: c.id, name: fullName(c) })).sort((a, b) => a.name.localeCompare(b.name)) : [];
@@ -332,12 +353,15 @@ export function crmNov3bPart(x, h) {
       if (patch.description !== undefined) d.description = str(patch.description, 500);
       if (['visibility', 'shareUsers', 'shareRoles', 'shareDepts', 'locked'].some((k) => patch[k] !== undefined)) { if (d.builtin) fail('A built-in dashboard is shared with everyone.'); if (d.ownerId !== u.id) fail('Only the owner changes who sees a dashboard.'); Object.assign(d, shareIn(patch, d)); }
       if (patch.filters !== undefined) { const f = patch.filters || {}; const owner = str(f.ownerId, 60); if (owner) { const p = prof(owner); if (!p || C.isOutside(p.role)) fail('Pick a CLA user.'); }
-        const period = str(f.period, 20); if (period && !['today', 'yesterday', 'prev_fy', 'cur_fy', 'next_fy', 'prev_month', 'cur_month', 'next_month', 'this_year', 'prev_year', 'next_year'].includes(period)) fail('Pick a period from the list.');
+        const period = presetKey(str(f.period, 20)); if (period && !DATE_PRESETS.some(([k]) => k === period)) fail('Pick a period from the list.');
         d.filters = { ...(owner ? { ownerId: owner } : {}), ...(period ? { period } : {}) }; }
       d.modifiedAt = now(); save(); return dashOut(u, d); },
-    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id); const d = { ...clone(src), id: nid('dash'), builtin: null, name: (str(name, 100) || `Copy of ${src.name}`).slice(0, 100), visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
+    async cloneCrmDashboard(id, { name } = {}) { const u = crmEditor(); const src = dashOf(u, id);
+      const asked = name == null ? null : str(name, 100).replace(/[\u0000-\u001f\u007f]/g, '').trim(); if (name != null && !asked) fail('Dashboard Name is required.');
+      const suffix = ' (copy)'; const copyName = asked == null ? String(src.name || '').trim().slice(0, 100 - suffix.length) + suffix : asked;
+      const d = { ...clone(src), id: nid('dash'), builtin: null, name: copyName, visibility: 'me', shareUsers: [], shareRoles: [], shareDepts: [], locked: false,
         ownerId: u.id, retiredAt: null, createdBy: u.id, createdAt: now(), modifiedAt: now(), clonedFrom: src.id };
-      db().crmDashboards.push(d); db().crmDashComponents.filter((c) => c.dashboardId === src.id && !c.retiredAt).forEach((c) => db().crmDashComponents.push({ ...clone(c), id: nid('dc'), dashboardId: d.id, createdBy: u.id, createdAt: now(), modifiedAt: now() }));
+      db().crmDashboards.push(d); db().crmDashComponents.filter((c) => c.dashboardId === src.id && !c.retiredAt).slice().sort((a, b) => a.position - b.position).forEach((c) => db().crmDashComponents.push({ ...clone(c), id: nid('dc'), dashboardId: d.id, createdBy: u.id, createdAt: now(), modifiedAt: now() }));
       save(); return dashOut(u, d); },
     // Retire = hidden (Zoho "Delete"); Restore brings it back. Built-in dashboards cannot be retired.
     async retireCrmDashboard(id, retired = true) { const u = crmEditor(); const d = db().crmDashboards.find((z) => z.id === str(id, 60)); if (!d || !dashboardVisible(u, d)) fail('Dashboard not found.');
@@ -397,6 +421,54 @@ export function crmNov3bPart(x, h) {
     // Export (CSV): Admin and Super admin only (Janine, video 10)
     async exportCrmReport(input) { const u = crmUser(); if (!u.isAdmin) fail('Only an Admin or Super admin can export reports.'); const cfg = cfgFor(u); const def = asDef(u, input, cfg); const out = execReport(u, def, cfg);
       return { name: `${String(def.name || 'report').replace(/[^\w .-]+/g, '_').slice(0, 80)}.csv`, csv: reportCsv(out, out.groupFields) }; },
+
+    // Home copies of dashboard charts. The chart on the dashboard is never renamed or removed from here.
+    // An empty pin list returns before any chart is calculated.
+    async listCrmHomeCharts({ countsOnly = false } = {}) {
+      const u = crmUser();
+      const pins = (db().crmHomeCharts || []).filter((p) => p.userId === u.id).sort((a, b) => a.position - b.position || String(a.componentId).localeCompare(String(b.componentId)));
+      if (!pins.length) return { available: true, charts: [] };
+      if (countsOnly) return { available: true, charts: pins.map((p) => ({ id: p.componentId })) };
+      const cfg = cfgFor(u);
+      return { available: true, charts: pins.map((p) => homeChartView(u, p, cfg)) };
+    },
+    async addCrmHomeChart(componentId) {
+      const u = crmUser(); const id = str(componentId, 60);
+      const c = db().crmDashComponents.find((z) => z.id === id);
+      const d = c && db().crmDashboards.find((z) => z.id === c.dashboardId);
+      if (!c || c.retiredAt || !d || !dashboardVisible(u, d)) fail('That chart is not on a dashboard you can open.');
+      const bag = (db().crmHomeCharts ||= []);
+      if (bag.some((p) => p.userId === u.id && p.componentId === c.id)) fail('That chart is already on your Home.');
+      const mine = bag.filter((p) => p.userId === u.id);
+      const position = mine.reduce((n, p) => Math.max(n, Number(p.position) || 0), -1) + 1;
+      bag.push({ userId: u.id, componentId: c.id, title: '', position });
+      save(); return { id: c.id, name: c.name, homeTitle: '', position };
+    },
+    async renameCrmHomeChart(componentId, title) {
+      const u = crmUser(); const name = cleanHomeTitle(title);
+      const row = (db().crmHomeCharts || []).find((p) => p.userId === u.id && p.componentId === str(componentId, 60));
+      if (!row) fail('That chart is not on your Home.');
+      row.title = name; save(); return { id: row.componentId, homeTitle: name };
+    },
+    async removeCrmHomeChart(componentId) {
+      const u = crmUser(); const id = str(componentId, 60);
+      const bag = db().crmHomeCharts || [];
+      const i = bag.findIndex((p) => p.userId === u.id && p.componentId === id);
+      if (i < 0) fail('That chart is not on your Home.');
+      bag.splice(i, 1); save(); return { ok: true, id };
+    },
+    async reorderCrmHomeCharts(ids = []) {
+      const u = crmUser(); const bag = (db().crmHomeCharts || []).filter((p) => p.userId === u.id);
+      const list = [...new Set((Array.isArray(ids) ? ids : []).map((id) => str(id, 60)).filter(Boolean))];
+      if (!list.length) return { ok: true };
+      list.forEach((id, i) => { const row = bag.find((p) => p.componentId === id); if (!row) fail('Those charts are not on your Home.'); row.position = i; });
+      save(); return { ok: true };
+    },
+    async refreshCrmHomeChart(componentId) {
+      const u = crmUser(); const row = (db().crmHomeCharts || []).find((p) => p.userId === u.id && p.componentId === str(componentId, 60));
+      if (!row) fail('That chart is not on your Home.');
+      return homeChartView(u, row, cfgFor(u));
+    },
   };
   return { api, rowsOf, relMap };
 }
