@@ -3096,3 +3096,50 @@ This file lists the portal's major features: how each one should work, how far a
 - The checkbox is not stored as a column, so the drag order from the column chooser is unchanged.
 - Cache stamp 202611290610, above main's 202611290600, so a saved copy of the shell is not reused.
 
+---
+
+## Workflow definitions
+
+**How it should work.** An admin arranges task templates into a saved flowchart for each role and file type.
+
+**Status: Replaced by Task Builder.** Nothing separate will be built. The Task Builder section above covers this (TB-1 to TB-9; TB-9 merged Nov 21 2026 as [PR 398](https://github.com/Johncoester/cla-portal-demo/pull/398)).
+
+**What's built**
+
+- See Task Builder. The first attempt, [PR 7](https://github.com/Johncoester/cla-portal-demo/pull/7), was closed and is not on main.
+
+**What's still missing**
+
+- Nothing for this item. Anything still missing is listed under Task Builder.
+
+**Links**
+
+- Task Builder section in this file. [PR 7](https://github.com/Johncoester/cla-portal-demo/pull/7) (closed).
+
+**Decisions**
+
+- Do not merge PR 7 (John, Nov 12, 4:41 PM ET, t1550u). Task Builder replaced it.
+
+---
+
+## CRM import preview 500 fix
+
+**How it should work.** When staff preview a CRM import, the portal shows a normal preview result. The trial rows are still rolled back, so nothing is saved from the preview.
+
+**Status: Replaced by CRM-201.** The "CRM import preview row reasons (CRM-201)" section in this file covers this work ([PR 314](https://github.com/Johncoester/cla-portal-demo/pull/314)).
+
+**What's built**
+
+- See CRM-201. The first attempt, [PR 139](https://github.com/Johncoester/cla-portal-demo/pull/139), was closed and is not on main.
+
+**What's still missing**
+
+- Nothing for this item. CRM-201's own status says what's left there.
+
+**Links**
+
+- CRM-201 section in this file. [PR 139](https://github.com/Johncoester/cla-portal-demo/pull/139) (closed).
+
+**Decisions**
+
+- Do not merge PR 139: its database file would overwrite the later Janine deal-name import change (John, Nov 12, 4:41 PM ET, t1550u).
