@@ -1,5 +1,6 @@
 #!/bin/sh
 # Task Builder TB-7, Nov 20 2026 (John): "Send an email" steps and the "File closed" trigger (thank-you emails after closing).
+# Nov 22: also send-as (20261129010000): a named staff member as sender, with their signature.
 # Disposable database only: applies TB-1, TB-2, the Nov 14 file, TB-6 and 20261127010000_task_flow_email_step.sql on a small stand-in
 # schema, checks the rules, then the rollback. Does not connect to the hosted TEST project and does not use its data.
 set -eu
@@ -151,6 +152,54 @@ before=$(val "select count(*) from public.outbox")
 val "set app.uid = '$A'; select public.try_task_flow_on_file('$FI', '$N')" >/dev/null
 ok "$(val "select count(*) - $before from public.outbox")" '1' 'Try on one file sends one test copy'
 ok "$(val "select (body like '%Ben Buyerside <ben@agents.test>%' and body like '%Lou Listing <lou@agents.test>%' and body not like '%rita@%')::text from public.outbox where subject = '[Test] Welcome from CLA Title'")" 'true' 'the test copy lists the two non-referring agents, not the referrer'
+
+# ---------- Nov 22 (John, by voice): send as a named staff member, with that person's signature (20261129010000) ----------
+q <<'SQL' >/dev/null
+update public.contacts set email = 'bea@example.com' where first_name = 'Bea';
+alter table public.profiles add column phone text default '';
+alter table public.outbox add column sender_profile_id uuid, add column from_email text default '', add column from_name text default '';
+create table public.mail_accounts (profile_id uuid primary key, email text, signature_html text not null default '');
+create table public.crm_user_signatures (user_id uuid primary key, html text not null default '');
+insert into public.profiles (id, first_name, last_name, admin, email, phone) values ('00000000-0000-0000-0000-0000000000c1', 'John', 'Coester', true, 'john@cla.test', '301-555-0100'),
+  ('00000000-0000-0000-0000-0000000000c2', 'Gone', 'Person', false, 'gone@cla.test', '');
+update public.profiles set status = 'inactive' where id = '00000000-0000-0000-0000-0000000000c2';
+SQL
+q -f "$ROOT/supabase/migrations/20261129010000_task_flow_send_as.sql" >/dev/null
+J=00000000-0000-0000-0000-0000000000c1
+ok "$(val "select private.task_flow_clean_steps('[{\"type\":\"send_email\",\"sendTo\":\"Client-Buyer\",\"subject\":\"Hello\",\"body\":\"Hello\",\"from\":\"$J\",\"signature\":true}]') -> 0 ->> 'from'")" "$J" 'an email step keeps who it is from'
+ok "$(val "select private.task_flow_clean_steps('[{\"type\":\"send_email\",\"sendTo\":\"Client-Buyer\",\"subject\":\"Hello\",\"body\":\"Hello\"}]') -> 0 ? 'from'")" 'f' 'a step with no From goes from the processor, as before'
+err "select private.task_flow_clean_steps('[{\"type\":\"send_email\",\"sendTo\":\"Client-Buyer\",\"subject\":\"Hello\",\"body\":\"Hello\",\"from\":\"john\"}]')" 'choose who the email is from' 'a From that is not a staff member is refused'
+send() { val "set app.uid = '$A'; select public.save_task_flow_v2(null, '$1', '', 'file_closed', null, '{}', '[{\"type\":\"send_email\",\"sendTo\":\"${3:-Client-Buyer}\",\"subject\":\"$1\",\"body\":\"Hi {{recipient_first_name}}, this is {{sender_name}}.\"$2}]')" | tail -1; }
+go() { q -c "update public.task_flows set active = true where id = '$1'; delete from public.task_flow_runs where flow_id = '$1'; insert into public.task_flow_runs (flow_id, deal_id, next_at) values ('$1', '$D', now() - interval '1 minute');" >/dev/null
+  val "select private.task_flow_advance(id) from public.task_flow_runs where flow_id = '$1'" >/dev/null; }
+F1=$(send 'From John' ",\"from\":\"$J\",\"signature\":true")
+go "$F1"
+ok "$(val "select sender_type || '|' || sender_profile_id || '|' || from_email || '|' || from_name from public.outbox where subject = 'From John' and not subject like '[Test]%'")" "other|$J|john@cla.test|John Coester" 'the email goes out from John, not the processor'
+ok "$(val "select body from public.outbox where subject = 'From John'")" "$(printf 'Hi Bea, this is John Coester.\n\nJohn Coester\nCLA Title & Escrow\njohn@cla.test · 301-555-0100')" 'it says it is from him and ends with a plain signature (no saved one yet)'
+q -c "insert into public.crm_user_signatures values ('$J', '<p>John Coester, CEO</p>');" >/dev/null
+q -c "delete from public.outbox where subject = 'From John';" >/dev/null
+go "$F1"
+ok "$(val "select body like '%John Coester, CEO' from public.outbox where subject = 'From John'")" 't' 'his CRM signature is used when he has one'
+q -c "insert into public.mail_accounts values ('$J', 'john@clatitle.com', '<div>John C. | CLA</div>');" >/dev/null
+q -c "delete from public.outbox where subject = 'From John';" >/dev/null
+go "$F1"
+ok "$(val "select body like '%John C. | CLA' and body not like '%CEO%' from public.outbox where subject = 'From John'")" 't' 'his portal (Gmail) signature comes first'
+F2=$(send 'Processor sig' ',"signature":true')
+go "$F2"
+ok "$(val "select sender_type || '|' || (body like '%Pat Processor' || chr(10) || 'CLA Title & Escrow' || chr(10) || 'pat@cla.test')::text from public.outbox where subject = 'Processor sig'")" 'processor|true' 'no From: the processor sends it, with the processor signature'
+F3=$(send 'Gone sender' ",\"from\":\"00000000-0000-0000-0000-0000000000c2\"")
+go "$F3"
+ok "$(val "select sender_type || '|' || (body not like '%CLA Title & Escrow%')::text from public.outbox where subject = 'Gone sender'")" 'processor|true' 'a sender who is no longer active falls back to the processor (and no signature unless asked)'
+ok "$(val "select (log::text like '%no longer an active staff member%')::text from public.task_flow_runs where flow_id = '$F3'")" 'true' 'and the run history says why'
+before=$(val "select count(*) from public.outbox")
+F4=$(send 'Agents from John' ",\"from\":\"$J\",\"signature\":true" non_referring_agents)
+val "set app.uid = '$A'; select public.try_task_flow_on_file('$F4', '$N')" >/dev/null
+ok "$(val "select sender_type || '|' || from_name || '|' || (body like '%John C. | CLA')::text from public.outbox where subject = '[Test] Agents from John'")" 'other|John Coester|true' 'Try on one file: the test copy comes from John with his signature'
+q -f "$ROOT/supabase/rollbacks/20261129010000_task_flow_send_as.sql" >/dev/null
+ok "$(val "select to_regprocedure('private.task_flow_clean_sender(jsonb,integer)') is null")" 't' 'rolling back send-as removes its helper'
+ok "$(val "select private.task_flow_clean_steps('[{\"type\":\"send_email\",\"sendTo\":\"Client-Buyer\",\"subject\":\"Hello\",\"body\":\"Hello\",\"from\":\"$J\"}]') -> 0 ? 'from'")" 'f' 'after rolling back, From is ignored (emails go from the processor again)'
+q -f "$ROOT/supabase/migrations/20261129010000_task_flow_send_as.sql" >/dev/null
+q -f "$ROOT/supabase/rollbacks/20261129010000_task_flow_send_as.sql" >/dev/null
 
 # rollback of the non-referring agents file: the step is taken out of saved flows, and the old recipients still work
 q -f "$ROOT/supabase/rollbacks/20261128010000_task_flow_non_referring_agents.sql" >/dev/null

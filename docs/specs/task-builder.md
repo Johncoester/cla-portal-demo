@@ -51,6 +51,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 | TB-5 | Drag-and-drop flowchart screen |
 | TB-6 | Client requests: request an intake form from a party, completes itself, reminders, one email per person (John, Nov 20) |
 | TB-7 | Email step (saved template or written message with merge fields) and the File closed trigger (John, Nov 20) |
+| TB-10 | Part of TB-4: send an email step as a named staff member, with that person's signature (John, Nov 22) |
 
 ## TB-1 as built
 
@@ -121,3 +122,12 @@ John, trying TB-8 on TEST: "it's a little still confusing."
 - **A When box on each step.** "Where do I put in here when to send this email?" Each step has "When: [N] days after it starts" (0 = right away), with the plain sentence above it ("2 days after the order opens: email the buyer."). There is no Wait step to choose any more. Saving sorts the steps by day and puts Waits between days; opening a saved template turns its Waits back into days, so the engine, the database and older templates are unchanged. A new step starts on the same day as the one before it.
 - **Insert field.** "Pretty difficult here to have to copy and paste that." Under the email's subject and message, an Insert field list in plain words ("Buyer first name", "Property address"...). Choosing one drops the {{field}} where the cursor is, in the message unless the subject was clicked last.
 - No database change.
+
+## TB-10: send as a staff member, with a signature (John, Nov 22 2026, by voice)
+
+John: "Is there a way to add your signature line?... What about my signature?... Yeah, all right, let's do that." He wants owner intro emails to go out as him.
+- **From.** Each email step has From: "The file's processor" (blank, the old behavior) or any active staff member. The email goes out under that person's name and address, and {{sender_name}} fills in with them. If that person is no longer active (or has no email) when the step runs, it goes from the processor and the run's history says why.
+- **Add the sender's signature.** A tick box, on by default for new email steps. It adds the sender's signature under the message: their portal signature (Profile > Gmail card), else their CRM signature, else name / CLA Title & Escrow / email · phone. Steps saved before this have no signature unless it is ticked.
+- **Try on one file** sends the test copy from that person, with the signature, so John can see exactly what goes out.
+- **Wording.** The Insert field list says "Recipient's first name" and "Recipient's full name(s)" (no "from To").
+- Database: 20261129010000_task_flow_send_as.sql (rollback in supabase/rollbacks). Emails still wait in the outbox like every portal email; nothing sends until the portal's mail switch is on. Not applied on TEST yet.

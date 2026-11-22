@@ -7,10 +7,10 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved template or a written message with merge fields) and the "File closed" trigger. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps } from '../data/task-builder.js?v=202611290700';
-import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611281200';
-import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611247700';
-const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you.';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps } from '../data/task-builder.js?v=202611291310';
+import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611291310';
+import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611291310';
+const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you. From: pick a staff member to send it as them (blank = the file\'s processor). The signature is their portal (Gmail) signature, else their CRM signature, else name, CLA Title & Escrow, email and phone.';
 import { REQUEST_FORMS, REQUEST_ROLES, formRoles, REMIND_EVERY_MAX, REMIND_TIMES_MAX, REQUEST_DUE_MAX } from '../data/client-requests.js?v=202611261000';
 const REQUEST_NOTE = 'The party gets the form as a task on the file. It is done when they submit it. Each person gets ONE email per file listing everything still needed from them, and at most one reminder email a day.';
 
@@ -32,7 +32,7 @@ export async function render(ctx) {
     known.set(p.id, (p.name || `${p.firstName || ''} ${p.lastName || ''}`).replace(/\s+/g, ' ').trim());
   };
   sales.forEach(remember);
-  const savedIds = [...new Set(flows.flatMap((f) => ((f.conditions || {}).salesPeople) || []))];
+  const savedIds = [...new Set(flows.flatMap((f) => [...(((f.conditions || {}).salesPeople) || []), ...(f.steps || []).map((s) => s.from).filter(Boolean)]))];
   if (savedIds.some((id) => !known.has(id)) && api.listActiveStaff) {
     try { ((await api.listActiveStaff()) || []).forEach(remember); } catch (e) { /* the saved id still has a plain fallback */ }
   }
@@ -189,6 +189,9 @@ export async function render(ctx) {
           <p class="muted small">${REQUEST_NOTE}</p>`
         : s.type === 'send_email' ? html`
           <label>Send to<select data-tb-step-field="sendTo"><option value="">Choose…</option>${EMAIL_ROLES.map(([v, l]) => html`<option value="${v}" ${s.sendTo === v ? raw('selected') : ''}>${l}</option>`)}</select></label>
+          <label>From<select data-tb-step-field="from"><option value="">The file's processor</option>${sales.map((p) => html`<option value="${p.id}" ${s.from === p.id ? raw('selected') : ''}>${salesName(p.id)}</option>`)}
+            ${s.from && !sales.some((p) => p.id === s.from) ? html`<option value="${s.from}" selected>${salesName(s.from)}</option>` : ''}</select></label>
+          <label class="chk"><input type="checkbox" data-tb-step-sig ${s.signature ? raw('checked') : ''}> Add the sender's signature</label>
           <label>Email<select data-tb-email-tpl><option value="">Write my own</option>${templates.map((t) => html`<option value="${t.id}" ${s.templateId === t.id ? raw('selected') : ''}>Saved email: ${t.name}</option>`)}
             ${s.templateId && !templates.some((t) => t.id === s.templateId) ? html`<option value="${s.templateId}" selected>Saved email: ${s.templateName || 'saved email'}</option>` : ''}</select></label>
           ${s.templateId ? '' : html`
@@ -209,11 +212,13 @@ export async function render(ctx) {
           $('[data-tb-step-type]', box).addEventListener('change', (e) => { const v = e.target.value; const at = steps[i].at != null ? steps[i].at : 0;
             steps[i] = { type: v, at, ...(v === 'stop_if_emd_received' ? {}
               : v === 'client_request' ? { formCode: '', sendTo: '', dueDays: steps[i].dueDays != null ? steps[i].dueDays : 3, remindEvery: 2, remindTimes: 3 }
-              : v === 'send_email' ? { sendTo: '', templateId: '', subject: '', body: '' }
+              : v === 'send_email' ? { sendTo: '', from: '', signature: true, templateId: '', subject: '', body: '' }
               : { title: steps[i].title || '', assignTo: steps[i].assignTo || '', dueDays: steps[i].dueDays != null ? steps[i].dueDays : 1 }) }; draw(); });
           const tpl = $('[data-tb-email-tpl]', box);   // a saved email, or write my own: redraw the subject and message boxes
           if (tpl) tpl.addEventListener('change', () => { const t = templates.find((x) => x.id === tpl.value);
             steps[i].templateId = tpl.value; steps[i].templateName = t ? t.name : ''; draw(); });
+          const sig = $('[data-tb-step-sig]', box);   // John, Nov 22: the sender's signature under the message
+          if (sig) sig.addEventListener('change', () => { steps[i].signature = !!sig.checked; showWhen(); });
           const reqForm = $('[data-tb-req-form]', box);   // a form decides who can be asked: redraw the Send to list
           if (reqForm) reqForm.addEventListener('change', () => { const roles = formRoles(reqForm.value); steps[i].formCode = reqForm.value;
             if (!roles.includes(steps[i].sendTo)) steps[i].sendTo = roles.length === 1 ? roles[0] : ''; draw(); });
