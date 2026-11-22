@@ -3143,3 +3143,36 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Do not merge PR 139: its database file would overwrite the later Janine deal-name import change (John, Nov 12, 4:41 PM ET, t1550u).
+
+---
+
+## TC dashboard EMD, ALTA review, and admin fees (TC-DASH-EMD-1, TC-DASH-ALTA-1, TC-DASH-EMDSTAT-1, TC-DASH-FEES-1)
+
+**How it should work.** On the outside Transaction Coordinator dashboard (Outstanding tasks and File overview, the My files home from TC-DASHBOARD-1), two cards sit between those sections. Outstanding / overdue EMDs lists the coordinator's open files where the earnest money is not marked received, using the existing deal fields (amount, due date, holder, and the received flag). Overdue means the due date has passed; outstanding means it is not received and is not yet due, or has no due date. Each row opens the file. ALTA review needed lists the coordinator's open files whose closing date is today through the next 2 days. That card is a closing-date reminder only; it does not read an ALTA status. File overview also shows EMD received as Yes or No for each file, and Admin fees (the admin fee and any other fees the agent entered, with a label when there is more than one). Commission stays in its own column. A client never sees the fee columns. Buyers and sellers never see agent fees, the same as on the file.
+
+**Status: In progress.** John Coester, chat, Nov 22 2026, 1:23-1:26 PM ET, from TC feedback Nov 20. Tracker items TC-DASH-EMD-1, TC-DASH-ALTA-1, TC-DASH-EMDSTAT-1, and TC-DASH-FEES-1. No database file. Not Live until this is merged and checked on TEST.
+
+**What's built**
+
+- Outstanding / overdue EMDs and ALTA review needed cards on the outside dashboard, after Outstanding tasks and before File overview. They use the same files the dashboard already loads.
+- File overview has an EMD Received column (Yes / No, or a dash on a refinance) and an Admin fees column next to Commission, only for people who can already see agent fees on that file.
+- Admin fees come from the same per-file fee read already used for Commission (capped at 12, after the page is drawn). The database still decides which sides a TC may see.
+
+**What's still missing**
+
+- A check on TEST after merge, with a fake TC login and at least one overdue EMD and one file closing within 2 days. Do not mark Live before that.
+- The ALTA card does not use `alta_received` and does not add a TC sign-off or "ready to send to the client" step. Those were later asks from the Nov 20 TC feedback and are not in this item.
+- The My files heading and nav label are unchanged here; renaming them to Dashboard is a separate item.
+
+**Links**
+
+- Spec: [docs/specs/tc-dashboard-emd-alta.md](docs/specs/tc-dashboard-emd-alta.md)
+- Source: John Coester, chat, Nov 22 2026, 1:23 PM ET ("outstanding, overdue EMDs" and "Auto review needed... two days before closing"), 1:25 PM ET (EMD received Yes or No on File overview), and 1:26 PM ET (admin fees the agents enter). From TC feedback Nov 20.
+
+**Decisions**
+
+- "Auto review needed" is treated as ALTA review needed, as a closing-date reminder for files closing today through today+2. Past closings and files more than 2 days out are left off. `deals.alta_received` already exists, but this card does not filter on it.
+- EMD received is `deals.emd_received` (the same flag used to mark funds received and to start Task Builder EMD flows). Amount, due date and holder are `deals.emd_amount`, `deals.emd_due_date` and `deals.emd_holder`. The Accounting contract-terms `emd_receipt` field is not used; that sheet cannot mark funds received.
+- Files with no EMD amount, due date, or holder are left off the outstanding EMD card. Refinance files have no EMD.
+- No new database file: the dashboard's existing open-file read now also asks for those four EMD columns. Admin fees reuse `getAgentFees`.
+- Cache stamp 202611291400, above main's 202611290700 and clear of open PR 407's 202611290800, so a saved copy of the shell is not reused.

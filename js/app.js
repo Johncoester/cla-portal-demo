@@ -1,6 +1,6 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611290700';
+import { getAdapter } from './data/adapter.js?v=202611291400';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611289950';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
@@ -45,7 +45,7 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611249900')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611290300')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611291400')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611248300')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611289950')),
