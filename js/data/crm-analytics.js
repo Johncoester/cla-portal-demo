@@ -76,6 +76,26 @@ const BASE = {
 // custom field type -> analytics type (encrypted fields and computed-only ones are still listed; encrypted values are masked)
 const CF_TYPE = { text: 'text', textarea: 'text', email: 'email', phone: 'phone', url: 'text', number: 'number', decimal: 'number', longint: 'number', autonumber: 'text', currency: 'currency', percent: 'percent',
   date: 'date', datetime: 'datetime', checkbox: 'boolean', dropdown: 'picklist', radio: 'picklist', multiselect: 'text', user: 'user', lookup: 'text', formula: 'number', rollup: 'number', address: 'text', file: 'text', image: 'text' };
+// FILE COLUMNS FOR REPORTS (RPT-1, John, Nov 22 2026: "maybe it would be easier just to report it from there").
+// A Deal is a portal file. John's daily pre-closing report needs the processor, the source of business with a phone and email, and each agent
+// with a phone and email. These columns are offered on a Deals REPORT only (reportFields). They are not on the Deals list or its column picker,
+// because only a report loads them (one extra read: crm_deal_report_fields, migration 20261129010000).
+export const FILE_REPORT_FIELDS = [
+  F('state', 'State'), F('zip', 'Zip Code'), F('contractDate', 'Contract Date', 'date'), F('fileStep', 'File Step'),
+  F('processorName', 'Processor'), F('preprocessorName', 'Pre-processor'), F('tcName', 'Transaction Coordinator'), F('closerName', 'Closer'),
+  F('buyerNames', 'Buyer'), F('sellerNames', 'Seller'),
+  F('sourceOfBusiness', 'Source of Business'), F('sourceContactName', 'Source of Business: Contact'), F('sourceCompany', 'Source of Business: Company'), F('sourcePhone', 'Source of Business: Phone', 'phone'), F('sourceEmail', 'Source of Business: Email', 'email'),
+  F('buyerAgentName', 'Buyer Agent'), F('buyerAgentCompany', 'Buyer Agent: Company'), F('buyerAgentPhone', 'Buyer Agent: Phone', 'phone'), F('buyerAgentEmail', 'Buyer Agent: Email', 'email'),
+  F('listingAgentName', 'Listing Agent'), F('listingAgentCompany', 'Listing Agent: Company'), F('listingAgentPhone', 'Listing Agent: Phone', 'phone'), F('listingAgentEmail', 'Listing Agent: Email', 'email')];
+export const FILE_REPORT_KEYS = FILE_REPORT_FIELDS.map((f) => f.key);
+// one Deals row + its file columns (extra = one row of crm_deal_report_fields, or of the demo data). A missing value is '' so filters and sorting behave.
+export function withFileColumns(row, extra, stages = []) {
+  const x = extra || {}; const out = { ...row };
+  for (const k of FILE_REPORT_KEYS) if (k !== 'fileStep') out[k] = x[k] == null ? (k === 'contractDate' ? null : '') : x[k];
+  out.fileStep = Number.isInteger(x.stageNo) && stages[x.stageNo] ? stages[x.stageNo] : '';
+  if (!out.lenderName && x.lenderName) out.lenderName = x.lenderName;   // the hosted Deals row has no lender name
+  return out;
+}
 // all fields of a module (built-in + the active custom fields the viewer may see; cfg = getCrmSettings() for this viewer)
 export function moduleFields(module, cfg) {
   const base = (BASE[module] || []).map((f) => ({ ...f }));
@@ -293,7 +313,7 @@ export const RELATED = { contacts: ['deals', 'tasks', 'meetings', 'calls', 'oppo
   deals: ['contacts'], tasks: [], meetings: [], calls: [] };
 // the fields of a report: the primary module's, then each related module's with a prefix
 export function reportFields(module, related, cfg) {
-  return [...moduleFields(module, cfg), ...(related || []).filter((m) => (RELATED[module] || []).includes(m)).flatMap((m) => moduleFields(m, cfg).map((f) => ({ ...f, key: `${m}.${f.key}`, label: `${moduleName(m)}: ${f.label}`,
+  return [...moduleFields(module, cfg), ...(module === 'deals' ? FILE_REPORT_FIELDS.map((f) => ({ ...f })) : []), ...(related || []).filter((m) => (RELATED[module] || []).includes(m)).flatMap((m) => moduleFields(m, cfg).map((f) => ({ ...f, key: `${m}.${f.key}`, label: `${moduleName(m)}: ${f.label}`,
     labelKey: f.labelKey ? `${m}.${f.labelKey}` : undefined, link: f.link ? `${m}.${f.link}` : undefined, module: m })))];
 }
 // joined rows: one row per (record, related record); a record with no related record stays (left join)

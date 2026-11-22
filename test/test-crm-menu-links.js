@@ -133,11 +133,11 @@ for (const file of walk(path.join(root, 'js')).concat(readdirSync(root).filter((
 const dual = [...stamps.entries()].filter(([, set]) => set.size > 1);
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.map(([t, s]) => t + ' ' + [...s].join(',')).join('; ') : ''));
 const chain = [
-  ['js/pages/crm-calls.js', '202611289980'],
-  ['js/pages/crm-forms.js', '202611289980'],
-  ['js/pages/crm-home.js', '202611289980'],
-  ['js/pages/crm.js', '202611290610'],
-  ['js/app.js', '202611290700'],
+  ['js/pages/crm-calls.js', '202611290800'],
+  ['js/pages/crm-forms.js', '202611290800'],
+  ['js/pages/crm-home.js', '202611290800'],
+  ['js/pages/crm.js', '202611290800'],
+  ['js/app.js', '202611290800'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -145,7 +145,7 @@ for (const [target, stamp] of chain) {
   if (got.length !== 1 || got[0] !== stamp) issues.push(target + ' ' + (got.join(',') || 'none'));
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(read('index.html').includes('js/app.js?v=202611290700'), 'index.html loads the shell at 202611290610');
+ok(read('index.html').includes('js/app.js?v=202611290800'), 'index.html loads the shell at 202611290610');
 ok(!read('js/data/adapter.js').includes('202611246800') && !read('js/data/supabase-adapter.js').includes('202611246800') && !read('js/data/mock-adapter.js').includes('202611246800'), 'the shared adapters are not part of this stamp');
 
 console.log('cache-stamp issues', issues.length);
