@@ -17,7 +17,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Before the team lets people use the new portal, they walk a written checklist on TEST. The list covers portal features only: sign-in, roles, orders, documents, messages, and tasks. It is not a sign-off of full title production. The portal runs on Supabase and does not depend on Zoho. The team keeps testing title production before a full launch.
 
-**Status: In review.** Tracker item GOLIVE-1. John Coester, Nov 17 2026, on a call. Docs only. No database file. Not Live. Pull request: [PR 331](https://github.com/Johncoester/cla-portal-demo/pull/331). Do not merge without John's OK.
+**Status: In review.** Tracker item GOLIVE-1. John Coester, Nov 17 2026, on a call. Docs only. No database file. Not Live. Pull request: [PR 331](https://github.com/Johncoester/cla-portal-demo/pull/331), merged under John's Nov 21 2026 8:09 PM ET rule (merge any PR once its required checks are green).
 
 **What's built**
 
@@ -33,7 +33,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- John, Nov 17 2026: this launch is portal features only, not full title production. Do not merge without John's OK. Check it with fake data on testportal.clatitle.com.
+- John, Nov 17 2026: this launch is portal features only, not full title production. Check it with fake data on testportal.clatitle.com.
 
 ---
 
