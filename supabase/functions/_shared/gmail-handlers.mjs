@@ -169,6 +169,22 @@ export async function handleOauthCallback(req, deps) {
   return back('connected');
 }
 
+/* ---------------- TC-ONLY-1 helpers ---------------- */
+// Same rule as private.comm_swap_greeting: only the first greeting line, only the agent's first name as a whole word.
+export function swapGreeting(html, oldFirst, newFirst) {
+  const from = String(oldFirst || '').trim(); const to = String(newFirst || '').trim();
+  if (!html || !from || !to || from === to) return html;
+  const esc = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`((?:^|>|\\n)[ \\t]*(?:Hi|Hello|Dear|Hey|Good morning|Good afternoon|Good evening)[ \\t]+)${esc}(?![\\p{L}\\p{N}])`, 'iu');
+  return html.replace(re, (m, lead) => lead + to);
+}
+export function tcOnlyHeldMessage(held) {
+  const h = held[0] || {};
+  const who = h.name ? `${h.name} (${h.email})` : h.email || 'An agent on this email';
+  const side = h.side ? `, the ${h.side} on this file,` : ' on this file';
+  return `${who}${side} is set to "Only communicate with TC", and no TC with an email is linked on that side. Add their TC on Contacts, or untick the box. Nothing was sent.`;
+}
+
 /* ---------------- gmail-send ---------------- */
 export async function handleSend(req, deps) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: deps.headers });
@@ -183,6 +199,17 @@ export async function handleSend(req, deps) {
   const to = parseAddressList(b.to); const cc = parseAddressList(b.cc); const bcc = parseAddressList(b.bcc);
   const bad = [...to.bad, ...cc.bad, ...bcc.bad];
   if (bad.length) return json(400, { error: `Not an email address: ${bad.join(', ')}` }, H);
+  // TC-ONLY-1 (John, Nov 22): an agent set to "Only communicate with TC" on this file never gets the email. Their TC gets it
+  // instead; with no TC it is refused. The database decides (comm_route_emails, as the signed-in staff member) and logs it.
+  let route = null;
+  if (to.ok.length || cc.ok.length || bcc.ok.length) {
+    try { route = await deps.userRpc('comm_route_emails', { p_deal: deal.id, p_to: to.ok, p_cc: cc.ok, p_bcc: bcc.ok, p_log: !dryRun }); }
+    catch (e) { return json(502, { error: 'The portal could not check who should get this email. Nothing was sent. Try again in a minute.' }, H); }
+  }
+  const held = route && Array.isArray(route.held) ? route.held : [];
+  if (held.length) return json(400, { error: tcOnlyHeldMessage(held), tcOnlyHeld: held }, H);
+  const redirected = route && Array.isArray(route.redirected) ? route.redirected : [];
+  if (route && Array.isArray(route.to)) { to.ok = route.to; cc.ok = Array.isArray(route.cc) ? route.cc : []; bcc.ok = Array.isArray(route.bcc) ? route.bcc : []; }
   const all = [...new Set([...to.ok, ...cc.ok, ...bcc.ok])];
   if (!to.ok.length) return json(400, { error: 'Add at least one To address.' }, H);
   if (all.length > MAX_RECIPIENTS) return json(400, { error: `At most ${MAX_RECIPIENTS} recipients per email.` }, H);
@@ -190,7 +217,10 @@ export async function handleSend(req, deps) {
   const subjectIn = oneLine(b.subject, 250);
   if (!subjectIn) return json(400, { error: 'Add a subject.' }, H);
   const subject = subjectWithTag(subjectIn, deal.file_number || '', formatPropertyAddress(deal));
-  const bodyHtml = sanitizeHtml(b.html || '');
+  let bodyHtml = sanitizeHtml(b.html || '');
+  // one person on To and it was swapped to their TC: "Hi Pat," becomes "Hi Sam,"
+  if (redirected.length === 1 && redirected[0].list === 'to' && to.ok.length === 1 && Array.isArray(redirected[0].to) && redirected[0].to.length === 1)
+    bodyHtml = swapGreeting(bodyHtml, redirected[0].fromFirstName, redirected[0].toFirstName);
   if (!htmlToText(bodyHtml)) return json(400, { error: 'Write a message first.' }, H);
   if (bodyHtml.length > MAX_BODY_CHARS) return json(400, { error: 'The message is too long.' }, H);
   if (hasWireDetails(htmlToText(bodyHtml)) || hasWireDetails(subject)) return json(400, { error: 'Wire / bank account details cannot be emailed from the portal. Remove them and call the buyer instead.' }, H);
@@ -213,7 +243,7 @@ export async function handleSend(req, deps) {
   if (b.replyToEmailId) { reply = await deps.userEmail(String(b.replyToEmailId)); if (!reply || reply.deal_id !== deal.id) return json(400, { error: 'That email is not on this file.' }, H); }
   const html = withSignature(bodyHtml, ctx.signatureHtml || '');
   const fromName = `${ctx.firstName || ''} ${ctx.lastName || ''}`.trim();
-  const preview = { from: ctx.mailbox || null, fromName, to: to.ok, cc: cc.ok, bcc: bcc.ok, subject, signatureAdded: html !== bodyHtml, attachments: [...ordered.map((d) => ({ id: d.id, name: d.name, size: Number(d.size_bytes || 0) })), ...pending.map((p) => ({ id: null, name: p.name, size: p.size, pending: true }))], threaded: !!(reply && reply.mailbox_email === ctx.mailbox) };
+  const preview = { from: ctx.mailbox || null, fromName, to: to.ok, cc: cc.ok, bcc: bcc.ok, subject, tcOnlyRedirected: redirected.map((r) => ({ from: r.from, fromName: r.fromName || '', side: r.side || '', to: r.to || [], toNames: r.toNames || [] })), signatureAdded: html !== bodyHtml, attachments: [...ordered.map((d) => ({ id: d.id, name: d.name, size: Number(d.size_bytes || 0) })), ...pending.map((p) => ({ id: null, name: p.name, size: p.size, pending: true }))], threaded: !!(reply && reply.mailbox_email === ctx.mailbox) };
   if (dryRun) return json(200, { ok: true, dryRun: true, connected: !!ctx.mailbox && ctx.mailboxStatus === 'connected', ...preview }, H);
   if (!ctx.mailbox) return json(409, { error: 'Connect Gmail first (Profile Setting > Gmail).' }, H);
   if (ctx.mailboxStatus !== 'connected') return json(409, { error: 'Your Gmail needs to be connected again (Profile Setting > Gmail).' }, H);
