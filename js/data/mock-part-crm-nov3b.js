@@ -6,9 +6,9 @@
  *  * DASHBOARDS (built-in + your own; Only me / All Users / Custom; lock for shared users) with Chart, KPI, Target Meter and Funnel components.
  *  * REPORTS (folders, columns, row groups, aggregates, AND / OR filters, sharing); Export only for Admin / Super admin.
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
-import { withFileColumns, MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
+import { withFileColumns, withTaskColumns, taskTitlesInUse, reportKeys, isTaskKey, MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611290800';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611301000';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611247700';
@@ -205,7 +205,7 @@ export function crmNov3bPart(x, h) {
     if (has('description')) r.description = str(input.description, 500);
     if (has('folderId')) r.folderId = folderFor(u, input.folderId);
     if (has('related')) { const rel = [...new Set((Array.isArray(input.related) ? input.related : []).map(String))]; rel.forEach((m) => { if (!(RELATED[r.module] || []).includes(m)) fail(`${moduleName(m)} is not a related module of ${moduleName(r.module)}.`); }); if (rel.length > 2) fail('Pick at most 2 related modules.'); r.related = rel; }
-    const fields = reportFields(r.module, r.related || [], cfg); const fk = (k) => fields.find((f) => f.key === k);
+    const fields = reportFields(r.module, r.related || [], cfg, { taskTitles: taskTitles(u), keys: reportKeys({ ...r, ...input }) }); const fk = (k) => fields.find((f) => f.key === k);
     if (has('columns')) { const cols = [...new Set((Array.isArray(input.columns) ? input.columns : []).map(String))]; if (!cols.length) fail('Pick at least one column.'); if (cols.length > 60) fail('At most 60 columns.'); cols.forEach((k) => { if (!fk(k)) fail('A column is not in this report\'s modules.'); }); r.columns = cols; }
     if (has('rowGroups')) { const g = [...new Set((Array.isArray(input.rowGroups) ? input.rowGroups : []).map(String).filter(Boolean))]; if (g.length > 3) fail('At most 3 row groups.'); g.forEach((k) => { if (!fk(k)) fail('A row group is not in this report\'s modules.'); }); r.rowGroups = g; }
     if (has('aggregates')) { r.aggregates = (Array.isArray(input.aggregates) ? input.aggregates : []).filter((a) => a && a.field).slice(0, 20).map((a) => { const f = fk(String(a.field)); if (!f) fail('An aggregate column is not in this report.');
@@ -235,9 +235,13 @@ export function crmNov3bPart(x, h) {
       sourceOfBusiness: src ? (referralLabel(src, (id) => { const c = cOf(id); return c ? fullName(c) : ''; }) || L(cfg, 'leadSource', src)) : '',
       sourceContactName: sc.name, sourceCompany: sc.company, sourcePhone: sc.phone, sourceEmail: sc.email };
   }
+  // RPT-2: the tasks of the files this person sees in the CRM (the demo copy of crm_deal_report_tasks): name, dates and status only
+  const reportTasks = (u) => { const ids = new Set(crmDealsFor(u).map((q) => q.id)); return (db().tasks || []).filter((t) => ids.has(t.dealId) && t.status !== 'cancelled' && String(t.title || '').trim()).map((t) => ({ dealId: t.dealId, title: t.title, dueDate: t.dueDate || null, completedAt: t.completedAt || null, status: t.status })); };
+  const taskTitles = (u) => taskTitlesInUse(reportTasks(u));
   function execReport(u, def, cfg) {
-    const fields = reportFields(def.module, def.related, cfg); let rows = rowsOf(u, def.module, cfg);
-    if (def.module === 'deals') { const by = new Map(crmDealsFor(u).map((q) => [q.id, fileColumns(q)])); rows = rows.map((r) => withFileColumns(r, by.get(r.id), C.STAGES)); }
+    const fields = reportFields(def.module, def.related, cfg, { taskTitles: taskTitles(u), keys: reportKeys(def) }); let rows = rowsOf(u, def.module, cfg);
+    if (def.module === 'deals') { const by = new Map(crmDealsFor(u).map((q) => [q.id, fileColumns(q)])); const keys = reportKeys(def).filter(isTaskKey); const tk = keys.length ? reportTasks(u) : [];
+      rows = rows.map((r) => withTaskColumns(withFileColumns(r, by.get(r.id), C.STAGES), tk.filter((t) => t.dealId === r.id), keys)); }
     if ((def.related || []).length) { const rm = {}; def.related.forEach((m) => { rm[m] = relMap(u, def.module, rows, m, cfg); }); rows = joinRows(rows, def.related, rm); }
     const out = runReport(rows, def, fields, cfg, { today: today() });
     return { ...out, groupFields: (def.rowGroups || []).map((k) => (fields.find((f) => f.key === k) || {}).label || k), filterText: criteriaText(def.filters, fields, cfg, def.logic, userNames()) };
@@ -421,7 +425,7 @@ export function crmNov3bPart(x, h) {
       const f = { id: nid('rf'), name: n, createdBy: u.id, createdAt: now(), modifiedAt: now() }; db().crmReportFolders.push(f); save(); return clone(f); },
     async listCrmReports({ includeRetired = false } = {}) { const u = crmUser(); return db().crmReports.filter((r) => reportVisible(u, r) && (!isPersonalFolder(r.folderId) || r.folderId === personalFolderId(u.id)) && (includeRetired || !r.retiredAt))
       .map((r) => reportOut(u, r)).sort((a, b) => a.name.localeCompare(b.name)); },
-    async getCrmReport(id) { const u = crmUser(); const r = reportOf(u, id); if (isPersonalFolder(r.folderId) && r.folderId !== personalFolderId(u.id)) fail('Report not found.'); return { ...reportOut(u, r), fields: reportFields(r.module, r.related, cfgFor(u)) }; },
+    async getCrmReport(id) { const u = crmUser(); const r = reportOf(u, id); if (isPersonalFolder(r.folderId) && r.folderId !== personalFolderId(u.id)) fail('Report not found.'); return { ...reportOut(u, r), fields: reportFields(r.module, r.related, cfgFor(u), { taskTitles: taskTitles(u), keys: reportKeys(r) }) }; },
     async createCrmReport(input = {}) { const u = crmEditor(); const cfg = cfgFor(u); const r = cleanReport(u, input, null, cfg);
       const row = { id: nid('rep'), ...r, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now(), lastAccessedAt: null, retiredAt: null }; db().crmReports.push(row); save(); return reportOut(u, row); },
     async updateCrmReport(id, patch = {}) { const u = crmEditor(); const r = reportOf(u, id); if (!reportEditable(u, r)) fail('Only the person who made this report (or an Admin) can change it; use Clone to make your own.');
@@ -432,6 +436,7 @@ export function crmNov3bPart(x, h) {
     async retireCrmReport(id, retired = true) { const u = crmEditor(); const r = reportOf(u, id); if (!reportEditable(u, r)) fail('Only the person who made this report (or an Admin) can retire it.');
       r.retiredAt = retired ? r.retiredAt || now() : null; r.retiredBy = retired ? u.id : null; r.modifiedAt = now(); save(); return reportOut(u, r); },
     // run a saved report (id) or an unsaved definition; a saved one gets its Last Accessed Date
+    async listCrmReportTaskTitles() { return taskTitles(crmUser()); },
     async runCrmReport(input) { const u = crmUser(); const cfg = cfgFor(u); const def = asDef(u, input, cfg); const out = execReport(u, def, cfg);
       if (typeof input === 'string') { def.lastAccessedAt = now(); save(); } return { ...out, report: { id: def.id || null, name: def.name, module: def.module, moduleLabel: moduleName(def.module) } }; },
     // Export (CSV): Admin and Super admin only (Janine, video 10)
