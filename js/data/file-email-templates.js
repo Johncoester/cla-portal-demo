@@ -2,8 +2,8 @@
  * staff SELECT them on a file's Email tab. Separate from CRM templates. Merge tokens use {{field}}.
  * gmail-send still appends the signature and the [CLA #file - address] subject tag. */
 export const FILE_TEMPLATE_FIELDS = [
-  ['recipient_first_name', "Recipient's first name"],   // John, Nov 22: no "(from To)"; it is whoever the email goes to
-  ['recipient_names', "Recipient's full name(s)"],
+  ['recipient_first_name', 'Recipient first name (from To)'],
+  ['recipient_names', 'Recipient full names (from To)'],
   ['file_number', 'File number'],
   ['property_address', 'Property address'],
   ['buyer_names', 'Buyer names'],

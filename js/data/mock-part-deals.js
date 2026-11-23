@@ -218,12 +218,8 @@ export function dealsAndAuth(x) {
       if (patch.state != null && patch.state !== prevState) { const next = retagFileNumber(q.fileNumber, q.state);
         if (next && q.status === 'Open' && !sentOutside({ outbox: (d.outbox || []).filter((o) => o.dealId === id) }) && !d.deals.some((y) => y.id !== id && y.fileNumber === next)) { log(id, u.id, 'deal.file_number', 'deal', id, `File number changed from ${q.fileNumber} to ${next} (property state ${q.state})`); q.fileNumber = next; } }
       if (patch.openDate) { const o = dateOrNull(patch.openDate, 'Open date'); if (o > officeDate()) fail('Open date cannot be in the future.'); q.openDate = o; }
-      const prevClosing = q.closingDate || null; const prevDisb = q.disbursementDate || null;
       if (patch.closingDate !== undefined) q.closingDate = dateOrNull(patch.closingDate, 'Closing date');
       if (patch.disbursementDate !== undefined) q.disbursementDate = dateOrNull(patch.disbursementDate, 'Disbursement date');   // FF-071 #23: blank = automatic
-      // MF-060 (Matt, Nov 22): on a purchase, a settlement date change clears a hand-set disbursement date so it follows the closing date
-      // (same rule as the deals_disbursement_follows trigger, migration 20261129040000). Changing both in one save keeps the date given.
-      if (!isRefi(q) && (q.closingDate || null) !== prevClosing && (q.disbursementDate || null) === prevDisb) q.disbursementDate = null;
       if (isRefi(q)) refiNoPrice(patch, fail);   // a refinance keeps no purchase price / EMD (clearing one an old order still has is allowed)
       if (patch.purchasePrice !== undefined) q.purchasePrice = money(patch.purchasePrice, 'Purchase price');
       if (patch.loanAmount !== undefined) q.loanAmount = money(patch.loanAmount, 'Loan amount');

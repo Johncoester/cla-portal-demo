@@ -5,9 +5,8 @@
 import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611161500';
 import { editorHtml, mountEditor } from './compose.js?v=202611249900';
 import { canUseGmail, introRecipients, introTemplate, hasSignature, fileTag } from '../data/gmail-email.js?v=202611191000';
-import { applyFileTemplate } from '../data/file-email-templates.js?v=202611291500';
+import { applyFileTemplate } from '../data/file-email-templates.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { tcOnlyMap, tcOnlyNotes, isTcOnlyRole } from '../data/tc-only.js?v=202611291700';
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
@@ -114,9 +113,6 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   }
   const parties = introRecipients(mergeDeal).concat((mergeDeal.participants || []).filter((p) => !p.removed && p.contact && p.contact.email && !p.contact.contactHidden && !Object.keys(ROLE).includes(p.role))
     .map((p) => ({ name: partyDisplayName(p), email: String(p.contact.email).toLowerCase(), role: p.role })));
-  // TC-ONLY-2: which agents on this file have "Only communicate with TC" on (staff only; the database still decides when it sends)
-  let tcRows = new Map();
-  if (api.tcOnlyStatus && (mergeDeal.participants || []).some((p) => isTcOnlyRole(p.role))) { try { tcRows = tcOnlyMap(await api.tcOnlyStatus(deal.id)); } catch (e) { tcRows = new Map(); } }
   const templates = (api.listFileEmailTemplates ? (await api.listFileEmailTemplates({ includeInactive: false }).catch(() => [])) : []).filter((t) => t.scope === 'shared' && t.active !== false);
   const tplOpts = templates.map((t) => html`<option value="${t.id}">${t.name}${t.category ? ` (${t.category})` : ''}</option>`);
   let chosenTemplateKey = pre.templateKey || null;
@@ -125,7 +121,6 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     <label class="span2">To<input name="to" value="${(pre.to || []).join(', ')}" placeholder="name@example.com, ..." autocomplete="off" data-mail-to></label>
     <label>Cc<input name="cc" value="${(pre.cc || []).join(', ')}" autocomplete="off" data-mail-cc></label><label>Bcc<input name="bcc" autocomplete="off" data-mail-bcc></label>
     <div class="span2 small" data-mail-people></div>
-    <div class="span2 notice info small" data-tc-only-note hidden></div>
     ${templates.length && !pre.replyToEmailId ? html`<label class="span2">Use template<select data-mail-template><option value="">(blank — no template)</option>${tplOpts}</select></label>
       <div class="span2 notice warn" data-mail-tpl-warn hidden></div>` : ''}
     <label class="span2">Subject<input name="subject" maxlength="250" value="${pre.subject || ''}" data-mail-subject></label>
@@ -152,20 +147,11 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     box.innerHTML = toText(html`<div data-mail-to-chips>To: ${to.length ? to.map((addr) => chip('to', addr)) : html`<span class="muted">none</span>`}</div>
       <div data-mail-cc-chips>Cc: ${cc.length ? cc.map((addr) => chip('cc', addr)) : html`<span class="muted">none</span>`}</div>
       ${parties.length ? html`<div>On this file: ${parties.map((p) => html`<span>${p.name || p.email} (${ROLE[p.role] || p.role}) <button type="button" class="ghost small" data-mail-put="to" data-mail-addr="${p.email}">Add to To</button> <button type="button" class="ghost small" data-mail-put="cc" data-mail-addr="${p.email}">Add to Cc</button></span> `)}</div>` : ''}`);
-    $$('[data-mail-drop]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailDrop, b.dataset.mailAddr, false); paintPeople(); paintTcOnly(); }));
-    $$('[data-mail-put]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailPut, b.dataset.mailAddr, true); paintPeople(); paintTcOnly(); }));
+    $$('[data-mail-drop]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailDrop, b.dataset.mailAddr, false); paintPeople(); }));
+    $$('[data-mail-put]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailPut, b.dataset.mailAddr, true); paintPeople(); }));
   };
-  const paintTcOnly = () => {
-    const box = $('[data-tc-only-note]', m); if (!box) return;
-    const all = [...list($('[data-mail-to]', m).value), ...list($('[data-mail-cc]', m).value), ...list($('[data-mail-bcc]', m).value)];
-    const notes = tcRows.size ? tcOnlyNotes(tcRows, mergeDeal.participants || [], all) : [];
-    box.hidden = !notes.length;
-    box.className = `span2 notice ${notes.some((n) => n.kind === 'held') ? 'warn' : 'info'} small`;
-    box.innerHTML = notes.length ? toText(html`<ul class="plain">${notes.map((n) => html`<li data-tc-only-kind="${n.kind}">${n.text}</li>`)}</ul>`) : '';
-  };
-  const paintAll = () => { paintPeople(); paintTcOnly(); };
-  paintAll();
-  ['[data-mail-to]', '[data-mail-cc]', '[data-mail-bcc]'].forEach((sel) => { const el = $(sel, m); if (el) { el.addEventListener('change', paintAll); el.addEventListener('input', paintTcOnly); } });
+  paintPeople();
+  ['[data-mail-to]', '[data-mail-cc]'].forEach((sel) => { const el = $(sel, m); if (el) el.addEventListener('change', paintPeople); });
   const tplSel = $('[data-mail-template]', m);
   const warn = $('[data-mail-tpl-warn]', m);
   const showWarn = (msgs) => { if (!warn) return; const bits = (msgs || []).filter(Boolean); if (!bits.length) { warn.hidden = true; warn.textContent = ''; return; }
@@ -182,7 +168,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     const keptCc = recipientsAfterTemplate(ccNow.join(', '), applied.suggestedCc, { fillIfEmpty: ccNow.length === 0 });
     $('[data-mail-to]', m).value = kept.join(', ');
     $('[data-mail-cc]', m).value = keptCc.join(', ');
-    paintPeople(); paintTcOnly();
+    paintPeople();
     const to2 = kept;
     const applied2 = applyFileTemplate(t, mergeDeal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false, processorEmail: mergeDeal.processorEmail });
     $('[data-mail-subject]', m).value = applied2.subject;
