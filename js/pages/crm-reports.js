@@ -3,9 +3,9 @@
  * Aggregate Columns, Filters (AND / OR), sort. Run, Save, Edit, Clone, Export (CSV: Admin / Super admin only), Send Email (saved, NOT sent).
  * Shared with everyone unless restricted to users / roles. Nothing is deleted: reports are RETIRED (hidden, restorable). Function only. */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText, fmtDateTime } from '../ui.js?v=202611161500';
-import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, calendarBucket, isDateType } from '../data/crm-analytics.js?v=202611247700';
+import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, calendarBucket, isDateType } from '../data/crm-analytics.js?v=202611290800';
 import { tabs, head } from './crm-kit.js?v=202611289980';
-import { criteriaEditor } from './crm-criteria.js?v=202611247700';
+import { criteriaEditor } from './crm-criteria.js?v=202611290800';
 import { composeOverlay } from './crm-compose.js?v=202611247700';
 import { fmtNum } from './crm-charts.js?v=202611161500';
 
@@ -48,7 +48,7 @@ function resultsHtml(out) {
   const cellsRow = (r) => html`<tr data-result-row="${r.id}">${r.cells.map((x) => html`<td data-col="${x.key}">${x.link ? html`<a href="${x.link}">${x.text}</a>` : x.text}</td>`)}</tr>`;
   const groups = (list, depth) => list.map((g) => html`<tr data-group-row="${depth}"><th colspan="${cols.length}" style="text-align:left;padding-left:${depth * 16}px" data-group-header>${g.header}${g.aggregates.length ? html` <span class="small">${g.aggregates.map((a) => `${a.label}: ${fmtNum(a.value, a.currency)}`).join('; ')}</span>` : ''}</th></tr>
     ${g.groups ? groups(g.groups, depth + 1) : g.rows.map(cellsRow)}`);
-  return html`<p data-total-records>Total Records: <strong>${out.total}</strong>${out.filterText ? html` <span class="muted small" data-report-filter-text>Filters: ${out.filterText}</span>` : ''}</p>${agg(out.aggregates)}
+  return html`${out.notice ? html`<p class="notice warn small" data-report-notice>${out.notice}</p>` : ''}<p data-total-records>Total Records: <strong>${out.total}</strong>${out.filterText ? html` <span class="muted small" data-report-filter-text>Filters: ${out.filterText}</span>` : ''}</p>${agg(out.aggregates)}
     <table class="tbl" data-report-results><thead><tr>${cols.map((x) => html`<th>${x.label}</th>`)}</tr></thead><tbody>${out.groups ? groups(out.groups, 0) : out.rows.map(cellsRow)}</tbody></table>
     ${out.total ? '' : html`<p class="muted" data-no-rows>No records match.</p>`}`;
 }

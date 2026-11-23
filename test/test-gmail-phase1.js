@@ -83,6 +83,8 @@ function fakeDeps(over = {}) {
     userDocBytes: async () => new Uint8Array([37, 80, 68, 70]),
     userEmail: async (id) => (id === 'e1' ? { id: 'e1', deal_id: DEAL, mailbox_email: 'john@clatitle.com', gmail_thread_id: 'tLinked', rfc_message_id: '<orig@mail>' } : null),
     storeAttachment: async (path, bytes, mime) => { calls.stored.push({ path, size: bytes.length, mime }); },
+    // TC-ONLY-1: gmail-send now asks comm_route_emails who gets the email. Nobody on these files is TC-only, so it returns the same lists.
+    userRpc: async (fn, args) => (fn === 'comm_route_emails' ? { to: args.p_to, cc: args.p_cc, bcc: args.p_bcc, redirected: [], held: [] } : null),
     ...over.deps,
   };
   if (over.ctx) Object.assign(ctx, over.ctx);
@@ -230,6 +232,36 @@ const portalSql = readFileSync(new URL('../supabase/migrations/20261110070100_gm
 const portalBack = readFileSync(new URL('../supabase/rollbacks/20261110070100_gmail_portal_upload_documents.sql', import.meta.url), 'utf8');
 ok(portalSql.includes('keyed_documents') && portalSql.includes("visibility = 'staff'") && portalSql.includes("is distinct from 'portal'") && portalSql.includes('already.name'), 'portal uploads are keyed staff documents; picked files and a second sync are not inserted');
 ok(portalBack.includes('keyed_documents') && portalBack.includes('portal upload keys are still recorded') && !portalBack.includes("p->'keyed_documents'"), 'rollback removes the portal upload key stamp');
+
+// ---- TC-ONLY-1 (John, Nov 22): an agent set to "Only communicate with TC" on the file never gets a typed email ----
+{ const routeTc = async (fn, args) => {
+    if (fn !== 'comm_route_emails') return null;
+    const swap = (l) => l.map((e) => (e === 'pat@agent.test' ? 'sam@tc.test' : e));
+    return { to: swap(args.p_to), cc: swap(args.p_cc), bcc: swap(args.p_bcc), held: [],
+      redirected: args.p_to.includes('pat@agent.test') ? [{ from: 'pat@agent.test', fromName: 'Pat Agent', fromFirstName: 'Pat', side: "buyer's agent", list: 'to', to: ['sam@tc.test'], toNames: ['Sam Coordinator'], toFirstName: 'Sam' }] : [] }; };
+  const seen = []; const f = fakeDeps({ deps: { userRpc: async (fn, args) => { seen.push({ fn, args }); return routeTc(fn, args); } } });
+  const r = await handleSend(post(sendBody({ to: 'pat@agent.test', html: '<p>Hi Pat,</p><p>The closing moved.</p>' })), f.deps); const j = await r.json();
+  const sentRaw = f.calls.fetch.find((c) => c.url.includes('/messages/send')); const mime = sentRaw ? b64urlToText(JSON.parse(sentRaw.body).raw) : '';
+  ok(r.status === 200 && j.to.join() === 'sam@tc.test' && j.tcOnlyRedirected[0].from === 'pat@agent.test', 'tc-only: a typed email to the agent goes to their TC, and the answer says so');
+  const parts = [...mime.matchAll(/base64\r?\n\r?\n([A-Za-z0-9+/=\r\n]+)/g)].map((m) => Buffer.from(m[1].replace(/\s/g, ''), 'base64').toString('utf8')).join(' ');
+  ok(/To: sam@tc\.test/i.test(mime) && !/pat@agent\.test/i.test(mime) && parts.includes('Hi Sam,') && !parts.includes('Hi Pat,'), 'tc-only: the email Gmail sends is to the TC only, greeting uses the TC\'s name');
+  ok(seen[0] && seen[0].args.p_log === true && seen[0].args.p_deal === DEAL, 'tc-only: a real send logs the swap'); }
+{ const seen = []; const f = fakeDeps({ deps: { userRpc: async (fn, args) => { seen.push(args); return { to: args.p_to, cc: args.p_cc, bcc: args.p_bcc, redirected: [], held: [] }; } } });
+  await handleSend(post(sendBody({ to: 'pat@agent.test', dryRun: true })), f.deps); ok(seen[0] && seen[0].p_log === false, 'tc-only: a preview (dry run) checks but does not log'); }
+{ const f = fakeDeps({ deps: { userRpc: async (fn, args) => ({ to: [], cc: [], bcc: [], redirected: [], held: [{ email: 'pat@agent.test', name: 'Pat Agent', side: "buyer's agent" }] }) } });
+  const r = await handleSend(post(sendBody({ to: 'pat@agent.test' })), f.deps); const j = await r.json();
+  ok(r.status === 400 && /Only communicate with TC/.test(j.error) && /Nothing was sent/.test(j.error) && !f.calls.fetch.some((c) => c.url.includes('/messages/send')), 'tc-only: no TC linked -> refused in plain words, nothing sent'); }
+{ const f = fakeDeps({ deps: { userRpc: async () => { throw new Error('function public.comm_route_emails does not exist'); } } });
+  const r = await handleSend(post(sendBody({ to: 'pat@agent.test' })), f.deps); const j = await r.json();
+  ok(r.status === 502 && !/does not exist/.test(j.error) && !f.calls.fetch.some((c) => c.url.includes('/messages/send')), 'tc-only: if the check cannot run, nothing is sent (no raw database message shown)'); }
+for (const [label, reply] of [['no reply', null], ['no To list', { cc: [], bcc: [], redirected: [], held: [] }], ['To is not a list', { to: 'pat@agent.test', cc: [], bcc: [], redirected: [], held: [] }],
+    ['no held list', { to: ['pat@agent.test'], cc: [], bcc: [], redirected: [] }], ['a non-address in To', { to: [{ email: 'pat@agent.test' }], cc: [], bcc: [], redirected: [], held: [] }]]) {
+  const f = fakeDeps({ deps: { userRpc: async () => reply } });
+  const r = await handleSend(post(sendBody({ to: 'pat@agent.test' })), f.deps); const j = await r.json();
+  ok(r.status === 502 && /Nothing was sent/.test(j.error) && !f.calls.fetch.some((c) => c.url.includes('/messages/send')), `tc-only: a malformed check reply (${label}) fails closed, nothing sent`); }
+{ const { swapGreeting } = await import('../supabase/functions/_shared/gmail-handlers.mjs');
+  ok(swapGreeting('<p>Hi Pat,</p><p>Patricia</p>', 'Pat', 'Sam') === '<p>Hi Sam,</p><p>Patricia</p>' && swapGreeting('<p>Hi Patricia,</p>', 'Pat', 'Sam') === '<p>Hi Patricia,</p>'
+    && swapGreeting('<p>Dear J.R.,</p>', 'J.R.', 'Kim') === '<p>Dear Kim,</p>', 'tc-only: greeting swap changes only the agent\'s first name in the greeting'); }
 
 console.log(fail ? `${fail} FAILED` : 'all gmail phase 1 checks passed');
 if (fail) process.exit(1);

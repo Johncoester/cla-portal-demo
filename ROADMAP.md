@@ -1430,6 +1430,31 @@ This file lists the portal's major features: how each one should work, how far a
 - Removing a link takes nobody off a file. A CLA staff login is never linked. A coordinator placed by a link is not linked onward to other agents on that file.
 - Spec: [docs/specs/tc-assign-agents.md](docs/specs/tc-assign-agents.md).
 
+## TC portal home is called Dashboard (TC-DASHBOARD-LABEL-1)
+
+**How it should work.** For an outside user (the login a transaction coordinator gets), the left-menu item and the home page are called **Dashboard**, not "My Files". The page is the TC dashboard built in TC-DASHBOARD-1 (PR 402). Only the name changes.
+
+**Status: In review.** John Coester, chat, Nov 22 2026, 1:21 PM ET: "my files should be called Dashboard". Tracker item TC-DASHBOARD-LABEL-1. No database file.
+
+**What's built**
+
+- Menu item, page title, eyebrow and heading say Dashboard for the Outside user role. The route (`#/dashboard`) is unchanged.
+- Other roles keep their own names: CLA staff Transaction Coordinator was already Dashboard; agents keep Transactions; clients keep Open Orders (no home page); Processor and Preprocessor keep Work Queue; Sales keep Team Dashboard; admins keep Admin.
+
+**What's still missing**
+
+- Nothing for this item.
+
+**Links**
+
+- Pull request: [PR 408](https://github.com/Johncoester/cla-portal-demo/pull/408)
+
+**Decisions**
+
+- Only the visible name changes; the route and internal ids stay the same (John, Nov 22 2026).
+
+---
+
 ## Reuse a contact by email (CONTACT-REUSE-1)
 
 **How it should work.** A person can be on many files. When staff add someone to a file and type an email that is already on a contact, the portal uses that existing person and adds them to the file. It does not show the "another record already uses this email" error, does not create a second contact, and does not change the saved name, phone, or company. This is true for a transaction coordinator and for every other role.
@@ -2667,6 +2692,23 @@ This file lists the portal's major features: how each one should work, how far a
 - A blank name means nobody is assigned. The role title stays.
 - More than one salesperson means more than one Sales Person card.
 
+## File reports in the CRM report builder (RPT)
+
+**How it should work.** Reports on files are built in the CRM's report builder, on the Deals report type (a Deal is a portal file). John's daily pre-closing report is the first target: processor, order number, open and close dates, the source of business with a contact, company, cell and email, key task dates, county, address, and each agent with a name, cell and email. Reports can then be emailed on a schedule. One report builder, not two.
+
+**Status: In progress.** John Coester, Nov 22 2026 ("check where the reporting in the CRM is at, maybe it would be easier just to report it from there", then "Do all 3"), assigned to Claude. Three pull requests, one at a time.
+
+**What's built**
+
+- RPT-1 ([PR 407](https://github.com/Johncoester/cla-portal-demo/pull/407), built by Claude, not merged). A Deals report offers 23 more columns: State, Zip Code, Contract Date, File Step, Processor, Pre-processor, Transaction Coordinator, Closer, Buyer, Seller, Source of Business with its contact, company, phone and email, and the Buyer Agent and Listing Agent each with company, phone and email. They can be shown, filtered, sorted and grouped like any other column. The phone is the mobile when there is one. They are on reports only; the Deals list and its column picker are unchanged. A person sees the same files in a report as on the Deals list. Database file `20261129010000_crm_deal_report_fields.sql` adds one read-only function and changes nothing that exists. Until it is applied on TEST the report still runs and says the file columns are blank. Not Live until that file is applied and a report is checked on TEST.
+
+**What's still missing**
+
+- RPT-2: task dates as columns (due and completed date for each task on the file, such as EMD receipt and clear to close).
+- RPT-3: reports emailed on a schedule to chosen people.
+- Reports live inside the CRM, so only people with CRM access can open them. A processor's own pre-closing list is not reachable from the portal side yet.
+- The Lender column on a Deals report is blank on TEST unless the file columns are loaded (the hosted Deals row has no lender name). RPT-1 fills it on reports.
+
 ## CRM report grouping without fiscal buckets
 
 **How it should work.** On a CRM report and on a CRM chart, date grouping offers By Day, By Calendar Week, By Month, By Quarter, and By Year. By Fiscal Week, By Fiscal Quarter, and By Fiscal Year are not in the list. A report or chart already saved with one of those opens as the matching calendar grouping: fiscal week as week, fiscal quarter as quarter, and fiscal year as year. It does not show an error.
@@ -3144,3 +3186,36 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Do not merge PR 139: its database file would overwrite the later Janine deal-name import change (John, Nov 12, 4:41 PM ET, t1550u).
+
+---
+
+## TC dashboard EMD, ALTA review, and admin fees (TC-DASH-EMD-1, TC-DASH-ALTA-1, TC-DASH-EMDSTAT-1, TC-DASH-FEES-1)
+
+**How it should work.** On the outside Transaction Coordinator dashboard (Outstanding tasks and File overview, the My files home from TC-DASHBOARD-1), two cards sit between those sections. Outstanding / overdue EMDs lists the coordinator's open files where the earnest money is not marked received, using the existing deal fields (amount, due date, holder, and the received flag). Overdue means the due date has passed; outstanding means it is not received and is not yet due, or has no due date. Each row opens the file. ALTA review needed lists the coordinator's open files whose closing date is today through the next 2 days. That card is a closing-date reminder only; it does not read an ALTA status. File overview also shows EMD received as Yes or No for each file, and Admin fees (the admin fee and any other fees the agent entered, with a label when there is more than one). Commission stays in its own column. A client never sees the fee columns. Buyers and sellers never see agent fees, the same as on the file.
+
+**Status: In progress.** John Coester, chat, Nov 22 2026, 1:23-1:26 PM ET, from TC feedback Nov 20. Tracker items TC-DASH-EMD-1, TC-DASH-ALTA-1, TC-DASH-EMDSTAT-1, and TC-DASH-FEES-1. No database file. Not Live until this is merged and checked on TEST.
+
+**What's built**
+
+- Outstanding / overdue EMDs and ALTA review needed cards on the outside dashboard, after Outstanding tasks and before File overview. They use the same files the dashboard already loads.
+- File overview has an EMD Received column (Yes / No, or a dash on a refinance) and an Admin fees column next to Commission, only for people who can already see agent fees on that file.
+- Admin fees come from the same per-file fee read already used for Commission (capped at 12, after the page is drawn). The database still decides which sides a TC may see.
+
+**What's still missing**
+
+- A check on TEST after merge, with a fake TC login and at least one overdue EMD and one file closing within 2 days. Do not mark Live before that.
+- The ALTA card does not use `alta_received` and does not add a TC sign-off or "ready to send to the client" step. Those were later asks from the Nov 20 TC feedback and are not in this item.
+- The home is called Dashboard (TC-DASHBOARD-LABEL-1, [PR 408](https://github.com/Johncoester/cla-portal-demo/pull/408), merged Nov 22 2026).
+
+**Links**
+
+- Spec: [docs/specs/tc-dashboard-emd-alta.md](docs/specs/tc-dashboard-emd-alta.md)
+- Source: John Coester, chat, Nov 22 2026, 1:23 PM ET ("outstanding, overdue EMDs" and "Auto review needed... two days before closing"), 1:25 PM ET (EMD received Yes or No on File overview), and 1:26 PM ET (admin fees the agents enter). From TC feedback Nov 20.
+
+**Decisions**
+
+- "Auto review needed" is treated as ALTA review needed, as a closing-date reminder for files closing today through today+2. Past closings and files more than 2 days out are left off. `deals.alta_received` already exists, but this card does not filter on it.
+- EMD received is `deals.emd_received` (the same flag used to mark funds received and to start Task Builder EMD flows). Amount, due date and holder are `deals.emd_amount`, `deals.emd_due_date` and `deals.emd_holder`. The Accounting contract-terms `emd_receipt` field is not used; that sheet cannot mark funds received.
+- Files with no EMD amount, due date, or holder are left off the outstanding EMD card. Refinance files have no EMD.
+- No new database file: the dashboard's existing open-file read now also asks for those four EMD columns. Admin fees reuse `getAgentFees`.
+- Cache stamp 202611291400, above main's 202611290700 and clear of open PR 407's 202611290800, so a saved copy of the shell is not reused.

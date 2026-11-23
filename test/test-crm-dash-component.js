@@ -255,13 +255,13 @@ const page = read('js/pages/crm-dashboards.js');
 ok(page.includes('return { name: f.name.value, type, config }') && page.includes('maxlength="100"') && !page.includes('maxlength="120"'), 'the chart form still nests config and the name field stops at 100');
 
 const want = new Map([
-  ['js/data/supabase-crm-surface.js', '202611247000'],
-  ['js/data/supabase-crm.js', '202611249700'],
-  ['js/data/supabase-adapter.js', '202611291310'],
-  ['js/data/adapter.js', '202611291310', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
-  ['js/pages/crm-dashboards.js', '202611289980'],
-  ['js/pages/crm.js', '202611290610'],
-  ['js/app.js', '202611291310', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
+  ['js/data/supabase-crm-surface.js', '202611290800'],
+  ['js/data/supabase-crm.js', '202611290800'],
+  ['js/data/supabase-adapter.js', '202611291500'],
+  ['js/data/adapter.js', '202611291500', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
+  ['js/pages/crm-dashboards.js', '202611290800'],
+  ['js/pages/crm.js', '202611290800'],
+  ['js/app.js', '202611291500', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
 ]);
 function walkDir(dir, out = []) {
   for (const name of readdirSync(dir)) {

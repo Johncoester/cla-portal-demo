@@ -13,9 +13,9 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved file template or a written message, with merge fields) and the "File closed"
  * trigger. Emails are queued in the outbox; a test run sends the email only to the admin trying it. */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611291310';
-import { renderFlowEmail, testCopy, emailRecipients, emailRoleName, signatureText, withSignature } from './flow-email.js?v=202611291310';
-import { SEED_SHARED } from './file-email-templates.js?v=202611291310';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611291500';
+import { renderFlowEmail, testCopy, emailRecipients, emailRoleName, signatureText, withSignature } from './flow-email.js?v=202611291500';
+import { SEED_SHARED } from './file-email-templates.js?v=202611291500';
 import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';
 import { senderFor } from './email-senders.js?v=202611247700';
 import { taskEnabled } from './task-switches.js?v=202611247700';

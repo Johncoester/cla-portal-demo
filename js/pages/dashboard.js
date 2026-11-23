@@ -2,11 +2,11 @@
 // Transaction Coordinator = Dashboard; Buyer/Listing Agent = Transactions; clients = My Closing.
 import { html, toText, fmtDate, fmtDateTime, fmtMoney, pill, raw, $, guard, toast } from '../ui.js?v=202611161500';
 import { runsOrders, STAGES, isProcessor, isClient, isAgent, isOutside, localDate } from '../data/constants.js?v=202611247700';
-import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611291310';
+import { boardForm, boardResults, mountBoard, BOARD_DEFAULTS } from './taskboard.js?v=202611291500';
 import { themeOn } from '../theme.js?v=202611070139';
 import { pendingMine } from '../data/task-actions.js?v=202611269900';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
-import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611247700';
+import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611291400';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -172,7 +172,7 @@ export const myTaskList = (tasks) => { const open = tasks.filter((t) => ['todo',
       <td><a href="#/deals/${t.deal.id}">${t.deal.fileNumber}</a><br><span class="muted small">${t.deal.address}</span></td>
       <td data-my-task-role>${t.myRoleLabel || (t.deal && t.deal.myRoleLabel) || ''}</td><td class="nowrap ${t.overdue ? 'warn' : ''}">${t.dueDate ? fmtDate(t.dueDate) : html`<span class="muted">-</span>`}</td></tr>`)}</tbody></table>`
       : html`<p class="muted">Nothing needed from you right now.</p>`}</div>`; };
-// TC-DASHBOARD-1 (John, Nov 21 2026: "this layout looks horrible"): the My Files home is a dashboard in the Open Orders table look.
+// TC-DASHBOARD-1 (John, Nov 21 2026: "this layout looks horrible"): the outside user's home (named Dashboard since John, Nov 22 2026: "my files should be called Dashboard") is a dashboard in the Open Orders table look.
 // Outstanding tasks are grouped by file (File No, Property Address and Your Role each in their own column, once per file), then a file
 // overview with Stage, Closing Date, tasks for you and, for the agent side only, the commission. Clients' "What we need from you" stays.
 const TC_LABEL = 'Transaction Coordinator';
@@ -184,6 +184,25 @@ const feeSideOf = (d) => FEE_SIDE[d.myRole] || ((d.myRoles || []).map((r) => FEE
 export const DASH_FEE_FILES = 12;   // speed: at most this many commission reads, after the page is drawn
 const commissionText = (side) => { const c = side && side.commission; if (!c || (c.amount == null && c.percent == null)) return '';
   return `${c.percent != null ? `${Number(c.percent).toLocaleString('en-US', { maximumFractionDigits: 4 })}% / ` : ''}${c.amount != null ? fmtMoney(c.amount) : ''}`; };
+// TC dashboard (John, Nov 22 2026): outstanding / overdue EMDs and ALTA review (files closing in the next 2 days).
+// EMD fields are the existing deal columns: emd_received, emd_amount, emd_due_date, emd_holder. Refinance has no EMD.
+export const ALTA_REVIEW_DAYS = 2;
+const hasEmdInfo = (d) => d && (d.emdAmount != null || d.emdDueDate || (d.emdHolder && String(d.emdHolder).trim()));
+export const emdReceivedLabel = (d) => (!d || d.transactionType === 'Refinance' ? '—' : d.emdReceived ? 'Yes' : 'No');
+export const outstandingEmds = (open, today) => (open || []).filter((d) => d.status !== 'Closed' && d.status !== 'On Hold' && d.status !== 'Cancelled' && d.transactionType !== 'Refinance' && !d.emdReceived && hasEmdInfo(d))
+  .map((d) => ({ deal: d, overdue: !!(d.emdDueDate && d.emdDueDate < today) }))
+  .sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.deal.emdDueDate || '9999-12-31').localeCompare(b.deal.emdDueDate || '9999-12-31') || (a.deal.fileNumber || '').localeCompare(b.deal.fileNumber || ''));
+const plusDays = (iso, n) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); if (!m) return ''; const d = new Date(+m[1], +m[2] - 1, +m[3] + n); const ymd = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; return ymd(d); };
+export const altaReviewNeeded = (open, today) => { const end = plusDays(today, ALTA_REVIEW_DAYS);
+  return (open || []).filter((d) => d.status === 'Open' && d.closingDate && d.closingDate >= today && d.closingDate <= end)
+    .sort((a, b) => a.closingDate.localeCompare(b.closingDate) || (a.fileNumber || '').localeCompare(b.fileNumber || '')); };
+// Admin fee plus any other fees the agent entered (not the commission, which has its own column). Same visibility as getAgentFees.
+export const adminFeesText = (side) => { if (!side) return '';
+  const parts = [];
+  if (side.admin && side.admin.amount != null) parts.push(`Admin fee ${fmtMoney(side.admin.amount)}`);
+  (side.other || []).forEach((f) => { if (f && f.amount != null) parts.push(`${f.description || 'Other fee'} ${fmtMoney(f.amount)}`); });
+  return parts.join('; '); };
+
 export const outsideTaskGroups = (deals, all) => { const byId = new Map(deals.map((d) => [d.id, d])); const groups = new Map();
   pendingMine((all || []).filter((t) => t.deal && (!t.deal.status || t.deal.status === 'Open')), OPEN_TASK).forEach((t) => { const id = t.deal.id;
     if (!groups.has(id)) groups.set(id, { deal: { ...t.deal, ...(byId.get(id) || {}) }, tasks: [] }); groups.get(id).tasks.push(t); });
@@ -203,26 +222,45 @@ async function outside({ api, deals, all, today }) {
   const mineOn = (d) => groups.find((g) => g.deal.id === d.id);
   const feeFiles = open.filter(feeSideOf); const showFees = feeFiles.length > 0;
   const clientFiles = open.filter((d) => isClient(groupOf(d) || ''));
-  const body = html`<div class="page-head"><div><div class="eyebrow">MY FILES</div><h2 class="page-title">My files</h2><div class="muted">${open.length} open file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
+  const emdRows = outstandingEmds(open, today);
+  const altaRows = altaReviewNeeded(open, today);
+  const body = html`<div class="page-head"><div><div class="eyebrow">DASHBOARD</div><h2 class="page-title">Dashboard</h2><div class="muted">${open.length} open file(s). What you can see and do on each file depends on your role on that file.</div></div></div>
     <div class="stat-row" data-dash-stats>${stat('Open files', open.length, html`<a href="#/orders?s=Open">Open Orders</a>`)}${stat('Tasks for you', taskCount, `on ${groups.length} file(s)`, taskCount ? 'warn' : '')}${stat('Overdue', overdue, 'past their due date', overdue ? 'bad' : '')}${stat('Closing soon', closing, 'in the next 14 days')}</div>
     <div class="box-title"><h3 data-my-tasks>Outstanding tasks <span class="muted small" data-my-tasks-count>${taskCount} task(s) on ${groups.length} file(s)</span></h3></div>
     ${taskCount ? html`<table class="tbl striped" data-dash-tasks><thead><tr><th>File No</th><th>Property Address</th><th>Your Role</th><th>Task</th><th>Due</th></tr></thead><tbody>${taskRows(groups, today)}</tbody></table>`
       : html`<p class="muted" data-no-tasks>Nothing needed from you right now.</p>`}
+    <div class="two-col" data-dash-alerts>
+      <div class="card" data-emd-card><h3>Outstanding / overdue EMDs <span class="muted small">${emdRows.length} file(s)</span></h3>
+        ${emdRows.length ? html`<table class="tbl striped" data-emd-table><thead><tr><th>File No</th><th>Property</th><th>EMD amount</th><th>Due date</th><th>Holder</th><th></th></tr></thead><tbody>${emdRows.map(({ deal: d, overdue }) => html`<tr data-emd-file="${d.id}" data-emd-overdue="${overdue ? 'yes' : 'no'}"><td><a href="#/deals/${d.id}">${d.fileNumber}</a></td>
+          <td>${d.street ? html`${d.street},<br>${d.city}, ${d.state}, ${d.zip}` : d.address || ''}</td><td class="nowrap">${d.emdAmount != null ? fmtMoney(d.emdAmount) : html`<span class="muted">—</span>`}</td>
+          <td class="nowrap ${overdue ? 'bad-text' : ''}">${d.emdDueDate ? fmtDate(d.emdDueDate) : html`<span class="muted">—</span>`}${overdue ? html` ${pill('Overdue', 'bad')}` : ''}</td>
+          <td>${d.emdHolder ? d.emdHolder : html`<span class="muted">—</span>`}</td></tr>`)}</tbody></table>`
+          : html`<p class="muted" data-no-emd>No outstanding or overdue EMDs.</p>`}</div>
+      <div class="card" data-alta-card><h3>ALTA review needed <span class="muted small">${altaRows.length} file(s)</span></h3>
+        <p class="muted small">Open files closing today through the next 2 days. This is a closing-date reminder; it does not read an ALTA status.</p>
+        ${altaRows.length ? html`<table class="tbl striped" data-alta-table><thead><tr><th>File No</th><th>Property</th><th>Closing date</th></tr></thead><tbody>${altaRows.map((d) => html`<tr data-alta-file="${d.id}"><td><a href="#/deals/${d.id}">${d.fileNumber}</a></td>
+          <td>${d.street ? html`${d.street},<br>${d.city}, ${d.state}, ${d.zip}` : d.address || ''}</td><td class="nowrap">${fmtDate(d.closingDate)}</td></tr>`)}</tbody></table>`
+          : html`<p class="muted" data-no-alta>No files closing in the next 2 days.</p>`}</div>
+    </div>
     <div class="box-title"><h3>File overview <span class="muted small">${open.length} open file(s)</span></h3></div>
-    ${open.length ? html`<table class="tbl striped" data-dash-files><thead><tr><th>File No</th><th>Property Address</th><th>Your Role</th><th>Closing Date</th><th>Stage</th><th>Task Pending</th>${showFees ? html`<th>Commission</th>` : ''}<th></th></tr></thead><tbody>${open.map((d) => { const g = mineOn(d);
+    ${open.length ? html`<table class="tbl striped" data-dash-files><thead><tr><th>File No</th><th>Property Address</th><th>Your Role</th><th>Closing Date</th><th>EMD Received</th><th>Stage</th><th>Task Pending</th>${showFees ? html`<th>Commission</th><th>Admin fees</th>` : ''}<th></th></tr></thead><tbody>${open.map((d) => { const g = mineOn(d);
       return html`<tr data-dash-file="${d.id}"><td><a href="#/deals/${d.id}">${d.fileNumber}</a>${d.fileTitle ? html`<br><span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}</td>
         <td>${d.street ? html`${d.street},<br>${d.city}, ${d.state}, ${d.zip}` : d.address}</td><td data-dash-role>${roleText(d)}</td><td class="nowrap">${d.closingDate ? fmtDate(d.closingDate) : html`<span class="muted">Not set</span>`}</td>
+        <td data-emd-received="${d.id}">${emdReceivedLabel(d)}</td>
         <td data-dash-stage>${d.stageName || STAGES[Number(d.stage) || 0] || ''}</td><td>${g ? html`<span class="action-req">Action Required</span><br><span class="muted small">${g.tasks.length} task(s)</span>` : ''}</td>
-        ${showFees ? html`<td data-commission="${feeSideOf(d) ? d.id : ''}">${feeSideOf(d) ? html`<span class="muted small">Loading...</span>` : ''}</td>` : ''}<td><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`; })}</tbody></table>`
+        ${showFees ? html`<td data-commission="${feeSideOf(d) ? d.id : ''}">${feeSideOf(d) ? html`<span class="muted small">Loading...</span>` : ''}</td><td data-admin-fees="${feeSideOf(d) ? d.id : ''}">${feeSideOf(d) ? html`<span class="muted small">Loading...</span>` : ''}</td>` : ''}<td><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`; })}</tbody></table>`
       : html`<p class="muted">You are not on any open files yet.</p>`}
     ${clientFiles.length ? html`<section class="role-group" data-group="client"><h3 class="group-title">What we need from you</h3>${clientBlocks(clientFiles, all)}</section>` : ''}`;
-  return { title: 'My files', body, mount(root) {
+  return { title: 'Dashboard', body, mount(root) {
     if (!showFees) return;
-    // speed: drawn first, then one commission read per agent-side file (at most DASH_FEE_FILES), all at once. A failed read says so in its cell.
-    feeFiles.slice(0, DASH_FEE_FILES).forEach(async (d) => { const cell = root.querySelector(`[data-commission="${d.id}"]`); if (!cell) return;
-      try { const r = api.getAgentFees ? await api.getAgentFees(d.id) : null; const side = r && r.fees ? r.fees[feeSideOf(d)] : null; const txt = commissionText(side);
-        cell.innerHTML = txt ? toText(txt) : '<span class="muted small">Not entered yet</span>';
-      } catch (e) { cell.innerHTML = '<span class="muted small">Could not load</span>'; } });
-    feeFiles.slice(DASH_FEE_FILES).forEach((d) => { const cell = root.querySelector(`[data-commission="${d.id}"]`); if (cell) cell.innerHTML = '<span class="muted small">Open the file to see it</span>'; });
+    // speed: drawn first, then one fee read per agent-side file (at most DASH_FEE_FILES), all at once. A failed read says so in its cells.
+    const fill = (sel, d, htmlText) => { const cell = root.querySelector(`[${sel}="${d.id}"]`); if (cell) cell.innerHTML = htmlText; };
+    feeFiles.slice(0, DASH_FEE_FILES).forEach(async (d) => {
+      try { const r = api.getAgentFees ? await api.getAgentFees(d.id) : null; const side = r && r.fees ? r.fees[feeSideOf(d)] : null;
+        const comm = commissionText(side); const admin = adminFeesText(side);
+        fill('data-commission', d, comm ? toText(comm) : '<span class="muted small">Not entered yet</span>');
+        fill('data-admin-fees', d, admin ? toText(admin) : '<span class="muted small">Not entered yet</span>');
+      } catch (e) { fill('data-commission', d, '<span class="muted small">Could not load</span>'); fill('data-admin-fees', d, '<span class="muted small">Could not load</span>'); } });
+    feeFiles.slice(DASH_FEE_FILES).forEach((d) => { fill('data-commission', d, '<span class="muted small">Open the file to see it</span>'); fill('data-admin-fees', d, '<span class="muted small">Open the file to see it</span>'); });
   } };
 }

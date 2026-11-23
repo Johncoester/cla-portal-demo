@@ -1,6 +1,6 @@
 /* Dashboard loading. Open files, narrow columns, concurrent reads. Fake client only. */
 import { readFileSync } from 'node:fs';
-import { fetchDashboard, dashboardDealFilter, DASHBOARD_DEAL_COLUMNS, DASHBOARD_TASK_COLUMNS, OPEN_TASK_STATUSES, decorateDashboardDeals, indexDashboardExtras } from '../js/data/dashboard-load.js';
+import { fetchDashboard, dashboardDealFilter, DASHBOARD_DEAL_COLUMNS, DASHBOARD_TASK_COLUMNS, OPEN_TASK_STATUSES, decorateDashboardDeals, indexDashboardExtras, shapeDashboardDeal } from '../js/data/dashboard-load.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { render } from '../js/pages/dashboard.js';
 
@@ -10,7 +10,10 @@ const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 ok(dashboardDealFilter('open').value === 'Open' && dashboardDealFilter('other').value === 'Open' && dashboardDealFilter('other').op === 'neq', 'open files are status Open; everything else is the Show more set');
-ok(!DASHBOARD_DEAL_COLUMNS.split(',').includes('*') && !DASHBOARD_DEAL_COLUMNS.includes('notes') && !DASHBOARD_DEAL_COLUMNS.includes('financial') && DASHBOARD_DEAL_COLUMNS.includes('file_number') && DASHBOARD_DEAL_COLUMNS.includes('closing_date') && DASHBOARD_DEAL_COLUMNS.includes('processor_id'), 'the deal query names the columns the dashboard renders');
+ok(!DASHBOARD_DEAL_COLUMNS.split(',').includes('*') && !DASHBOARD_DEAL_COLUMNS.includes('notes') && !DASHBOARD_DEAL_COLUMNS.includes('financial') && DASHBOARD_DEAL_COLUMNS.includes('file_number') && DASHBOARD_DEAL_COLUMNS.includes('closing_date') && DASHBOARD_DEAL_COLUMNS.includes('processor_id') && DASHBOARD_DEAL_COLUMNS.includes('emd_amount') && DASHBOARD_DEAL_COLUMNS.includes('emd_due_date') && DASHBOARD_DEAL_COLUMNS.includes('emd_holder') && DASHBOARD_DEAL_COLUMNS.includes('emd_received'), 'the deal query names the columns the dashboard renders, including the existing EMD fields');
+
+const shaped = shapeDashboardDeal({ id: 'x', file_number: 'MD-1', status: 'Open', emd_amount: 10000, emd_due_date: '2026-11-01', emd_holder: 'CLA Title', emd_received: false, stage: 0 });
+ok(shaped.emdAmount === 10000 && shaped.emdDueDate === '2026-11-01' && shaped.emdHolder === 'CLA Title' && shaped.emdReceived === false, 'dashboard file rows include EMD amount, due date, holder and received');
 ok(DASHBOARD_TASK_COLUMNS.includes('title') && DASHBOARD_TASK_COLUMNS.includes('due_date') && DASHBOARD_TASK_COLUMNS.includes('deals!inner') && !DASHBOARD_TASK_COLUMNS.includes('form_data'), 'the task query names list columns and not form answers');
 ok(OPEN_TASK_STATUSES.join() === 'todo,in_progress,blocked', 'the first task read is the incomplete set');
 

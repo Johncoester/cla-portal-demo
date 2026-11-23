@@ -6,7 +6,7 @@
  * nothing is sent until an Admin turns the flow on (John: "I'll test it and turn it on when I feel ready").
  * TEST COPY (John): "Try on one file" fills in that file's real names and address but sends the email ONLY to the admin trying it.
  * Mirrored in SQL: migration 20261127010000_task_flow_email_step.sql. Pure: no adapter, no DOM. */
-import { FILE_TEMPLATE_FIELD_KEYS, mergeValues, renderMerge } from './file-email-templates.js?v=202611291310';
+import { FILE_TEMPLATE_FIELD_KEYS, mergeValues, renderMerge } from './file-email-templates.js?v=202611291500';
 
 export const EMAIL_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', "Buyer's agent"], ['Listing Agent', 'Listing agent'],
   ['non_referring_agents', "Agents who didn't refer the file"], ['Transaction Coordinator', 'Transaction coordinator'], ['Lender', 'Lender']];
