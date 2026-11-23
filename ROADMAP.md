@@ -2694,16 +2694,17 @@ This file lists the portal's major features: how each one should work, how far a
 - More than one salesperson means more than one Sales Person card.
 
 
-## Preprocessor on the Closing Team card (FF-106)
+## Preprocessor on the Closing Team card (FF-106 / FF-106b)
 
-**How it should work.** On the staff File Overview, the Closing Team row includes a Preprocessor card. It shows the assigned CLA Preprocessor's name. If none is assigned, the name is blank and the role title stays. Layout, styling, the other Closing Team roles, and the agent's own Transaction Coordinator role and link stay unchanged.
+**How it should work.** On the staff File Overview, the Closing Team slot that was labelled Transaction Coordinator is the CLA preprocessor slot. The label reads Preprocessor and shows the assigned CLA Preprocessor's name from Edit order details. If none is assigned, the name is blank and the role title stays Preprocessor. Layout, styling, the other Closing Team roles, and the agent's own Transaction Coordinator role and link stay unchanged.
 
-**Status: Building.** Tracker FF-106. Francis Santos, confirmed Nov 23 2026, 11:59 AM ET (Gmail 1a209598512b3bd1). Source: Francis confirm-back Nov 23. Pull request pending. No database file.
+**Status: Building.** Tracker FF-106b. Francis Santos retest failed Nov 23 2026, 2:33 PM ET (Gmail 1a209e6c78047e5d) on DC-26-78512: "Still Transaction Coordinator not Preprocessor." Source: Francis retest 2:33 PM. Pull request pending. No database file.
 
 **What's built**
 
-- Closing Team cards are Processor, Preprocessor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person (one card per salesperson).
-- Hosted File Overview fills the Preprocessor name from the staff already saved on the file.
+- Closing Team cards are Processor, Preprocessor, Licensed Settlement Agent, and Sales Person (one card per salesperson).
+- The former Transaction Coordinator card on this row is relabelled Preprocessor and no longer appears as a separate card.
+- The name comes from the Preprocessor already saved on the file.
 - Buyers, sellers, and agents still do not get the staff Closing Team row.
 
 **What's still missing**
@@ -2717,8 +2718,9 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- This adds a card. It does not rename Transaction Coordinator to Preprocessor.
-- A blank name means nobody is assigned. The role title stays.
+- FF-106 first added a fifth card and kept Transaction Coordinator. That was the wrong reading of the confirm-back. FF-106b relabels the existing CLA slot.
+- A blank name means nobody is assigned as Preprocessor. The role title stays Preprocessor.
+- The agent's own Transaction Coordinator on Order Contacts is unchanged.
 
 ## File reports in the CRM report builder (RPT)
 
