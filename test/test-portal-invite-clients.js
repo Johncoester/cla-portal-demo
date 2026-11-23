@@ -1,6 +1,6 @@
 /* Francis / John Nov 9: "can't invite buyers and sellers" / "a processor needs to be able to invite".
    Contacts tab Invite to portal for Client-Buyer, Client-Seller, Buyer Agent and Listing Agent rows (no login), for the same staff who invite
-   agents (not a TC). A contact with no email takes one typed in the dialog. Buyers / sellers get a short login form (no agent profile).
+   agents (STAFF-INVITE-1 also includes a CLA Transaction Coordinator). A contact with no email takes one typed in the dialog. Buyers / sellers get a short login form (no agent profile).
    Fake / mock data only. Nothing is sent. */
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 import { readFileSync } from 'node:fs';
@@ -18,9 +18,9 @@ const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.
 
 // who may invite
 const U = (role, extra = {}) => ({ id: 'x', role, status: 'active', isAdmin: false, ...extra });
-for (const r of ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team']) ok(PORTAL_INVITE_ROLES.every((pr) => canInviteToPortal(U(r), pr)), `${r} may invite buyers, sellers and agents`);
+for (const r of ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin']) ok(PORTAL_INVITE_ROLES.every((pr) => canInviteToPortal(U(r, r === 'Admin' ? { isAdmin: true } : {}), pr)), `${r} may invite buyers, sellers and agents`);
 ok(canInviteToPortal(U('Super admin', { isAdmin: true }), 'Client-Seller'), 'Super admin may invite a seller');
-ok(!canInviteToPortal(U('Transaction Coordinator'), 'Client-Buyer') && !canInviteToPortal(U('Transaction Coordinator'), 'Buyer Agent'), 'a TC still may not invite');
+ok(canInviteToPortal(U('Transaction Coordinator'), 'Client-Buyer') && canInviteToPortal(U('Transaction Coordinator'), 'Buyer Agent'), 'a CLA Transaction Coordinator may invite (STAFF-INVITE-1)');
 ok(!canInviteToPortal(U('Outside user'), 'Client-Buyer'), 'an outside user may not invite');
 ok(!canInviteToPortal(U('Processor'), 'Lender'), 'lenders are not offered an invite');
 ok(inviteKindForRole('Client-Seller') === 'client' && inviteKindForRole('Listing Agent') === 'agent', 'role maps to invite kind');
@@ -84,9 +84,12 @@ ok(r2.inviteKind === 'client' && r2.email === 'nora.noemail@example.test' && r2.
 deal = await api.getDeal('deal-4');
 ok(deal.participants.find((p) => p.contactId === blank.id).contact.email === 'nora.noemail@example.test', 'the typed email is saved on the contact');
 
-// Preprocessor may invite on a file they can open; a TC may not
+// A CLA Transaction Coordinator may invite on a file they can open (STAFF-INVITE-1)
+const ivy = await api.createContact({ firstName: 'Ivy', lastName: 'Invitee', email: 'ivy.invitee@example.test', contactType: 'buyer_seller' });
+await api.addParticipant('deal-4', ivy.id, 'Client-Buyer');
 await api.signInDev('u-tc');
-await rejects(() => api.createPortalInvite({ dealId: 'deal-4', contactId: 'c-lena' }), /Only CLA staff/, 'a TC is refused');
+const asTc = await api.createPortalInvite({ dealId: 'deal-4', contactId: ivy.id });
+ok(asTc && asTc.link, 'a CLA Transaction Coordinator can create a portal invite');
 await api.signInDev('u-proc');
 await rejects(() => api.createPortalInvite({ dealId: 'deal-4', contactId: 'c-lender1' }), /buyer, seller, buyer agent or listing agent|not found/i, 'someone not a buyer/seller/agent on the file is refused');
 

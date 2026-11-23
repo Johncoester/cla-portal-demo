@@ -1417,6 +1417,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CLA staff can send portal invites (STAFF-INVITE-1)
+
+**How it should work.** Any CLA Title employee who can open orders can click Invite to portal (and Resend) and send the invite: Processor, Preprocessor, Sales Person, Sales Team, Transaction Coordinator, Admin, and Super admin. The email always comes from testportal@clatitle.com. The inviter does not need to connect Gmail. Outside users (agents, buyers, sellers, lenders, and an agent's own TC) and HR-only Employee logins still cannot send invites. Who can be invited is unchanged.
+
+**Status: Building.** John Coester, chat, Nov 23 2026, 5:07 PM ET. Tracker item STAFF-INVITE-1. Not Live until this pull request is merged and `supabase/migrations/20261129120000_staff_invite_cla_employees.sql` is applied on TEST.
+
+**What's built**
+
+- The button, the Agent Invites page, and every invite call use the same staff list, including a CLA Transaction Coordinator.
+- The database helper `private.can_invite_agents` matches that list.
+- The Invite to portal and Agent Invites screens say the email comes from testportal@clatitle.com and that Gmail does not need to be connected.
+
+**What's still missing**
+
+- Live until the pull request is merged and the database file is applied on TEST.
+- The database error text on some older invite functions still lists the pre-STAFF-INVITE-1 roles (the check itself uses `can_invite_agents`, so a Transaction Coordinator is allowed).
+
+**Links**
+
+- Spec: [docs/specs/staff-invite.md](docs/specs/staff-invite.md)
+- Source: John Coester, chat, Nov 23 2026, 5:07 PM ET. Tracker item STAFF-INVITE-1.
+
+**Decisions**
+
+- "CLA Title employee" here means a staff account that can open orders (`STAFF_ACCOUNT_ROLES`), not an HR-only Employee login.
+- This reverses the Nov 4 2026 "No for now" decision that a CLA staff Transaction Coordinator could not send invites.
+
+---
+
 ## TC portal invite (TC-INVITE-1)
 
 **How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
@@ -1444,7 +1473,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
 - A coordinator gets the short client login, not the agent account.
-- A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+- STAFF-INVITE-1 (John, Nov 23 2026 5:07 PM ET) lifts the earlier rule that a CLA staff Transaction Coordinator cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
 
 ---
 

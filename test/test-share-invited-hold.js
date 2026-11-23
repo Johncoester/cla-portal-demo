@@ -12,7 +12,7 @@ const data = mkdtempSync(join(tmpdir(), 'cla-share-invited-'));
 const port = '55497';
 const db = 'shareinvited';
 const PROC = '11111111-1111-4111-8111-111111111111';     // Processor 1 (CLA staff, can invite)
-const TC = '22222222-2222-4222-8222-222222222222';       // Transaction Coordinator (staff, cannot invite)
+const TC = '22222222-2222-4222-8222-222222222222';       // Transaction Coordinator (staff, can invite as of STAFF-INVITE-1)
 const OTHER = '33333333-3333-4333-8333-333333333333';    // a processor who is not in the conversation
 const AGENTP = '44444444-4444-4444-8444-444444444444';   // an outside agent login on the file
 const NEWLOGIN = '55555555-5555-4555-8555-555555555555'; // the login the invited buyer agent ends up with
@@ -59,7 +59,7 @@ create table public.activity (deal_id uuid, action text, detail text);
 create function private.effective_uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 create function private.me_role() returns text language sql stable security definer as $$ select role from public.profiles where id = private.effective_uid() $$;
 create function private.is_view_only() returns boolean language sql stable security definer as $$ select coalesce((select view_only from public.profiles where id = private.effective_uid()), false) $$;
-create function private.can_invite_agents() returns boolean language sql stable security definer as $$ select coalesce(private.me_role() in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Admin'), false) $$;
+create function private.can_invite_agents() returns boolean language sql stable security definer as $$ select coalesce(private.me_role() in ('Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin'), false) $$;
 create function private.can_access_deal(d uuid) returns boolean language sql stable security definer as $$
   select coalesce(private.me_role() <> 'Outside user', false)
       or exists (select 1 from public.deal_participants dp join public.contacts c on c.id = dp.contact_id where dp.deal_id = d and c.profile_id = private.effective_uid()) $$;
@@ -110,7 +110,7 @@ try {
 
   // who is refused, and what they are told
   const no = (r, re, m) => ok(r.failed && re.test(r.err), m);
-  no(share(TC, C_AGENT), /Only CLA staff who can invite people/, 'a Transaction Coordinator (who cannot invite) cannot share this way');
+  ok(as(TC, "select private.can_invite_agents()").out === 't', 'a CLA Transaction Coordinator may invite (STAFF-INVITE-1)');
   no(share(AGENTP, C_AGENT), /Only CLA staff who can invite people/, 'an outside agent cannot share this way');
   no(share(PROC, C_LENDER), /Lou Lender has no portal login, and only a buyer, seller, buyer agent or listing agent/, 'a lender contact cannot be invited, and the message says why');
   no(share(PROC, C_NONAME), /Add a first and last name/, 'a contact with no last name is refused with what to fix');
