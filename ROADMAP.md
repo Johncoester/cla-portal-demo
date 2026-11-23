@@ -239,7 +239,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a phone, the This File sidebar (File Overview, My Tasks, Inbox, Documents, Scheduling Details, and the rest of the file links) starts closed behind a This File button that sits in the page, so the menu never covers the property address or order details. Tapping the button opens a drawer with a dimmed backdrop. Tapping a file tab, Close, the dimmed area, or Escape closes it. On a computer the left sidebar is unchanged. A buyer or seller who already uses the light file shell (no sidebar) is unchanged.
 
-**Status: Building.** Tracker item JC-MOBILE-1. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET.
+**Status: Live.** Tracker item JC-MOBILE-1. [PR 430](https://github.com/Johncoester/cla-portal-demo/pull/430), merged bbaeec6e Nov 23 2026, 6:04 PM ET. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET. No database file.
 
 **What's built**
 
@@ -249,7 +249,6 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's missing**
 
-- Not on TEST yet. No database file.
 - The oversized sticky order header on a phone is a separate item (JC-MOBILE-2).
 
 **Links**
@@ -260,6 +259,33 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The phone breakpoint stays 860px, the same one the sidebar already uses.
+- No database change.
+
+---
+
+## Mobile order header (JC-MOBILE-2)
+
+**How it should work.** On a phone, the large order header (order number, stage, property address, price, buyers and sellers, opened and county, settlement and disbursement dates) scrolls away with the page. It does not stay pinned to the top and take up half the screen. On a computer the header still stays pinned under the top bar.
+
+**Status: Building.** Tracker item JC-MOBILE-2. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET.
+
+**What's built**
+
+- On viewports 860px and narrower, the order header uses `position: static` so it scrolls away normally.
+- On a computer the header stays sticky under the top bar.
+
+**What's missing**
+
+- Not on TEST yet. No database file.
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [Mobile This File menu (JC-MOBILE-1)](#mobile-this-file-menu-jc-mobile-1).
+
+**Decisions**
+
+- The phone breakpoint stays 860px, the same one JC-MOBILE-1 uses.
 - No database change.
 
 ---
