@@ -4,10 +4,11 @@ import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { fieldActive, fieldsForRole, fieldsForFile, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from '../data/templates.js?v=202611247700';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611247700';
-import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG } from '../data/constants.js?v=202611247700';
-import { CLS, LABEL } from './dealtasks.js?v=202611289950';
+import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG, isRefi } from '../data/constants.js?v=202611247700';
+import { CLS, LABEL } from './dealtasks.js?v=202611300500';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { AGENT_ROLE_SIDE } from '../data/agent-fees.js?v=202611246500';
+import { nameTasks, taskRoleLabel } from '../data/task-party-names.js?v=202611300500';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 // The task page and the processor Tasks "Expand all" use the same fields, save, and complete rules.
@@ -174,7 +175,10 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
 export async function render(c0) {
   { const t0 = await ctx0(c0); if (t0) return t0; }
   const { api, deal, params, refresh, go } = c0;
-  const t = await api.getTask(params.sub);
+  // MF-061 (Matt, Nov 22): "For Bob Smith (Seller)", not "Client-Seller". The page opens on the file shell, so the parties are read on their own.
+  const partiesP = (deal.participants && deal.participants.length) || !api.listTaskParties ? Promise.resolve(deal.participants || []) : api.listTaskParties(deal.id).catch(() => []);
+  const [got, parties] = await Promise.all([api.getTask(params.sub), partiesP]);
+  const t = Object.assign(got, nameTasks([got], parties)[0]);
   if (t.kind === 'sign') return signView({ api, deal, t, refresh, go });
   if (t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller') && !t.formHidden && api.readBuyerSsn) {
     try { t.ssnShown = await api.readBuyerSsn(t.id) || ''; } catch (e) { t.ssnShown = ''; }
@@ -200,10 +204,10 @@ export async function render(c0) {
   const doneReadOnly = outside && t.status === 'done';
   const inner = intakeFormHtml(t, { page: true, state: deal && deal.state, doneReadOnly, backHref: `#/deals/${deal.id}/tasks` });
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>${t.title}</h2><a class="ghost right" href="#/deals/${deal.id}/tasks">All tasks</a></div>
-    <div class="card"><p>${t.description}</p><p class="muted small">For <strong>${t.ownerName || t.assignedRole}</strong> (${t.assignedRole}) &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
+    <div class="card"><p>${t.description}</p><p class="muted small">For <strong data-task-for>${t.ownerName || taskRoleLabel(t, { refi: isRefi(deal) })}</strong>${t.ownerName ? html` (${taskRoleLabel(t, { refi: isRefi(deal) })})` : ''} &middot; due ${fmtDate(t.dueDate) || 'n/a'} &middot; ${pill(LABEL[t.status], CLS[t.status])}
       &middot; template ${tplLabel}${t.savedAt ? html` &middot; last saved ${fmtDateTime(t.savedAt)}` : ''}</p>
     ${t.completedByLabel ? html`<p class="done-by"><strong>${t.completedByLabel}</strong> on ${fmtDateTime(t.completedAt)}.</p>` : t.savedByLabel ? html`<p class="muted small done-by">${t.savedByLabel} on ${fmtDateTime(t.savedAt)}.</p>` : ''}
-    ${t.forClient && t.canFill && !doneReadOnly ? html`<p class="note-box" data-agent-no-complete>Only <strong>${t.ownerName || 'the client'}</strong> or CLA Title can mark this task complete.</p>` : ''}
+    ${t.forClient && t.canFill && !doneReadOnly ? html`<p class="note-box" data-agent-no-complete>Only <strong>${t.ownerName || `the ${taskRoleLabel(t, { refi: isRefi(deal) }).toLowerCase()}`}</strong> or CLA Title can mark this task complete.</p>` : ''}
     ${t.mine && t.savedBy && t.savedBy !== t.ownerId ? html`<p class="note-box">Your agent filled this in for you. Please check the answers and correct anything that is wrong.</p>` : ''}
     ${inner}</div>`;
   return { title: t.title, crumbs: [['All Tasks', `#/deals/${deal.id}/tasks`], [t.title]], body, mount(root) {
@@ -233,4 +237,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611289950'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611300500'); return m.render(c); }
