@@ -88,7 +88,7 @@ const salesSearch = document.querySelector('[data-sales-multi] .picker-q');
 salesSearch.value = '';
 salesSearch.dispatchEvent(new window.Event('input', { bubbles: true }));
 const listed = [...document.querySelectorAll('#sales-people-list [data-id]')].map((el) => el.getAttribute('data-id'));
-ok(listed.includes('u-sp') && listed.includes('u-team') && !listed.includes('u-proc') && !listed.includes('u-admin'), 'Salespeople on this order lists Sales Person and Sales Team only (FF-092a) ' + listed.join(','));
+ok(listed.includes('u-sp') && listed.includes('u-team') && listed.includes('u-proc') && listed.includes('u-admin'), 'Salespeople on this order lists every staff member, Processors and Super admins included (John, Nov 23: anyone at CLA Title can be a salesperson; replaces FF-092a) ' + listed.join(','));
 
 const setState = (value) => {
   const state = document.querySelector('[name="state"]');
@@ -134,7 +134,7 @@ overview.mount(document.body);
 const shown = document.querySelector('[data-sales-person="u-proc"]');
 ok(!!shown && shown.textContent.includes('Paula Processor'), 'the file still shows a salesperson whose role is not in the list');
 const addOpts = [...document.querySelectorAll('#addsales option')].map((o) => o.getAttribute('value')).filter(Boolean);
-ok(addOpts.includes('u-sp') && addOpts.includes('u-team') && !addOpts.includes('u-admin') && !addOpts.includes('u-preproc'), 'Add a salesperson lists Sales Person and Sales Team only (' + addOpts.join(',') + ')');
+ok(addOpts.includes('u-sp') && addOpts.includes('u-team') && addOpts.includes('u-admin') && addOpts.includes('u-preproc'), 'Add a salesperson lists every staff member (John, Nov 23: anyone at CLA Title can be a salesperson; replaces FF-092a) (' + addOpts.join(',') + ')');
 
 const { render: renderLegacy } = await import('../js/pages/deal-buyer-legacy.js');
 const legacy = await renderLegacy({ api, user, params: { id: kept.id, tab: 'overview' }, go() {}, refresh() {} });
@@ -143,7 +143,7 @@ legacy.mount(document.body);
 const legacyShown = document.querySelector('[data-sales-person="u-proc"]');
 ok(!!legacyShown && legacyShown.textContent.includes('Paula Processor'), 'the older file page still shows a salesperson whose role is not in the list');
 const legacyOpts = [...document.querySelectorAll('#addsales option')].map((o) => o.getAttribute('value')).filter(Boolean);
-ok(legacyOpts.includes('u-sp') && legacyOpts.includes('u-team') && !legacyOpts.includes('u-admin') && !legacyOpts.includes('u-preproc'), 'the older file page adds only Sales Person and Sales Team (' + legacyOpts.join(',') + ')');
+ok(legacyOpts.includes('u-sp') && legacyOpts.includes('u-team') && legacyOpts.includes('u-admin') && legacyOpts.includes('u-preproc'), 'the older file page can add any staff member (John, Nov 23: anyone at CLA Title can be a salesperson; replaces FF-092a) (' + legacyOpts.join(',') + ')');
 
 await api.signInDev('u-admin');
 await api.createTaskFlow({ name: 'Keep Paula', trigger: 'order_opened', conditions: { salesPeople: ['u-proc'] }, steps: [] });

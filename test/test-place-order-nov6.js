@@ -15,7 +15,7 @@ ok(showMdQuestions('MD', false) === true && showMdQuestions('md', false) === tru
 ok(showMdQuestions('VA', false) === false && showMdQuestions('MD', true) === false, 'other states and a refinance hide them');
 ok(withoutHiddenProfiles([{ id: 'demo', profileId: 'p-demo' }, { id: 'open', profileId: null }, { id: 'real', profileId: 'p-real' }], ['p-real']).map((c) => c.id).join() === 'open,real', 'demo logins drop out of a real contact list; a contact with no login stays');
 ok(PROCESSOR_PICK_ROLES.includes('Processor') && PROCESSOR_PICK_ROLES.includes('Sales Person') && PROCESSOR_PICK_ROLES.includes('Transaction Coordinator') && PROCESSOR_PICK_ROLES.includes('Super admin'), 'processor picker includes every staff role (ANYROLE-1)');
-ok(SALES_PICK_ROLES.join() === 'Sales Person,Sales Team' && !SALES_PICK_ROLES.includes('Processor') && !SALES_PICK_ROLES.includes('Super admin'), 'sales picker is Sales Person and Sales Team only (FF-092a, Janine Nov 17 2026)');
+ok(SALES_PICK_ROLES.includes('Sales Person') && SALES_PICK_ROLES.includes('Processor') && SALES_PICK_ROLES.includes('Super admin'), 'sales picker includes every staff role (John, Nov 23: anyone at CLA Title can be a salesperson; replaces FF-092a)');
 ok(sourceChoices('Google Ads', 'Google Ads', false).some((o) => o.value === 'Google Ads') && sourceChoices('Google Ads', 'Google Ads', false).some((o) => o.value === 'buyer_agent'), 'an older marketing source stays on the edit list');
 ok(sourceChoices('', '', true).every((o) => o.value === 'lender'), 'a refinance offers only the lender');
 ok(referralLabel('buyer_agent:c-bagent', (id) => (id === 'c-bagent' ? 'Bianca Agent' : '')) === "Buyer's agent — Bianca Agent", 'referral label names the contact');
@@ -23,7 +23,7 @@ ok(referralLabel('buyer_agent:c-bagent', (id) => (id === 'c-bagent' ? 'Bianca Ag
 await as('u-proc');
 const staff = await a.listSalesStaff();
 const people = await a.listContacts();
-ok(staff.every((s) => SALES_PICK_ROLES.includes(s.role)) && staff.some((s) => s.role === 'Sales Person') && staff.some((s) => s.role === 'Sales Team') && !staff.some((s) => s.role === 'Super admin' || s.role === 'Processor'), 'step 6 sales list is Sales Person and Sales Team only (FF-092a)');
+ok(staff.every((s) => SALES_PICK_ROLES.includes(s.role)) && staff.some((s) => s.role === 'Sales Person') && staff.some((s) => s.role === 'Sales Team') && staff.some((s) => s.role === 'Super admin') && staff.some((s) => s.role === 'Processor'), 'step 6 sales list includes Super admins and Processors (John, Nov 23: anyone at CLA Title can be a salesperson; replaces FF-092a)');
 ok(!people.filter((c) => staff.some((s) => s.id === c.profileId)).some((c) => /buyer|seller/i.test(c.firstName + c.lastName) && !SALES_PICK_ROLES.includes((staff.find((s) => s.id === c.profileId) || {}).role)), 'sales contacts are the staff rows, not clients');
 const procs = await a.listProcessors();
 ok(procs.some((p) => p.role === 'Processor') && procs.every((p) => PROCESSOR_PICK_ROLES.includes(p.role)), 'the processor list is the eligible staff roles, including Processor');

@@ -61,8 +61,8 @@ const api = { getDeal: async (id) => ({ id, stage: 9 }), listDeals: async () => 
 const s = staffSupabase({ sb, ok: okFn, camel, me, api });
 const sales = await s.listSalesStaff();
 const salesRoles = (calls.find((c) => c.table === 'profiles' && c.filters.some((f) => f[0] === 'in' && f[1] === 'role')) || { filters: [] }).filters.find((f) => f[0] === 'in');
-check(salesRoles && salesRoles[2].join() === 'Sales Person,Sales Team', 'listSalesStaff asks for Sales Person and Sales Team only (FF-092a)');
-check(sales.some((p) => p.name === 'Sam Sales' && p.role === 'Sales Person') && !sales.some((p) => p.role === 'Super admin') && sales.length === 1, 'listSalesStaff leaves out other staff roles (FF-092a, Janine Nov 17 2026)');
+check(salesRoles && ['Processor', 'Sales Person', 'Sales Team', 'Super admin'].every((r) => salesRoles[2].includes(r)), 'listSalesStaff asks for every staff role (John, Nov 23: anyone at CLA Title can be a salesperson; replaces FF-092a)');
+check(sales.some((p) => p.name === 'Sam Sales' && p.role === 'Sales Person') && sales.some((p) => p.role === 'Super admin'), 'listSalesStaff includes a Super admin as well as Sales (John, Nov 23: anyone at CLA Title can be a salesperson; replaces FF-092a)');
 const users = await s.adminListUsers();
 check(users.some((u) => u.id === 'me' && u.isAdmin) && users[0].files && users[0].salesReps, 'adminListUsers returns the admin directory shape');
 check((await s.adminGetUser('s1')).email === 'sam@example.test', 'adminGetUser finds one person');
