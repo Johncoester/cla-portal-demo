@@ -3,11 +3,12 @@
  * Recent items have no table, so they last for this page session only. */
 import { localDate, STAGES } from './constants.js?v=202611247700';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611247700';
+import { isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611247700';
 import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, withFileColumns, withTaskColumns, taskTitlesInUse, reportKeys, reportUsesTasks, isTaskKey,
-} from './crm-analytics.js?v=202611301000';
+  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, withFileColumns, withTaskColumns, taskTitlesInUse, reportKeys, reportUsesTasks, isTaskKey, reportEditable,
+} from './crm-analytics.js?v=202611301900';
 import { cleanHomeTitle, homeChartsMissing, homeChartMessage } from './crm-home-charts.js?v=202611247000';
 
 const RECENT = new Map();
@@ -102,13 +103,19 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     if (view.filters && view.filters.period) view.filters = { ...view.filters, period: presetKey(view.filters.period) };
     return view;
   };
+  // RPT-3a: everyone with the CRM has their own report folder. A read-only CRM role (Processor, Preprocessor) saves there and nowhere else.
+  const reportFolderCols = (u, v) => { const id = String(v || '').trim();
+    if (!id || isPersonalFolder(id)) { if (id && id !== personalFolderId(u.id)) throw new Error('You can only save into shared folders or your own folder.'); return { folder_id: null, personal_owner: u.id }; }
+    if (crmReadOnly(u)) throw new Error('Your reports are saved in your own folder.'); return { folder_id: id, personal_owner: null }; };
+  const mine = (u, r) => !r.personal_owner || r.personal_owner === u.id;   // another person's own folder is not listed
   const repOut = (u, r, folders) => {
     const share = r.share && r.share.mode ? r.share : { mode: r.share_mode || 'all', users: shareOf(r.share).users, roles: shareOf(r.share).roles };
     const folder = (folders || []).find((f) => f.id === r.folder_id);
     const loaded = camel(r);
     return { ...loaded, ...(Object.prototype.hasOwnProperty.call(loaded, 'bucket') ? { bucket: calendarBucket(loaded.bucket) } : {}), related: r.related || [], columns: r.columns || [], rowGroups: r.row_groups || r.rowGroups || [], aggregates: r.aggregates || [], filters: withPresetKeys(r.filters || []),
       share, folderName: folder ? folder.name : (r.personal_owner ? 'My reports' : ''), personal: !!r.personal_owner, retired: !!r.retired_at, moduleLabel: moduleName(r.module),
-      createdByName: '', canEdit: !crmReadOnly(u), canExport: !!u.isAdmin, lastAccessedAt: r.last_accessed_at || null };
+      ...(r.personal_owner ? { folderId: personalFolderId(r.personal_owner) } : {}),
+      createdByName: '', canEdit: reportEditable(u, { createdBy: r.created_by, personal: !!r.personal_owner }, crmReadOnly(u)), canExport: !!u.isAdmin, lastAccessedAt: r.last_accessed_at || null };
   };
   const compOut = (c, data) => { const parts = storedParts(c); return { ...camel(c), chartType: parts.chartType, criteria: parts.criteria, grouping: parts.grouping, measure: parts.measure, height: c.height >= 3 ? 'l' : c.height === 2 ? 'm' : 's', data, config: parts.config, error: data && data.error }; };
   // Same narrowing as the demo dashboard: the component's own criteria, then the dashboard owner and created-time period.
@@ -291,29 +298,30 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async crmDrillDown() { await who(); return { title: 'Records', rows: [] }; },
     async listCrmReportFolders() {
       const u = await who(); const folders = await pack(sb.from('crm_report_folders').select('*').order('name'));
-      const reports = await pack(sb.from('crm_reports').select('id,folder_id').is('retired_at', null));
-      return { canCreate: !!u.isAdmin, folders: folders.map((f) => ({ ...camel(f), kind: 'shared', count: reports.filter((r) => r.folder_id === f.id).length })) };
+      const reports = await pack(sb.from('crm_reports').select('id,folder_id,personal_owner').is('retired_at', null));
+      return { canCreate: !!u.isAdmin, folders: [...folders.map((f) => ({ ...camel(f), kind: 'shared', count: reports.filter((r) => r.folder_id === f.id).length })),
+        { id: personalFolderId(u.id), name: 'My reports', kind: 'personal', count: reports.filter((r) => r.personal_owner === u.id).length }] };
     },
     async createCrmReportFolder(name) { const u = await editor(); if (!u.isAdmin) throw new Error('Only an Admin or Super admin can create report folders.'); const n = String(name || '').trim(); if (!n) throw new Error('Folder name is required.'); return camel(ok(await sb.from('crm_report_folders').insert({ name: n.slice(0, 80), created_by: u.id }).select('*').single())); },
     async listCrmReports({ includeRetired = false } = {}) {
       const u = await who(); const folders = await pack(sb.from('crm_report_folders').select('*'));
-      return (await pack(sb.from('crm_reports').select('*').order('name'))).map((r) => repOut(u, r, folders)).filter((r) => reportVisible(u, r) && (includeRetired || !r.retired));
+      return (await pack(sb.from('crm_reports').select('*').order('name'))).filter((r) => mine(u, r)).map((r) => repOut(u, r, folders)).filter((r) => reportVisible(u, r) && (includeRetired || !r.retired));
     },
-    async getCrmReport(id) { const u = await who(); const folders = await pack(sb.from('crm_report_folders').select('*')); const r = ok(await sb.from('crm_reports').select('*').eq('id', id).maybeSingle()); if (!r) throw new Error('Report not found.'); return repOut(u, r, folders); },
+    async getCrmReport(id) { const u = await who(); const folders = await pack(sb.from('crm_report_folders').select('*')); const r = ok(await sb.from('crm_reports').select('*').eq('id', id).maybeSingle()); if (!r || !mine(u, r)) throw new Error('Report not found.'); return repOut(u, r, folders); },
     async createCrmReport(input = {}) {
-      const u = await editor(); const name = String(input.name || '').trim(); if (!name) throw new Error('Report Name is required.');
-      const r = ok(await sb.from('crm_reports').insert({ name: name.slice(0, 120), description: String(input.description || '').slice(0, 500), folder_id: input.folderId || null, module: input.module, related: input.related || [], columns: input.columns || [], row_groups: input.rowGroups || [], aggregates: input.aggregates || [], filters: input.filters || [], logic: input.logic || 'and', sort: input.sort || null, share_mode: (input.share && input.share.mode) || 'all', share: input.share || { mode: 'all' }, created_by: u.id }).select('*').single());
+      const u = await who(); const name = String(input.name || '').trim(); if (!name) throw new Error('Report Name is required.'); const where = reportFolderCols(u, input.folderId);
+      const r = ok(await sb.from('crm_reports').insert({ name: name.slice(0, 120), description: String(input.description || '').slice(0, 500), ...where, module: input.module, related: input.related || [], columns: input.columns || [], row_groups: input.rowGroups || [], aggregates: input.aggregates || [], filters: input.filters || [], logic: input.logic || 'and', sort: input.sort || null, share_mode: (input.share && input.share.mode) || 'all', share: input.share || { mode: 'all' }, created_by: u.id }).select('*').single());
       return this.getCrmReport(r.id);
     },
     async updateCrmReport(id, patch = {}) {
-      await editor(); const o = { modified_at: new Date().toISOString() };
+      const u = await who(); if (!(await this.getCrmReport(id)).canEdit) throw new Error('Only the person who made this report (or an Admin) can change it; use Clone to make your own.'); const o = { modified_at: new Date().toISOString() };
       ['name', 'description', 'module', 'logic'].forEach((k) => { if (patch[k] != null) o[k] = patch[k]; });
-      if (patch.folderId !== undefined) o.folder_id = patch.folderId; if (patch.columns) o.columns = patch.columns; if (patch.rowGroups) o.row_groups = patch.rowGroups;
+      if (patch.folderId !== undefined) Object.assign(o, reportFolderCols(u, patch.folderId)); if (patch.columns) o.columns = patch.columns; if (patch.rowGroups) o.row_groups = patch.rowGroups;
       if (patch.aggregates) o.aggregates = patch.aggregates; if (patch.filters) o.filters = patch.filters; if (patch.related) o.related = patch.related; if (patch.sort) o.sort = patch.sort; if (patch.share) { o.share = patch.share; o.share_mode = patch.share.mode || 'all'; }
       ok(await sb.from('crm_reports').update(o).eq('id', id)); return this.getCrmReport(id);
     },
-    async cloneCrmReport(id, { name } = {}) { const r = await this.getCrmReport(id); return this.createCrmReport({ ...r, name: name || `Copy of ${r.name}`, folderId: r.folderId }); },
-    async retireCrmReport(id, retired = true) { const u = await editor(); ok(await sb.from('crm_reports').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id)); return { ok: true }; },
+    async cloneCrmReport(id, { name } = {}) { const u = await who(); const r = await this.getCrmReport(id); return this.createCrmReport({ ...r, name: name || `Copy of ${r.name}`, folderId: crmReadOnly(u) ? personalFolderId(u.id) : r.folderId, ...(crmReadOnly(u) ? { share: { mode: 'all' } } : {}) }); },
+    async retireCrmReport(id, retired = true) { const u = await who(); if (!(await this.getCrmReport(id)).canEdit) throw new Error('Only the person who made this report (or an Admin) can retire it.'); ok(await sb.from('crm_reports').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id)); return { ok: true }; },
     async runCrmReport(idOrDef) {
       const u = await who(); const cfg = await self.getCrmSettings();
       const def = typeof idOrDef === 'string' ? await this.getCrmReport(idOrDef) : { ...idOrDef, ...(Object.prototype.hasOwnProperty.call(idOrDef, 'bucket') ? { bucket: calendarBucket(idOrDef.bucket) } : {}) };

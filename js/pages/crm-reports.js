@@ -3,9 +3,9 @@
  * Aggregate Columns, Filters (AND / OR), sort. Run, Save, Edit, Clone, Export (CSV: Admin / Super admin only), Send Email (saved, NOT sent).
  * Shared with everyone unless restricted to users / roles. Nothing is deleted: reports are RETIRED (hidden, restorable). Function only. */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText, fmtDateTime } from '../ui.js?v=202611161500';
-import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, calendarBucket, isDateType } from '../data/crm-analytics.js?v=202611301000';
+import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, calendarBucket, isDateType } from '../data/crm-analytics.js?v=202611301900';
 import { tabs, head } from './crm-kit.js?v=202611289980';
-import { criteriaEditor } from './crm-criteria.js?v=202611301000';
+import { criteriaEditor } from './crm-criteria.js?v=202611301900';
 import { composeOverlay } from './crm-compose.js?v=202611247700';
 import { fmtNum } from './crm-charts.js?v=202611161500';
 
@@ -23,7 +23,7 @@ export async function reportsHome(c) {
 async function listPage(c) {
   const { api, me } = c; const [fl, all] = await Promise.all([api.listCrmReportFolders(), api.listCrmReports({ includeRetired: true })]);
   const key = 'cla-crm-report-folder'; let folder = sessionStorage.getItem(key) || 'all';
-  const body = html`${tabs('reports')}${head('Reports', me, html`${me.canEdit ? html`<a class="m-btn" href="#/crm/reports/new" data-create-report>Create Report</a>` : ''}<a class="ghost" href="#/crm/reports/summary" data-summary-link>Summary by table</a>`)}
+  const body = html`${tabs('reports')}${head('Reports', me, html`<a class="m-btn" href="#/crm/reports/new" data-create-report>Create Report</a><a class="ghost" href="#/crm/reports/summary" data-summary-link>Summary by table</a>`)}
     <div style="display:flex;gap:12px"><div style="min-width:220px" data-report-folders><strong>Folders</strong><ul>
       <li><a href="#" data-folder="all">All Reports</a> <span class="muted small">(${all.filter((r) => !r.retired).length})</span></li>
       ${fl.folders.map((f) => html`<li><a href="#" data-folder="${f.id}" data-folder-name="${f.name}">${f.name}</a> <span class="muted small">(${f.count})</span>${f.kind === 'personal' ? html` <span class="muted small">(your folder)</span>` : ''}</li>`)}
@@ -55,9 +55,9 @@ function resultsHtml(out) {
 
 async function runPage(c) {
   const { api, me, params } = c; const rep = await api.getCrmReport(params.id); const out = await api.runCrmReport(rep.id);
-  const body = html`${tabs('reports')}${head(rep.name, me, html`<select data-report-menu aria-label="Report actions"><option value="">Edit &#9662;</option>${rep.canEdit && !rep.retired ? html`<option value="edit">Edit</option>` : ''}${me.canEdit ? html`<option value="clone">Clone</option>` : ''}
+  const body = html`${tabs('reports')}${head(rep.name, me, html`<select data-report-menu aria-label="Report actions"><option value="">Edit &#9662;</option>${rep.canEdit && !rep.retired ? html`<option value="edit">Edit</option>` : ''}<option value="clone">Clone</option>
       <option value="export" ${rep.canExport ? '' : raw('disabled')}>Export${rep.canExport ? '' : ' (Admin only)'}</option>${me.canEdit ? html`<option value="email">Send Email</option>` : ''}${rep.canEdit ? html`<option value="${rep.retired ? 'restore' : 'retire'}">${rep.retired ? 'Restore' : 'Retire (hide)'}</option>` : ''}</select> <a class="ghost" href="#/crm/reports">Back to reports</a>`)}
-    <p class="muted small" data-report-meta>${rep.description} · ${rep.moduleLabel}${rep.related.length ? ` + ${rep.related.map(moduleName).join(', ')}` : ''} · folder ${rep.folderName} · created by ${rep.createdByName}${rep.share.mode === 'custom' ? ' · restricted sharing' : ' · shared with everyone with the CRM'}${rep.retired ? ' · RETIRED' : ''}</p>
+    <p class="muted small" data-report-meta>${rep.description} · ${rep.moduleLabel}${rep.related.length ? ` + ${rep.related.map(moduleName).join(', ')}` : ''} · folder ${rep.folderName} · created by ${rep.createdByName}${rep.personal ? ' · in a personal folder, not shared' : rep.share.mode === 'custom' ? ' · restricted sharing' : ' · shared with everyone with the CRM'}${rep.retired ? ' · RETIRED' : ''}</p>
     <div data-report-out>${resultsHtml(out)}</div>`;
   function mount(root) {
     const m = $('[data-report-menu]', root); m.addEventListener('change', guard(async () => { const v = m.value; m.value = '';
@@ -72,8 +72,11 @@ async function runPage(c) {
 }
 
 async function builderPage(c, rep) {
-  const { api, me, owners, cfg } = c; if (!me.canEdit) throw new Error('The Processor has read-only access to the CRM.');
-  const [fl, targets] = await Promise.all([api.listCrmReportFolders(), api.listCrmShareTargets()]);
+  const { api, me, owners, cfg } = c;
+  // RPT-3a: a Processor or Preprocessor (read-only in the rest of the CRM) builds and saves reports in their own folder.
+  const own = !me.canEdit;
+  const [fl, targets] = await Promise.all([api.listCrmReportFolders(), own ? { users: [], roles: [] } : api.listCrmShareTargets()]);
+  const myFolder = fl.folders.find((x) => x.kind === 'personal'); const folderChoices = own ? fl.folders.filter((x) => x.kind === 'personal') : fl.folders;
   // RPT-2: task names in use, for the Deals report's task date columns (a failed read just leaves them out)
   let taskTitles = []; try { taskTitles = api.listCrmReportTaskTitles ? await api.listCrmReportTaskTitles() : []; } catch (e) { taskTitles = []; }
   const st = rep ? { ...JSON.parse(JSON.stringify(rep)) } : null;
@@ -94,18 +97,19 @@ async function builderPage(c, rep) {
   function details(s, next) {
     const m = modal('Report Details', html`<form data-report-details class="form-grid"><label class="span2">Report Name<input name="name" maxlength="120" required value="${s.name || ''}"></label>
       <label class="span2">Description<textarea name="description" maxlength="500" rows="2">${s.description || ''}</textarea></label>
-      <label>Folder<select name="folderId">${fl.folders.map((f) => html`<option value="${f.id}" ${f.id === s.folderId ? raw('selected') : ''}>${f.name}${f.kind === 'personal' ? ' (your folder)' : ''}</option>`)}</select></label>
+      <label>Folder<select name="folderId">${folderChoices.map((f) => html`<option value="${f.id}" ${f.id === s.folderId ? raw('selected') : ''}>${f.name}${f.kind === 'personal' ? ' (your folder)' : ''}</option>`)}</select></label>
       ${fl.canCreate ? html`<p><button type="button" class="ghost small" data-details-new-folder>+ Create Folder</button></p>` : html`<span></span>`}
-      <fieldset class="span2"><legend>Share with</legend><label><input type="radio" name="mode" value="all" ${s.share.mode !== 'custom' ? raw('checked') : ''}> Everyone with the CRM</label> <label><input type="radio" name="mode" value="custom" ${s.share.mode === 'custom' ? raw('checked') : ''}> Only these users / roles</label>
+      ${own ? html`<p class="muted small span2" data-own-folder-note>Your reports are saved in your own folder.</p>` : ''}
+      <fieldset class="span2" ${own ? raw('hidden') : ''}><legend>Share with</legend><label><input type="radio" name="mode" value="all" ${s.share.mode !== 'custom' ? raw('checked') : ''}> Everyone with the CRM</label> <label><input type="radio" name="mode" value="custom" ${s.share.mode === 'custom' ? raw('checked') : ''}> Only these users / roles</label>
         <div data-share-custom ${s.share.mode === 'custom' ? '' : raw('hidden')}><label>Users<select name="users" multiple size="5">${targets.users.map((u) => html`<option value="${u.id}" ${s.share.users.includes(u.id) ? raw('selected') : ''}>${u.name} (${u.role})</option>`)}</select></label>
         <label>Roles<select name="roles" multiple size="5">${targets.roles.map((r) => html`<option value="${r}" ${s.share.roles.includes(r) ? raw('selected') : ''}>${r}</option>`)}</select></label></div></fieldset>
       <div class="span2"><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn">OK</button></div></form>`, { wide: true });
     const f = $('[data-report-details]', m); $$('[name=mode]', f).forEach((r) => r.addEventListener('change', () => { $('[data-share-custom]', f).hidden = f.mode.value !== 'custom'; }));
-    if (!s.folderId) f.folderId.value = fl.folders.find((x) => x.kind === 'personal').id;
+    if ((own || !s.folderId) && myFolder) f.folderId.value = myFolder.id;
     const nf = $('[data-details-new-folder]', f); if (nf) nf.addEventListener('click', guard(async () => { const n = prompt('Folder name'); if (!n) return; const r = await api.createCrmReportFolder(n);
       fl.folders.push({ id: r.id, name: r.name, kind: 'shared', count: 0 }); const o = document.createElement('option'); o.value = r.id; o.textContent = r.name; f.folderId.appendChild(o); f.folderId.value = r.id; toast('Folder created'); }));
     f.addEventListener('submit', (e) => { e.preventDefault(); if (!f.name.value.trim()) { toast('Report Name is required.', 'err'); return; } Object.assign(s, { name: f.name.value.trim(), description: f.description.value, folderId: f.folderId.value,
-      share: { mode: f.mode.value, users: [...f.users.selectedOptions].map((o) => o.value), roles: [...f.roles.selectedOptions].map((o) => o.value) } }); closeModal(); next(); });
+      share: own ? { mode: 'all', users: [], roles: [] } : { mode: f.mode.value, users: [...f.users.selectedOptions].map((o) => o.value), roles: [...f.roles.selectedOptions].map((o) => o.value) } }); closeModal(); next(); });
   }
   function draw(box, s) {
     const fields = reportFields(s.module, s.related, cfg, { taskTitles, keys: [...(s.columns || []), ...(s.rowGroups || []), ...(s.filters || []).map((f) => f && f.field)].filter(Boolean) }); s.columns ||= fields.slice(0, 6).map((f) => f.key); const lab = (k) => (fields.find((f) => f.key === k) || { label: k }).label;

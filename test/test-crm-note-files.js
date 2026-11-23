@@ -278,15 +278,15 @@ for (const file of walk(path.join(root, 'js')).concat(readdirSync(root).filter((
 const dual = [...hits.entries()].filter(([, stamps]) => stamps.size > 1);
 ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + dual.map(([t, s]) => t + ' ' + [...s].join(',')).join('; ') : ''));
 const chain = [
-  ['js/pages/crm-forms.js', '202611301000'],
-  ['js/pages/crm-home.js', '202611301100'],
-  ['js/pages/crm.js', '202611301000'],
-  ['js/data/mock-part-crm.js', '202611301000'],
-  ['js/data/mock-adapter.js', '202611301500', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
-  ['js/data/supabase-crm.js', '202611301000'],
-  ['js/data/supabase-adapter.js', '202611301500'],
-  ['js/data/adapter.js', '202611301500', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
-  ['js/app.js', '202611301800', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
+  ['js/pages/crm-forms.js', '202611301900'],
+  ['js/pages/crm-home.js', '202611301900'],
+  ['js/pages/crm.js', '202611301900'],
+  ['js/data/mock-part-crm.js', '202611301900'],
+  ['js/data/mock-adapter.js', '202611301900', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
+  ['js/data/supabase-crm.js', '202611301900'],
+  ['js/data/supabase-adapter.js', '202611301900'],
+  ['js/data/adapter.js', '202611301900', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
+  ['js/app.js', '202611301900', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -294,7 +294,7 @@ for (const [target, stamp] of chain) {
   if (stamps.length !== 1 || stamps[0] !== stamp) issues.push(target + ' ' + (stamps.join(',') || 'none'));
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(read('index.html').includes('js/app.js?v=202611301800'), 'index.html loads the shell at 202611290610');
+ok(read('index.html').includes('js/app.js?v=202611301900'), 'index.html loads the shell at 202611290610');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log(fail ? fail + ' failed' : 'crm note files passed');

@@ -4,10 +4,10 @@
  * the login has none, or when the read fails. Deal's older hide-list is still that browser copy.
  * Chosen columns use the list's own keys (ownerName, place). A view stores the field key (ownerId, city). */
 import { activeFields, cfKey } from './crm-config.js?v=202611247700';
-import { moduleFields } from './crm-analytics.js?v=202611301000';
+import { moduleFields } from './crm-analytics.js?v=202611301900';
 import { DEAL_COLS, DEFAULT_HIDDEN, loadHidden } from './crm-deal-cols.js?v=202611070139';
 import { COLUMN_CAP, columnKey, loadColumns, normalizeColumns } from './crm-columns.js?v=202611160300';
-import { placeNameColumn } from './crm-views.js?v=202611301000';
+import { placeNameColumn } from './crm-views.js?v=202611301900';
 
 const hiddenBuiltin = (cfg, scope, key) => !!(cfg && cfg.fields && cfg.fields[scope] && cfg.fields[scope][key] && cfg.fields[scope][key].hidden);
 const listedCustom = (cfg, entity) => activeFields(cfg, entity).filter((f) => f.showInList).map((f) => cfKey(f.id));

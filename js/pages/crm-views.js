@@ -2,10 +2,10 @@
  * "New Custom View" = criteria + columns + sharing, and "Save filter" chips with counts). Routes: #/crm/views/<id> (a view), #/crm/views/new/<module>,
  * #/crm/views/<id>/edit. The adapter decides which rows a person may see; a view only narrows them. Function first, minimal styling. */
 import { html, raw, toText, $, $$, guard, toast, modal, closeModal } from '../ui.js?v=202611161500';
-import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611301000';
-import { startingViewColumns } from '../data/crm-all-columns.js?v=202611301000';
+import { VIEW_MODULE_LABEL, VIEW_VISIBILITY, VIEW_NAME_KEY, placeNameColumn, criteriaUserList, viewModuleFields } from '../data/crm-views.js?v=202611301900';
+import { startingViewColumns } from '../data/crm-all-columns.js?v=202611301900';
 import { columnOrderItem, wireColumnDrag } from './crm-columns.js?v=202611249870';
-import { criteriaEditor } from './crm-criteria.js?v=202611301000';
+import { criteriaEditor } from './crm-criteria.js?v=202611301900';
 import { tabs, head, pageSizeControl, pageNav } from './crm-kit.js?v=202611289980';
 import { savedFiltersHtml, wireSavedFilters } from './crm-saved-filters.js?v=202611161500';
 import { pageOf, selectionState, selectPage, loadPageSize, savePageSize } from '../data/crm-bulk.js?v=202611160300';
