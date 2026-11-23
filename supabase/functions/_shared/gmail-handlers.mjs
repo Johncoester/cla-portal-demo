@@ -177,7 +177,8 @@ export function swapGreeting(html, oldFirst, newFirst) {
   const esc = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // TC-ONLY-3 (Francis, Nov 23 2026): the greeting becomes "Hello <TC first name>"
   const re = new RegExp(`((?:^|>|\\n)[ \\t]*)(?:Hi|Hello|Dear|Hey|Good morning|Good afternoon|Good evening)[ \\t]+${esc}(?![\\p{L}\\p{N}])`, 'iu');
-  return html.replace(re, (m, lead) => `${lead}Hello ${to}`);
+  const safe = to.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');   // the body is HTML
+  return html.replace(re, (m, lead) => `${lead}Hello ${safe}`);
 }
 export function tcOnlyHeldMessage(held) {
   const h = held[0] || {};

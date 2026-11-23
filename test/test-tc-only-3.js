@@ -20,5 +20,6 @@ ok(swapGreeting('<p>Hi team,</p>', 'Rosy', 'Kim') === '<p>Hi team,</p>', 'a gree
   const choices = [{ value: 'Listing Agent:c-rosy', storedRole: 'Listing Agent TC' }];
   const r = await saveAgentTcOnFile(api, 'deal-r', 'c-kim', { linkedRoles: [], choice: 'Listing Agent:c-rosy', choices });
   ok(calls.some((c) => c[0] === 'add') && !calls.some((c) => c[0] === 'link') && r.linkProblem === '', 'adding a TC for an agent saves the role only; no separate link call'); }
+ok(swapGreeting('<p>Hi Rosy,</p>', 'Rosy', 'A&B <x>') === '<p>Hello A&amp;B &lt;x&gt;,</p>', 'typed email: the TC name is HTML-escaped');
 if (fail) process.exit(1);
 console.log('tc-only-3 passed');

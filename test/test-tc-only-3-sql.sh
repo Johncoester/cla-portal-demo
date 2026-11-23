@@ -89,8 +89,14 @@ echo "ok migration applies"
 q -f "$ROOT/supabase/migrations/20261129050000_tc_only_needs_tc_email.sql"
 q -f "$ROOT/supabase/migrations/20261129110000_tc_only_both_and_hello.sql"
 echo "ok TC-ONLY-3 applies"
-q -f "$ROOT/supabase/migrations/20261129110000_tc_only_both_and_hello.sql"
-echo "ok TC-ONLY-3 applies twice (functions only)"
+err "\\i $ROOT/supabase/migrations/20261129110000_tc_only_both_and_hello.sql" "drift: private." "a second apply stops at the pre-flight (bodies no longer the live TC-ONLY-1 ones)"
+ok "$(val "select string_agg(proname || ':' || md5(prosrc), ',' order by proname) from pg_proc where pronamespace = 'private'::regnamespace and proname in ('comm_swap_greeting', 'trg_outbox_tc_only', 'trg_notifications_tc_only');")" "comm_swap_greeting:b122f14fc13a27836d6d509a8608c2f2,trg_notifications_tc_only:f002636532231c79b21c2f87affbc506,trg_outbox_tc_only:0065f664b234fe54090f1f2d9d907aca" "fingerprints match the ones the rollback checks"
+# rollback puts the exact live bodies back, then the migration applies again
+q -f "$ROOT/supabase/rollbacks/20261129110000_tc_only_both_and_hello.sql" >/dev/null
+ok "$(val "select string_agg(md5(prosrc), ',' order by proname) from pg_proc where pronamespace = 'private'::regnamespace and proname in ('comm_swap_greeting', 'trg_outbox_tc_only', 'trg_notifications_tc_only');")" "949663ed564e0c7a9393f99804d1f5f6,fb9b5207b967b61f798f22bda47cb351,b1b29c42220e8366d2c74f4f58bdcc86" "rollback restores the TEST fingerprints exactly"
+err "\\i $ROOT/supabase/rollbacks/20261129110000_tc_only_both_and_hello.sql" "is not the TC-ONLY-3 body" "a second rollback stops at its pre-flight"
+q -f "$ROOT/supabase/migrations/20261129110000_tc_only_both_and_hello.sql" >/dev/null
+echo "ok re-applies after the rollback"
 # Sam is Pat's TC (buyer side), Kim is Lee's TC (listing side); both agents ticked
 val "insert into public.deal_participants (deal_id, contact_id, role) values ('$D', '00000000-0000-0000-0000-0000000000c3', 'Buyer Agent TC'), ('$D', '00000000-0000-0000-0000-0000000000c5', 'Listing Agent TC');
   insert into public.agent_tc_links (agent_contact_id, tc_contact_id) values ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000c3'), ('00000000-0000-0000-0000-0000000000c4', '00000000-0000-0000-0000-0000000000c5');" >/dev/null
@@ -127,10 +133,29 @@ val "insert into public.outbox (to_profile_id, to_email, subject, body, deal_id,
 ok "$(val "select string_agg(to_email || ':' || send_blocked, ',') from public.outbox where subject = 'Lee fees';")" "lee@agent.test:" "no TC linked: the fee notice still goes to the agent, unblocked"
 val "insert into public.outbox (to_profile_id, to_email, subject, body, deal_id) values ('$LEE', 'lee@agent.test', 'Lee held', 'Hi Lee', '$D');" >/dev/null
 ok "$(val "select (send_blocked <> '')::text from public.outbox where subject = 'Lee held';")" "true" "no TC linked: other email to the agent is held, as before"
+# "both" kinds with no TC copy possible: the agent's copy goes out, nothing held, no processor alert, the skip is logged
+ok "$(val "select count(*) from public.comm_redirect_log where action = 'held' and detail = 'TC copy skipped, the agent got it: Lee fees (no TC linked on that side)';")" "1" "no TC linked: the skipped TC copy is logged"
+ok "$(val "select count(*) from public.notifications where kind = 'tc_only_held' and title like '%Lee fees%';")" "0" "no processor alert for it"
+val "update public.contacts set email = '', profile_id = null where id = '00000000-0000-0000-0000-0000000000c3';" >/dev/null
+val "insert into public.outbox (to_profile_id, to_email, subject, body, deal_id, kind) values ('$PAT', 'pat@agent.test', 'Pat fees no email', 'Hi Pat', '$D', 'agent_fee');" >/dev/null
+ok "$(val "select string_agg(to_email || ':' || send_blocked, ',') from public.outbox where subject = 'Pat fees no email';")" "pat@agent.test:" "TC with no email: the agent gets the fee notice, not held"
+ok "$(val "select count(*) from public.comm_redirect_log where detail = 'TC copy skipped, the agent got it: Pat fees no email (the TC has no email)';")" "1" "TC with no email: logged"
+val "update public.contacts set email = 'sam@tc.test', profile_id = null where id = '00000000-0000-0000-0000-0000000000c3';" >/dev/null
+as $PROC "select private.notify(array['$PAT'::uuid], 'agent_fee', '$D', 'Fees no login', '#/deals/x');" >/dev/null
+ok "$(val "select string_agg(profile_id::text, ',') from public.notifications where title = 'Fees no login';")" "$PAT" "TC with no login: the agent gets the fee alert"
+ok "$(val "select count(*) from public.comm_redirect_log where channel = 'in_app' and detail = 'TC copy skipped, the agent got it: Fees no login (the TC has no portal login)';")" "1" "TC with no login: logged"
+val "update public.contacts set profile_id = '$SAM' where id = '00000000-0000-0000-0000-0000000000c3';" >/dev/null
+# names with & or < in the greeting
+ok "$(val "select private.comm_swap_greeting('Hi Pat,', 'Pat', 'A&B') || '|' || private.comm_swap_greeting('<p>Hi Pat,</p>', 'Pat', 'A&B <x>')")" "Hello A&B,|<p>Hello A&amp;B &lt;x&gt;,</p>" "a & in a TC first name is kept; HTML bodies get the name escaped"
 # typed emails (gmail-send) keep the TC-only routing; the Hello wording is done in gmail-send (test-gmail-phase1.js)
 ok "$(as $PROC "select (public.comm_route_emails('$D', array['pat@agent.test'], '{}', '{}') -> 'to')::text;")" '["sam@tc.test"]' "typed email: still to the TC"
 # greeting function edge cases
 ok "$(val "select private.comm_swap_greeting('Hi Patricia,', 'Pat', 'Sam') || '|' || private.comm_swap_greeting('Good morning Pat,', 'Pat', 'Sam') || '|' || private.comm_swap_greeting('Thanks Pat', 'Pat', 'Sam')")" "Hi Patricia,|Hello Sam,|Thanks Pat" "greeting: only the agent's name as a whole word, only after a greeting"
 
+# drift: one function changed by someone else -> the migration stops and replaces nothing
+q -f "$ROOT/supabase/rollbacks/20261129110000_tc_only_both_and_hello.sql" >/dev/null
+val "create or replace function private.comm_swap_greeting(p_body text, p_old text, p_new text) returns text language sql immutable set search_path to pg_catalog as \$\$ select p_body \$\$;" >/dev/null
+err "\\i $ROOT/supabase/migrations/20261129110000_tc_only_both_and_hello.sql" "drift: private.comm_swap_greeting is not the TC-ONLY-1 body" "a changed function stops the migration"
+ok "$(val "select md5(prosrc) from pg_proc where pronamespace = 'private'::regnamespace and proname = 'trg_outbox_tc_only';")" "b1b29c42220e8366d2c74f4f58bdcc86" "nothing else was replaced"
 [ "$fail" = 0 ] || exit 1
 echo "tc-only-3 sql: all passed"

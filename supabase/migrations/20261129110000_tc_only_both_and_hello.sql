@@ -2,23 +2,46 @@
 --   * Fee change notices (kind agent_fee: email and portal alert) and title commitment emails (the buyer agent's commitment email,
 --     the listing agent's title package) go to BOTH the agent and their linked TC. Everything else still goes to the TC only.
 --   * The greeting on an email moved or copied to a TC becomes "Hello <TC first name>" (was: the same opening word, e.g. "Hi <TC>").
+--   * For these "both" notices the agent's copy always goes out, so there is never a hold: with no linked TC, a TC with no email, or
+--     (portal alerts) a TC with no login, the TC's copy is skipped and a comm_redirect_log row says so. No processor alert.
+--   * The TC's name in the greeting is HTML-escaped in HTML bodies, and a '&' in it is kept as typed.
 -- Replaces three functions from 20261129030000_tc_only_comm.sql. No table, policy or grant change; no lock-holding DDL.
+-- Pre-flight: stops unless all three functions are exactly the TC-ONLY-1 bodies live on TEST (md5 of prosrc).
+-- Rollback: supabase/rollbacks/20261129110000_tc_only_both_and_hello.sql
+
+begin;
+set local lock_timeout = '3s';
+
+do $$
+declare want jsonb := '{"comm_swap_greeting": "949663ed564e0c7a9393f99804d1f5f6", "trg_outbox_tc_only": "b1b29c42220e8366d2c74f4f58bdcc86", "trg_notifications_tc_only": "fb9b5207b967b61f798f22bda47cb351"}';
+  k text; h text;
+begin
+  for k in select jsonb_object_keys(want) loop
+    select md5(p.prosrc) into h from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'private' and p.proname = k;
+    if h is null then raise exception 'drift: private.% is missing (needs 20261129030000_tc_only_comm.sql)', k; end if;
+    if h <> want ->> k then raise exception 'drift: private.% is not the TC-ONLY-1 body (md5 %, want %); already applied or changed elsewhere', k, h, want ->> k; end if;
+  end loop;
+end $$;
 
 create or replace function private.comm_swap_greeting(p_body text, p_old text, p_new text) returns text
 language plpgsql immutable set search_path to pg_catalog as $$
 declare v_old text := btrim(coalesce(p_old, '')); v_new text := btrim(coalesce(p_new, ''));
 begin
   if p_body is null or v_old = '' or v_new = '' then return p_body; end if;
+  -- an HTML body gets the TC's name HTML-escaped; in a regexp_replace replacement only "\" is special ("&" is plain text)
+  if p_body ~ '<[A-Za-z/!]' then
+    v_new := replace(replace(replace(replace(v_new, '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;');
+  end if;
   return regexp_replace(p_body,
     '((?:^|>|\n)[ \t]*)(?:Hi|Hello|Dear|Hey|Good morning|Good afternoon|Good evening)[ \t]+' || regexp_replace(v_old, '([.^$*+?()\[\]{}|\\-])', '\\\1', 'g') || '(?![[:alnum:]])',
-    '\1Hello ' || replace(replace(v_new, '\', '\\'), '&', '\&'), 'i');
+    '\1Hello ' || replace(v_new, '\', '\\'), 'i');
 end $$;
 
 create or replace function private.trg_outbox_tc_only() returns trigger
 language plpgsql security definer set search_path to pg_catalog, public, extensions as $$
 declare r record; first boolean := true; v public.outbox; v_orig_profile uuid := new.to_profile_id; v_orig_email text := new.to_email; v_ids uuid[]; v_first text;
   v_name text; v_side text; v_held boolean := false; v_profiles uuid[] := '{}'; v_emails text[] := '{}'; v_keep public.outbox;
-  v_no_login_ok boolean; e text; rr record; v_no_login boolean := false;
+  v_no_login_ok boolean; e text; rr record; v_no_login boolean := false; v_skip text;
   c_list text; c_out text[]; c_red text[]; c_held boolean; c_nologin boolean; c_ids uuid[]; c_name text; c_side text;
 begin
   if new.deal_id is null or not exists (select 1 from public.deal_participants p where p.deal_id = new.deal_id and p.tc_only) then return new; end if;
@@ -27,9 +50,11 @@ begin
   if coalesce(new.kind, '') = 'agent_fee' or coalesce(new.title_recipient_role, '') in ('buyer_agent_commitment', 'listing_agent') then
     v_keep := new;
     for r in select * from private.resolve_recipients(new.deal_id, new.to_profile_id, new.to_email) loop
-      if r.action <> 'redirect' then exit; end if;
+      if r.action = 'keep' then exit; end if;
       v_ids := r.agent_participant_ids;
-      if coalesce(r.email, '') = '' or (r.profile_id is null and not (v_keep.title_package and char_length(coalesce(r.full_name, '')) > 0)) then continue; end if;
+      if r.action = 'held' then v_skip := 'no TC linked on that side'; exit; end if;
+      if coalesce(r.email, '') = '' then v_skip := coalesce(v_skip, 'the TC has no email'); continue; end if;
+      if r.profile_id is null and not (v_keep.title_package and char_length(coalesce(r.full_name, '')) > 0) then v_skip := coalesce(v_skip, 'the TC has no portal login'); continue; end if;
       v := v_keep; v.id := gen_random_uuid();
       v.to_profile_id := r.profile_id; v.to_email := r.email; v.to_name := coalesce(nullif(r.full_name, ''), v.to_name);
       v.cc_emails := '{}'; v.bcc_emails := '{}';
@@ -42,6 +67,11 @@ begin
       insert into public.comm_redirect_log (deal_id, channel, action, source, agent_participant_ids, agent_profile_id, agent_email, to_profile_ids, to_emails, ref_id, detail, created_by)
       values (new.deal_id, 'email', 'redirected', coalesce(nullif(new.kind, ''), nullif(new.template_key, ''), nullif(new.title_recipient_role, ''), 'email'), coalesce(v_ids, '{}'), v_orig_profile, coalesce(v_orig_email, ''),
         array_remove(v_profiles, null), v_emails, new.id, left('Copy to TC (the agent gets it too): ' || coalesce(new.subject, ''), 500), private.effective_uid());
+    elsif v_skip is not null then
+      -- the agent's copy goes out, so nothing is held and the processor is not alerted; the skipped TC copy is logged
+      insert into public.comm_redirect_log (deal_id, channel, action, source, agent_participant_ids, agent_profile_id, agent_email, ref_id, detail, created_by)
+      values (new.deal_id, 'email', 'held', coalesce(nullif(new.kind, ''), nullif(new.template_key, ''), nullif(new.title_recipient_role, ''), 'email'), coalesce(v_ids, '{}'), v_orig_profile, coalesce(v_orig_email, ''),
+        new.id, left('TC copy skipped, the agent got it: ' || coalesce(new.subject, '') || ' (' || v_skip || ')', 500), private.effective_uid());
     end if;
     return new;
   end if;
@@ -115,7 +145,7 @@ end $$;
 create or replace function private.trg_notifications_tc_only() returns trigger
 language plpgsql security definer set search_path to pg_catalog, public, extensions as $$
 declare r record; first boolean := true; v public.notifications; v_keep public.notifications; v_ids uuid[]; v_name text; v_side text; v_held boolean := false; v_to uuid[] := '{}';
-  v_self boolean := false;
+  v_self boolean := false; v_skip text;
 begin
   if new.deal_id is null or not exists (select 1 from public.deal_participants p where p.deal_id = new.deal_id and p.tc_only) then return new; end if;
   -- the same alert to the same person in this action (the TC's own copy plus the one meant for their agent): keep one
@@ -127,9 +157,11 @@ begin
   if new.kind = 'agent_fee' then
     v_keep := new;
     for r in select * from private.resolve_recipients(new.deal_id, new.profile_id, null) loop
-      if r.action <> 'redirect' then exit; end if;
+      if r.action = 'keep' then exit; end if;
       v_ids := r.agent_participant_ids;
-      if r.profile_id is null or r.profile_id = private.effective_uid() then continue; end if;
+      if r.action = 'held' then v_skip := 'no TC linked on that side'; exit; end if;
+      if r.profile_id is null then v_skip := coalesce(v_skip, 'the TC has no portal login'); continue; end if;
+      if r.profile_id = private.effective_uid() then continue; end if;
       if exists (select 1 from public.notifications n where n.profile_id = r.profile_id and n.deal_id = v_keep.deal_id and n.kind = v_keep.kind and n.title = v_keep.title and n.created_at = now()) then continue; end if;
       v := v_keep; v.id := gen_random_uuid(); v.profile_id := r.profile_id;
       insert into public.notifications select v.*;
@@ -138,6 +170,9 @@ begin
     if cardinality(v_to) > 0 then
       insert into public.comm_redirect_log (deal_id, channel, action, source, agent_participant_ids, agent_profile_id, to_profile_ids, ref_id, detail, created_by)
       values (v_keep.deal_id, 'in_app', 'redirected', v_keep.kind, coalesce(v_ids, '{}'), v_keep.profile_id, v_to, v_keep.id, left('Copy to TC (the agent gets it too): ' || v_keep.title, 500), private.effective_uid());
+    elsif v_skip is not null then
+      insert into public.comm_redirect_log (deal_id, channel, action, source, agent_participant_ids, agent_profile_id, ref_id, detail, created_by)
+      values (v_keep.deal_id, 'in_app', 'held', v_keep.kind, coalesce(v_ids, '{}'), v_keep.profile_id, v_keep.id, left('TC copy skipped, the agent got it: ' || v_keep.title || ' (' || v_skip || ')', 500), private.effective_uid());
     end if;
     return new;
   end if;
@@ -168,4 +203,24 @@ begin
   return new;
 end $$;
 
-revoke all on function private.comm_swap_greeting(text, text, text), private.trg_outbox_tc_only(), private.trg_notifications_tc_only() from public, anon, authenticated;
+-- read back: security mode, search_path, no EXECUTE for app roles, triggers still attached, bodies replaced
+do $$
+declare r record; n int := 0;
+begin
+  for r in select p.proname, p.prosecdef, array_to_string(p.proconfig, ',') as cfg, md5(p.prosrc) as h,
+                  has_function_privilege('anon', p.oid, 'EXECUTE') as anon_x, has_function_privilege('authenticated', p.oid, 'EXECUTE') as auth_x
+             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'private' and p.proname in ('comm_swap_greeting', 'trg_outbox_tc_only', 'trg_notifications_tc_only') loop
+    n := n + 1;
+    if r.proname = 'comm_swap_greeting' and (r.prosecdef or r.cfg <> 'search_path=pg_catalog') then raise exception 'readback: comm_swap_greeting mode/search_path % %', r.prosecdef, r.cfg; end if;
+    if r.proname <> 'comm_swap_greeting' and (not r.prosecdef or r.cfg <> 'search_path=pg_catalog, public, extensions') then raise exception 'readback: % mode/search_path % %', r.proname, r.prosecdef, r.cfg; end if;
+    if r.anon_x or r.auth_x then raise exception 'readback: % is executable by anon/authenticated', r.proname; end if;
+    if exists (select 1 from pg_roles where rolname = 'service_role') and has_function_privilege('service_role', (quote_ident('private') || '.' || quote_ident(r.proname) || case when r.proname = 'comm_swap_greeting' then '(text, text, text)' else '()' end)::regprocedure, 'EXECUTE') then
+      raise exception 'readback: % is executable by service_role', r.proname; end if;
+    if r.h in ('949663ed564e0c7a9393f99804d1f5f6', 'b1b29c42220e8366d2c74f4f58bdcc86', 'fb9b5207b967b61f798f22bda47cb351') then raise exception 'readback: % was not replaced', r.proname; end if;
+  end loop;
+  if n <> 3 then raise exception 'readback: expected 3 functions, found %', n; end if;
+  if (select count(*) from pg_trigger where tgname in ('outbox_tc_only', 'notifications_tc_only') and not tgisinternal) <> 2 then raise exception 'readback: TC-only triggers missing'; end if;
+end $$;
+
+commit;

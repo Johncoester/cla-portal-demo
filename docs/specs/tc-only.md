@@ -89,10 +89,13 @@ Task Builder's "Transaction coordinator" email choice now also reaches the agent
 | 6 | The greeting becomes "Hello [TC Name]" | The opening word was kept ("Hi Sam") | "Hello Sam" (TC's first name), for automatic emails (database) and typed ones (gmail-send) |
 
 - "Fee change notices" = kind agent_fee (the "Agent fees changed / confirmed" email and portal alert). "Title commitment notices" = the buyer agent's title commitment email (title_recipient_role buyer_agent_commitment) and the listing agent's title package (title_recipient_role listing_agent).
-- If no TC is linked on that side, these notices still go to the agent; other email stays held as before.
+- Decision (John, Nov 23 2026): for these "both" notices the agent's copy always goes out, so they are never held and the processor is not alerted. When the TC's copy can't be sent (no TC linked on that side, the TC has no email, or for a portal alert the TC has no login) only the TC's copy is skipped, and comm_redirect_log gets a row "TC copy skipped, the agent got it: <subject> (<reason>)". Other email to a TC-only agent with no usable TC stays held as before.
+- A TC-only agent on cc of one of these notices stays on cc (the cc swap is skipped for them); nothing puts them on cc today.
+- Greeting: a "&" in the TC's first name is kept as typed; in an HTML body the name is HTML-escaped.
 - The TC's copy is logged in comm_redirect_log as "Copy to TC (the agent gets it too): <subject>".
 - Not covered: Task Builder emails sent on "Title commitment received" stay TC-only (they are Task Builder emails, not the commitment notice).
-- Database file: 20261129110000_tc_only_both_and_hello.sql (replaces private.comm_swap_greeting, private.trg_outbox_tc_only, private.trg_notifications_tc_only; no table, policy or grant change). Tests: test/test-tc-only-3-sql.sh, test/test-tc-only-3.js, test/test-gmail-phase1.js.
+- Database file: 20261129110000_tc_only_both_and_hello.sql (replaces private.comm_swap_greeting, private.trg_outbox_tc_only, private.trg_notifications_tc_only; no table, policy or grant change). One transaction with a 3s lock_timeout; stops unless the three live bodies match their TEST fingerprints; reads back security mode, search_path, grants and triggers. Rollback: supabase/rollbacks/20261129110000_tc_only_both_and_hello.sql (restores the exact TC-ONLY-1 bodies, checked by md5).
+- Contacts: adding a TC for an agent no longer makes its own link call (FF-108 follow-up); the server's link_tcs_from_file does it. On TEST there were 0 TCs on a file not linked to that side's agent (Nov 23 2026). Tests: test/test-tc-only-3-sql.sh, test/test-tc-only-3.js, test/test-gmail-phase1.js.
 
 ## Not done yet
 - Task Builder pages do not show the "goes to the TC" note. Their emails are still routed by the database.
