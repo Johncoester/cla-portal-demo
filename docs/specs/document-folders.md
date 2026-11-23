@@ -53,3 +53,7 @@ Authorized staff here means a CLA login: Processor, Preprocessor, Transaction Co
 - Phase 1 is two pull requests: the tab (FF-104a), then the eight default folders on new orders only (FF-104b).
 - The Title module keeps its own folder names, including "450 Prior Closing Documents", which is not the same folder as "450 Final Closing Documents". Shared names are one folder, not two. FF-104b explains how that is kept.
 - eSign provider, the Word editor, and Delete / retention are not decided. They are not built.
+
+## Opening a folder (FF-107)
+
+Francis later confirmed that folders should open to show the files inside. That work is described in [ff-107-folder-open.md](ff-107-folder-open.md).
