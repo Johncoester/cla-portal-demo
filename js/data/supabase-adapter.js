@@ -802,6 +802,19 @@ export async function createSupabaseAdapter(cfg) {
       } catch (e) { names = new Map(); }
       return clientActivityFrom({ user: u, documents: docs, threads, tasks, names });
     },
+    // MF-061 (Matt, Nov 22): the Tasks tab opens on the file shell (no parties). The buyer and seller names for the
+    // "Assigned to" column come from the same deal_contacts / deal_entities reads as the full file, once per file. A failed read leaves the role word.
+    async listTaskParties(dealId) {
+      return fileRead('taskparties:' + dealId, async () => {
+        const [cs, es] = await Promise.all([
+          sb.rpc('deal_contacts', { p_deal: dealId }).then((r) => (r && !r.error && Array.isArray(r.data) ? r.data : []), () => []),
+          sb.rpc('deal_entities', { p_deal: dealId }).then((r) => (r && !r.error && Array.isArray(r.data) ? r.data : []), () => []),
+        ]);
+        const ents = new Map(es.map((r) => [r.participant_id, { name: r.name }]));
+        return cs.map((r) => ({ id: r.participant_id, role: r.role, contactId: r.contact_id, entity: ents.get(r.participant_id) || null,
+          contact: { id: r.contact_id, firstName: r.first_name, lastName: r.last_name, company: r.company } }));
+      });
+    },
     // tasks.form_data is NOT selectable (column grant); answers come from get_task_form for the owner / processor / coordinator / Admin only
     async listTasks(dealId) {
       const raw = fileRead('taskrows:' + dealId, () => fetchHostedTaskRows(sb, dealId));
@@ -1227,7 +1240,7 @@ export async function createSupabaseAdapter(cfg) {
     }
     fileRead('shell:' + id, () => fetchFileShell(id));
     if (tab === 'activity' && a.listActivity) a.listActivity(id).catch(() => null);
-    if (tab === 'tasks') fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id));
+    if (tab === 'tasks') { fileRead('taskrows:' + id, () => fetchHostedTaskRows(sb, id)); a.listTaskParties(id).catch(() => null); }
     if (tab === 'documents') {
       fileRead('docs:' + id, () => rawDocs(id));
       if (a.listDealFolders) a.listDealFolders(id).catch(() => null);

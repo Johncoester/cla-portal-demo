@@ -3277,3 +3277,31 @@ This file lists the portal's major features: how each one should work, how far a
 - Matt's email did not say whether a hand-set date survives a later settlement change, so John's default applies: it always follows the settlement date, and a manual edit lasts only until the next settlement change.
 - Blank disbursement date = automatic, as before, so a cleared date shows the closing date on a purchase and keeps working if the file later becomes a refinance.
 - The buyer closing-date lock is held and not touched.
+
+---
+
+## Buyer and seller names on Tasks (MF-061)
+
+**How it should work.** On a file's Tasks screen, each buyer or seller task shows that person's name, with Buyer or Seller under it, instead of the generic "Client-Seller" or "client" label, so staff can tell whose task they are changing. The buyer and seller logins see their own names the same way on their To-do list. The task page says "For Sally Seller (Seller)".
+
+**Status: In progress.** Matt Landsberg, "Portal Feedback Nov 22" notes and recording; confirmed Nov 22 2026, 1:54 PM ET (Gmail 1a2049c9ec631d7b). Tracker row 439. No database file. Not Live until it is merged and checked on TEST.
+
+**What's built**
+
+- Assigned to on File > Tasks names the buyer or seller (every name for a whole-side task; entity name for an entity; Borrower on a refinance). "Fill in for client" names the person. The Edit task box names the person.
+- Buyer and seller To-do lists name the person. The task page header and the "only ... can mark this complete" note name the person.
+- Names come from the existing per-file contacts and entities reads, cached once per file and started with the task rows.
+
+**What's still missing**
+
+- Nothing for this item. The cross-file All Tasks page and the TC overview keep their own labels.
+
+**Links**
+
+- Spec: [docs/specs/mf-061-task-party-names.md](docs/specs/mf-061-task-party-names.md)
+- Related: MF-060 (row 438).
+
+**Decisions**
+
+- The label format is the name, then the side word under it ("Sally Seller" / "Seller"), matching Matt's "Bob Smith seller".
+- No database change: the reads already exist and keep their row rules.
