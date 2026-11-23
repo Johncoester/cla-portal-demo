@@ -4,6 +4,7 @@
 import { localDate, STAGES } from './constants.js?v=202611247700';
 import { canUseCrm, crmReadOnly } from './crm.js?v=202611247700';
 import { isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611247700';
+import { cleanSchedule, scheduleText, canSchedule } from './crm-report-schedule.js?v=202611301900';
 import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
@@ -107,6 +108,8 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
   const reportFolderCols = (u, v) => { const id = String(v || '').trim();
     if (!id || isPersonalFolder(id)) { if (id && id !== personalFolderId(u.id)) throw new Error('You can only save into shared folders or your own folder.'); return { folder_id: null, personal_owner: u.id }; }
     if (crmReadOnly(u)) throw new Error('Your reports are saved in your own folder.'); return { folder_id: id, personal_owner: null }; };
+  const schedView = (s) => ({ id: s.id, reportId: s.report_id, frequency: s.frequency, weekday: s.weekday, monthDay: s.month_day, time: String(s.send_time || '').slice(0, 5), recipients: Array.isArray(s.recipients) ? s.recipients : [], active: !!s.active, modifiedAt: s.modified_at || null, lastSentAt: s.last_sent_at || null });
+  const schedOut = (u, s) => { const v = s ? schedView(s) : null; return { available: true, canEdit: canSchedule(u), schedule: v ? { ...v, text: scheduleText(v), modifiedByName: '' } : null }; };   // RPT-3b
   const mine = (u, r) => !r.personal_owner || r.personal_owner === u.id;   // another person's own folder is not listed
   const repOut = (u, r, folders) => {
     const share = r.share && r.share.mode ? r.share : { mode: r.share_mode || 'all', users: shareOf(r.share).users, roles: shareOf(r.share).roles };
@@ -321,6 +324,21 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
       ok(await sb.from('crm_reports').update(o).eq('id', id)); return this.getCrmReport(id);
     },
     async cloneCrmReport(id, { name } = {}) { const u = await who(); const r = await this.getCrmReport(id); return this.createCrmReport({ ...r, name: name || `Copy of ${r.name}`, folderId: crmReadOnly(u) ? personalFolderId(u.id) : r.folderId, ...(crmReadOnly(u) ? { share: { mode: 'all' } } : {}) }); },
+    // RPT-3b: a schedule on a saved report. Admins set it up (the database refuses anyone else); anyone who can open the report sees it
+    // and who it goes to. Nothing is sent here. Before the database file is applied the page says scheduling is not available yet.
+    async getCrmReportSchedule(reportId) { const u = await who(); await this.getCrmReport(reportId);
+      const res = await sb.from('crm_report_schedules').select('*').eq('report_id', reportId).maybeSingle(); if (res.error) return { available: false, canEdit: false, schedule: null };
+      return schedOut(u, res.data); },
+    async listCrmReportSchedules() { await who(); const res = await sb.from('crm_report_schedules').select('report_id,frequency,weekday,month_day,send_time,recipients,active'); if (res.error) return [];
+      return (res.data || []).map((s) => { const v = schedView(s); return { reportId: s.report_id, active: !!s.active, text: scheduleText(v), recipients: v.recipients }; }); },
+    async saveCrmReportSchedule(reportId, input = {}) { const u = await who(); if (!canSchedule(u)) throw new Error('Only an Admin or Super admin can schedule a report.');
+      const rep = await this.getCrmReport(reportId); const v = cleanSchedule(input);
+      const row = { frequency: v.frequency, weekday: v.weekday, month_day: v.monthDay, send_time: v.time, recipients: v.recipients, active: v.active };
+      const cur = ok(await sb.from('crm_report_schedules').select('id').eq('report_id', reportId).maybeSingle());
+      if (!cur && rep.retired) throw new Error('A retired report cannot be scheduled; restore it first.');
+      const saved = cur ? ok(await sb.from('crm_report_schedules').update(row).eq('id', cur.id).select('*').maybeSingle()) : ok(await sb.from('crm_report_schedules').insert({ ...row, report_id: reportId }).select('*').maybeSingle());
+      if (!saved) throw new Error('The schedule was not saved. Only an Admin or Super admin can schedule a report.');
+      return schedOut(u, saved); },
     async retireCrmReport(id, retired = true) { const u = await who(); if (!(await this.getCrmReport(id)).canEdit) throw new Error('Only the person who made this report (or an Admin) can retire it.'); ok(await sb.from('crm_reports').update({ retired_at: retired ? new Date().toISOString() : null, retired_by: retired ? u.id : null }).eq('id', id)); return { ok: true }; },
     async runCrmReport(idOrDef) {
       const u = await who(); const cfg = await self.getCrmSettings();

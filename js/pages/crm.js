@@ -21,7 +21,7 @@ import { templatesPage, signaturePage, composeBtn, wireCompose } from './crm-tem
 import { sendEmailBtn, wireSendEmail, emailsCard, wireEmails } from './crm-compose.js?v=202611247700';
 import { searchPage } from './crm-search.js?v=202611301800';
 import { dashboardsPage } from './crm-dashboards.js?v=202611301800';
-import { reportsHome } from './crm-reports.js?v=202611301800';
+import { reportsHome } from './crm-reports.js?v=202611301900';
 import { dealsPage } from './crm-deals.js?v=202611301800';
 import { recordShell, wireShortcuts } from './crm-shortcuts.js?v=202611289980';
 import { callPage, callModal, callsList } from './crm-calls.js?v=202611301800';

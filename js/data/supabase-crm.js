@@ -12,7 +12,7 @@ import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611247700';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { dealStageOf } from './crm-analytics.js?v=202611301800';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611247700';
-import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611301800';
+import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611301900';
 import { contactTypeSaveError } from './contact-insert.js?v=202611247700';
 import { propertyAddressOf } from './nov5-rules.js?v=202611247700';
 

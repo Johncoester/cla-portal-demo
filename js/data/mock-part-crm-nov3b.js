@@ -14,6 +14,7 @@ import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611247700';
 import { sanitizeHtml, htmlToText, GMAIL_NOTE, isPersonalFolder, personalFolderId } from './crm-templates.js?v=202611247700';
 import { crmReadOnly } from './crm.js?v=202611247700';
+import { cleanSchedule, scheduleText, canSchedule } from './crm-report-schedule.js?v=202611301900';
 import { crmOwnerOption } from './crm-owner.js?v=202611289960';
 import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { roleAllowed } from './role-access.js?v=202611100100';
@@ -194,6 +195,7 @@ export function crmNov3bPart(x, h) {
   const reportOf = (u, id) => { const r = db().crmReports.find((z) => z.id === str(id, 60)); if (!r || !reportVisible(u, r)) fail('Report not found.'); return r; };
   const userNames = () => db().profiles.map((p) => ({ id: p.id, name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.id }));   // user values in filter text show names
   const reportEditable = (u, r) => reportEditableRule(u, { createdBy: r.createdBy, personal: isPersonalFolder(r.folderId) }, crmReadOnly(u));   // RPT-3a
+  const scheduleOut = (u, s) => ({ available: true, canEdit: canSchedule(u), schedule: s ? { ...clone(s), text: scheduleText(s), modifiedByName: s.modifiedBy ? nameOf(s.modifiedBy) : '' } : null });   // RPT-3b
   const folderName = (id) => { if (isPersonalFolder(id)) { const p = prof(id.slice(9)); return p ? `${p.firstName} ${p.lastName}`.trim() : 'Personal'; } return (db().crmReportFolders.find((f) => f.id === id) || {}).name || ''; };
   const folderFor = (u, v) => { const id = str(v, 80) || personalFolderId(u.id); if (crmReadOnly(u) && id !== personalFolderId(u.id)) fail('Your reports are saved in your own folder.'); if (isPersonalFolder(id)) { if (id !== personalFolderId(u.id)) fail('You can only save into shared folders or your own folder.'); return id; }
     if (!db().crmReportFolders.some((f) => f.id === id)) fail('Pick a folder from the list.'); return id; };
@@ -435,6 +437,17 @@ export function crmNov3bPart(x, h) {
         createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now(), lastAccessedAt: null, retiredAt: null, clonedFrom: src.id }; db().crmReports.push(row); save(); return reportOut(u, row); },
     async retireCrmReport(id, retired = true) { const u = crmUser(); const r = reportOf(u, id); if (!reportEditable(u, r)) fail('Only the person who made this report (or an Admin) can retire it.');
       r.retiredAt = retired ? r.retiredAt || now() : null; r.retiredBy = retired ? u.id : null; r.modifiedAt = now(); save(); return reportOut(u, r); },
+    // RPT-3b: a schedule on a saved report. Admins set it up; anyone who can open the report sees it and who it goes to. Nothing is sent here.
+    async getCrmReportSchedule(reportId) { const u = crmUser(); const r = reportOf(u, reportId); if (isPersonalFolder(r.folderId) && r.folderId !== personalFolderId(u.id)) fail('Report not found.');
+      return scheduleOut(u, (db().crmReportSchedules || []).find((s) => s.reportId === r.id) || null); },
+    async listCrmReportSchedules() { const u = crmUser(); return (db().crmReportSchedules || []).filter((s) => { const r = db().crmReports.find((x) => x.id === s.reportId); return r && reportVisible(u, r) && (!isPersonalFolder(r.folderId) || r.folderId === personalFolderId(u.id)); })
+      .map((s) => ({ reportId: s.reportId, active: s.active, text: scheduleText(s), recipients: [...s.recipients] })); },
+    async saveCrmReportSchedule(reportId, input = {}) { const u = crmUser(); if (!canSchedule(u)) fail('Only an Admin or Super admin can schedule a report.');
+      const r = reportOf(u, reportId); const d = db(); d.crmReportSchedules ||= []; let s = d.crmReportSchedules.find((x) => x.reportId === r.id);
+      if (!s && r.retiredAt) fail('A retired report cannot be scheduled; restore it first.');
+      const v = cleanSchedule(input);
+      if (s) Object.assign(s, v, { modifiedBy: u.id, modifiedAt: now() }); else { s = { id: nid('rsch'), reportId: r.id, ...v, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now(), lastSentAt: null }; d.crmReportSchedules.push(s); }
+      save(); return scheduleOut(u, s); },
     // run a saved report (id) or an unsaved definition; a saved one gets its Last Accessed Date
     async listCrmReportTaskTitles() { return taskTitles(crmUser()); },
     async runCrmReport(input) { const u = crmUser(); const cfg = cfgFor(u); const def = asDef(u, input, cfg); const out = execReport(u, def, cfg);

@@ -8,6 +8,7 @@ import { tabs, head } from './crm-kit.js?v=202611289980';
 import { criteriaEditor } from './crm-criteria.js?v=202611301800';
 import { composeOverlay } from './crm-compose.js?v=202611247700';
 import { fmtNum } from './crm-charts.js?v=202611161500';
+import { SCHEDULE_FREQUENCIES, SCHEDULE_WEEKDAYS, SCHEDULE_MAX_RECIPIENTS, cleanSchedule, outsideRecipients, parseRecipients } from '../data/crm-report-schedule.js?v=202611301900';
 
 const opts = (list, cur) => list.map(([k, l]) => html`<option value="${k}" ${String(k) === String(cur) ? raw('selected') : ''}>${l}</option>`);
 const download = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };
@@ -22,6 +23,8 @@ export async function reportsHome(c) {
 
 async function listPage(c) {
   const { api, me } = c; const [fl, all] = await Promise.all([api.listCrmReportFolders(), api.listCrmReports({ includeRetired: true })]);
+  let scheduled = []; try { scheduled = api.listCrmReportSchedules ? await api.listCrmReportSchedules() : []; } catch (e) { scheduled = []; }   // RPT-3b
+  const schedOf = (id) => scheduled.find((s) => s.reportId === id && s.active);
   const key = 'cla-crm-report-folder'; let folder = sessionStorage.getItem(key) || 'all';
   const body = html`${tabs('reports')}${head('Reports', me, html`<a class="m-btn" href="#/crm/reports/new" data-create-report>Create Report</a><a class="ghost" href="#/crm/reports/summary" data-summary-link>Summary by table</a>`)}
     <div style="display:flex;gap:12px"><div style="min-width:220px" data-report-folders><strong>Folders</strong><ul>
@@ -35,7 +38,7 @@ async function listPage(c) {
     const tb = $('[data-reports-table] tbody', root); const q = $('[data-report-q]', root);
     const draw = () => { const s = q.value.trim().toLowerCase(); const rows = all.filter((r) => (folder === 'retired' ? r.retired : !r.retired && (folder === 'all' || r.folderId === folder)) && (!s || `${r.name} ${r.description}`.toLowerCase().includes(s)));
       $$('[data-folder]', root).forEach((a) => { a.style.fontWeight = a.dataset.folder === folder ? 'bold' : ''; });
-      tb.innerHTML = toText(rows.length ? rows.map((r) => html`<tr data-report-row="${r.id}"><td><a href="#/crm/reports/${r.id}">${r.name}</a>${r.share.mode === 'custom' ? html` <span class="muted small">(restricted)</span>` : ''}</td><td>${r.description}</td><td>${r.folderName}</td><td>${r.lastAccessedAt ? fmtDateTime(r.lastAccessedAt) : ''}</td><td>${r.createdByName}</td></tr>`) : html`<tr><td colspan="5" class="muted">No reports here.</td></tr>`); };
+      tb.innerHTML = toText(rows.length ? rows.map((r) => html`<tr data-report-row="${r.id}"><td><a href="#/crm/reports/${r.id}">${r.name}</a>${r.share.mode === 'custom' ? html` <span class="muted small">(restricted)</span>` : ''}${schedOf(r.id) ? html` <span class="muted small" data-scheduled-mark title="${schedOf(r.id).text}">(scheduled)</span>` : ''}</td><td>${r.description}</td><td>${r.folderName}</td><td>${r.lastAccessedAt ? fmtDateTime(r.lastAccessedAt) : ''}</td><td>${r.createdByName}</td></tr>`) : html`<tr><td colspan="5" class="muted">No reports here.</td></tr>`); };
     $$('[data-folder]', root).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); folder = a.dataset.folder; sessionStorage.setItem(key, folder); draw(); }));
     q.addEventListener('input', draw); draw();
     const cf = $('[data-create-folder]', root); if (cf) cf.addEventListener('click', guard(async () => { const n = prompt('Folder name'); if (!n) return; await api.createCrmReportFolder(n); toast('Folder created'); c.refresh(); }));
@@ -55,20 +58,55 @@ function resultsHtml(out) {
 
 async function runPage(c) {
   const { api, me, params } = c; const rep = await api.getCrmReport(params.id); const out = await api.runCrmReport(rep.id);
+  // RPT-3b: the schedule on this report, if any. A failed read leaves the panel out; the report still shows.
+  let sch = { available: false, canEdit: false, schedule: null }; try { if (api.getCrmReportSchedule) sch = await api.getCrmReportSchedule(rep.id); } catch (e) { sch = { available: false, canEdit: false, schedule: null }; }
+  const canSched = !!(sch.available && sch.canEdit && !rep.retired);
   const body = html`${tabs('reports')}${head(rep.name, me, html`<select data-report-menu aria-label="Report actions"><option value="">Edit &#9662;</option>${rep.canEdit && !rep.retired ? html`<option value="edit">Edit</option>` : ''}<option value="clone">Clone</option>
-      <option value="export" ${rep.canExport ? '' : raw('disabled')}>Export${rep.canExport ? '' : ' (Admin only)'}</option>${me.canEdit ? html`<option value="email">Send Email</option>` : ''}${rep.canEdit ? html`<option value="${rep.retired ? 'restore' : 'retire'}">${rep.retired ? 'Restore' : 'Retire (hide)'}</option>` : ''}</select> <a class="ghost" href="#/crm/reports">Back to reports</a>`)}
+      <option value="export" ${rep.canExport ? '' : raw('disabled')}>Export${rep.canExport ? '' : ' (Admin only)'}</option>${me.canEdit ? html`<option value="email">Send Email</option>` : ''}${canSched ? html`<option value="schedule">${sch.schedule ? 'Change schedule' : 'Schedule email'}</option>` : ''}${rep.canEdit ? html`<option value="${rep.retired ? 'restore' : 'retire'}">${rep.retired ? 'Restore' : 'Retire (hide)'}</option>` : ''}</select> <a class="ghost" href="#/crm/reports">Back to reports</a>`)}
     <p class="muted small" data-report-meta>${rep.description} · ${rep.moduleLabel}${rep.related.length ? ` + ${rep.related.map(moduleName).join(', ')}` : ''} · folder ${rep.folderName} · created by ${rep.createdByName}${rep.personal ? ' · in a personal folder, not shared' : rep.share.mode === 'custom' ? ' · restricted sharing' : ' · shared with everyone with the CRM'}${rep.retired ? ' · RETIRED' : ''}</p>
+    <div data-report-schedule>${scheduleHtml(sch)}</div>
     <div data-report-out>${resultsHtml(out)}</div>`;
   function mount(root) {
     const m = $('[data-report-menu]', root); m.addEventListener('change', guard(async () => { const v = m.value; m.value = '';
       if (v === 'edit') location.hash = `#/crm/reports/${rep.id}/edit`;
       if (v === 'clone') { const n = prompt('Name of the copy (saved in your folder)', `Copy of ${rep.name}`); if (n == null) return; const r = await api.cloneCrmReport(rep.id, { name: n }); toast('Report cloned'); location.hash = `#/crm/reports/${r.id}`; }
       if (v === 'export') { const r = await api.exportCrmReport(rep.id); download(r.name, r.csv); toast('CSV downloaded'); }
+      if (v === 'schedule') scheduleForm(api, rep, sch, () => c.refresh());
       if (v === 'email') await composeOverlay(api, me, 'report', rep.id, { attachReport: true, subject: rep.name, done: () => {} });
       if (v === 'retire') { if (!confirm('Retire this report? It is hidden, never deleted; you can restore it.')) return; await api.retireCrmReport(rep.id, true); toast('Report retired'); location.hash = '#/crm/reports'; }
       if (v === 'restore') { await api.retireCrmReport(rep.id, false); toast('Report restored'); c.refresh(); } }));
   }
   return { title: rep.name, crumbs: [['CRM', '#/crm'], ['Reports', '#/crm/reports'], [rep.name]], body, mount };
+}
+
+/* RPT-3b: the schedule panel. Anyone who can open the report sees how often it goes out and the FULL list of who gets it (John, Nov 22). */
+function scheduleHtml(sch) {
+  const s = sch && sch.schedule; if (!s) return '';
+  const outside = outsideRecipients(s.recipients);
+  return html`<div class="notice small" data-schedule-panel><strong>${s.active ? 'Scheduled email' : 'Scheduled email (switched off)'}:</strong> <span data-schedule-when>${s.text}</span>.
+    <span data-schedule-count>Goes to ${s.recipients.length} ${s.recipients.length === 1 ? 'address' : 'addresses'}:</span> <span data-schedule-recipients>${s.recipients.join(', ')}</span>.
+    ${outside.length ? html`<span data-schedule-outside>${outside.length} outside CLA.</span>` : ''}
+    ${s.lastSentAt ? html`<span class="muted">Last sent ${fmtDateTime(s.lastSentAt)}.</span>` : html`<span class="muted" data-schedule-not-sending>Not sending yet: the schedule is saved, and the emails start once sending is switched on.</span>`}</div>`;
+}
+function scheduleForm(api, rep, sch, done) {
+  const s = (sch && sch.schedule) || { frequency: 'weekdays', time: '07:00', weekday: 1, monthDay: 1, recipients: [], active: true };
+  const m = modal(`Schedule email: ${rep.name}`, html`<form data-schedule-form class="form-grid">
+    <label>How often<select name="frequency">${opts(SCHEDULE_FREQUENCIES, s.frequency)}</select></label>
+    <label>Time (Eastern)<input type="time" name="time" required value="${s.time || '07:00'}"></label>
+    <label data-schedule-weekday>Day of the week<select name="weekday">${opts(SCHEDULE_WEEKDAYS, s.weekday == null ? 1 : s.weekday)}</select></label>
+    <label data-schedule-monthday>Day of the month (1 to 28)<input type="number" name="monthDay" min="1" max="28" value="${s.monthDay || 1}"></label>
+    <label class="span2">Send to (any email address, one per line or separated by commas; up to ${SCHEDULE_MAX_RECIPIENTS})<textarea name="recipients" rows="5" required>${(s.recipients || []).join('\n')}</textarea></label>
+    <p class="notice warn small span2" data-schedule-warning>Everyone on this list gets this report's rows by email, with the same rows an Admin sees. That includes people outside CLA if you add them. The list always shows on the report.</p>
+    <label class="span2"><input type="checkbox" name="active" ${s.active !== false ? raw('checked') : ''}> Switched on</label>
+    <div class="span2"><button class="ghost" type="button" data-close>Cancel</button> <button class="m-btn">Save schedule</button></div></form>`, { wide: true });
+  const f = $('[data-schedule-form]', m);
+  const show = () => { $('[data-schedule-weekday]', f).hidden = f.frequency.value !== 'weekly'; $('[data-schedule-monthday]', f).hidden = f.frequency.value !== 'monthly'; };
+  f.frequency.addEventListener('change', show); show();
+  f.addEventListener('submit', guard(async (e) => { e.preventDefault();
+    const v = cleanSchedule({ frequency: f.frequency.value, time: f.time.value, weekday: f.weekday.value, monthDay: f.monthDay.value, recipients: parseRecipients(f.recipients.value), active: f.active.checked });
+    const outside = outsideRecipients(v.recipients);
+    if (outside.length && !confirm(`These addresses are outside CLA:\n${outside.join('\n')}\n\nSend this report to them?`)) return;
+    await api.saveCrmReportSchedule(rep.id, v); closeModal(); toast('Schedule saved'); done(); }));
 }
 
 async function builderPage(c, rep) {
