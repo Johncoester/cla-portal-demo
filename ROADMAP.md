@@ -3221,31 +3221,29 @@ This file lists the portal's major features: how each one should work, how far a
 - No new database file: the dashboard's existing open-file read now also asks for those four EMD columns. Admin fees reuse `getAgentFees`.
 - Cache stamp 202611291400, above main's 202611290700 and clear of open PR 407's 202611290800, so a saved copy of the shell is not reused.
 
----
+## Only communicate with TC (TC-ONLY-1, TC-ONLY-2)
 
-## Disbursement date follows the settlement date on a purchase (MF-060)
+**How it should work.** On a file's Order Contacts, each buyer's agent and listing agent row has an **Only communicate with TC** box. CLA staff who run the file (processor, pre-processor, CLA TC, Admin) can tick it. When it is ticked, every email and portal alert meant for that agent on that file goes to their transaction coordinator instead: the Buyer Agent TC or Listing Agent TC on the same side who is linked to that agent. The box is disabled until a TC is linked on that side. The email compose and the Email sellers and agents preview say when an email will go to the TC instead.
 
-**How it should work.** On a purchase file, when the processor changes the settlement (closing) date, the disbursement date changes to match it. The disbursement date can still be changed by hand. A hand-set date lasts until the next settlement date change, then it follows the settlement date again. Refinances are not touched (4th business day after closing, or the processor's date).
-
-**Status: In progress.** Matt Landsberg, "Portal Feedback Nov 22" notes and recording; confirmed with corrections Nov 22 2026, 1:54 PM ET (Gmail 1a2049c9ec631d7b). Tracker row 438. One database file. Not Live until it is merged and applied on TEST.
+**Status: In progress.** John Coester, phone call and chat, Nov 22 2026, 3:12-4:09 PM ET. TC-ONLY-1 (the routing in the database, [PR 412](https://github.com/Johncoester/cla-portal-demo/pull/412)) is Live on TEST, merged Nov 22 2026, 8:12 PM ET. TC-ONLY-2 is the screens (this section's PR). It has no database file.
 
 **What's built**
 
-- A database rule on the file's closing date: on a purchase, a closing date change clears a hand-set disbursement date, so the file shows the closing date. It works the same from the top of the file, Basic Info, Edit order details, or anything else that changes the closing date.
-- Changing both dates in one save keeps the disbursement date typed in that save. Other saves leave a hand-set date alone.
-- The disbursement date fields on purchases say that changing the closing date resets it.
+- TC-ONLY-1: `deal_participants.tc_only`, and `private.resolve_recipients`, which is checked on every queued email (outbox), every portal alert and every typed Gmail send. It swaps the agent for their TC, or holds the email when no TC is linked. Every swap and hold is logged in `comm_redirect_log`.
+- TC-ONLY-2: the box on Order Contacts, with a line under it saying who gets the emails or what to add first. The compose shows a note when a TC-only agent is in To, Cc or Bcc. The Email sellers and agents preview shows a note on that agent's message.
+- Outside users (agents, TCs, buyers, sellers) never see the box or the notes.
 
 **What's still missing**
 
-- Nothing.
+- The team's answers to the Nov 22 questions (alerts too, threads, fee and title notices, who can tick it). The defaults are in [docs/specs/tc-only.md](docs/specs/tc-only.md).
+- The Task Builder pages do not show the note. Task Builder emails are still routed by the database.
 
 **Links**
 
-- Spec: [docs/specs/mf-060-disbursement-follows-settlement.md](docs/specs/mf-060-disbursement-follows-settlement.md)
-- Related: FF-071 #23 / FF-052 / MF-050 (disbursement date field), FF-097 (dates at the top of the file).
+- Spec: [docs/specs/tc-only.md](docs/specs/tc-only.md)
+- PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), TC-ONLY-2 (screens).
 
 **Decisions**
 
-- Matt's email did not say whether a hand-set date survives a later settlement change, so John's default applies: it always follows the settlement date, and a manual edit lasts only until the next settlement change.
-- Blank disbursement date = automatic, as before, so a cleared date shows the closing date on a purchase and keeps working if the file later becomes a refinance.
-- The buyer closing-date lock is held and not touched.
+- The screens only explain what will happen. The database (TC-ONLY-1) decides who actually gets each email, so an old page or a direct API call can't get around it.
+- A box that's already ticked can always be unticked, even after the TC was removed. That way staff can always turn emails back on to the agent.
