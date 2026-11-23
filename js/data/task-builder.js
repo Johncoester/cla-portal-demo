@@ -5,6 +5,8 @@
  * TB-2: conditions, steps (create a task, phone call task, wait, stop if EMD received) and the engine that runs them. Admins and Super admins only.
  * TB-6 (Nov 20): "Request a form from a party" steps (client requests; js/data/client-requests.js).
  * TB-7 (Nov 20): "Send an email" steps (js/data/flow-email.js) and the "File closed" trigger, for emails after closing.
+ * TB-11 (Nov 22): the "Task completed" trigger: a template starts when a chosen task is checked off on a file (John: "if we received the EMD
+ *   and we click EMD received, an automatic email should go out"). Any task can be chosen, including ones added later.
  * Shared by the mock adapter (mock-part-task-builder.js), the Supabase adapter (supabase-task-builder.js) and the page. */
 
 import { cleanRequestStep, requestStepText, formTitle } from './client-requests.js?v=202611261000';
@@ -23,12 +25,14 @@ export const TRIGGERS = [
   { code: 'closing_date_set', label: 'Closing date set or changed' },
   { code: 'days_before_closing', label: 'Days before closing', days: 'days before the closing date' },
   { code: 'file_closed', label: 'File closed' },   // TB-7: the file's status becomes Closed (funds disbursed)
+  { code: 'task_completed', label: 'Task completed', task: true },   // TB-11: a chosen task is checked off on the file
 ];
 export const triggerOf = (code) => TRIGGERS.find((t) => t.code === code) || null;
 export const triggerNeedsDays = (code) => !!(triggerOf(code) || {}).days;
 // "EMD not received, 2 days after the order was opened"
-export function triggerText(code, days) {
+export function triggerText(code, days, taskName) {
   const t = triggerOf(code); if (!t) return 'Unknown trigger';
+  if (t.task) return `${t.label}: "${taskName || 'a task'}"`;
   return t.days ? `${t.label}, ${days} ${Number(days) === 1 ? t.days.replace(/^days/, 'day') : t.days}` : t.label;
 }
 
@@ -61,7 +65,48 @@ export function cleanFlow(input = {}) {
     if (!Number.isInteger(n) || n < DAYS_MIN || n > DAYS_MAX) throw new Error(`Days must be a whole number from ${DAYS_MIN} to ${DAYS_MAX}.`);
     triggerDays = n;
   }
-  return { name, description, trigger, triggerDays, conditions: cleanConditions(input.conditions), steps: cleanSteps(input.steps) };
+  const { triggerTask, triggerTaskName } = cleanTriggerTask(trigger, input);
+  return { name, description, trigger, triggerDays, triggerTask, triggerTaskName, conditions: cleanConditions(input.conditions), steps: cleanSteps(input.steps) };
+}
+
+/* TASK COMPLETED (TB-11, John Nov 22 2026). Which task starts the template, as a key:
+ *   "tpl:<code>"   a standard task from Admin > Task Templates (every version of it), e.g. tpl:emd_receipt
+ *   "title:<name>" any other task, matched by its name (case and spacing don't count), e.g. a task a Task Builder template creates.
+ * triggerTaskName is the name shown on the page. Same rule in SQL: private.task_flow_start_task. */
+export const triggerNeedsTask = (code) => !!(triggerOf(code) || {}).task;
+export const TASK_KEY_MAX = 130;
+const squash = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+export function cleanTriggerTask(trigger, input = {}) {
+  if (!triggerNeedsTask(trigger)) return { triggerTask: null, triggerTaskName: null };
+  const key = squash(input.triggerTask);
+  if (!key) throw new Error('Choose which task starts the template.');
+  const m = /^(tpl|title):(.+)$/.exec(key);
+  if (!m || key.length > TASK_KEY_MAX || (m[1] === 'tpl' && !/^[a-z0-9_-]{1,64}$/i.test(m[2]))) throw new Error('Choose which task starts the template from the list.');
+  return { triggerTask: key, triggerTaskName: squash(input.triggerTaskName).slice(0, 120) || m[2] };
+}
+// the keys a task on a file answers to: its standard task code (if any) and its name
+export function taskKeys(task = {}) {
+  const out = []; if (task.templateCode) out.push(`tpl:${task.templateCode}`);
+  const name = squash(task.title); if (name) out.push(`title:${name}`);
+  return out;
+}
+export function taskKeyMatches(flowKey, keys) {
+  const k = squash(flowKey); if (!k) return false;
+  if (k.startsWith('tpl:')) return (keys || []).includes(k);
+  return (keys || []).some((x) => x.startsWith('title:') && x.toLowerCase() === k.toLowerCase());
+}
+// a test run's tasks never start anything
+export const isTestRunTask = (task = {}) => /^Test run\. /.test(task.description || '');
+/* The choices for "Which task": every standard task (latest version of each, from Admin > Task Templates) and every task name a Task
+ * Builder template creates. A task added later shows up here by itself. templates: listTaskTemplates(); flows: the saved templates. */
+export function taskChoices(templates = [], flows = []) {
+  const byCode = new Map();
+  (templates || []).forEach((t) => { if (!t || !t.code || t.retiredAt || t.active === false) return; const cur = byCode.get(t.code); if (!cur || Number(t.version) > Number(cur.version)) byCode.set(t.code, t); });
+  const out = [...byCode.values()].map((t) => ({ key: `tpl:${t.code}`, name: squash(t.title) || t.code, group: 'Standard tasks' }));
+  const seen = new Set(out.map((c) => c.name.toLowerCase()));
+  (flows || []).forEach((f) => (f.steps || []).forEach((s) => { if (!['create_task', 'call_task'].includes(s.type)) return; const name = squash(s.title);
+    if (name && !seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push({ key: `title:${name}`, name, group: 'Tasks made by Task Builder templates' }); } }));
+  return out.sort((a, b) => (a.group === b.group ? a.name.localeCompare(b.name) : a.group === 'Standard tasks' ? -1 : 1));
 }
 
 // Same name check the database makes (case and spacing don't count).
@@ -75,9 +120,9 @@ export const DUPLICATE_NAME = 'Another template already has that name. Use a dif
  * Tasks go to everyone on the file who holds the chosen role. A named person, a backup person and "who can see it" come in TB-3.
  * The engine below is the one the demo portal runs; the database runs the same rules (migration 20261121010000_task_flow_engine.sql). */
 
-export const RUNNABLE_TRIGGERS = ['order_opened', 'emd_received', 'emd_not_received', 'closing_date_set', 'days_before_closing', 'file_closed'];
+export const RUNNABLE_TRIGGERS = ['order_opened', 'emd_received', 'emd_not_received', 'closing_date_set', 'days_before_closing', 'file_closed', 'task_completed'];
 // triggers that only ever start on something happening from now on, so turning the flow on asks no "which files" question
-export const FROM_NOW_TRIGGERS = ['order_opened', 'file_closed'];
+export const FROM_NOW_TRIGGERS = ['order_opened', 'file_closed', 'task_completed'];
 export const triggerRuns = (code) => RUNNABLE_TRIGGERS.includes(code);
 export const TRIGGER_NOT_RUNNING = 'Templates that start on "Contract received" or "Title commitment received" can be saved but cannot be turned on yet. Those two triggers come in a later step.';
 
@@ -182,13 +227,14 @@ export const SCOPES = [['new', 'New files only (opened from now on)'], ['all', '
 export const scopeText = (f) => (f && f.scope === 'all' ? 'New and existing open files' : 'New files only');
 export const cleanScope = (v) => (v === 'all' ? 'all' : 'new');
 export function inScope(flow, deal) {
-  if (!flow || flow.scope === 'all' || !flow.activatedAt || flow.trigger === 'file_closed') return true;   // File closed: any file that closes from now on
+  if (!flow || flow.scope === 'all' || !flow.activatedAt || flow.trigger === 'file_closed' || flow.trigger === 'task_completed') return true;   // File closed / Task completed: on any file, from now on
   const made = Date.parse((deal && deal.createdAt) || '');
   return Number.isFinite(made) && made >= Date.parse(flow.activatedAt);
 }
 // Which active, runnable flows an event on a file starts. events: 'order_opened' | 'emd_received' | 'closing_date_set'.
-export function flowsForEvent(flows, event, deal) {
-  return (flows || []).filter((f) => f.active && f.trigger === event && triggerRuns(f.trigger) && hasTaskStep(f.steps) && (!deal || inScope(f, deal)));
+export function flowsForEvent(flows, event, deal, keys) {
+  return (flows || []).filter((f) => f.active && f.trigger === event && triggerRuns(f.trigger) && hasTaskStep(f.steps) && (!deal || inScope(f, deal))
+    && (event !== 'task_completed' || taskKeyMatches(f.triggerTask, keys)));
 }
 // Time-based triggers: does this file meet the flow's trigger today?
 export function timeTriggerMet(flow, deal, todayIso) {
@@ -250,7 +296,7 @@ export function advanceRun(run, flow, ctx) {
  * from what starts the flow, adding up the Wait steps before it. Shown under every step in the form and in the flow list. */
 const ANCHOR = { order_opened: 'the order opens', contract_received: 'the contract comes in', emd_received: 'the EMD is received',
   emd_not_received: 'the order opens', commitment_received: 'the title commitment comes in', closing_date_set: 'the closing date is set',
-  days_before_closing: 'closing', file_closed: 'the file closes' };
+  days_before_closing: 'closing', file_closed: 'the file closes', task_completed: 'the task is checked off' };
 const dayWord = (n) => `${n} ${n === 1 ? 'day' : 'days'}`;
 // when something happens, `offset` days after the start (for "days before closing": counted from the closing date)
 export function whenText(trigger, triggerDays, offset = 0) {
