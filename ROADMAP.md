@@ -3408,7 +3408,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On Order Contacts, when the role (Add contact) or contact type (Edit contact) is Transaction coordinator, a required **Assigned to** dropdown offers **Buyer's Agent TC** and **Listing Agent TC**. It stays visible even when staff pick an existing coordinator who already has a link to an agent; the known side is pre-selected and can be changed. Saving puts the coordinator on the chosen side, so they list under that agent. Place Order and Parties are unchanged.
 
-**Status: Building.** Tracker item FF-108b. Francis Santos, follow-up to FF-108, confirmed Nov 23 2026 5:21 PM ET (Gmail 1a20a80a4cca28a6), with a mockup of the Edit contact form. No database file.
+**Status: Building.** Tracker item FF-108b. Francis Santos, follow-up to FF-108, confirmed Nov 23 2026 5:21 PM ET (Gmail 1a20a80a4cca28a6), with a mockup of the Edit contact form. Pull request: [PR 434](https://github.com/Johncoester/cla-portal-demo/pull/434). No database file.
 
 **What's built**
 
