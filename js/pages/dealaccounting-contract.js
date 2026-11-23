@@ -72,7 +72,7 @@ function basicForm(file, canEdit, sourceKnown) {
       ${sales}
       <label data-basic-field="loanAmount">Loan amount<input name="loanAmount" data-money inputmode="decimal" autocomplete="off" placeholder="Unknown" aria-label="Loan amount" value="${moneyShow(file.loanAmount)}" ${dis}></label>
       <label data-basic-field="closingDate">Closing date<input type="date" name="closingDate" aria-label="Closing date" value="${file.closingDate || ''}" ${dis}></label>
-      <label data-basic-field="disbursementDate">Disbursement date<input type="date" name="disbursementDate" data-disbursement-input aria-label="Disbursement date" value="${file.disbursementDate || ''}" ${dis}><span class="field-hint">Leave blank for the automatic date (${auto.note}).</span></label>
+      <label data-basic-field="disbursementDate">Disbursement date<input type="date" name="disbursementDate" data-disbursement-input aria-label="Disbursement date" value="${file.disbursementDate || ''}" ${dis}><span class="field-hint">Leave blank for the automatic date (${auto.note}).${refi ? '' : ' Changing the closing date resets this to the closing date.'}</span></label>
       ${source}
     </div>
     <p class="err-text small" data-form-err></p>

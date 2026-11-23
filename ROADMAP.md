@@ -3218,3 +3218,32 @@ This file lists the portal's major features: how each one should work, how far a
 - Files with no EMD amount, due date, or holder are left off the outstanding EMD card. Refinance files have no EMD.
 - No new database file: the dashboard's existing open-file read now also asks for those four EMD columns. Admin fees reuse `getAgentFees`.
 - Cache stamp 202611291400, above main's 202611290700 and clear of open PR 407's 202611290800, so a saved copy of the shell is not reused.
+
+---
+
+## Disbursement date follows the settlement date on a purchase (MF-060)
+
+**How it should work.** On a purchase file, when the processor changes the settlement (closing) date, the disbursement date changes to match it. The disbursement date can still be changed by hand. A hand-set date lasts until the next settlement date change, then it follows the settlement date again. Refinances are not touched (4th business day after closing, or the processor's date).
+
+**Status: In progress.** Matt Landsberg, "Portal Feedback Nov 22" notes and recording; confirmed with corrections Nov 22 2026, 1:54 PM ET (Gmail 1a2049c9ec631d7b). Tracker row 438. One database file. Not Live until it is merged and applied on TEST.
+
+**What's built**
+
+- A database rule on the file's closing date: on a purchase, a closing date change clears a hand-set disbursement date, so the file shows the closing date. It works the same from the top of the file, Basic Info, Edit order details, or anything else that changes the closing date.
+- Changing both dates in one save keeps the disbursement date typed in that save. Other saves leave a hand-set date alone.
+- The disbursement date fields on purchases say that changing the closing date resets it.
+
+**What's still missing**
+
+- Nothing.
+
+**Links**
+
+- Spec: [docs/specs/mf-060-disbursement-follows-settlement.md](docs/specs/mf-060-disbursement-follows-settlement.md)
+- Related: FF-071 #23 / FF-052 / MF-050 (disbursement date field), FF-097 (dates at the top of the file).
+
+**Decisions**
+
+- Matt's email did not say whether a hand-set date survives a later settlement change, so John's default applies: it always follows the settlement date, and a manual edit lasts only until the next settlement change.
+- Blank disbursement date = automatic, as before, so a cleared date shows the closing date on a purchase and keeps working if the file later becomes a refinance.
+- The buyer closing-date lock is held and not touched.
