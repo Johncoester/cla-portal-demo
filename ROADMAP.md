@@ -3305,3 +3305,24 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The label format is the name, then the side word under it ("Sally Seller" / "Seller"), matching Matt's "Bob Smith seller".
 - No database change: the reads already exist and keep their row rules.
+
+---
+
+## MF-060b: follow-ups from the CRM Bot's reviews of MF-060 and MF-061
+
+**How it should work.** On a purchase, clearing the settlement date leaves the disbursement date as it was; setting a new settlement date still resets it. When a hand-set disbursement date is reset, the file's activity log says so. On Tasks, outside viewers see only the party names their Contacts screen already shows, and names are always escaped.
+
+**Status: In progress.** John, Nov 23 2026, from the CLA CRM Bot's post-merge reviews of PR 413 and PR 416. Tracker row MF-060b. Database file `20261129050000_disbursement_keep_on_clear.sql`.
+
+**What's built**
+
+- Trigger change (`and new.closing_date is not null`) plus a `disbursement.date` activity log entry, with a rollback and a scratch Postgres test (`test/test-disbursement-keep-on-clear-sql.sh`). The demo data follows the same rule.
+- MF-061 tests for name escaping and per-role access (`test/test-task-party-names-access.js`), and a note in the MF-061 spec on who sees which names.
+
+**What's still missing**
+
+- The Disbursement Details date is not changed (John is asking Matt).
+
+**Links**
+
+- Specs: [docs/specs/mf-060-disbursement-follows-settlement.md](docs/specs/mf-060-disbursement-follows-settlement.md), [docs/specs/mf-061-task-party-names.md](docs/specs/mf-061-task-party-names.md)

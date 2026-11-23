@@ -223,7 +223,12 @@ export function dealsAndAuth(x) {
       if (patch.disbursementDate !== undefined) q.disbursementDate = dateOrNull(patch.disbursementDate, 'Disbursement date');   // FF-071 #23: blank = automatic
       // MF-060 (Matt, Nov 22): on a purchase, a settlement date change clears a hand-set disbursement date so it follows the closing date
       // (same rule as the deals_disbursement_follows trigger, migration 20261129040000). Changing both in one save keeps the date given.
-      if (!isRefi(q) && (q.closingDate || null) !== prevClosing && (q.disbursementDate || null) === prevDisb) q.disbursementDate = null;
+      // MF-060b (CRM Bot review, Nov 23): clearing the settlement date leaves the disbursement date alone (migration 20261129050000),
+      // and a hand-set date that gets reset is written to the activity log.
+      if (!isRefi(q) && q.closingDate && (q.closingDate || null) !== prevClosing && (q.disbursementDate || null) === prevDisb) {
+        if (prevDisb) log(id, u.id, 'disbursement.date', 'deal', id, `Disbursement date ${prevDisb} reset to follow the closing date`);
+        q.disbursementDate = null;
+      }
       if (isRefi(q)) refiNoPrice(patch, fail);   // a refinance keeps no purchase price / EMD (clearing one an old order still has is allowed)
       if (patch.purchasePrice !== undefined) q.purchasePrice = money(patch.purchasePrice, 'Purchase price');
       if (patch.loanAmount !== undefined) q.loanAmount = money(patch.loanAmount, 'Loan amount');
