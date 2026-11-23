@@ -16,10 +16,15 @@
 4. WV excise tax: the state's $1.10 per $500 plus the county rate ($1.10–$2.75 per $500). The seller pays it.
 5. PA title premiums follow the TIRBOP rate manual (Nov 1, 2026):
    - Owner's and lender's issued together cost one charge on the higher amount.
-   - Enhanced costs the sale rate +10% +$400.
+   - Homeowner's (enhanced) costs the sale rate +10%. The +$400 applies only to the Expanded Coverage loan policy, which isn't quoted.
    - Refinances use the non-sale rate.
    - CPL is $125.
-6. WV title premiums: not yet loaded. Calculate fees warns until Fidelity's WV rate manual is in the sheet.
+6. WV title premiums follow Fidelity's WV rate manual (Oct 21, 2026):
+   - Owner's: $4.80 per $1,000 to $100k, then $3.60. Homeowner's is 120% of that.
+   - Lender's issued with the owner's: $200.
+   - Refinance: the full loan rate ($3.45 / $3.00 per $1,000).
+   - Reissue: 70%.
+   - ALTA 8.1: $15. CPL: $50 lender + $25 buyer.
 7. No principal-residence or first-time-buyer questions in PA or WV (they change nothing there).
 
 ## Where it lives
@@ -30,5 +35,4 @@
 ## Not done here
 
 - CLA's own PA/WV settlement fees (Janine and Francis enter them in CLA_Fees).
-- WV premiums (waiting on Fidelity's WV manual from John).
 - A municipality field on the order.

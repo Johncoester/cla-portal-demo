@@ -1214,14 +1214,13 @@ This file lists the portal's major features: how each one should work, how far a
 
 - PA and WV are calculator states. The copied calculator code and saved rates include PA and WV.
 - PA charges the 1% state transfer tax plus the local rate, split 50/50 (Philadelphia 3.578%). Municipalities with their own rate are rows the engine uses when given `area`.
-- WV charges the state excise tax plus the county rate, paid by the seller.
-- PA premiums: owner's and lender's issued together cost one charge on the higher amount. Enhanced costs the sale rate +10% +$400. Refinances use the non-sale rate. CPL is $125.
+- WV charges the state excise tax plus the county rate, paid by the seller. WV premiums follow Fidelity's WV rate manual (Oct 21, 2026).
+- PA premiums: owner's and lender's issued together cost one charge on the higher amount. Homeowner's costs the sale rate +10%. Refinances use the non-sale rate. CPL is $125.
 - Tests: York and Philadelphia taxes, Pittsburgh with `area`, Berkeley WV excise.
 
 **What's still missing**
 
 - A municipality field on the order. Until then, PA uses the standard local rate and warns which towns differ.
-- WV premiums. Calculate fees warns until Fidelity's WV rate manual is added (John is getting it).
 - CLA's PA/WV settlement fees. Janine and Francis enter them in CLA_Fees.
 
 **Links**

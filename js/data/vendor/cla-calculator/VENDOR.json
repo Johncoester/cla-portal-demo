@@ -1,6 +1,6 @@
 {
   "repo": "github.com/Johncoester/cla-closing-cost-calculator",
-  "commit": "3f432f9 (merged with 84c2fc4)",
+  "commit": "334679c (merged with 84c2fc4)",
   "copiedOn": "2026-11-23",
   "files": {
     "calc-core.js": {
@@ -10,9 +10,9 @@
     },
     "fee-snapshot.js": {
       "from": "fee-snapshot.js",
-      "sha256": "ccbbf86b142b88f7037ed5e06ef29a66581dcc5fb35760b5738814a21d99f3fb",
-      "bytes": 189388
+      "sha256": "ade008cbcab5af2a10298dad5d9a110e7d313636405ecc0992e0a63e4a2cc1de",
+      "bytes": 203410
     }
   },
-  "note": "Re-copied by hand by Claude. Nov 23 2026: calculator PR #3 (Pennsylvania and West Virginia; PA municipality transfer-tax rows) merged with PR #2 (Maryland tax on the loan above the price). fee-snapshot.js now has the PA/WV rows that are on the live sheet. tools/vendor-cla-calculator.js is no longer in the repo."
+  "note": "Re-copied by hand by Claude. Nov 23 2026: calculator PR #3 (Pennsylvania and West Virginia; PA municipality transfer-tax rows) merged with PR #2 (Maryland tax on the loan above the price). fee-snapshot.js now has the PA/WV rows (including WV premiums) that are on the live sheet. tools/vendor-cla-calculator.js is no longer in the repo."
 }
