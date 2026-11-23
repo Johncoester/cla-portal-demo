@@ -8,9 +8,25 @@ const TC_ROLE = { 'Buyer Agent': 'Buyer Agent TC', 'Listing Agent': 'Listing Age
 // TC-ONLY-2b (CRM Bot review of PR 414, Nov 23): a TC with no email can't get anything (the database holds the message), so it does not count as linked.
 export const usableTcs = (tcs) => (tcs || []).filter((t) => t && String(t.email || '').trim());
 export const tcNames = (tcs) => usableTcs(tcs).map((t) => String(t.name || t.email || '').trim()).filter(Boolean);
-// TCs who have an email but no portal login: their in-app alerts (and queued emails that need a login) are held
-const noLoginNames = (tcs) => usableTcs(tcs).filter((t) => t.hasLogin === false).map((t) => String(t.name || t.email || '').trim()).filter(Boolean);
-const noLoginLine = (tcs) => { const n = noLoginNames(tcs); return n.length ? ` ${joinNames(n)} ${n.length > 1 ? 'have' : 'has'} no portal login yet, so in-app alerts for this agent are held (not sent to the agent) until they're invited.` : ''; };
+// TC-ONLY-2c (CRM Bot review of PR 415, Nov 23): what a TC with no portal login still gets, per TC. The database (resolve_recipients)
+// holds portal alerts and most automatic emails (reminders, portal notices) for a TC with no login; emails staff type, and title package,
+// post-closing, scheduling and Task Builder emails, still go to the TC's email. With two TCs, the one with a login gets the alerts.
+const nameOf = (t) => String((t && (t.name || t.email)) || '').trim();
+const STILL_SENT = 'title package, post-closing, scheduling and Task Builder emails';
+const loginSplit = (tcs) => { const u = usableTcs(tcs); return { noLogin: u.filter((t) => t.hasLogin === false).map(nameOf).filter(Boolean), withLogin: u.filter((t) => t.hasLogin !== false).map(nameOf).filter(Boolean) }; };
+const allNoLogin = (tcs) => { const { noLogin, withLogin } = loginSplit(tcs); return noLogin.length > 0 && withLogin.length === 0; };
+// kind 'box' (the Contacts hint) or 'typed' (a compose / Email sellers and agents note: that email is typed, so it does go to the TC)
+const noLoginLine = (tcs, kind = 'box') => {
+  const { noLogin, withLogin } = loginSplit(tcs); if (!noLogin.length) return '';
+  const n = joinNames(noLogin); const has = noLogin.length > 1 ? 'have' : 'has'; const get = noLogin.length > 1 ? 'get' : 'gets';
+  if (withLogin.length) {
+    const w = joinNames(withLogin);
+    return kind === 'typed' ? ` ${n} ${has} no portal login yet, so portal alerts and most automatic emails for this agent go only to ${w}.`
+      : ` ${n} ${has} no portal login yet, so portal alerts and most automatic emails go only to ${w}. ${n} still ${get} emails staff type, and ${STILL_SENT}.`;
+  }
+  // every TC lacks a login: the opening line already says which emails go to them (box) or this typed email does (notes)
+  return ` ${n} ${has} no portal login yet, so portal alerts and most automatic emails (reminders and portal notices) for this agent are held until they're invited${kind === 'typed' ? ` (${STILL_SENT} still go to them)` : ''}.`;
+};
 export const joinNames = (a) => (a.length <= 1 ? (a[0] || '') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
 // who can read and tick it: the same rule as the server's private.is_manager(): role Processor, Preprocessor or Transaction Coordinator,
 // or the admin flag (TC-ONLY-2b: the role name 'Admin' / 'Super admin' alone is not enough; the server checks profiles.is_admin). Plus file access.
@@ -26,10 +42,19 @@ export function tcOnlyBox(row, role, { canEdit = false } = {}) {
   const hasTc = names.length > 0;
   const disabled = !canEdit || (!hasTc && !row.tcOnly);
   let hint;
-  if (!hasTc) hint = row.tcOnly ? `No TC is linked on this side now, so emails to this agent are held. Add their ${TC_ROLE[role]} on Contacts, or untick the box.`
-    : `Add this agent's transaction coordinator as ${TC_ROLE[role]} (linked to the agent) first.`;
-  else hint = (row.tcOnly ? `Emails and alerts for this agent go to ${joinNames(names)} instead.` : `When ticked, emails and alerts for this agent go to ${joinNames(names)} instead.`) + noLoginLine(row.tcs);
-  if (!hasTc && (row.tcs || []).length) hint += ' Their linked TC has no email address on Contacts, so nothing can be sent to them.';
+  // TC-ONLY-2c: one clear message per case (no "No TC is linked" next to "has no email address")
+  const noEmail = (row.tcs || []).map(nameOf).filter(Boolean);
+  if (!hasTc && noEmail.length) {
+    const who = `Their linked TC, ${joinNames(noEmail)}, ${noEmail.length > 1 ? 'have' : 'has'} no email address`;
+    hint = row.tcOnly ? `${who}, so emails and alerts for this agent are held. Add the TC's email on Contacts, or untick the box.` : `${who}. Add the TC's email on Contacts first.`;
+  } else if (!hasTc) {
+    hint = row.tcOnly ? `No TC is linked on this side now, so emails to this agent are held. Add their ${TC_ROLE[role]} on Contacts, or untick the box.`
+      : `Add this agent's transaction coordinator as ${TC_ROLE[role]} (linked to the agent) first.`;
+  } else {
+    // TC-ONLY-2c: when no TC has a login, only typed emails (and the few automatic ones) reach them, so the opening line says so
+    const what = allNoLogin(row.tcs) ? `emails staff type, and ${STILL_SENT},` : 'emails and alerts';
+    hint = (row.tcOnly ? `${what[0].toUpperCase()}${what.slice(1)} for this agent go to ${joinNames(names)} instead.` : `When ticked, ${what} for this agent go to ${joinNames(names)} instead.`) + noLoginLine(row.tcs, 'box');
+  }
   return { checked: !!row.tcOnly, disabled, hasTc, hint, title: !canEdit ? 'Only the processor, pre-processor, CLA TC or an Admin can change this.' : (disabled ? hint : '') };
 }
 // notes for a list of addresses (compose To / Cc / Bcc), using the file's participants (id, role, contact.email, contact.profileId).
@@ -48,7 +73,7 @@ export function tcOnlyNotes(rows, participants, emails, loginEmails) {
     seen.add(email);
     const who = `${String(((p.contact && `${p.contact.firstName || ''} ${p.contact.lastName || ''}`) || '')).trim() || email} (${SIDE[p.role] || p.role})`;
     const names = tcNames(r.tcs);
-    out.push(names.length ? { kind: 'redirect', email, text: `${who} has ${TC_ONLY_LABEL} on. This email goes to their TC, ${joinNames(names)}, instead.${noLoginLine(r.tcs)}` }
+    out.push(names.length ? { kind: 'redirect', email, text: `${who} has ${TC_ONLY_LABEL} on. This email goes to their TC, ${joinNames(names)}, instead.${noLoginLine(r.tcs, 'typed')}` }
       : { kind: 'held', email, text: `${who} has ${TC_ONLY_LABEL} on, but ${(r.tcs || []).length ? 'their linked TC has no email address' : 'no TC is linked on that side'}. The email can't be sent to them: remove them, or ${(r.tcs || []).length ? "add the TC's email" : 'add their TC'} on Contacts.` });
   }
   return out;
@@ -58,6 +83,6 @@ export function tcOnlyPreviewNote(rows, participantId) {
   const r = (rows instanceof Map ? rows : tcOnlyMap(rows)).get(participantId);
   if (!r || !r.tcOnly) return '';
   const names = tcNames(r.tcs);
-  return names.length ? `${TC_ONLY_LABEL} is on for this agent: this email goes to their TC, ${joinNames(names)}, instead.${noLoginLine(r.tcs)}`
+  return names.length ? `${TC_ONLY_LABEL} is on for this agent: this email goes to their TC, ${joinNames(names)}, instead.${noLoginLine(r.tcs, 'typed')}`
     : `${TC_ONLY_LABEL} is on for this agent, but ${(r.tcs || []).length ? 'their linked TC has no email address' : 'no TC is linked on that side'}, so this email is held and not sent.`;
 }
