@@ -1,5 +1,8 @@
 /* FF-105 (Francis Santos, Nov 19 2026, 12:23 PM ET, confirmed 2:35 PM ET).
- * Staff File Overview layout only. Fake names. No database. */
+ * Staff File Overview layout only. Fake names. No database.
+ * Rule 5: the Closing Team role list was updated in FF-106b, not loosened to make a test pass.
+ * Francis's 2:33 PM ET retest (Gmail 1a209e6c78047e5d) and the Nov 23 confirm-back require the
+ * former Transaction Coordinator slot to be labelled Preprocessor; the extra TC card is gone. */
 import { buildOrderOverview } from '../js/data/order-overview.js';
 import { toText } from '../js/ui.js';
 import { STAGES } from '../js/data/constants.js';
@@ -11,7 +14,8 @@ const ok = (c, m) => { if (c) console.log('ok', m); else { fail += 1; console.lo
 const deal = {
   id: 'deal-1', fileNumber: 'MD-26-97183', transactionType: 'Purchase', purchasePrice: 450000, loanAmount: 80,
   openDate: '2026-11-02', closingDate: '2026-12-15', stage: 1, status: 'Open', state: 'MD',
-  processorName: 'Paula Processor', processorId: 'u-proc', tcName: 'Tina Coordinator', tcUserId: 'u-tc',
+  processorName: 'Paula Processor', processorId: 'u-proc', preprocessorName: 'Pat Pre', preprocessorUserId: 'u-pre',
+  tcName: 'Tina Coordinator', tcUserId: 'u-tc',
   closerName: 'Chris Closer', closerProfileId: 'u-closer',
   salesPeople: [{ id: 'u-sp1', name: 'Sam Sales' }, { id: 'u-sp2', name: 'Sue Sales' }],
   participants: [
@@ -33,8 +37,9 @@ ok(facts[0].value === 'Purchase' && facts[1].value === '11/02/2026' && facts[2].
 ok(staffFileFacts({ transactionType: 'Refinance', purchasePrice: null }).every((f, i) => i === 0 ? f.value === 'Refinance' : f.value === ''), 'a missing date or price stays blank and the box label remains');
 
 const cards = closingTeamCards(deal);
-ok(cards.map((c) => c.role).join('|') === 'Processor|Preprocessor|Transaction Coordinator|Licensed Settlement Agent|Sales Person|Sales Person', 'Closing Team uses the picture role names plus Preprocessor (FF-106), with one Sales Person card each');
-ok(cards[0].name === 'Paula Processor' && cards[1].role === 'Preprocessor' && cards[2].name === 'Tina Coordinator' && cards[3].name === '' && cards[3].blankBecause === 'no-field', 'assigned people show, Preprocessor is on the card row, and Licensed Settlement Agent stays blank');
+ok(cards.map((c) => c.role).join('|') === 'Processor|Preprocessor|Licensed Settlement Agent|Sales Person|Sales Person', 'Closing Team uses the picture role names with the CLA slot labelled Preprocessor (FF-106b), with one Sales Person card each');
+ok(cards[0].name === 'Paula Processor' && cards[1].role === 'Preprocessor' && cards[1].name === 'Pat Pre' && cards[2].name === '' && cards[2].blankBecause === 'no-field', 'assigned people show, the CLA slot is Preprocessor, and Licensed Settlement Agent stays blank');
+ok(!cards.some((c) => c.role === 'Transaction Coordinator') && !cards.some((c) => c.name === 'Tina Coordinator'), 'the CLA Transaction Coordinator is not a Closing Team card (FF-106b relabel)');
 ok(!cards.some((c) => c.name === 'Chris Closer') && !cards.some((c) => c.name === 'Transaction Coordinator for CLA'), 'Closer is not renamed, and the sample coordinator name is not stored');
 ok(nameInitials('Paula Processor') === 'PP' && nameInitials('') === '', 'a card uses initials, and a blank name has none');
 const teamHtml = toText(closingTeamHtml(deal));
