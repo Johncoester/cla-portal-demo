@@ -1,8 +1,8 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611301341';
+import { getAdapter } from './data/adapter.js?v=202611301452';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611301200';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611301300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611300430';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611247700';
@@ -45,10 +45,10 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611291500')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611301200')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611301300')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611248300')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611301200')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611301300')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611289960')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611249900')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
@@ -58,7 +58,7 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611247700')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611247700')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611301200')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611301300')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611247700')),   // MF-056 buyer / seller scheduling link (no sign-in)
@@ -73,7 +73,7 @@ const pages = {
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611247700')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611291500')),   // John, Nov 9: Admin > Email Templates (file Email tab)
-  'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611301341')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
+  'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611301452')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => loadRoute(() => import('./pages/demo-view.js?v=202611161500')),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => loadRoute(() => import('./pages/voice-demo.js?v=202611161500')),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => loadRoute(() => import('./pages/staff-feedback.js?v=202611161500')),};

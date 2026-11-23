@@ -38,6 +38,9 @@ export async function render({ api, user, deal, refresh }) {
   const asked = q.get('t');
   const tab = asked === 'folders' && seeFolders ? 'folders' : (['received', 'sent', 'all'].includes(asked) ? asked : 'all');
   const folder = q.has('f') ? q.get('f') : null;
+  // FF-107: on Folders, ?f= opens that folder (f=unfiled for Unfiled). The list still loads every file so counts stay right.
+  const folderOpen = tab === 'folders' && folder !== null;
+  const openId = folderOpen ? ((folder === 'unfiled' || folder === '') ? '' : folder) : null;
   const listFolder = tab === 'folders' ? null : folder;   // the three file tabs still honor ?f=; Folders needs every file so one can be moved
   const [rawDocs, folders, sigs, ents] = await Promise.all([
     api.listDocuments(deal.id, listFolder === null ? { senders: true } : { folderId: folder, senders: true }),   // MF-045: with who shared each one
@@ -49,7 +52,11 @@ export async function render({ api, user, deal, refresh }) {
   const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const realFolders = folders.filter((f) => !f.virtual);
   const href = (t, f) => `#/deals/${deal.id}/documents?t=${t}${f === null ? '' : '&f=' + encodeURIComponent(f)}`;
   const portalDocs = docs.filter((d) => !d.sample);
-  const shown = portalDocs.filter((d) => tab === 'all' || (tab === 'sent') === (d.uploadedBy === user.id));
+  const shown = portalDocs.filter((d) => {
+    if (folderOpen) return openId ? d.folderId === openId : !d.folderId;
+    if (tab === 'folders') return false;
+    return tab === 'all' || (tab === 'sent') === (d.uploadedBy === user.id);
+  });
   const staffView = !user.accountRole && user.role !== 'Outside user'; const types = orderedDocTypes(staffView ? DOC_TYPES : docTypeChoices(user.role));   // Miscellaneous/Other first; sellers keep the seller list
   // Matt, Nov 3: entity documents requested from a buyer / seller acting as an entity (shown to the person, the processor, the coordinator and Admin)
   const entBlock = ents.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Requested entity documents</h2></div>
@@ -81,12 +88,25 @@ export async function render({ api, user, deal, refresh }) {
   // Counts match the files this page can move. Sample rows stay in the store and are not listed.
   const fileCount = (id) => portalDocs.filter((d) => (id ? d.folderId === id : !d.folderId)).length;
   const folderRows = [...orderedFolders, unfiled].map((f) => ({ ...f, count: fileCount(f.virtual ? '' : f.id) }));
+  const openFolderRow = folderOpen
+    ? (openId === '' ? unfiled : (orderedFolders.find((f) => f.id === openId) || null))
+    : null;
   const moveChoices = portalDocs.map((d) => ({ id: d.id, label: `${d.name} (${d.folderName || 'Unfiled'})` }));
+  const openMoveChoices = folderOpen
+    ? portalDocs.filter((d) => (openId ? d.folderId === openId : !d.folderId)).map((d) => ({ id: d.id, label: d.name }))
+    : [];
+  const openMoveDest = orderedFolders.filter((f) => f.id !== openId);
+  const openMoveForm = canChangeFolders ? (openMoveChoices.length ? html`<form id="movefile" class="form-grid" data-folder-move novalidate>
+      <label class="span2">Document<select name="docId"><option value="">Choose a document</option>${options(openMoveChoices, '', (d) => d.label, (d) => d.id)}</select></label>
+      <label class="span2">Move into<select name="folderId">${openId !== '' ? html`<option value="">Unfiled</option>` : ''}${options(openMoveDest, '', (f) => f.name, (f) => f.id)}</select></label>
+      <p class="span2 err-text" data-move-err role="alert"></p>
+      <div class="span2"><button class="m-btn" type="submit">Move</button></div>
+    </form>` : html`<p class="muted" data-move-empty>No documents in this folder yet. Upload a file, then you can move it to another folder.</p>`) : '';
   const folderPane = html`<div data-doc-folders>
     <div class="box-title"><h2><span class="h-ico"></span>Document folders</h2>${canChangeFolders ? html`<button class="m-btn right" type="button" id="addfolder">Add folder</button>` : ''}</div>
     <p class="muted small">Folders on this order. The number is how many files are in each folder.</p>
     <div class="side-scroll"><table class="tbl striped" id="foldertable"><thead><tr><th>Folder</th><th>Files</th></tr></thead><tbody>
-      ${folderRows.map((f) => html`<tr data-folder-row="${f.virtual ? 'unfiled' : f.id}"><td data-folder-name>${f.name}</td><td data-folder-count="${f.virtual ? 'unfiled' : f.id}">${Number(f.count) || 0}</td></tr>`)}
+      ${folderRows.map((f) => html`<tr data-folder-row="${f.virtual ? 'unfiled' : f.id}"><td data-folder-name><a class="doc-link" href="${href('folders', f.virtual ? 'unfiled' : f.id)}" data-open-folder="${f.virtual ? 'unfiled' : f.id}">${f.name}</a></td><td data-folder-count="${f.virtual ? 'unfiled' : f.id}">${Number(f.count) || 0}</td></tr>`)}
     </tbody></table></div>
     ${canChangeFolders ? (moveChoices.length ? html`<form id="movefile" class="form-grid" novalidate>
       <label class="span2">Document<select name="docId"><option value="">Choose a document</option>${options(moveChoices, '', (d) => d.label, (d) => d.id)}</select></label>
@@ -100,14 +120,21 @@ export async function render({ api, user, deal, refresh }) {
     <td data-doc-row="${d.id}"${d.wireInstructions ? raw(' data-wire-doc') : ''}><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a>${d.wireInstructions ? html` ${pill('wire instructions - buyer only', 'warn')}` : ''}<br><span class="muted small">${d.docType ? html`<span data-doctype>${d.docType}</span> &middot; ` : ''}${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
     <td>${d.folderName || html`<span class="muted">Unfiled</span>`}</td><td>${fmtDateTime(d.createdAt)}</td><td data-doc-from>${d.uploadedByName || html`<span class="muted">Not recorded</span>`}${d.uploadedByRole ? html`<br><span class="muted small" data-doc-from-role>${d.uploadedByRole}</span>` : ''}</td><td>${d.description}</td><td>${clientView && d.sharedWithMe ? pill('Shared with you by CLA Title', 'info') : pill(VL(d.visibility), d.visibility === 'all' ? '' : 'info')}${!clientView && d.sharedWithClient ? html`<br><span data-shared-client="${d.id}">${pill('shared with the buyer', 'ok')}</span><br><span class="muted small">by ${d.sharedWithClientByName} ${fmtDateTime(d.sharedWithClientAt)}</span>` : ''}${!clientView && d.sharedWithSeller ? html`<br><span data-shared-seller="${d.id}">${pill('shared with the seller', 'ok')}</span><br><span class="muted small">by ${d.sharedWithSellerByName} ${fmtDateTime(d.sharedWithSellerAt)}</span>` : ''}</td>
     <td class="nowrap">${runsOrders(user) || d.uploadedBy === user.id || manage ? html`<button class="ghost" data-meta="${d.id}">Details</button>` : ''}${manage ? html` <button class="ghost" data-sign="${d.id}">Request signature</button>` : ''}${canShareClient && d.buyerShareable ? html` <button class="ghost" data-share-client="${d.id}" data-share-on="${d.sharedWithClient ? '0' : '1'}">${d.sharedWithClient ? 'Stop sharing with buyer' : 'Share with buyer'}</button>` : ''}${canShareClient && d.sellerShareable ? html` <button class="ghost" data-share-seller="${d.id}" data-share-on="${d.sharedWithSeller ? '0' : '1'}">${d.sharedWithSeller ? 'Stop sharing with seller' : 'Share with seller'}</button>` : ''}</td></tr>`);
+  const fileList = rows.length ? html`<div class="filter-bar" data-doc-tools><label>Search <input type="search" data-doc-search placeholder="File name, type, folder or sender" autocomplete="off" value="${view.q}"></label> <span class="muted small" data-doc-count role="status"></span></div>
+    <table class="tbl striped" id="doctable"><thead><tr>${sortHead('type', 'File Type')}${sortHead('name', 'File Name')}${sortHead('folder', 'Folder')}${sortHead('date', 'Date')}${sortHead('from', 'From')}<th>Additional Instruction</th><th>Access</th><th></th></tr></thead><tbody>${rows}<tr data-doc-nomatch hidden><td colspan="8" class="muted center">No documents match your search.</td></tr></tbody></table>` : html`<p class="muted" data-docs-empty>${folderOpen ? 'No documents in this folder yet.' : 'No documents have been shared on this file yet.'}</p>`;
+  const openPane = html`<div data-doc-folder-open="${openFolderRow ? (openFolderRow.virtual ? 'unfiled' : openFolderRow.id) : 'missing'}">
+    <p class="muted small"><a href="${href('folders', null)}" data-folder-back>All folders</a></p>
+    <div class="box-title"><h2><span class="h-ico"></span><span data-open-folder-name>${openFolderRow ? openFolderRow.name : 'Folder'}</span></h2></div>
+    ${openFolderRow ? fileList : html`<p class="muted" data-folder-missing>That folder is not on this order.</p>`}
+    ${openFolderRow ? openMoveForm : ''}
+  </div>`;
   const sigRows = sigs.map((r) => html`<tr data-sigreq="${r.id}"><td>${r.docName}</td><td>${r.signers.map((s) => html`<div>${s.name} <span class="muted small">(${s.roleLabel})</span> ${s.status === 'signed' ? html`${pill('signed', 'ok')} <span class="muted small">${fmtDateTime(s.signedAt)}</span>` : pill(r.status === 'cancelled' ? 'cancelled' : 'requested', r.status === 'cancelled' ? '' : 'info')}</div>`)}</td>
     <td>${pill(r.status, r.status === 'signed' ? 'ok' : r.status === 'requested' ? 'info' : '')}<br><span class="muted small">requested by ${r.requestedByName} ${fmtDateTime(r.requestedAt)}</span></td><td>${manage && r.status === 'requested' ? html`<button class="ghost" data-sigcancel="${r.id}">Cancel request</button>` : ''}</td></tr>`);
   const body = html`<div class="box-title"><h2><span class="h-ico"></span>Documents &amp; Files</h2>${canUpload ? html`<button class="m-btn right" id="upbtn">Upload here</button> <button class="ghost right" id="sharefiles">Share Files</button>` : ''}</div>
     <div class="folder-bar" data-folder-bar hidden><a class="folder ${folder === null ? 'active' : ''}" href="${href(tab, null)}">All folders</a>${folders.map((f) => html`<a class="folder ${folder === f.id ? 'active' : ''}" href="${href(tab, f.id)}" data-fid="${f.id}">${f.name} <span class="muted">${f.count}</span></a>`)}
       ${manage ? html`<button class="ghost" id="newfolder">+ Folder</button>${folder ? html` <button class="ghost" id="renamefolder">Rename folder</button>` : ''}` : ''}</div>
     <ul class="nav-tabs" data-doc-tabs>${docTabs.map(([k, l]) => html`<li><a class="${k === tab ? 'active' : ''}" href="${k === 'folders' ? href(k, null) : href(k, folder)}" data-doc-tab="${k}">${l}</a></li>`)}</ul>
-    ${tab === 'folders' ? folderPane : rows.length ? html`<div class="filter-bar" data-doc-tools><label>Search <input type="search" data-doc-search placeholder="File name, type, folder or sender" autocomplete="off" value="${view.q}"></label> <span class="muted small" data-doc-count role="status"></span></div>
-    <table class="tbl striped" id="doctable"><thead><tr>${sortHead('type', 'File Type')}${sortHead('name', 'File Name')}${sortHead('folder', 'Folder')}${sortHead('date', 'Date')}${sortHead('from', 'From')}<th>Additional Instruction</th><th>Access</th><th></th></tr></thead><tbody>${rows}<tr data-doc-nomatch hidden><td colspan="8" class="muted center">No documents match your search.</td></tr></tbody></table>` : html`<p class="muted" data-docs-empty>No documents have been shared on this file yet.</p>`}
+    ${tab === 'folders' ? (folderOpen ? openPane : folderPane) : fileList}
     <p class="muted small">Documents are kept permanently. They cannot be deleted.</p>${entBlock}
     ${sigs.length ? html`<div class="box-title"><h2><span class="h-ico"></span>Signatures</h2></div><p class="muted small">Demo e-sign: not legally binding. A real provider (DocuSign / Dropbox Sign) plugs in at the same place.</p>
       <table class="tbl striped" id="sigtable"><thead><tr><th>Document</th><th>Signers</th><th>Status</th><th></th></tr></thead><tbody>${sigRows}</tbody></table>` : ''}`;
@@ -178,7 +205,7 @@ export async function render({ api, user, deal, refresh }) {
       <p class="span2"><button type="button" class="ghost" data-upload-clear>Clear selected files</button></p>
       ${typeFields('')}
       <label class="span2">Additional instruction<input name="description" maxlength="500"></label>
-      <label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, folder || '', (f) => f.name, (f) => f.id)}</select></label>${audienceFields(visOpts[0])}${staffView ? html`<label class="check span2"><input type="checkbox" name="wireInstructions" data-wire-mark> Wire instructions (buyer clients and CLA Title only; agents never see it, whatever "Who can see it" says)</label>` : ''}${isClient(user.role) ? html`<p class="span2 muted small" data-share-note>${user.role === 'Client-Buyer' ? BUYER_SHARE_NOTE : CLIENT_SHARE_NOTE}</p>` : html`<p class="span2 muted small" data-staff-share>CLA staff only means every CLA staff role on the portal, including the processor, coordinator, and sales. It is not limited to the processor, and the other side does not see it.</p>`}
+      <label class="span2">Folder<select name="folderId"><option value="">Unfiled</option>${options(realFolders, folderOpen ? openId : (folder && folder !== 'unfiled' ? folder : ''), (f) => f.name, (f) => f.id)}</select></label>${audienceFields(visOpts[0])}${staffView ? html`<label class="check span2"><input type="checkbox" name="wireInstructions" data-wire-mark> Wire instructions (buyer clients and CLA Title only; agents never see it, whatever "Who can see it" says)</label>` : ''}${isClient(user.role) ? html`<p class="span2 muted small" data-share-note>${user.role === 'Client-Buyer' ? BUYER_SHARE_NOTE : CLIENT_SHARE_NOTE}</p>` : html`<p class="span2 muted small" data-staff-share>CLA staff only means every CLA staff role on the portal, including the processor, coordinator, and sales. It is not limited to the processor, and the other side does not see it.</p>`}
       <p class="span2 err-text" data-upload-err role="alert"></p>
       <div class="span2"><button class="m-btn" type="submit" data-upload-submit>Upload</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     const form = $('#uf', m); const err = $('[data-upload-err]', form); const list = $('[data-upload-queue]', form); const input = $('[data-upload-files]', form);

@@ -7,7 +7,7 @@
  * Nov 22 (migration 20261129020000_task_flow_task_completed.sql): the "Task completed" trigger; saved through save_task_flow_v3 (only for that
  * trigger, so the other triggers keep saving before the file is applied).
  * Until a migration is applied on TEST, the page says so in plain words instead of showing a database error. */
-import { cleanFlow, triggerText, stepText, conditionsText, triggerRuns, cleanConditions, cleanScope, scopeText } from './task-builder.js?v=202611301341';
+import { cleanFlow, triggerText, stepText, conditionsText, triggerRuns, cleanConditions, cleanScope, scopeText } from './task-builder.js?v=202611301452';
 
 export const NOT_SET_UP = 'Task Builder is not set up on this site yet. Its database file has to be applied first.';
 const plainErr = (e) => {
