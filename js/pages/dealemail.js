@@ -7,7 +7,7 @@ import { editorHtml, mountEditor } from './compose.js?v=202611249900';
 import { canUseGmail, introRecipients, introTemplate, hasSignature, fileTag } from '../data/gmail-email.js?v=202611191000';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611291500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { tcOnlyMap, tcOnlyNotes, isTcOnlyRole } from '../data/tc-only.js?v=202611291700';
+import { tcOnlyMap, tcOnlyNotes, isTcOnlyRole, canReadTcOnly } from '../data/tc-only.js?v=202611300545';
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
@@ -116,7 +116,13 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     .map((p) => ({ name: partyDisplayName(p), email: String(p.contact.email).toLowerCase(), role: p.role })));
   // TC-ONLY-2: which agents on this file have "Only communicate with TC" on (staff only; the database still decides when it sends)
   let tcRows = new Map();
-  if (api.tcOnlyStatus && (mergeDeal.participants || []).some((p) => isTcOnlyRole(p.role))) { try { tcRows = tcOnlyMap(await api.tcOnlyStatus(deal.id)); } catch (e) { tcRows = new Map(); } }
+  // TC-ONLY-2b: only for roles the server allows (no refused call for sales), and agents are matched by contact email or portal-login email
+  let tcLogins = {};
+  if (api.tcOnlyStatus && canReadTcOnly(user) && (mergeDeal.participants || []).some((p) => isTcOnlyRole(p.role))) {
+    try { tcRows = tcOnlyMap(await api.tcOnlyStatus(deal.id)); } catch (e) { tcRows = new Map(); }
+    const ids = (mergeDeal.participants || []).filter((p) => (tcRows.get(p.id) || {}).tcOnly && p.contact && p.contact.profileId).map((p) => p.contact.profileId);
+    if (ids.length && api.tcOnlyLoginEmails) { try { tcLogins = await api.tcOnlyLoginEmails(ids); } catch (e) { tcLogins = {}; } }
+  }
   const templates = (api.listFileEmailTemplates ? (await api.listFileEmailTemplates({ includeInactive: false }).catch(() => [])) : []).filter((t) => t.scope === 'shared' && t.active !== false);
   const tplOpts = templates.map((t) => html`<option value="${t.id}">${t.name}${t.category ? ` (${t.category})` : ''}</option>`);
   let chosenTemplateKey = pre.templateKey || null;
@@ -158,7 +164,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   const paintTcOnly = () => {
     const box = $('[data-tc-only-note]', m); if (!box) return;
     const all = [...list($('[data-mail-to]', m).value), ...list($('[data-mail-cc]', m).value), ...list($('[data-mail-bcc]', m).value)];
-    const notes = tcRows.size ? tcOnlyNotes(tcRows, mergeDeal.participants || [], all) : [];
+    const notes = tcRows.size ? tcOnlyNotes(tcRows, mergeDeal.participants || [], all, tcLogins) : [];
     box.hidden = !notes.length;
     box.className = `span2 notice ${notes.some((n) => n.kind === 'held') ? 'warn' : 'info'} small`;
     box.innerHTML = notes.length ? toText(html`<ul class="plain">${notes.map((n) => html`<li data-tc-only-kind="${n.kind}">${n.text}</li>`)}</ul>`) : '';
