@@ -179,6 +179,28 @@ export function tcSideProblem({ hasPerson, linkedRoles, choice, choices }) {
   return '';
 }
 
+/* FF-108 (Francis, Nov 23 2026): adding a coordinator on Contacts for a chosen agent also links them to that agent
+ * (agent_tc_links, the same link the agent's contact record makes). Without the link the file showed them as that side's TC,
+ * but "Only communicate with TC" could not be ticked (it needs a TC linked to the agent). Already linked: nothing more to do.
+ * Returns { roles, linkProblem }: a link refusal does not undo the add; the page shows it in plain words. */
+export async function saveAgentTcOnFile(api, dealId, contactId, { linkedRoles, choice, choices }) {
+  const roles = tcRolesToSave({ linkedRoles, choice, choices });
+  for (const role of roles) {
+    try { await api.addParticipant(dealId, contactId, role); }
+    catch (err) { if (!isAlreadyTcMessage(err && err.message)) throw err; }
+  }
+  let linkProblem = '';
+  if (!(linkedRoles && linkedRoles.length) && roles.length && api && typeof api.linkAgentTc === 'function') {
+    const hit = (choices || []).find((c) => c.value === choice);
+    const agentId = hit ? String(hit.value).split(':').slice(1).join(':') : '';
+    if (agentId) {
+      try { await api.linkAgentTc(agentId, contactId); }
+      catch (err) { if (!/already a transaction coordinator/i.test(String((err && err.message) || ''))) linkProblem = String((err && err.message) || 'The coordinator could not be linked to the agent.'); }
+    }
+  }
+  return { roles, linkProblem };
+}
+
 export function isAlreadyTcMessage(message) {
   return /already the transaction coordinator/i.test(String(message || ''));
 }
