@@ -58,7 +58,7 @@ await rejects(() => a.addParticipant(file.id, 'c-buyer', 'Processor'), 'NEG an o
 
 const contactsSrc = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta.url), 'utf8');
 ok(!contactsSrc.includes("tcIds.add('staff:' + t.profileId)") && !contactsSrc.includes('isTcPick') && contactsSrc.includes('rolesForNewContact'), 'the Contacts tab no longer offers a staff-only Transaction Coordinator list');
-ok(!contactsSrc.includes('Any active staff login can be the Transaction Coordinator') && contactsSrc.includes('Which agent are they linked to?'), 'the Contacts tab asks which agent when the side is not known');
+ok(!contactsSrc.includes('Any active staff login can be the Transaction Coordinator') && contactsSrc.includes('Assigned to') && contactsSrc.includes("Buyer's Agent TC"), 'the Contacts tab asks Assigned to for a transaction coordinator');
 
 const staffJohn = { id: 'staff:u-john', profileId: 'u-john', firstName: 'John', lastName: 'Coester', email: 'jcoester@clatitle.com', accountRole: 'Super admin' };
 const realtorJohn = { id: 'c-realtor', firstName: 'John', lastName: 'Coester', email: 'johncoester@gmail.com', phone: '240-277-2894', company: 'Compass', contactType: 'realtor' };
