@@ -60,6 +60,7 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
   const cssId = (id) => (globalThis.CSS && CSS.escape ? CSS.escape(id) : String(id).replace(/[^A-Za-z0-9_-]/g, ''));
   let chartBox = null;
   let rootEl = null;
+  let orderBusy = false;
   const chartIds = (box) => [...box.querySelectorAll('[data-home-chart]')].map((el) => el.dataset.homeChart);
   function setReorderOffer(mode) {
     const scope = rootEl || document;
@@ -69,6 +70,7 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
     if (!note) return;
     note.hidden = mode === 'ready' || mode === 'pending';
     if (mode === 'empty') note.textContent = 'There are no charts on Home to reorder.';
+    if (mode === 'one') note.textContent = 'Add another chart to Home to reorder. There is only one.';
     if (mode === 'error') note.textContent = 'Charts could not be loaded. Refresh the page and try again.';
   }
   function syncMoveEnds() {
@@ -97,7 +99,8 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
   function startReorder() {
     const scope = rootEl || document;
     const offer = $('[data-home-reorder]', scope);
-    if (!chartBox || !chartBox.querySelector('[data-home-chart]') || (offer && offer.disabled)) return;
+    const count = chartBox ? chartBox.querySelectorAll('[data-home-chart]').length : 0;
+    if (!chartBox || count < 2 || (offer && offer.disabled)) return;
     const menu = $('[data-home-menu]', scope);
     if (menu) { menu.open = false; menu.hidden = true; }
     const done = $('[data-home-reorder-done]', scope);
@@ -119,7 +122,7 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
     }
   }
   async function moveChart(id, dir) {
-    if (!chartBox) return;
+    if (!chartBox || orderBusy) return;
     const previous = chartIds(chartBox);
     const i = previous.indexOf(id);
     const j = i + dir;
@@ -127,8 +130,14 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
     const nodes = [...chartBox.querySelectorAll('[data-home-chart]')];
     if (dir < 0) chartBox.insertBefore(nodes[i], nodes[j]);
     else chartBox.insertBefore(nodes[j], nodes[i]);
-    syncMoveEnds();
-    await persistOrder(chartBox, chartIds(chartBox), previous);
+    orderBusy = true;
+    chartBox.querySelectorAll('[data-home-up], [data-home-down]').forEach((b) => { b.disabled = true; });
+    try {
+      await persistOrder(chartBox, chartIds(chartBox), previous);
+    } finally {
+      orderBusy = false;
+      syncMoveEnds();
+    }
   }
   function paintHomeCharts(root, charts) {
     let box = $('[data-home-charts]', root);
@@ -136,7 +145,7 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
     box.innerHTML = toText(charts.map((c) => chartCard(c)));
     chartBox = box;
     wireHomeCharts(box, charts);
-    setReorderOffer('ready');
+    setReorderOffer(charts.length > 1 ? 'ready' : 'one');
   }
   function wireHomeCharts(box, charts) {
     const byId = new Map(charts.map((c) => [c.id, c]));
@@ -144,7 +153,11 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
     box.addEventListener('click', guard(async (e) => {
       const upBtn = e.target.closest('[data-home-up]');
       const downBtn = e.target.closest('[data-home-down]');
-      if ((upBtn || downBtn) && !(upBtn || downBtn).hidden) { await moveChart(upBtn ? upBtn.dataset.homeUp : downBtn.dataset.homeDown, upBtn ? -1 : 1); return; }
+      if (upBtn || downBtn) {
+        const moveBtn = upBtn || downBtn;
+        if (!moveBtn.hidden && !moveBtn.disabled) await moveChart(upBtn ? upBtn.dataset.homeUp : downBtn.dataset.homeDown, upBtn ? -1 : 1);
+        return;
+      }
       const refreshBtn = e.target.closest('[data-home-refresh]');
       const renameBtn = e.target.closest('[data-home-rename]');
       const removeBtn = e.target.closest('[data-home-remove]');
@@ -171,6 +184,9 @@ export async function homePage({ api, me, params, cfg, refresh, assignees }) {
       if (!box.querySelector('[data-home-chart]')) {
         writeProbe(pageSession(), 'empty', me.id);
         stopReorder(); box.remove(); chartBox = null; setReorderOffer('empty');
+      } else if (box.querySelectorAll('[data-home-chart]').length === 1) {
+        stopReorder();
+        setReorderOffer('one');
       } else syncMoveEnds();
     }));
     let card = null; let before = '';
