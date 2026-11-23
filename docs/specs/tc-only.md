@@ -70,6 +70,13 @@ Task Builder's "Transaction coordinator" email choice now also reaches the agent
 - A TC with no email: one message ("Their linked TC, X, has no email address..."), not two.
 - Database (20261129050000_tc_only_needs_tc_email.sql): `public.set_participant_tc_only` refuses to tick the box when no TC linked to the agent on that side has an email (a contact email or a portal-login email). Unticking is always allowed. The activity line and the returned `tcs` list only TCs with an email. Who may call it is unchanged (staff/manager on the file). Rollback: supabase/rollbacks/20261129050000_tc_only_needs_tc_email.sql. Test: test/test-tc-only-needs-email-sql.sh (disposable local Postgres).
 
+## FF-108: listing side, TC order, clearer text (Francis, Nov 23 2026; no database file)
+
+- Cause: Order Contacts > + Add contact > Transaction coordinator > "which agent" saved the person as Buyer Agent TC / Listing Agent TC on the file but did not link them to the agent (agent_tc_links). The box needs a linked TC (private.tc_only_targets), so it stayed greyed out. Now the same save also links them to the chosen agent (link_agent_tc, which a processor may call; the link's own trigger places them on that agent's files as before). If the link is refused, the add stays and the page says why.
+- Order Contacts lists the Buyer Agent TC rows right under the Buyer Agent, and the Listing Agent TC rows right under the Listing Agent. Everyone else keeps their order.
+- Greyed-out text: "Add a Listing Agent TC for <agent> first to use this." When a TC is on the file for that side but not linked to the agent: "<TC> is on this file as Listing Agent TC but not linked to <agent>. Link them as <agent>'s transaction coordinator on <agent>'s contact record first to use this."
+- Tests: test/test-ff-108.js (demo portal, both sides end to end, order, wording) and test/test-ff-108-sql.sh (local Postgres: listing side refused without a linked TC, works once linked, routes to the TC, PR 417 no-email guard, staff only).
+
 ## Not done yet
 - Task Builder pages do not show the "goes to the TC" note. Their emails are still routed by the database.
 - Invites the staff send to an agent's own login are not swapped (the invite is for the agent's account).

@@ -5,14 +5,14 @@ import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=2
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611249900';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611249900';
-import { copyPlainText } from './deal.js?v=202611301300';
+import { copyPlainText } from './deal.js?v=202611301400';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
-import { TC_ONLY_LABEL, canReadTcOnly, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611300700';
-import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
+import { TC_ONLY_LABEL, canReadTcOnly, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611301400';
+import { agentTcChoiceLabel, agentTcLabel, saveAgentTcOnFile, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611301400';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -32,10 +32,25 @@ const ctypeSelect = (sel = '', name = 'contactType') => html`<label>Contact type
 const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent', 'Buyer Agent TC']], ['SELLER', ['Client-Seller', 'Listing Agent', 'Listing Agent TC']], ['REALTOR', ['Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
 const contactRoleChoices = (deal) => rolesForNewContact(PARTICIPANT_ROLES, { refinance: isRefi(deal), blocked: REFI_BLOCKED_ROLES });
 
+// FF-108: put Buyer Agent TC / Listing Agent TC rows right after the last row of their agent (same role side); others unchanged
+export function tcUnderAgents(rows) {
+  const AGENT = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
+  const out = rows.filter((p) => !(AGENT[p.role] && rows.some((q) => q.role === AGENT[p.role])));
+  for (const tcRole of ['Buyer Agent TC', 'Listing Agent TC']) {
+    const tcs = rows.filter((p) => p.role === tcRole && rows.some((q) => q.role === AGENT[tcRole]));
+    if (!tcs.length) continue;
+    let at = -1; out.forEach((p, i) => { if (p.role === AGENT[tcRole]) at = i; });
+    out.splice(at + 1, 0, ...tcs);
+  }
+  return out;
+}
+
 export async function render({ api, user, deal, refresh }) {
   const repaint = () => { if (api.dropFileReads) api.dropFileReads(); refresh(); };
   const edit = runsOrders(user); const staffView = !user.accountRole && user.role !== 'Outside user'; const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];
-  const list = deal.participants.filter((p) => !grp || grp.includes(p.role));
+  // FF-108 (Francis, Nov 23 2026): each agent's coordinator sits directly under that agent (Buyer Agent TC under the Buyer Agent,
+  // Listing Agent TC under the Listing Agent). Everyone else keeps their order. A TC whose agent is not in this view stays where it was.
+  const list = tcUnderAgents(deal.participants.filter((p) => !grp || grp.includes(p.role)));
   // TC-ONLY-2 (John, Nov 22 2026): "Only communicate with TC" on each buyer's agent / listing agent. CLA staff only; one read, only when the file has an agent.
   const tcEdit = canSetTcOnly(user);   // TC-ONLY-2b: read only for roles the server allows (canReadTcOnly), so sales staff make no refused call
   let tcRows = new Map();
@@ -43,7 +58,10 @@ export async function render({ api, user, deal, refresh }) {
     try { tcRows = tcOnlyMap(await api.tcOnlyStatus(deal.id)); } catch (e) { tcRows = new Map(); }   // the box stays hidden; emails are still routed by the database
   }
   const tcBox = (p) => {
-    const b = staffView && !p.removed ? tcOnlyBox(tcRows.get(p.id), p.role, { canEdit: tcEdit }) : null;
+    // FF-108: the greyed-out text names the agent, and says when that side's coordinator is on the file but not linked to them
+    const sideTcRole = p.role === 'Listing Agent' ? 'Listing Agent TC' : 'Buyer Agent TC';
+    const unlinked = deal.participants.filter((q) => q.role === sideTcRole && !q.removed).map((q) => contactDisplayName(q.contact)).filter(Boolean);
+    const b = staffView && !p.removed ? tcOnlyBox(tcRows.get(p.id), p.role, { canEdit: tcEdit, agentName: contactDisplayName(p.contact), sideTcNames: unlinked }) : null;
     if (!b) return '';
     return html`<div class="small tc-only-box" data-tc-only-row="${p.id}"><label class="check small" title="${b.title}"><input type="checkbox" data-tc-only="${p.id}" ${b.checked ? raw('checked') : ''} ${b.disabled ? raw('disabled') : ''}> ${TC_ONLY_LABEL}</label><div class="muted small" data-tc-only-hint>${b.hint}</div></div>`;
   };
@@ -206,10 +224,9 @@ export async function render({ api, user, deal, refresh }) {
         const choice = ($('[data-tc-agent]', m) || {}).value || '';
         const problem = tcSideProblem({ hasPerson: true, linkedRoles, choice, choices });
         if (problem) throw new Error(problem);
-        for (const role of tcRolesToSave({ linkedRoles, choice, choices })) {
-          try { await api.addParticipant(deal.id, id, role); }
-          catch (err) { if (!isAlreadyTcMessage(err && err.message)) throw err; }
-        }
+        // FF-108: also link the coordinator to the chosen agent, so that agent's "Only communicate with TC" box can be ticked
+        const saved = await saveAgentTcOnFile(api, deal.id, id, { linkedRoles, choice, choices });
+        if (saved.linkProblem) { closeModal(); toast(`Contact added, but they could not be linked to the agent: ${saved.linkProblem}`, 'err'); repaint(); return; }
       } else await api.addParticipant(deal.id, id, f.role);
       closeModal(); toast(reused && String(f.email || '').trim() ? reuseContactMessage(reused) : 'Contact added'); repaint(); }));
   }

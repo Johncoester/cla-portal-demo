@@ -36,7 +36,7 @@ export const canReadTcOnly = (u) => !!u && !u.accountRole && u.role !== 'Outside
 export const canSetTcOnly = (u) => canReadTcOnly(u) && !u.viewOnly;
 export const tcOnlyMap = (rows) => new Map((rows || []).map((r) => [r.participantId, { tcOnly: !!r.tcOnly, tcs: Array.isArray(r.tcs) ? r.tcs : [], role: r.role }]));
 // the box on one agent row. Disabled until a TC is linked on that side; a box already ticked can always be unticked.
-export function tcOnlyBox(row, role, { canEdit = false } = {}) {
+export function tcOnlyBox(row, role, { canEdit = false, agentName = '', sideTcNames = [] } = {}) {
   if (!row || !isTcOnlyRole(role)) return null;
   const names = tcNames(row.tcs);
   const hasTc = names.length > 0;
@@ -48,8 +48,13 @@ export function tcOnlyBox(row, role, { canEdit = false } = {}) {
     const who = `Their linked TC, ${joinNames(noEmail)}, ${noEmail.length > 1 ? 'have' : 'has'} no email address`;
     hint = row.tcOnly ? `${who}, so emails and alerts for this agent are held. Add the TC's email on Contacts, or untick the box.` : `${who}. Add the TC's email on Contacts first.`;
   } else if (!hasTc) {
-    hint = row.tcOnly ? `No TC is linked on this side now, so emails to this agent are held. Add their ${TC_ROLE[role]} on Contacts, or untick the box.`
-      : `Add this agent's transaction coordinator as ${TC_ROLE[role]} (linked to the agent) first.`;
+    // FF-108 (Francis, Nov 23 2026): plainer greyed-out text that names the agent. When that side's coordinator is on the file
+    // but not linked to this agent, say so (linking is what lets the box be ticked).
+    const agent = String(agentName || '').trim() || 'this agent';
+    const onFile = (sideTcNames || []).map((x) => String(x || '').trim()).filter(Boolean);
+    if (row.tcOnly) hint = `No TC is linked on this side now, so emails to this agent are held. Add a ${TC_ROLE[role]} for ${agent} on Contacts, or untick the box.`;
+    else if (onFile.length) hint = `${joinNames(onFile)} ${onFile.length > 1 ? 'are' : 'is'} on this file as ${TC_ROLE[role]} but not linked to ${agent}. Link them as ${agent}'s transaction coordinator on ${agent}'s contact record first to use this.`;
+    else hint = `Add a ${TC_ROLE[role]} for ${agent} first to use this.`;
   } else {
     // TC-ONLY-2c: when no TC has a login, only typed emails (and the few automatic ones) reach them, so the opening line says so
     const what = allNoLogin(row.tcs) ? `emails staff type, and ${STILL_SENT},` : 'emails and alerts';
