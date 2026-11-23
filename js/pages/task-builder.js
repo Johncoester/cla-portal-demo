@@ -7,7 +7,7 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved template or a written message with merge fields) and the "File closed" trigger. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps } from '../data/task-builder.js?v=202611291500';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps, triggerNeedsTask, taskChoices } from '../data/task-builder.js?v=202611291600';
 import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611291500';
 import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611291500';
 const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you. From: pick a staff member to send it as them (blank = the file\'s processor). The signature is their portal (Gmail) signature, else their CRM signature, else name, CLA Title & Escrow, email and phone.';
@@ -24,6 +24,8 @@ export async function render(ctx) {
   // Admin who also sells (John) or a processor with their own clients can be picked. Type a name to narrow the list.
   let sales = []; try { sales = (await (api.listActiveStaff ? api.listActiveStaff() : api.listSalesStaff())) || []; } catch (e) { sales = []; }
   if (!sales.length && api.listSalesStaff) { try { sales = (await api.listSalesStaff()) || []; } catch (e) { sales = []; } }
+  // TB-11 (Nov 22): "Task completed" picks a task: every standard task (Admin > Task Templates) and every task a template here creates
+  let taskTemplates = []; try { taskTemplates = api.listTaskTemplates ? ((await api.listTaskTemplates()) || []) : []; } catch (e) { taskTemplates = []; }
   let templates = []; try { templates = api.listFileEmailTemplates ? ((await api.listFileEmailTemplates()) || []).filter((t) => t.active !== false && (t.scope || 'shared') === 'shared') : []; } catch (e) { templates = []; }
   // A flow can name someone who is no longer an active staff member. Keep that person's name.
   const known = new Map();
@@ -149,6 +151,12 @@ export async function render(ctx) {
           ${TRIGGERS.map((t) => html`<option value="${t.code}" ${f && f.trigger === t.code ? raw('selected') : ''}>${t.label}${triggerRuns(t.code) ? '' : " (doesn't run yet)"}</option>`)}</select></label>
         <label class="span2" data-tb-days hidden>Days *<span class="muted small" data-tb-days-hint></span>
           <input name="triggerDays" type="number" min="${DAYS_MIN}" max="${DAYS_MAX}" step="1" inputmode="numeric" value="${f && f.triggerDays != null ? f.triggerDays : ''}" data-tb-days-input></label>
+        <label class="span2" data-tb-task hidden>Which task *<span class="muted small"> (the template starts when this task is checked off on a file)</span>
+          <select name="triggerTask" data-tb-task-input><option value="">Choose a task…</option>${(() => { const ch = taskChoices(taskTemplates, flows);
+            if (f && f.triggerTask && !ch.some((c) => c.key === f.triggerTask)) ch.unshift({ key: f.triggerTask, name: f.triggerTaskName || f.triggerTask.replace(/^\w+:/, ''), group: 'Saved' });
+            return [...new Set(ch.map((c) => c.group))].map((g) => html`<optgroup label="${g}">${ch.filter((c) => c.group === g).map((c) => html`<option value="${c.key}" data-name="${c.name}" ${f && f.triggerTask === c.key ? raw('selected') : ''}>${c.name}</option>`)}</optgroup>`); })()}<option value="__other">Another task (type its name)…</option></select>
+          <input data-tb-task-other hidden maxlength="120" placeholder="The task's name, as it appears on the file" aria-label="Task name">
+          <input type="hidden" name="triggerTaskName" value="${(f && f.triggerTaskName) || ''}" data-tb-task-name></label>
         <label class="span2">Description <span class="muted small">(optional)</span><textarea name="description" rows="2" maxlength="${DESC_MAX}" data-tb-desc-input placeholder="What this template is for">${f ? f.description || '' : ''}</textarea></label>
         <details class="span2" data-tb-limit ${limited ? raw('open') : ''}><summary data-tb-limit-toggle>Limit to certain files <span class="muted small">(optional. Leave closed to run on every file)</span></summary>
         <fieldset data-tb-conds><legend class="small">Only run on files that match <span class="muted">(leave a group blank for "any")</span></legend>
@@ -165,7 +173,11 @@ export async function render(ctx) {
           <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
       const sel = $('[data-tb-trigger-input]', m); const days = $('[data-tb-days]', m);
       const showDays = () => { const t = triggerOf(sel.value); days.hidden = !triggerNeedsDays(sel.value); $('[data-tb-days-hint]', m).textContent = t && t.days ? ` (${t.days}, ${DAYS_MIN} to ${DAYS_MAX})` : ''; };
-      sel.addEventListener('change', showDays); showDays();
+      const taskBox = $('[data-tb-task]', m); const taskSel = $('[data-tb-task-input]', m);
+      const other = $('[data-tb-task-other]', m);
+      const showTask = () => { taskBox.hidden = !triggerNeedsTask(sel.value); other.hidden = taskSel.value !== '__other'; const o = taskSel.options[taskSel.selectedIndex];
+        $('[data-tb-task-name]', m).value = o && o.value && o.value !== '__other' ? (o.getAttribute('data-name') || o.textContent) : ''; };
+      sel.addEventListener('change', () => { showDays(); showTask(); }); taskSel.addEventListener('change', showTask); showDays(); showTask();
 
       const list = $('[data-tb-step-list]', m); const addBtn = $('[data-tb-add-step]', m);
       const lastBox = {};   // step index -> the subject or message box last clicked, for Insert field
@@ -249,7 +261,9 @@ export async function render(ctx) {
           const conditions = { transactionTypes: [], states: [], salesPeople: [] };
           $$('[data-tb-cond]', m).filter((c) => c.checked).forEach((c) => conditions[c.dataset.tbCond].push(c.value));
           cleanSteps(steps.map(({ at, ...x }) => x));   // step numbers in any message match the steps on screen (Waits are added after)
-          const input = cleanFlow({ ...formData(e.target), conditions, steps: actionsToSteps(steps) });   // checked here first, so a mistake never leaves the window
+          const fd = formData(e.target);   // "Another task": any task, matched by the name typed
+          if (fd.triggerTask === '__other') { const typed = String(other.value || '').replace(/\s+/g, ' ').trim(); fd.triggerTask = typed ? `title:${typed}` : ''; fd.triggerTaskName = typed; }
+          const input = cleanFlow({ ...fd, conditions, steps: actionsToSteps(steps) });   // checked here first, so a mistake never leaves the window
           if (creating) await api.createTaskFlow(input); else await api.updateTaskFlow(f.id, input);
           closeModal(); toast(creating ? 'Template created. It is Off.' : 'Template saved.'); refresh();
         } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not save the template. Try again.'; btn.disabled = false; }

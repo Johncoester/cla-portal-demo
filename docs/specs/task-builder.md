@@ -52,6 +52,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 | TB-6 | Client requests: request an intake form from a party, completes itself, reminders, one email per person (John, Nov 20) |
 | TB-7 | Email step (saved template or written message with merge fields) and the File closed trigger (John, Nov 20) |
 | TB-10 | Part of TB-4: send an email step as a named staff member, with that person's signature (John, Nov 22) |
+| TB-11 | "Task completed" trigger: a template starts when a chosen task is checked off (John, Nov 22) |
 
 ## TB-1 as built
 
@@ -131,3 +132,14 @@ John: "Is there a way to add your signature line?... What about my signature?...
 - **Try on one file** sends the test copy from that person, with the signature, so John can see exactly what goes out.
 - **Wording.** The Insert field list says "Recipient's first name" and "Recipient's full name(s)" (no "from To").
 - Database: 20261129010000_task_flow_send_as.sql (rollback in supabase/rollbacks). Emails still wait in the outbox like every portal email; nothing sends until the portal's mail switch is on. Not applied on TEST yet.
+
+## TB-11: Task completed trigger (John, Nov 22 2026, by voice)
+
+John: "Could Task Builder send an automatic email once a task is checked off?... let's create that ASAP for any task that we want to have." "If we received the EMD and we click EMD received, an automatic email should go out."
+- **What starts it: Task completed**, then **Which task**: every standard task (Admin > Task Templates, latest active version), every task a Task Builder template creates, or **Another task (type its name)** for any task added by hand. A task added later shows up in the list by itself.
+- A task key is `tpl:<code>` (a standard task, any version) or `title:<name>` (matched by name; case and spacing don't count).
+- When the task becomes done on an open file, the template starts there (once per file, like the other triggers) and its first steps run straight away, so an email is queued as soon as the box is ticked. Unchecking and checking again does not start it twice. Test-run tasks never start anything. A problem in the template never stops the task from saving (it is written to task_flow_errors).
+- Turning it on asks no "which files" question: it runs on any open file from now on.
+- Database: 20261129020000_task_flow_task_completed.sql (task_flows.trigger_task and trigger_task_name, save_task_flow_v3, a trigger on tasks). The page uses save_task_flow_v3 only for this trigger, so other templates keep saving before the file is applied. Rollback in supabase/rollbacks (deletes Task completed templates). Not applied on TEST yet.
+- Note: the file's own "EMD received" box already has its own trigger ("EMD received"), which can send the same email today once a template uses it.
+
