@@ -189,15 +189,9 @@ export async function saveAgentTcOnFile(api, dealId, contactId, { linkedRoles, c
     try { await api.addParticipant(dealId, contactId, role); }
     catch (err) { if (!isAlreadyTcMessage(err && err.message)) throw err; }
   }
-  let linkProblem = '';
-  if (!(linkedRoles && linkedRoles.length) && roles.length && api && typeof api.linkAgentTc === 'function') {
-    const hit = (choices || []).find((c) => c.value === choice);
-    const agentId = hit ? String(hit.value).split(':').slice(1).join(':') : '';
-    if (agentId) {
-      try { await api.linkAgentTc(agentId, contactId); }
-      catch (err) { if (!/already a transaction coordinator/i.test(String((err && err.message) || ''))) linkProblem = String((err && err.message) || 'The coordinator could not be linked to the agent.'); }
-    }
-  }
+  // TC-ONLY-3: no separate link call. Saving the role on the file links the coordinator to that side's agent on the server
+  // (private.link_tcs_from_file, TC-ASSIGN-1; the demo portal does the same), and the server skips Refinance files on purpose.
+  const linkProblem = '';
   return { roles, linkProblem };
 }
 

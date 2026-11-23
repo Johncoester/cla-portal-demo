@@ -244,7 +244,7 @@ ok(portalBack.includes('keyed_documents') && portalBack.includes('portal upload 
   const sentRaw = f.calls.fetch.find((c) => c.url.includes('/messages/send')); const mime = sentRaw ? b64urlToText(JSON.parse(sentRaw.body).raw) : '';
   ok(r.status === 200 && j.to.join() === 'sam@tc.test' && j.tcOnlyRedirected[0].from === 'pat@agent.test', 'tc-only: a typed email to the agent goes to their TC, and the answer says so');
   const parts = [...mime.matchAll(/base64\r?\n\r?\n([A-Za-z0-9+/=\r\n]+)/g)].map((m) => Buffer.from(m[1].replace(/\s/g, ''), 'base64').toString('utf8')).join(' ');
-  ok(/To: sam@tc\.test/i.test(mime) && !/pat@agent\.test/i.test(mime) && parts.includes('Hi Sam,') && !parts.includes('Hi Pat,'), 'tc-only: the email Gmail sends is to the TC only, greeting uses the TC\'s name');
+  ok(/To: sam@tc\.test/i.test(mime) && !/pat@agent\.test/i.test(mime) && parts.includes('Hello Sam,') && !parts.includes('Hi Pat,'), 'tc-only: the email Gmail sends is to the TC only, greeting is "Hello <TC first name>" (TC-ONLY-3)');
   ok(seen[0] && seen[0].args.p_log === true && seen[0].args.p_deal === DEAL, 'tc-only: a real send logs the swap'); }
 { const seen = []; const f = fakeDeps({ deps: { userRpc: async (fn, args) => { seen.push(args); return { to: args.p_to, cc: args.p_cc, bcc: args.p_bcc, redirected: [], held: [] }; } } });
   await handleSend(post(sendBody({ to: 'pat@agent.test', dryRun: true })), f.deps); ok(seen[0] && seen[0].p_log === false, 'tc-only: a preview (dry run) checks but does not log'); }
@@ -260,8 +260,9 @@ for (const [label, reply] of [['no reply', null], ['no To list', { cc: [], bcc: 
   const r = await handleSend(post(sendBody({ to: 'pat@agent.test' })), f.deps); const j = await r.json();
   ok(r.status === 502 && /Nothing was sent/.test(j.error) && !f.calls.fetch.some((c) => c.url.includes('/messages/send')), `tc-only: a malformed check reply (${label}) fails closed, nothing sent`); }
 { const { swapGreeting } = await import('../supabase/functions/_shared/gmail-handlers.mjs');
-  ok(swapGreeting('<p>Hi Pat,</p><p>Patricia</p>', 'Pat', 'Sam') === '<p>Hi Sam,</p><p>Patricia</p>' && swapGreeting('<p>Hi Patricia,</p>', 'Pat', 'Sam') === '<p>Hi Patricia,</p>'
-    && swapGreeting('<p>Dear J.R.,</p>', 'J.R.', 'Kim') === '<p>Dear Kim,</p>', 'tc-only: greeting swap changes only the agent\'s first name in the greeting'); }
+  ok(swapGreeting('<p>Hi Pat,</p><p>Patricia</p>', 'Pat', 'Sam') === '<p>Hello Sam,</p><p>Patricia</p>' && swapGreeting('<p>Hi Patricia,</p>', 'Pat', 'Sam') === '<p>Hi Patricia,</p>'
+    && swapGreeting('<p>Dear J.R.,</p>', 'J.R.', 'Kim') === '<p>Hello Kim,</p>' && swapGreeting('<p>Thanks Pat</p>', 'Pat', 'Sam') === '<p>Thanks Pat</p>',
+    'tc-only: the greeting with the agent\'s first name becomes "Hello <TC first name>" (TC-ONLY-3); nothing else changes'); }
 
 console.log(fail ? `${fail} FAILED` : 'all gmail phase 1 checks passed');
 if (fail) process.exit(1);

@@ -77,6 +77,26 @@ Task Builder's "Transaction coordinator" email choice now also reaches the agent
 - Greyed-out text: "Add a Listing Agent TC for <agent> first to use this." When a TC is on the file for that side but not linked to the agent: "<TC> is on this file as Listing Agent TC but not linked to <agent>. Link them as <agent>'s transaction coordinator on <agent>'s contact record first to use this."
 - Tests: test/test-ff-108.js (demo portal, both sides end to end, order, wording) and test/test-ff-108-sql.sh (local Postgres: listing side refused without a linked TC, works once linked, routes to the TC, PR 417 no-email guard, staff only).
 
+## TC-ONLY-3: Francis's answers (Nov 23 2026 1:30 PM ET)
+
+| # | Francis said | Before this | Now |
+|---|---|---|---|
+| 1 | Emails and portal alerts go to the TC | Same | Same |
+| 2 | The agent keeps access to messages and documents | Same (the box changes who gets emails and alerts, never what anyone can open) | Same |
+| 3 | Fee change and title commitment notices go to both the agent and the TC | They went to the TC only | Both. The agent's own email/alert is left as it is and each linked TC gets a copy |
+| 4 | Only CLA staff can tick the box | Same | Same |
+| 5 | Both typed and automatic emails go to the TC | Same | Same |
+| 6 | The greeting becomes "Hello [TC Name]" | The opening word was kept ("Hi Sam") | "Hello Sam" (TC's first name), for automatic emails (database) and typed ones (gmail-send) |
+
+- "Fee change notices" = kind agent_fee (the "Agent fees changed / confirmed" email and portal alert). "Title commitment notices" = the buyer agent's title commitment email (title_recipient_role buyer_agent_commitment) and the listing agent's title package (title_recipient_role listing_agent).
+- Decision (John, Nov 23 2026): for these "both" notices the agent's copy always goes out, so they are never held and the processor is not alerted. When the TC's copy can't be sent (no TC linked on that side, the TC has no email, or for a portal alert the TC has no login) only the TC's copy is skipped, and comm_redirect_log gets a row "TC copy skipped, the agent got it: <subject> (<reason>)". Other email to a TC-only agent with no usable TC stays held as before.
+- A TC-only agent on cc of one of these notices stays on cc (the cc swap is skipped for them); nothing puts them on cc today.
+- Greeting: a "&" in the TC's first name is kept as typed; in an HTML body the name is HTML-escaped.
+- The TC's copy is logged in comm_redirect_log as "Copy to TC (the agent gets it too): <subject>".
+- Not covered: Task Builder emails sent on "Title commitment received" stay TC-only (they are Task Builder emails, not the commitment notice).
+- Database file: 20261129110000_tc_only_both_and_hello.sql (replaces private.comm_swap_greeting, private.trg_outbox_tc_only, private.trg_notifications_tc_only; no table, policy or grant change). One transaction with a 3s lock_timeout; stops unless the three live bodies match their TEST fingerprints; reads back security mode, search_path, grants and triggers. Rollback: supabase/rollbacks/20261129110000_tc_only_both_and_hello.sql (restores the exact TC-ONLY-1 bodies, checked by md5).
+- Contacts: adding a TC for an agent no longer makes its own link call (FF-108 follow-up); the server's link_tcs_from_file does it. On TEST there were 0 TCs on a file not linked to that side's agent (Nov 23 2026). Tests: test/test-tc-only-3-sql.sh, test/test-tc-only-3.js, test/test-gmail-phase1.js.
+
 ## Not done yet
 - Task Builder pages do not show the "goes to the TC" note. Their emails are still routed by the database.
 - Invites the staff send to an agent's own login are not swapped (the invite is for the agent's account).
