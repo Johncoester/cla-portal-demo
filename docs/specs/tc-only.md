@@ -13,6 +13,8 @@ automatically go to the TC that's assigned to them."
 - **No TC on that side:** nothing goes to the agent. A queued email is held in the outbox (`send_blocked` says why), an alert
   is dropped, and the file's processor gets a portal alert (at most one per reason per hour) pointing to Contacts.
   A typed email is refused with a plain message, and nothing is sent.
+- A TC-only agent on Cc or Bcc of a queued email is swapped for their TC, or dropped when they have none (logged, and the processor
+  is alerted, the same as on To).
 - Every swap and every hold is written to `public.comm_redirect_log` (readable by Admins and CLA staff on the file).
 - Only CLA staff on the file (processor, pre-processor, CLA TC, Admin) can tick it, and only when a TC is linked on that side.
 
@@ -24,6 +26,15 @@ automatically go to the TC that's assigned to them."
 - `public.comm_route_emails`, which gmail-send calls before every typed email and "Email sellers and agents" send.
 
 Task Builder's "Transaction coordinator" email choice now also reaches the agents' TCs (it used to match only CLA's staff TC role).
+
+## Limits (by design)
+- The guards check emails and alerts when they are **queued** (INSERT), on a file (`deal_id` set). Emails queued before the box
+  was ticked, rows re-addressed later by an UPDATE, and agent emails with no file are not re-checked.
+- Nothing delivers the outbox yet. Whatever sender comes later must skip rows with `send_blocked` set.
+- Staff who add a participant row directly could set `tc_only` without the "TC must be linked" check; it still fails closed
+  (held, never sent to the agent).
+- `comm_redirect_log` has no `demo_scope` policy (demo viewers are not managers, so they cannot read it), and its `deal_id`
+  has no `on delete`, so a file with log rows cannot be hard-deleted until they are removed.
 
 ## Defaults until the team answers (questions emailed Nov 22 to Matt, Francis and Janine)
 1. In-app alerts are swapped too, not only emails.

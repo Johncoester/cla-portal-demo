@@ -122,6 +122,7 @@ ok "$(val "select to_email || '|' || body from public.outbox where subject = 'In
 # copies
 val "insert into public.outbox (to_profile_id, to_email, subject, body, deal_id, cc_emails) values ('$BO', 'bo@buyer.test', 'Copy', 'Hello Bo', '$D', array['pat@agent.test', 'lee@agent.test']);" >/dev/null
 ok "$(val "select to_email || '|' || array_to_string(cc_emails, ',') from public.outbox where subject = 'Copy';")" "bo@buyer.test|lee@agent.test,sam@tc.test" "a TC-only agent on cc is swapped for the TC; others unchanged"
+ok "$(val "select action || ':' || agent_email || ':' || array_to_string(to_emails, ',') from public.comm_redirect_log where detail = 'Copy (cc): Copy';")" "redirected:pat@agent.test:sam@tc.test" "the cc swap is logged too"
 # the listing agent is not ticked
 val "insert into public.outbox (to_profile_id, to_email, subject, body, deal_id) values ('$LEE', 'lee@agent.test', 'Listing', 'Hi Lee', '$D');" >/dev/null
 ok "$(val "select to_email from public.outbox where subject = 'Listing';")" "lee@agent.test" "the other side's agent (not ticked) still gets their email"
@@ -137,6 +138,9 @@ as $PROC "select private.notify(array['$PAT'::uuid, '$SAM'::uuid, '$BO'::uuid], 
 ok "$(val "select count(*) filter (where profile_id = '$SAM') || ':' || count(*) filter (where profile_id = '$PAT') || ':' || count(*) filter (where profile_id = '$BO') from public.notifications where title = 'Closing moved';")" "1:0:1" "agent + TC + buyer: the TC gets it once, the agent never, the buyer as before"
 as $SAM "select private.notify(array['$PAT'::uuid, '$PROC'::uuid], 'agent_fee', '$D', 'Fees changed by Sam (TC)', '#/deals/x');" >/dev/null
 ok "$(val "select string_agg(profile_id::text, ',') from public.notifications where title = 'Fees changed by Sam (TC)';")" "$PROC" "the TC's own change: no alert back to the TC, nothing held"
+val "begin; insert into public.notifications (profile_id, kind, deal_id, title, link) values ('$BO', 'note', '$D', 'Twice on purpose', '');
+  insert into public.notifications (profile_id, kind, deal_id, title, link) values ('$BO', 'note', '$D', 'Twice on purpose', ''); commit;" >/dev/null
+ok "$(val "select count(*) from public.notifications where title = 'Twice on purpose';")" "2" "the same-action duplicate check only applies to the TC's copies, not to other people on the file"
 
 # gmail-send routing
 ok "$(as $PROC "select public.comm_route_emails('$D', array['Pat@agent.test', 'bo@buyer.test'], array['lee@agent.test'], '{}', true)::text;")" \
@@ -171,6 +175,10 @@ as $PROC "select private.notify(array['$PAT'::uuid], 'task', '$D', 'New task: B'
 ok "$(val "select count(*) from public.notifications where title = 'New task: B';")" "0" "no TC: the alert is not given to the agent"
 ok "$(val "select count(*) from public.notifications where profile_id = '$PROC' and kind = 'tc_only_held';")" "3" "the processor hears about the held alert too"
 ok "$(val "select count(*) filter (where action = 'held') from public.comm_redirect_log;")" "4" "every hold is logged (3 emails, 1 alert)"
+val "insert into public.outbox (to_profile_id, to_email, subject, body, deal_id, cc_emails, bcc_emails) values ('$BO', 'bo@buyer.test', 'Copy held', 'Hello Bo', '$D', array['pat@agent.test', 'lee@agent.test'], array['PAT@agent.test']);" >/dev/null
+ok "$(val "select to_email || '|' || array_to_string(cc_emails, ',') || '|' || array_to_string(bcc_emails, ',') || '|' || coalesce(send_blocked, '') from public.outbox where subject = 'Copy held';")" "bo@buyer.test|lee@agent.test||" "no TC: the agent is dropped from cc and bcc, the email still goes to the others"
+ok "$(val "select string_agg(action || ':' || agent_email || ':' || detail, ',' order by detail) from public.comm_redirect_log where detail like 'Copy (%) dropped: Copy held%';")" "held:pat@agent.test:Copy (bcc) dropped: Copy held (no TC linked on that side),held:pat@agent.test:Copy (cc) dropped: Copy held (no TC linked on that side)" "each dropped copy is logged as held"
+ok "$(val "select count(*) from public.notifications where profile_id = '$PROC' and kind = 'tc_only_held' and title like 'Held on MD-26-90001: an email copy (%) for Pat Agent%No TC is linked%';")" "2" "the processor is alerted about the dropped cc and bcc"
 ok "$(as $PROC "select (public.comm_route_emails('$D', array['pat@agent.test'], '{}', '{}') -> 'held' -> 0 ->> 'email');")" "pat@agent.test" "typed email to a TC-only agent with no TC is refused"
 
 # Task Builder: "Transaction coordinator" also means the agents' TCs

@@ -254,6 +254,11 @@ ok(portalBack.includes('keyed_documents') && portalBack.includes('portal upload 
 { const f = fakeDeps({ deps: { userRpc: async () => { throw new Error('function public.comm_route_emails does not exist'); } } });
   const r = await handleSend(post(sendBody({ to: 'pat@agent.test' })), f.deps); const j = await r.json();
   ok(r.status === 502 && !/does not exist/.test(j.error) && !f.calls.fetch.some((c) => c.url.includes('/messages/send')), 'tc-only: if the check cannot run, nothing is sent (no raw database message shown)'); }
+for (const [label, reply] of [['no reply', null], ['no To list', { cc: [], bcc: [], redirected: [], held: [] }], ['To is not a list', { to: 'pat@agent.test', cc: [], bcc: [], redirected: [], held: [] }],
+    ['no held list', { to: ['pat@agent.test'], cc: [], bcc: [], redirected: [] }], ['a non-address in To', { to: [{ email: 'pat@agent.test' }], cc: [], bcc: [], redirected: [], held: [] }]]) {
+  const f = fakeDeps({ deps: { userRpc: async () => reply } });
+  const r = await handleSend(post(sendBody({ to: 'pat@agent.test' })), f.deps); const j = await r.json();
+  ok(r.status === 502 && /Nothing was sent/.test(j.error) && !f.calls.fetch.some((c) => c.url.includes('/messages/send')), `tc-only: a malformed check reply (${label}) fails closed, nothing sent`); }
 { const { swapGreeting } = await import('../supabase/functions/_shared/gmail-handlers.mjs');
   ok(swapGreeting('<p>Hi Pat,</p><p>Patricia</p>', 'Pat', 'Sam') === '<p>Hi Sam,</p><p>Patricia</p>' && swapGreeting('<p>Hi Patricia,</p>', 'Pat', 'Sam') === '<p>Hi Patricia,</p>'
     && swapGreeting('<p>Dear J.R.,</p>', 'J.R.', 'Kim') === '<p>Dear Kim,</p>', 'tc-only: greeting swap changes only the agent\'s first name in the greeting'); }

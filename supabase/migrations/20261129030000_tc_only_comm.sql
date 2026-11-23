@@ -146,17 +146,35 @@ create or replace function private.trg_outbox_tc_only() returns trigger
 language plpgsql security definer set search_path to pg_catalog, public, extensions as $$
 declare r record; first boolean := true; v public.outbox; v_orig_profile uuid := new.to_profile_id; v_orig_email text := new.to_email; v_ids uuid[]; v_first text;
   v_name text; v_side text; v_held boolean := false; v_profiles uuid[] := '{}'; v_emails text[] := '{}'; v_keep public.outbox;
-  v_no_login_ok boolean; v_cc text[]; v_bcc text[]; e text; rr record; v_no_login boolean := false;
+  v_no_login_ok boolean; e text; rr record; v_no_login boolean := false;
+  c_list text; c_out text[]; c_red text[]; c_held boolean; c_nologin boolean; c_ids uuid[]; c_name text; c_side text;
 begin
   if new.deal_id is null or not exists (select 1 from public.deal_participants p where p.deal_id = new.deal_id and p.tc_only) then return new; end if;
-  -- copies: a TC-only agent in cc / bcc is swapped for their TC, or dropped when they have none
-  v_cc := '{}'; foreach e in array coalesce(new.cc_emails, '{}') loop
-    for rr in select * from private.resolve_recipients(new.deal_id, null, e) loop
-      if rr.action = 'keep' then v_cc := v_cc || e; elsif rr.action = 'redirect' and rr.email is not null then v_cc := v_cc || rr.email; end if; end loop; end loop;
-  v_bcc := '{}'; foreach e in array coalesce(new.bcc_emails, '{}') loop
-    for rr in select * from private.resolve_recipients(new.deal_id, null, e) loop
-      if rr.action = 'keep' then v_bcc := v_bcc || e; elsif rr.action = 'redirect' and rr.email is not null then v_bcc := v_bcc || rr.email; end if; end loop; end loop;
-  new.cc_emails := array(select distinct x from unnest(v_cc) x); new.bcc_emails := array(select distinct x from unnest(v_bcc) x);
+  -- copies: a TC-only agent in cc / bcc is swapped for their TC, or dropped when they have none. Both are logged; a drop alerts the processor.
+  foreach c_list in array array['cc', 'bcc'] loop
+    c_out := '{}';
+    foreach e in array case when c_list = 'cc' then coalesce(new.cc_emails, '{}') else coalesce(new.bcc_emails, '{}') end loop
+      c_red := '{}'; c_held := false; c_nologin := false; c_ids := null; c_name := null; c_side := null;
+      for rr in select * from private.resolve_recipients(new.deal_id, null, e) loop
+        if rr.action = 'keep' then c_out := c_out || e; continue; end if;
+        c_ids := rr.agent_participant_ids; c_name := rr.agent_name; c_side := rr.agent_side;
+        if rr.action = 'redirect' and coalesce(rr.email, '') <> '' then c_out := c_out || rr.email; c_red := c_red || rr.email;
+        elsif rr.action = 'redirect' then c_nologin := true;
+        else c_held := true; end if;
+      end loop;
+      if cardinality(c_red) > 0 then
+        insert into public.comm_redirect_log (deal_id, channel, action, source, agent_participant_ids, agent_email, to_emails, ref_id, detail, created_by)
+        values (new.deal_id, 'email', 'redirected', coalesce(nullif(new.kind, ''), nullif(new.template_key, ''), 'email'), coalesce(c_ids, '{}'), lower(btrim(e)), c_red, new.id,
+          left('Copy (' || c_list || '): ' || coalesce(new.subject, ''), 500), private.effective_uid());
+      elsif c_held or c_nologin then
+        insert into public.comm_redirect_log (deal_id, channel, action, source, agent_participant_ids, agent_email, ref_id, detail, created_by)
+        values (new.deal_id, 'email', 'held', coalesce(nullif(new.kind, ''), nullif(new.template_key, ''), 'email'), coalesce(c_ids, '{}'), lower(btrim(e)), new.id,
+          left('Copy (' || c_list || ') dropped: ' || coalesce(new.subject, '') || case when c_held then ' (no TC linked on that side)' else ' (the TC has no email for it)' end, 500), private.effective_uid());
+        perform private.tc_only_alert(new.deal_id, private.tc_only_held_text(new.deal_id, c_name, c_side, 'an email copy (' || c_list || ')', not c_held));
+      end if;
+    end loop;
+    if c_list = 'cc' then new.cc_emails := array(select distinct x from unnest(c_out) x); else new.bcc_emails := array(select distinct x from unnest(c_out) x); end if;
+  end loop;
 
   -- a row with no portal login is allowed only for these kinds (outbox_recipient_check)
   v_no_login_ok := new.title_package or new.post_closing_type is not null or new.kind in ('scheduling', 'task_flow_email');
@@ -207,7 +225,9 @@ declare r record; first boolean := true; v public.notifications; v_keep public.n
 begin
   if new.deal_id is null or not exists (select 1 from public.deal_participants p where p.deal_id = new.deal_id and p.tc_only) then return new; end if;
   -- the same alert to the same person in this action (the TC's own copy plus the one meant for their agent): keep one
-  if exists (select 1 from public.notifications n where n.profile_id = new.profile_id and n.deal_id = new.deal_id and n.kind = new.kind and n.title = new.title and n.created_at = now()) then
+  if exists (select 1 from public.notifications n where n.profile_id = new.profile_id and n.deal_id = new.deal_id and n.kind = new.kind and n.title = new.title and n.created_at = now())
+     and exists (select 1 from public.deal_participants p cross join lateral private.tc_only_targets(p.id) x
+                 where p.deal_id = new.deal_id and p.tc_only and x.profile_id = new.profile_id) then
     return null; end if;
   v_keep := new;
   for r in select * from private.resolve_recipients(new.deal_id, new.profile_id, null) loop

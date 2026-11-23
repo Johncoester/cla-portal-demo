@@ -201,15 +201,20 @@ export async function handleSend(req, deps) {
   if (bad.length) return json(400, { error: `Not an email address: ${bad.join(', ')}` }, H);
   // TC-ONLY-1 (John, Nov 22): an agent set to "Only communicate with TC" on this file never gets the email. Their TC gets it
   // instead; with no TC it is refused. The database decides (comm_route_emails, as the signed-in staff member) and logs it.
-  let route = null;
-  if (to.ok.length || cc.ok.length || bcc.ok.length) {
+  let route = null; const mustRoute = !!(to.ok.length || cc.ok.length || bcc.ok.length);
+  if (mustRoute) {
     try { route = await deps.userRpc('comm_route_emails', { p_deal: deal.id, p_to: to.ok, p_cc: cc.ok, p_bcc: bcc.ok, p_log: !dryRun }); }
     catch (e) { return json(502, { error: 'The portal could not check who should get this email. Nothing was sent. Try again in a minute.' }, H); }
   }
-  const held = route && Array.isArray(route.held) ? route.held : [];
+  // fail closed: a reply that is not the full answer never falls back to the addresses as typed
+  const strList = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
+  if (mustRoute && (!route || typeof route !== 'object' || !strList(route.to) || !strList(route.cc) || !strList(route.bcc)
+      || !Array.isArray(route.held) || !Array.isArray(route.redirected)))
+    return json(502, { error: 'The portal could not check who should get this email. Nothing was sent. Try again in a minute.' }, H);
+  const held = route ? route.held : [];
   if (held.length) return json(400, { error: tcOnlyHeldMessage(held), tcOnlyHeld: held }, H);
-  const redirected = route && Array.isArray(route.redirected) ? route.redirected : [];
-  if (route && Array.isArray(route.to)) { to.ok = route.to; cc.ok = Array.isArray(route.cc) ? route.cc : []; bcc.ok = Array.isArray(route.bcc) ? route.bcc : []; }
+  const redirected = route ? route.redirected : [];
+  if (route) { to.ok = route.to; cc.ok = route.cc; bcc.ok = route.bcc; }
   const all = [...new Set([...to.ok, ...cc.ok, ...bcc.ok])];
   if (!to.ok.length) return json(400, { error: 'Add at least one To address.' }, H);
   if (all.length > MAX_RECIPIENTS) return json(400, { error: `At most ${MAX_RECIPIENTS} recipients per email.` }, H);
