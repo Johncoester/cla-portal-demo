@@ -15,3 +15,8 @@ Staff see Closing Team cards in this order: Processor, Preprocessor, Licensed Se
 ## What is not in this change
 
 No database file. Licensed Settlement Agent still has no saved field, so that name stays blank. The agent's own TC on Order Contacts is unchanged. This change does not assign Ellen or anyone else as a Preprocessor on TEST. Not Live until the pull request is merged and checked on TEST.
+
+
+## FF-106c (Francis retest Nov 23 2026, 4:17 PM ET, Gmail 1a20a453c50c3fd5)
+
+On DC-26-78512 the label was Preprocessor but the name was blank. Ellen Ahern was already assigned as a `deal_participants` row with role Preprocessor (Order Contacts > Add contact), while `deals.preprocessor_user_id` was null. The card now shows the CLA Preprocessor from Edit order details when that field is set, and otherwise from a participant with role Preprocessor. An agent's Buyer Agent TC or Listing Agent TC is never used for this card. No database file.

@@ -1,6 +1,6 @@
-/* FF-106b (Francis Santos retest Nov 23 2026, 2:33 PM ET, Gmail 1a209e6c78047e5d).
- * Closing Team relabels the CLA Transaction Coordinator slot to Preprocessor and shows the
- * Preprocessor from Edit order details. The extra TC card is removed. The agent's own TC stays.
+/* FF-106 / FF-106b / FF-106c (Francis Santos retest Nov 23 2026, 4:17 PM ET, Gmail 1a20a453c50c3fd5).
+ * Closing Team shows the CLA Preprocessor from Edit order details or from an Order Contacts
+ * Preprocessor participant (the DC-26-78512 path). Agent TCs do not fill that slot.
  * Fake names. No database. */
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
@@ -34,12 +34,46 @@ ok(!cards.some((c) => c.role === 'Transaction Coordinator') && !cards.some((c) =
 ok(cards[2].role === 'Licensed Settlement Agent' && cards[2].name === '' && cards[2].blankBecause === 'no-field', 'Licensed Settlement Agent stays blank');
 ok(cards[3].role === 'Sales Person' && cards[3].name === 'Sam Salesperson', 'the Sales Person card is unchanged');
 
-// DC-26-78512 shape: processor assigned, no preprocessor, no CLA TC
-const dcLike = closingTeamCards({ processorName: 'TEST PROCESSOR01', processorId: 'u-proc', salesPeople: [{ id: 'u-sp', name: 'Sales Person Test' }] });
-ok(dcLike.map((c) => c.role).join('|') === 'Processor|Preprocessor|Licensed Settlement Agent|Sales Person',
+// DC-26-78512 as stored on TEST: deals.preprocessor_user_id is null; Ellen is a deal_participants
+// row with role Preprocessor (Order Contacts). The file also has a Buyer Agent TC.
+const dc2678512 = {
+  processorName: 'TEST PROCESSOR01', processorId: 'u-proc',
+  preprocessorUserId: null, preprocessorName: '',
+  tcUserId: null, tcName: '',
+  salesPeople: [{ id: 'u-sp', name: 'Sales Person Test' }],
+  participants: [
+    { role: 'Buyer Agent', contact: { firstName: 'Noah', lastName: 'Fields' } },
+    { role: 'Buyer Agent TC', contact: { firstName: 'TC Portal', lastName: 'Jc', email: 'tcportaljc@gmail.com', profileId: 'u-agent-tc' } },
+    { role: 'Client-Buyer', contact: { firstName: 'Timothy', lastName: 'Zanger' } },
+    { role: 'Listing Agent', contact: { firstName: 'Bridget', lastName: 'Rigato' } },
+    { role: 'Preprocessor', contactId: 'c-ellen', contact: { id: 'c-ellen', profileId: null, firstName: 'Ellen', lastName: 'Ahern', email: '' } },
+  ],
+};
+const dcCards = closingTeamCards(dc2678512);
+ok(dcCards.map((c) => c.role).join('|') === 'Processor|Preprocessor|Licensed Settlement Agent|Sales Person',
   'a file like DC-26-78512 still has a Preprocessor card, not a Transaction Coordinator card');
-ok(dcLike[1].role === 'Preprocessor' && dcLike[1].name === '' && !dcLike[1].blankBecause && dcLike[1].id === '',
-  'with no Preprocessor assigned, the name is blank and the role title stays Preprocessor');
+ok(dcCards[1].role === 'Preprocessor' && dcCards[1].name === 'Ellen Ahern' && dcCards[1].id === '',
+  'when Ellen is assigned as Preprocessor in Order Contacts, her name shows on Closing Team even if preprocessor_user_id is empty');
+ok(!dcCards.some((c) => (c.name || '').includes('TC Portal') || c.name === 'Jc' || c.id === 'u-agent-tc'),
+  "the Buyer's agent TC does not appear on the Closing Team Preprocessor card");
+
+const onlyAgentTc = closingTeamCards({
+  processorName: 'TEST PROCESSOR01', processorId: 'u-proc',
+  participants: [
+    { role: 'Buyer Agent TC', contact: { firstName: 'TC Portal', lastName: 'Jc', profileId: 'u-agent-tc' } },
+    { role: 'Listing Agent TC', contact: { firstName: 'Lee', lastName: 'Listing-TC', profileId: 'u-listing-tc' } },
+    { role: 'Transaction Coordinator', contact: { firstName: 'Terry', lastName: 'Coordinator', profileId: 'u-tc' } },
+  ],
+});
+ok(onlyAgentTc[1].role === 'Preprocessor' && onlyAgentTc[1].name === '' && onlyAgentTc[1].id === '',
+  "an agent's Buyer Agent TC, Listing Agent TC, or a Transaction Coordinator participant does not fill the Preprocessor slot");
+
+const both = closingTeamCards({
+  preprocessorUserId: 'u-preproc', preprocessorName: 'Pat Preprocessor',
+  participants: [{ role: 'Preprocessor', contact: { firstName: 'Ellen', lastName: 'Ahern' } }],
+});
+ok(both[1].name === 'Pat Preprocessor' && both[1].id === 'u-preproc',
+  'Edit order details still wins when preprocessorUserId is set, even if a Preprocessor contact is also on the file');
 
 const blank = closingTeamCards({ processorName: 'Paula Processor', processorId: 'u-proc', salesPeople: [] });
 const pre = blank.find((c) => c.role === 'Preprocessor');
