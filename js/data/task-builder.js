@@ -12,8 +12,8 @@
 import { cleanRequestStep, requestStepText, formTitle } from './client-requests.js?v=202611261000';
 import { cleanEmailStep, emailStepText } from './flow-email.js?v=202611291500';
 export const TASK_BUILDER_ADMIN_ONLY = 'Only an Admin or Super admin can use Task Builder.';
-export const FLOWS_RUN_NOTE = 'Templates that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. A template starts once per file (a closing date change can start it again). Use Try on one file to see a template work on a single order first.';
-export const TRIAL_NOTE = 'Runs every step on this one file now, even while the template is Off. Every step runs now, whatever its day, so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the template\'s real run on this file. A test run emails no client: form requests are added as tasks but not emailed, and an email step sends its test copy only to you.';
+export const FLOWS_RUN_NOTE = 'Automations that are On check open files about every 15 minutes and add their tasks to the file\'s Tasks tab. An automation starts once per file (a closing date change can start it again). Use Try on one file to see an automation work on a single order first.';
+export const TRIAL_NOTE = 'Runs every step on this one file now, even while the automation is Off. Every step runs now, whatever its day, so you see everything at once. The tasks are real tasks on this file, marked "Test run". It does not count as the automation\'s real run on this file. A test run emails no client: form requests are added as tasks but not emailed, and an email step sends its test copy only to you.';
 
 // What starts a flow. `days` = the trigger needs a number of days (1 to 60).
 export const TRIGGERS = [
@@ -51,11 +51,11 @@ export function cleanFlow(input = {}) {
   const name = String(input.name == null ? '' : input.name).replace(/\s+/g, ' ').trim();
   const description = String(input.description == null ? '' : input.description).trim();
   const trigger = String(input.trigger == null ? '' : input.trigger).trim();
-  if (!name) throw new Error('Give the template a name, for example "EMD reminder".');
+  if (!name) throw new Error('Give the automation a name, for example "EMD reminder".');
   if (name.length < NAME_MIN) throw new Error(`The name is too short. Use at least ${NAME_MIN} characters.`);
   if (name.length > NAME_MAX) throw new Error(`The name is too long. Use ${NAME_MAX} characters or fewer.`);
   if (description.length > DESC_MAX) throw new Error(`The description is too long. Use ${DESC_MAX} characters or fewer.`);
-  if (!trigger) throw new Error('Choose what starts the template.');
+  if (!trigger) throw new Error('Choose what starts the automation.');
   if (!triggerOf(trigger)) throw new Error('That trigger is not on the list. Choose one from "What starts it".');
   let triggerDays = null;
   if (triggerNeedsDays(trigger)) {
@@ -79,9 +79,9 @@ const squash = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 export function cleanTriggerTask(trigger, input = {}) {
   if (!triggerNeedsTask(trigger)) return { triggerTask: null, triggerTaskName: null };
   const key = squash(input.triggerTask);
-  if (!key) throw new Error('Choose which task starts the template.');
+  if (!key) throw new Error('Choose which task starts the automation.');
   const m = /^(tpl|title):(.+)$/.exec(key);
-  if (!m || key.length > TASK_KEY_MAX || (m[1] === 'tpl' && !/^[a-z0-9_-]{1,64}$/i.test(m[2]))) throw new Error('Choose which task starts the template from the list.');
+  if (!m || key.length > TASK_KEY_MAX || (m[1] === 'tpl' && !/^[a-z0-9_-]{1,64}$/i.test(m[2]))) throw new Error('Choose which task starts the automation from the list.');
   return { triggerTask: key, triggerTaskName: squash(input.triggerTaskName).slice(0, 120) || m[2] };
 }
 // the keys a task on a file answers to: its standard task code (if any) and its name
@@ -105,13 +105,13 @@ export function taskChoices(templates = [], flows = []) {
   const out = [...byCode.values()].map((t) => ({ key: `tpl:${t.code}`, name: squash(t.title) || t.code, group: 'Standard tasks' }));
   const seen = new Set(out.map((c) => c.name.toLowerCase()));
   (flows || []).forEach((f) => (f.steps || []).forEach((s) => { if (!['create_task', 'call_task'].includes(s.type)) return; const name = squash(s.title);
-    if (name && !seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push({ key: `title:${name}`, name, group: 'Tasks made by Task Builder templates' }); } }));
+    if (name && !seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push({ key: `title:${name}`, name, group: 'Tasks made by Task Builder automations' }); } }));
   return out.sort((a, b) => (a.group === b.group ? a.name.localeCompare(b.name) : a.group === 'Standard tasks' ? -1 : 1));
 }
 
 // Same name check the database makes (case and spacing don't count).
 export const sameName = (a, b) => String(a || '').replace(/\s+/g, ' ').trim().toLowerCase() === String(b || '').replace(/\s+/g, ' ').trim().toLowerCase();
-export const DUPLICATE_NAME = 'Another template already has that name. Use a different name.';
+export const DUPLICATE_NAME = 'Another automation already has that name. Use a different name.';
 
 /* ---------- TB-2 (John, Nov 13 2026): conditions, steps and the flow engine ----------
  * A flow's CONDITIONS pick which files it applies to. Each list is optional; an empty list means "any". All the lists
@@ -124,7 +124,7 @@ export const RUNNABLE_TRIGGERS = ['order_opened', 'emd_received', 'emd_not_recei
 // triggers that only ever start on something happening from now on, so turning the flow on asks no "which files" question
 export const FROM_NOW_TRIGGERS = ['order_opened', 'file_closed', 'task_completed'];
 export const triggerRuns = (code) => RUNNABLE_TRIGGERS.includes(code);
-export const TRIGGER_NOT_RUNNING = 'Templates that start on "Contract received" or "Title commitment received" can be saved but cannot be turned on yet. Those two triggers come in a later step.';
+export const TRIGGER_NOT_RUNNING = 'Automations that start on "Contract received" or "Title commitment received" can be saved but cannot be turned on yet. Those two triggers come in a later step.';
 
 export const TX_KINDS = [['Purchase', 'Purchase (with a loan)'], ['Cash purchase', 'Cash purchase (no loan)'], ['Refinance', 'Refinance']];
 export const STATES = ['MD', 'VA', 'DC', 'FL'];
@@ -184,7 +184,7 @@ export function cleanSteps(steps) {
   });
 }
 export const hasTaskStep = (steps) => (steps || []).some((s) => ['create_task', 'call_task', 'client_request', 'send_email'].includes(s.type));
-export const NO_TASK_STEP = 'Add at least one step that creates a task, requests a form or sends an email before turning the template on.';
+export const NO_TASK_STEP = 'Add at least one step that creates a task, requests a form or sends an email before turning the automation on.';
 
 export function cleanConditions(c = {}) {
   const pick = (v, ok) => [...new Set((Array.isArray(v) ? v : []).map(String))].filter(ok);
@@ -350,7 +350,7 @@ export function actionsToSteps(actions) {
   }).sort((x, y) => x.at - y.at || x.i - y.i);
   const out = []; let cur = 0;
   list.forEach(({ a, at }) => { if (at > cur) { out.push({ type: 'wait', days: at - cur }); cur = at; } const { at: _drop, text: _t, ...s } = a; out.push(s); });
-  if (out.length > STEP_MAX) throw new Error(`This template has too many steps once the days between them are counted (${out.length}; the most is ${STEP_MAX}). Put more steps on the same day, or split it into two templates.`);
+  if (out.length > STEP_MAX) throw new Error(`This automation has too many steps once the days between them are counted (${out.length}; the most is ${STEP_MAX}). Put more steps on the same day, or split it into two automations.`);
   return out;
 }
 // one plain sentence for a step: "2 days after the order opens: create a task for the processor, due 1 day later."

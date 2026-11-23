@@ -72,7 +72,7 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const want = new Map([['js/pages/crm.js', '202611290800'], ['js/app.js', '202611300900']]);
+const want = new Map([['js/pages/crm.js', '202611290800'], ['js/app.js', '202611301000']]);
 const issues = [];
 const dual = [];
 const missing = [];
