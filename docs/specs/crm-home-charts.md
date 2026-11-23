@@ -4,7 +4,7 @@
 
 **Tracker:** CRM Feedback 31 item 1.
 
-**Status:** In progress. Pull request [359](https://github.com/Johncoester/cla-portal-demo/pull/359) added the charts. Reorder (F31b, row 414) landed in pull request [393](https://github.com/Johncoester/cla-portal-demo/pull/393). Janine's Nov 23 2026 retest failed with one chart; that fix is not Live until it is checked on TEST. A database file is included and has not been applied.
+**Status:** In progress. Pull request [359](https://github.com/Johncoester/cla-portal-demo/pull/359) added the charts. Reorder (F31b, row 414) landed in pull request [393](https://github.com/Johncoester/cla-portal-demo/pull/393). Janine's Nov 23 2026 retest failed with one chart. That fix is pull request [423](https://github.com/Johncoester/cla-portal-demo/pull/423). Not Live until it is checked on TEST. A database file is included and has not been applied.
 
 ## What the user sees
 

@@ -2994,7 +2994,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On CRM Home, the charts sit below the fixed sections (the task list, Today's Leads, and Amount by Stage). A **...** button at the top right opens a small menu with **Reorder**. Reorder is offered only when that person has two or more charts. It shows **Move up** and **Move down** on each Home chart, plus **Done**. The top chart's Move up and the bottom chart's Move down are greyed out. The new order is saved for that person and is still there after they leave Home and come back. A second click while a save is still running does not start another save. Another person does not see or change it. Refresh, Rename, and Remove keep working. With one chart, Reorder is greyed out and the menu says to add another chart. When Home has no charts, Reorder is greyed out and the menu says there is nothing to reorder.
 
-**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. Reorder itself is [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393), merged. Janine's Nov 23 2026 retest on TEST failed: with one chart, Move up looked clickable and did nothing. This fix greys that out and offers Reorder only when there are two or more charts. No new database file. Not Live.
+**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. Reorder itself is [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393), merged. Janine's Nov 23 2026 retest on TEST failed: with one chart, Move up looked clickable and did nothing. This fix is [PR 423](https://github.com/Johncoester/cla-portal-demo/pull/423). It greys that out and offers Reorder only when there are two or more charts. No new database file. Not Live.
 
 **What's built**
 
@@ -3015,7 +3015,8 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Spec: [docs/specs/crm-home-charts.md](docs/specs/crm-home-charts.md)
-- Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393)
+- Pull request: [PR 423](https://github.com/Johncoester/cla-portal-demo/pull/423) (one chart, grey Move buttons)
+- Earlier pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393)
 - Earlier pull request: [PR 359](https://github.com/Johncoester/cla-portal-demo/pull/359)
 
 **Decisions**
