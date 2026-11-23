@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611301600';
+import { prefetchDealTab } from './deal-tab.js?v=202611301700';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -515,16 +515,27 @@ export function nameInitials(name) {
   if (!bits.length) return '';
   return `${bits[0][0] || ''}${bits.length > 1 ? bits[bits.length - 1][0] : ''}`.toUpperCase();
 }
-/* FF-106b: the Closing Team slot that was labelled Transaction Coordinator is the CLA
- * preprocessor slot. Relabel it Preprocessor and show the Preprocessor from Edit order details
- * (preprocessorUserId). Do not keep a second Transaction Coordinator card here. The agent's own
- * TC role and link are unchanged. Licensed Settlement Agent has no saved field. Closer is not copied here. */
+/* FF-106c: show the CLA Preprocessor from Edit order details (preprocessorUserId) or, if
+ * that field is empty, from an Order Contacts participant with role Preprocessor. Do not use
+ * an agent's Buyer Agent TC, Listing Agent TC, or a Transaction Coordinator participant. */
+export function assignedPreprocessor(d) {
+  const fromDeal = { id: (d && d.preprocessorUserId) || '', name: teamName(d && d.preprocessorName) };
+  if (fromDeal.id || fromDeal.name) return fromDeal;
+  const parts = (d && Array.isArray(d.participants)) ? d.participants : [];
+  const row = parts.find((p) => p && p.role === 'Preprocessor');
+  if (!row) return { id: '', name: '' };
+  const c = row.contact || {};
+  const name = teamName(c.name || `${c.firstName || ''} ${c.lastName || ''}`);
+  const id = c.profileId || row.profileId || '';
+  return { id, name };
+}
 export function closingTeamCards(d) {
   const sales = (d.salesPeople || []).map((s) => ({ id: (s && s.id) || '', name: teamName(s && (s.name || `${s.firstName || ''} ${s.lastName || ''}`)) })).filter((s) => s.id || s.name);
   const salesCards = (sales.length ? sales : [{ id: '', name: '' }]).map((s) => ({ role: 'Sales Person', name: s.name, id: s.id }));
+  const pre = assignedPreprocessor(d);
   return [
     { role: 'Processor', name: teamName(d.processorName), id: d.processorId || '' },
-    { role: 'Preprocessor', name: teamName(d.preprocessorName), id: d.preprocessorUserId || '' },
+    { role: 'Preprocessor', name: pre.name, id: pre.id },
     { role: 'Licensed Settlement Agent', name: '', id: '', blankBecause: 'no-field' },
     ...salesCards,
   ];
