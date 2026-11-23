@@ -55,12 +55,13 @@ const q = (table) => { const st = { table, filters: [] }; const api = {
   single() { return Promise.resolve(res(st, true)); }, maybeSingle() { return Promise.resolve(res(st, true)); }, then(a, b) { return Promise.resolve(res(st, false)).then(a, b); } }; return api; };
 const dealRows = [{ id: 'd1', file_number: 'MD-1', street: '1 A St', city: 'X', state: 'MD', zip: '20000', status: 'Open', processor_id: null },
   { id: 'd2', file_number: 'MD-2', street: '2 B St', city: 'X', state: 'MD', zip: '20000', status: 'Open', processor_id: 'tp' },
-  { id: 'd3', file_number: 'MD-3', street: '3 C St', city: 'X', state: 'MD', zip: '20000', status: 'Open', processor_id: 'oldrole' }];
+  { id: 'd3', file_number: 'MD-3', street: '3 C St', city: 'X', state: 'MD', zip: '20000', status: 'Open', processor_id: 'oldrole' },
+  { id: 'd4', file_number: 'MD-4', street: '4 D St', city: 'X', state: 'MD', zip: '20000', status: 'Open', processor_id: 'tp', preprocessor_user_id: 'pre1' }];
 function res(st, single) {
   reads.push(st);
   if (st.table === 'deals') { const id = (st.filters.find((f) => f[0] === 'eq' && f[1] === 'id') || [])[2]; const rows = id ? dealRows.filter((r) => r.id === id) : dealRows; return { data: single ? rows[0] : rows, error: null }; }
-  if (st.table === 'profiles') { const byId = st.filters.find((f) => f[0] === 'in' && f[1] === 'id'); if (byId) return { data: byId[2].includes('oldrole') ? [{ id: 'oldrole', first_name: 'Former', last_name: 'Proc' }] : [], error: null };
-    return { data: [{ id: 'tp', first_name: 'Test', last_name: 'Processor' }], error: null }; }
+  if (st.table === 'profiles') { const byId = st.filters.find((f) => f[0] === 'in' && f[1] === 'id'); if (byId) { const found = []; if (byId[2].includes('oldrole')) found.push({ id: 'oldrole', first_name: 'Former', last_name: 'Proc' }); if (byId[2].includes('pre1')) found.push({ id: 'pre1', first_name: 'Pat', last_name: 'Preprocessor' }); return { data: found, error: null }; }
+    return { data: [{ id: 'tp', first_name: 'Test', last_name: 'Processor' }, { id: 'pre1', first_name: 'Pat', last_name: 'Preprocessor' }], error: null }; }
   return { data: single ? null : [], error: null, count: 0 };
 }
 globalThis.__fakeSB = { auth: { onAuthStateChange() {}, getUser: async () => ({ data: { user: { id: 'u1' } } }), signOut: async () => ({}) },
@@ -76,6 +77,10 @@ try {
   ok(by.d3.processorName === 'Former Proc', 'a Processor outside the pick roles is looked up once by id');
   const one = await api.getDeal('d2');
   ok(one.processorName === 'Test Processor', 'hosted getDeal carries the real processor name');
+  const withPre = await api.getDeal('d4');
+  ok(withPre.preprocessorUserId === 'pre1' && withPre.preprocessorName === 'Pat Preprocessor', 'hosted getDeal fills the Preprocessor name from the same staff-name read (FF-106)');
+  const noPre = await api.getDeal('d2');
+  ok(noPre.preprocessorUserId == null && noPre.preprocessorName === '', 'hosted getDeal leaves Preprocessor blank when none is assigned');
   const staffReads = reads.filter((r) => r.table === 'profiles' && r.filters.some((f) => f[1] === 'role'));
   ok(staffReads.length === 1, 'the staff-name read is shared between list and file reads (one request)');
 } catch (e) { fail += 1; console.log('FAIL hosted adapter check threw:', e && e.message); }

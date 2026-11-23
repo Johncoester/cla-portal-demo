@@ -340,8 +340,9 @@ export async function createSupabaseAdapter(cfg) {
     });
     const d = got.row;
     // John, Nov 9: the file's Transaction Coordinator (deals.tc_user_id) is looked up with the same one-shot by-id name read
-    const nm = await withProcessorNames([d, { processorId: d.tcUserId || null }], new Map(got.procs));
+    const nm = await withProcessorNames([d, { processorId: d.tcUserId || null }, { processorId: d.preprocessorUserId || null }], new Map(got.procs));
     Object.assign(d, processorFields(d, nm)); d.tcUserId = d.tcUserId || null; d.tcName = d.tcUserId ? (nm.get(d.tcUserId) || '') : '';
+    d.preprocessorUserId = d.preprocessorUserId || null; d.preprocessorName = d.preprocessorUserId ? (nm.get(d.preprocessorUserId) || '') : '';
     d.participants = got.contacts.map((r) => ({ id: r.participant_id, dealId: r.deal_id, contactId: r.contact_id, role: r.role,
       contact: { id: r.contact_id, profileId: r.profile_id, firstName: r.first_name, lastName: r.last_name, company: r.company, email: r.email, phone: r.phone, contactHidden: r.contact_hidden } }));
     const ct = await types(d.participants.map((p) => p.contactId)); d.participants.forEach((p) => { p.contact.contactType = ct.get(p.contactId) || null; });
@@ -360,7 +361,9 @@ export async function createSupabaseAdapter(cfg) {
     // header lost the names on every tab but Overview and Contacts. One deal_file_titles read runs alongside; a failed read leaves it blank.
     const [raw, names, tt] = await Promise.all([sb.from('deals').select('*').eq('id', id).single(), processorNames(), titles(id).catch(() => new Map())]);
     const row = camel(ok(raw));
-    Object.assign(row, processorFields(row, names)); row.tcUserId = row.tcUserId || null; row.tcName = row.tcUserId ? (names.get(row.tcUserId) || '') : '';
+    const nm = await withProcessorNames([row, { processorId: row.tcUserId || null }, { processorId: row.preprocessorUserId || null }], new Map(names));
+    Object.assign(row, processorFields(row, nm)); row.tcUserId = row.tcUserId || null; row.tcName = row.tcUserId ? (nm.get(row.tcUserId) || '') : '';
+    row.preprocessorUserId = row.preprocessorUserId || null; row.preprocessorName = row.preprocessorUserId ? (nm.get(row.preprocessorUserId) || '') : '';
     row.address = `${row.street}, ${row.city}, ${row.state} ${row.zip}`;
     attachScheduled(row);
     row.participants = [];

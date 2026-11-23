@@ -33,8 +33,8 @@ ok(facts[0].value === 'Purchase' && facts[1].value === '11/02/2026' && facts[2].
 ok(staffFileFacts({ transactionType: 'Refinance', purchasePrice: null }).every((f, i) => i === 0 ? f.value === 'Refinance' : f.value === ''), 'a missing date or price stays blank and the box label remains');
 
 const cards = closingTeamCards(deal);
-ok(cards.map((c) => c.role).join('|') === 'Processor|Transaction Coordinator|Licensed Settlement Agent|Sales Person|Sales Person', 'Closing Team uses the picture role names, with one Sales Person card each');
-ok(cards[0].name === 'Paula Processor' && cards[1].name === 'Tina Coordinator' && cards[2].name === '' && cards[2].blankBecause === 'no-field', 'assigned people show, and Licensed Settlement Agent stays blank');
+ok(cards.map((c) => c.role).join('|') === 'Processor|Preprocessor|Transaction Coordinator|Licensed Settlement Agent|Sales Person|Sales Person', 'Closing Team uses the picture role names plus Preprocessor (FF-106), with one Sales Person card each');
+ok(cards[0].name === 'Paula Processor' && cards[1].role === 'Preprocessor' && cards[2].name === 'Tina Coordinator' && cards[3].name === '' && cards[3].blankBecause === 'no-field', 'assigned people show, Preprocessor is on the card row, and Licensed Settlement Agent stays blank');
 ok(!cards.some((c) => c.name === 'Chris Closer') && !cards.some((c) => c.name === 'Transaction Coordinator for CLA'), 'Closer is not renamed, and the sample coordinator name is not stored');
 ok(nameInitials('Paula Processor') === 'PP' && nameInitials('') === '', 'a card uses initials, and a blank name has none');
 const teamHtml = toText(closingTeamHtml(deal));
