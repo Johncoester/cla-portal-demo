@@ -2,7 +2,7 @@
  * Both dates are columns that already exist (deals.closing_date, deals.disbursement_date).
  * A blank disbursement date stays automatic. This file does not copy a buyer's proposed closing time onto the file. */
 import { html, fmtDate, guard, toast } from '../ui.js?v=202611161500';
-import { runsOrders } from '../data/constants.js?v=202611247700';
+import { runsOrders, isRefi } from '../data/constants.js?v=202611247700';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -62,7 +62,7 @@ export function fileDatesHtml(deal, { canEdit = false } = {}) {
     ? html`<input type="date" class="oh-date-input" data-oh-edit="closing" data-prev="${closing}" value="${closing}" aria-label="Settlement date">`
     : html`<span class="oh-big" data-oh-closing>${fmtDate(closing) || 'Not set'}</span>`;
   const disbursement = canEdit
-    ? html`<input type="date" class="oh-date-input" data-oh-edit="disbursement" data-prev="${disb}" value="${disb}" aria-label="Disbursement date" title="Clear this date to use the automatic date.">`
+    ? html`<input type="date" class="oh-date-input" data-oh-edit="disbursement" data-prev="${disb}" value="${disb}" aria-label="Disbursement date" title="${isRefi(d) ? 'Clear this date to use the automatic date.' : 'Follows the settlement date. You can change it by hand; the next settlement date change resets it.'}">`
     : html`<span class="oh-big" data-oh-disbursement-date>${fmtDate(disb) || 'Not set'}</span>`;
   return html`<div class="oh-side" data-file-dates>
     <div class="oh-date" data-oh-settlement><span class="oh-big-label">Settlement date</span>${settlement}</div>

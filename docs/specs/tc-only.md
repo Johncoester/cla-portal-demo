@@ -44,9 +44,17 @@ Task Builder's "Transaction coordinator" email choice now also reaches the agent
 5. Typed emails are covered: the agent's address is swapped for the TC's before Gmail sends it.
 6. Merge fields / greeting use the TC's name when an email is swapped.
 
+## TC-ONLY-2: the screens (no database file)
+- **Order Contacts:** each buyer's agent / listing agent row has an **Only communicate with TC** box, read with `tc_only_status` and set
+  with `set_participant_tc_only`. Only CLA staff see it. The processor, pre-processor, CLA TC and Admins can change it; other staff see it greyed out.
+  It is disabled until a TC is linked on that side. The line under it names the TC who gets the emails, or says what to add first.
+  A box already ticked can always be unticked.
+- **Compose (File > Email):** when a TC-only agent is in To, Cc or Bcc, a note says the email goes to their TC instead, or that it can't be
+  sent to them because no TC is linked.
+- **Email sellers and agents:** the preview for a TC-only agent says the email goes to their TC instead, or is held.
+- Code: `js/data/tc-only.js` (the rules for the box and notes), `js/data/supabase-tc-only.js`, `js/data/mock-part-tc-only.js`,
+  `js/pages/dealcontacts.js`, `js/pages/dealemail.js`, `js/pages/deal.js`. Test: `test/test-tc-only-ui.js` (every role on the demo portal).
+
 ## Not done yet
-- **The checkbox on the file's Contacts screen** and the "goes to the TC" notes in the compose and "Email sellers and agents"
-  previews. Those screens are in Claude's open PRs 409 and 411 (rule 17), so they come in a second PR right after those merge.
-  Until then the box can be set with `set_participant_tc_only` and read with `tc_only_status`.
-- ROADMAP.md is also in Claude's open PRs; its entry is added with the second PR.
+- Task Builder pages do not show the "goes to the TC" note. Their emails are still routed by the database.
 - Invites the staff send to an agent's own login are not swapped (the invite is for the agent's account).

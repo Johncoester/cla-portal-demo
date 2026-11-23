@@ -832,7 +832,9 @@ This file lists the portal's major features: how each one should work, how far a
 | TB-6 | Client requests: request an intake form from a buyer, seller or agent; completes itself when they submit it; reminders every N days up to M times; ONE email per person listing everything still needed (John, Nov 20) (Owner: Claude) | Live on TEST, [PR 389](https://github.com/Johncoester/cla-portal-demo/pull/389) merged a034ccc8 Nov 20 2026, 4:27 PM ET. `20261126010000_task_flow_client_requests.sql` applied on TEST as version 20261120212823. |
 | TB-7 | Send an email step (saved template or written message with merge fields) and a File closed trigger, for emails like a thank-you after closing; Try on one file sends a test copy only to you (John, Nov 20) (Owner: Claude) | **Live.** [PR 391](https://github.com/Johncoester/cla-portal-demo/pull/391) merged d104c0ff (Nov 21 2026, 12:40 PM ET); `20261127010000_task_flow_email_step.sql` applied on TEST Nov 21 |
 | TB-8 | Easier steps (John, Nov 21, by voice): each step says in plain words when it happens; Sales person lists every staff member with a search box; an email step can go to the agents who didn't refer the file (owner intro) (Owner: Claude) | **Live.** [PR 395](https://github.com/Johncoester/cla-portal-demo/pull/395) merged db09aa3d (Nov 21 2026, 1:50 PM ET); `20261128010000_task_flow_non_referring_agents.sql` applied on TEST Nov 21, 1:51 PM ET (v20261121185110). No flows created or turned on |
-| TB-9 | Easier to build (John, Nov 21, by voice): flows are called templates ("Template name", "+ New template"); Which files is behind an optional "Limit to certain files" link; each step has its own When box (days after it starts) instead of a separate Wait step; an Insert field list for the email (Owner: Claude) | [PR 398](https://github.com/Johncoester/cla-portal-demo/pull/398) open. No database change |
+| TB-9 | Easier to build (John, Nov 21, by voice): flows are called templates ("Template name", "+ New template"); Which files is behind an optional "Limit to certain files" link; each step has its own When box (days after it starts) instead of a separate Wait step; an Insert field list for the email (Owner: Claude) | [PR 398](https://github.com/Johncoester/cla-portal-demo/pull/398) merged Nov 22. No database change |
+| TB-10 | Send as a named staff member, with a signature (John, Nov 22, by voice): an email step has From (the file's processor, or any active staff member, for example John for an owner intro) and "Add the sender's signature" (ticked on new email steps). "Recipient first name (from To)" is now "Recipient's first name" (Owner: Claude) | PR open. Migration 20261129010000_task_flow_send_as.sql not applied on TEST yet; until it is, From and the signature box save in the demo only and TEST emails still go from the processor |
+| TB-11 | "Task completed" trigger (John, Nov 22, by voice): a template starts when a chosen task is checked off on a file, and its first steps run straight away (e.g. tick "EMD received" and the buyer's email is queued). Which task: any standard task, any task a template makes, or any other task by typing its name (Owner: Claude) | PR open (built on PR 409). Migration 20261129020000_task_flow_task_completed.sql not applied on TEST yet |
 
 **What's built**
 
@@ -3218,6 +3220,62 @@ This file lists the portal's major features: how each one should work, how far a
 - Files with no EMD amount, due date, or holder are left off the outstanding EMD card. Refinance files have no EMD.
 - No new database file: the dashboard's existing open-file read now also asks for those four EMD columns. Admin fees reuse `getAgentFees`.
 - Cache stamp 202611291400, above main's 202611290700 and clear of open PR 407's 202611290800, so a saved copy of the shell is not reused.
+
+## Only communicate with TC (TC-ONLY-1, TC-ONLY-2)
+
+**How it should work.** On a file's Order Contacts, each buyer's agent and listing agent row has an **Only communicate with TC** box. CLA staff who run the file (processor, pre-processor, CLA TC, Admin) can tick it. When it is ticked, every email and portal alert meant for that agent on that file goes to their transaction coordinator instead: the Buyer Agent TC or Listing Agent TC on the same side who is linked to that agent. The box is disabled until a TC is linked on that side. The email compose and the Email sellers and agents preview say when an email will go to the TC instead.
+
+**Status: In progress.** John Coester, phone call and chat, Nov 22 2026, 3:12-4:09 PM ET. TC-ONLY-1 (the routing in the database, [PR 412](https://github.com/Johncoester/cla-portal-demo/pull/412)) is Live on TEST, merged Nov 22 2026, 8:12 PM ET. TC-ONLY-2 is the screens (this section's PR). It has no database file.
+
+**What's built**
+
+- TC-ONLY-1: `deal_participants.tc_only`, and `private.resolve_recipients`, which is checked on every queued email (outbox), every portal alert and every typed Gmail send. It swaps the agent for their TC, or holds the email when no TC is linked. Every swap and hold is logged in `comm_redirect_log`.
+- TC-ONLY-2: the box on Order Contacts, with a line under it saying who gets the emails or what to add first. The compose shows a note when a TC-only agent is in To, Cc or Bcc. The Email sellers and agents preview shows a note on that agent's message.
+- Outside users (agents, TCs, buyers, sellers) never see the box or the notes.
+
+**What's still missing**
+
+- The team's answers to the Nov 22 questions (alerts too, threads, fee and title notices, who can tick it). The defaults are in [docs/specs/tc-only.md](docs/specs/tc-only.md).
+- The Task Builder pages do not show the note. Task Builder emails are still routed by the database.
+
+**Links**
+
+- Spec: [docs/specs/tc-only.md](docs/specs/tc-only.md)
+- PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), TC-ONLY-2 (screens).
+
+**Decisions**
+
+- The screens only explain what will happen. The database (TC-ONLY-1) decides who actually gets each email, so an old page or a direct API call can't get around it.
+- A box that's already ticked can always be unticked, even after the TC was removed. That way staff can always turn emails back on to the agent.
+
+---
+
+## Disbursement date follows the settlement date on a purchase (MF-060)
+
+**How it should work.** On a purchase file, when the processor changes the settlement (closing) date, the disbursement date changes to match it. The disbursement date can still be changed by hand. A hand-set date lasts until the next settlement date change, then it follows the settlement date again. Refinances are not touched (4th business day after closing, or the processor's date).
+
+**Status: In progress.** Matt Landsberg, "Portal Feedback Nov 22" notes and recording; confirmed with corrections Nov 22 2026, 1:54 PM ET (Gmail 1a2049c9ec631d7b). Tracker row 438. One database file. Not Live until it is merged and applied on TEST.
+
+**What's built**
+
+- A database rule on the file's closing date: on a purchase, a closing date change clears a hand-set disbursement date, so the file shows the closing date. It works the same from the top of the file, Basic Info, Edit order details, or anything else that changes the closing date.
+- Changing both dates in one save keeps the disbursement date typed in that save. Other saves leave a hand-set date alone.
+- The disbursement date fields on purchases say that changing the closing date resets it.
+
+**What's still missing**
+
+- Nothing.
+
+**Links**
+
+- Spec: [docs/specs/mf-060-disbursement-follows-settlement.md](docs/specs/mf-060-disbursement-follows-settlement.md)
+- Related: FF-071 #23 / FF-052 / MF-050 (disbursement date field), FF-097 (dates at the top of the file).
+
+**Decisions**
+
+- Matt's email did not say whether a hand-set date survives a later settlement change, so John's default applies: it always follows the settlement date, and a manual edit lasts only until the next settlement change.
+- Blank disbursement date = automatic, as before, so a cleared date shows the closing date on a purchase and keeps working if the file later becomes a refinance.
+- The buyer closing-date lock is held and not touched.
 
 ---
 

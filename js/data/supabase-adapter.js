@@ -16,6 +16,7 @@ import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611247700';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611247900';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611247900';
 import { titleSupabase } from './supabase-title.js?v=202611247700';
+import { tcOnlySupabase } from './supabase-tc-only.js?v=202611291700';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
 import { fundingSupabase } from './supabase-funding.js?v=202611247900';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
@@ -30,11 +31,11 @@ import { crmSupabase } from './supabase-crm.js?v=202611290800';
 import { hrSupabase } from './supabase-hr.js?v=202611247700';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611290800';
 import { officesSupabase } from './supabase-offices.js?v=202611247700';
-import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611290700';   // John, Nov 13: Admin > Task Builder (TB-1)
+import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611291600';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611247700';
 import { tcSupabase } from './supabase-tc.js?v=202611247700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611247700';
-import { gmailSupabase } from './supabase-gmail.js?v=202611247700';
+import { gmailSupabase } from './supabase-gmail.js?v=202611291500';
 import { nov5Supabase } from './supabase-nov5.js?v=202611247700';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611247700';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611249900';
@@ -1025,6 +1026,7 @@ export async function createSupabaseAdapter(cfg) {
   // ACCOUNTING (John, Nov 3; migration 34): only when features.accounting === true (off by default everywhere) AND the database switch is on.
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   Object.assign(a, taxRatesSupabase({ sb, me }));
+  Object.assign(a, tcOnlySupabase({ sb, ok }));   // TC-ONLY-2: Only communicate with TC on a file's agent
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
   // AGENT FEES (AF-2, John Nov 12): per side commission / admin fee / other fees; the database functions decide who sees and changes what

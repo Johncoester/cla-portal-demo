@@ -7,10 +7,10 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved template or a written message with merge fields) and the "File closed" trigger. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps } from '../data/task-builder.js?v=202611290700';
-import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611281200';
-import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611247700';
-const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you.';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps, triggerNeedsTask, taskChoices } from '../data/task-builder.js?v=202611291600';
+import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611291500';
+import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611291500';
+const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you. From: pick a staff member to send it as them (blank = the file\'s processor). The signature is their portal (Gmail) signature, else their CRM signature, else name, CLA Title & Escrow, email and phone.';
 import { REQUEST_FORMS, REQUEST_ROLES, formRoles, REMIND_EVERY_MAX, REMIND_TIMES_MAX, REQUEST_DUE_MAX } from '../data/client-requests.js?v=202611261000';
 const REQUEST_NOTE = 'The party gets the form as a task on the file. It is done when they submit it. Each person gets ONE email per file listing everything still needed from them, and at most one reminder email a day.';
 
@@ -24,6 +24,8 @@ export async function render(ctx) {
   // Admin who also sells (John) or a processor with their own clients can be picked. Type a name to narrow the list.
   let sales = []; try { sales = (await (api.listActiveStaff ? api.listActiveStaff() : api.listSalesStaff())) || []; } catch (e) { sales = []; }
   if (!sales.length && api.listSalesStaff) { try { sales = (await api.listSalesStaff()) || []; } catch (e) { sales = []; } }
+  // TB-11 (Nov 22): "Task completed" picks a task: every standard task (Admin > Task Templates) and every task a template here creates
+  let taskTemplates = []; try { taskTemplates = api.listTaskTemplates ? ((await api.listTaskTemplates()) || []) : []; } catch (e) { taskTemplates = []; }
   let templates = []; try { templates = api.listFileEmailTemplates ? ((await api.listFileEmailTemplates()) || []).filter((t) => t.active !== false && (t.scope || 'shared') === 'shared') : []; } catch (e) { templates = []; }
   // A flow can name someone who is no longer an active staff member. Keep that person's name.
   const known = new Map();
@@ -32,7 +34,7 @@ export async function render(ctx) {
     known.set(p.id, (p.name || `${p.firstName || ''} ${p.lastName || ''}`).replace(/\s+/g, ' ').trim());
   };
   sales.forEach(remember);
-  const savedIds = [...new Set(flows.flatMap((f) => ((f.conditions || {}).salesPeople) || []))];
+  const savedIds = [...new Set(flows.flatMap((f) => [...(((f.conditions || {}).salesPeople) || []), ...(f.steps || []).map((s) => s.from).filter(Boolean)]))];
   if (savedIds.some((id) => !known.has(id)) && api.listActiveStaff) {
     try { ((await api.listActiveStaff()) || []).forEach(remember); } catch (e) { /* the saved id still has a plain fallback */ }
   }
@@ -149,6 +151,12 @@ export async function render(ctx) {
           ${TRIGGERS.map((t) => html`<option value="${t.code}" ${f && f.trigger === t.code ? raw('selected') : ''}>${t.label}${triggerRuns(t.code) ? '' : " (doesn't run yet)"}</option>`)}</select></label>
         <label class="span2" data-tb-days hidden>Days *<span class="muted small" data-tb-days-hint></span>
           <input name="triggerDays" type="number" min="${DAYS_MIN}" max="${DAYS_MAX}" step="1" inputmode="numeric" value="${f && f.triggerDays != null ? f.triggerDays : ''}" data-tb-days-input></label>
+        <label class="span2" data-tb-task hidden>Which task *<span class="muted small"> (the template starts when this task is checked off on a file)</span>
+          <select name="triggerTask" data-tb-task-input><option value="">Choose a task…</option>${(() => { const ch = taskChoices(taskTemplates, flows);
+            if (f && f.triggerTask && !ch.some((c) => c.key === f.triggerTask)) ch.unshift({ key: f.triggerTask, name: f.triggerTaskName || f.triggerTask.replace(/^\w+:/, ''), group: 'Saved' });
+            return [...new Set(ch.map((c) => c.group))].map((g) => html`<optgroup label="${g}">${ch.filter((c) => c.group === g).map((c) => html`<option value="${c.key}" data-name="${c.name}" ${f && f.triggerTask === c.key ? raw('selected') : ''}>${c.name}</option>`)}</optgroup>`); })()}<option value="__other">Another task (type its name)…</option></select>
+          <input data-tb-task-other hidden maxlength="120" placeholder="The task's name, as it appears on the file" aria-label="Task name">
+          <input type="hidden" name="triggerTaskName" value="${(f && f.triggerTaskName) || ''}" data-tb-task-name></label>
         <label class="span2">Description <span class="muted small">(optional)</span><textarea name="description" rows="2" maxlength="${DESC_MAX}" data-tb-desc-input placeholder="What this template is for">${f ? f.description || '' : ''}</textarea></label>
         <details class="span2" data-tb-limit ${limited ? raw('open') : ''}><summary data-tb-limit-toggle>Limit to certain files <span class="muted small">(optional. Leave closed to run on every file)</span></summary>
         <fieldset data-tb-conds><legend class="small">Only run on files that match <span class="muted">(leave a group blank for "any")</span></legend>
@@ -165,7 +173,11 @@ export async function render(ctx) {
           <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
       const sel = $('[data-tb-trigger-input]', m); const days = $('[data-tb-days]', m);
       const showDays = () => { const t = triggerOf(sel.value); days.hidden = !triggerNeedsDays(sel.value); $('[data-tb-days-hint]', m).textContent = t && t.days ? ` (${t.days}, ${DAYS_MIN} to ${DAYS_MAX})` : ''; };
-      sel.addEventListener('change', showDays); showDays();
+      const taskBox = $('[data-tb-task]', m); const taskSel = $('[data-tb-task-input]', m);
+      const other = $('[data-tb-task-other]', m);
+      const showTask = () => { taskBox.hidden = !triggerNeedsTask(sel.value); other.hidden = taskSel.value !== '__other'; const o = taskSel.options[taskSel.selectedIndex];
+        $('[data-tb-task-name]', m).value = o && o.value && o.value !== '__other' ? (o.getAttribute('data-name') || o.textContent) : ''; };
+      sel.addEventListener('change', () => { showDays(); showTask(); }); taskSel.addEventListener('change', showTask); showDays(); showTask();
 
       const list = $('[data-tb-step-list]', m); const addBtn = $('[data-tb-add-step]', m);
       const lastBox = {};   // step index -> the subject or message box last clicked, for Insert field
@@ -189,6 +201,9 @@ export async function render(ctx) {
           <p class="muted small">${REQUEST_NOTE}</p>`
         : s.type === 'send_email' ? html`
           <label>Send to<select data-tb-step-field="sendTo"><option value="">Choose…</option>${EMAIL_ROLES.map(([v, l]) => html`<option value="${v}" ${s.sendTo === v ? raw('selected') : ''}>${l}</option>`)}</select></label>
+          <label>From<select data-tb-step-field="from"><option value="">The file's processor</option>${sales.map((p) => html`<option value="${p.id}" ${s.from === p.id ? raw('selected') : ''}>${salesName(p.id)}</option>`)}
+            ${s.from && !sales.some((p) => p.id === s.from) ? html`<option value="${s.from}" selected>${salesName(s.from)}</option>` : ''}</select></label>
+          <label class="chk"><input type="checkbox" data-tb-step-sig ${s.signature ? raw('checked') : ''}> Add the sender's signature</label>
           <label>Email<select data-tb-email-tpl><option value="">Write my own</option>${templates.map((t) => html`<option value="${t.id}" ${s.templateId === t.id ? raw('selected') : ''}>Saved email: ${t.name}</option>`)}
             ${s.templateId && !templates.some((t) => t.id === s.templateId) ? html`<option value="${s.templateId}" selected>Saved email: ${s.templateName || 'saved email'}</option>` : ''}</select></label>
           ${s.templateId ? '' : html`
@@ -209,11 +224,13 @@ export async function render(ctx) {
           $('[data-tb-step-type]', box).addEventListener('change', (e) => { const v = e.target.value; const at = steps[i].at != null ? steps[i].at : 0;
             steps[i] = { type: v, at, ...(v === 'stop_if_emd_received' ? {}
               : v === 'client_request' ? { formCode: '', sendTo: '', dueDays: steps[i].dueDays != null ? steps[i].dueDays : 3, remindEvery: 2, remindTimes: 3 }
-              : v === 'send_email' ? { sendTo: '', templateId: '', subject: '', body: '' }
+              : v === 'send_email' ? { sendTo: '', from: '', signature: true, templateId: '', subject: '', body: '' }
               : { title: steps[i].title || '', assignTo: steps[i].assignTo || '', dueDays: steps[i].dueDays != null ? steps[i].dueDays : 1 }) }; draw(); });
           const tpl = $('[data-tb-email-tpl]', box);   // a saved email, or write my own: redraw the subject and message boxes
           if (tpl) tpl.addEventListener('change', () => { const t = templates.find((x) => x.id === tpl.value);
             steps[i].templateId = tpl.value; steps[i].templateName = t ? t.name : ''; draw(); });
+          const sig = $('[data-tb-step-sig]', box);   // John, Nov 22: the sender's signature under the message
+          if (sig) sig.addEventListener('change', () => { steps[i].signature = !!sig.checked; showWhen(); });
           const reqForm = $('[data-tb-req-form]', box);   // a form decides who can be asked: redraw the Send to list
           if (reqForm) reqForm.addEventListener('change', () => { const roles = formRoles(reqForm.value); steps[i].formCode = reqForm.value;
             if (!roles.includes(steps[i].sendTo)) steps[i].sendTo = roles.length === 1 ? roles[0] : ''; draw(); });
@@ -244,7 +261,9 @@ export async function render(ctx) {
           const conditions = { transactionTypes: [], states: [], salesPeople: [] };
           $$('[data-tb-cond]', m).filter((c) => c.checked).forEach((c) => conditions[c.dataset.tbCond].push(c.value));
           cleanSteps(steps.map(({ at, ...x }) => x));   // step numbers in any message match the steps on screen (Waits are added after)
-          const input = cleanFlow({ ...formData(e.target), conditions, steps: actionsToSteps(steps) });   // checked here first, so a mistake never leaves the window
+          const fd = formData(e.target);   // "Another task": any task, matched by the name typed
+          if (fd.triggerTask === '__other') { const typed = String(other.value || '').replace(/\s+/g, ' ').trim(); fd.triggerTask = typed ? `title:${typed}` : ''; fd.triggerTaskName = typed; }
+          const input = cleanFlow({ ...fd, conditions, steps: actionsToSteps(steps) });   // checked here first, so a mistake never leaves the window
           if (creating) await api.createTaskFlow(input); else await api.updateTaskFlow(f.id, input);
           closeModal(); toast(creating ? 'Template created. It is Off.' : 'Template saved.'); refresh();
         } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not save the template. Try again.'; btn.disabled = false; }

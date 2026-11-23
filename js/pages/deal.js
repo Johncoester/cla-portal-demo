@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611300500';
+import { prefetchDealTab } from './deal-tab.js?v=202611300440';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -34,6 +34,7 @@ import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-f
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
+import { tcOnlyMap, tcOnlyPreviewNote } from '../data/tc-only.js?v=202611291700';
 // The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
 const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
 function staffSections(ctx, dealId) {
@@ -303,7 +304,7 @@ async function editModal(api, d, refresh, meId) {
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
     <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label>${countyFieldHtml(d.state, d.county, '(pick from the list)')}
-    <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${officeDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label><label>Disbursement date<input type="date" name="disbursementDate" value="${v('disbursementDate')}" data-disbursement-input><span class="field-hint">Leave blank for the automatic date (${disbursementFor({ ...d, disbursementDate: '' }).note}).</span></label>
+    <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${officeDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label><label>Disbursement date<input type="date" name="disbursementDate" value="${v('disbursementDate')}" data-disbursement-input><span class="field-hint">Leave blank for the automatic date (${disbursementFor({ ...d, disbursementDate: '' }).note}).${isRefi(d) ? '' : ' Changing the closing date resets this to the closing date.'}</span></label>
     ${refi ? html`<p class="span2 muted small" data-refi-edit>Refinance: no purchase price or EMD.${d.purchasePrice != null || d.emdAmount != null || d.emdDueDate ? ' This older order still has one; saving clears it.' : ''}</p><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>`
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
@@ -757,6 +758,10 @@ async function automationModal(api, d) {
   const on = !!(g && g.connected && g.status === 'connected');
   // one sign-off only: when the portal signature goes on the email, the built-in body leaves the name to it
   const P = await api.previewSellerAgentEmails(d.id, { portalSignature: on && hasSignature(g.signatureHtml) }); const sendable = P.messages.filter((m) => m.email);
+  // TC-ONLY-2: say which agent emails go to the agent's TC instead (the database swaps them when they are sent)
+  let tcRows = new Map();
+  if (api.tcOnlyStatus && P.messages.some((x) => x.agent)) { try { tcRows = tcOnlyMap(await api.tcOnlyStatus(d.id)); } catch (e) { tcRows = new Map(); } }
+  const tcNote = (x) => (x.agent ? tcOnlyPreviewNote(tcRows, x.participantId) : '');
   // John, Nov 9 (Gmail phase 1); Nov 13: Send goes out one email per person from the user's own Gmail through gmail-send, to the address on the file.
   const m = modal('Email sellers and agents', html`${on ? html`<div class="notice info" data-gmail-on-modal>Sends one email per person from <strong>${g.mailbox}</strong>.</div>`
       : html`<div class="notice warn" data-gmail-off-modal><strong>Preview only.</strong> Connect your Gmail on <a href="#/profile">Profile Setting</a> to send. Nothing has been sent.</div>`}
@@ -766,6 +771,7 @@ async function automationModal(api, d) {
       <div class="small"><strong>Template:</strong> <span data-preview-template>${x.template}</span>${x.fromCrm ? html` <span class="pill info">CRM template</span>` : ''}</div>
       <div class="small"><strong>Subject:</strong> <span data-preview-subject>${x.subject}</span></div>
       <pre class="preview-body" data-preview-body>${x.body}</pre>
+      ${tcNote(x) ? html`<div class="small notice ${/held/.test(tcNote(x)) ? 'warn' : 'info'}" data-tc-only-note>${tcNote(x)}</div>` : ''}
       ${x.notes.length ? html`<ul class="small notice info" data-preview-notes>${x.notes.map((n) => html`<li>${n}</li>`)}</ul>` : ''}
       <div class="small" data-send-result="${x.participantId}"></div></div>`)
       : html`<p class="muted" data-preview-none>No sellers or agents on this order yet.</p>`}
