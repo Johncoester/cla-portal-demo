@@ -173,10 +173,11 @@ export async function handleOauthCallback(req, deps) {
 // Same rule as private.comm_swap_greeting: only the first greeting line, only the agent's first name as a whole word.
 export function swapGreeting(html, oldFirst, newFirst) {
   const from = String(oldFirst || '').trim(); const to = String(newFirst || '').trim();
-  if (!html || !from || !to || from === to) return html;
+  if (!html || !from || !to) return html;
   const esc = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`((?:^|>|\\n)[ \\t]*(?:Hi|Hello|Dear|Hey|Good morning|Good afternoon|Good evening)[ \\t]+)${esc}(?![\\p{L}\\p{N}])`, 'iu');
-  return html.replace(re, (m, lead) => lead + to);
+  // TC-ONLY-3 (Francis, Nov 23 2026): the greeting becomes "Hello <TC first name>"
+  const re = new RegExp(`((?:^|>|\\n)[ \\t]*)(?:Hi|Hello|Dear|Hey|Good morning|Good afternoon|Good evening)[ \\t]+${esc}(?![\\p{L}\\p{N}])`, 'iu');
+  return html.replace(re, (m, lead) => `${lead}Hello ${to}`);
 }
 export function tcOnlyHeldMessage(held) {
   const h = held[0] || {};
@@ -223,7 +224,7 @@ export async function handleSend(req, deps) {
   if (!subjectIn) return json(400, { error: 'Add a subject.' }, H);
   const subject = subjectWithTag(subjectIn, deal.file_number || '', formatPropertyAddress(deal));
   let bodyHtml = sanitizeHtml(b.html || '');
-  // one person on To and it was swapped to their TC: "Hi Pat," becomes "Hi Sam,"
+  // one person on To and it was swapped to their TC: "Hi Pat," becomes "Hello Sam,"
   if (redirected.length === 1 && redirected[0].list === 'to' && to.ok.length === 1 && Array.isArray(redirected[0].to) && redirected[0].to.length === 1)
     bodyHtml = swapGreeting(bodyHtml, redirected[0].fromFirstName, redirected[0].toFirstName);
   if (!htmlToText(bodyHtml)) return json(400, { error: 'Write a message first.' }, H);

@@ -58,7 +58,9 @@ export function tcOnlyBox(row, role, { canEdit = false, agentName = '', sideTcNa
   } else {
     // TC-ONLY-2c: when no TC has a login, only typed emails (and the few automatic ones) reach them, so the opening line says so
     const what = allNoLogin(row.tcs) ? `emails staff type, and ${STILL_SENT},` : 'emails and alerts';
-    hint = (row.tcOnly ? `${what[0].toUpperCase()}${what.slice(1)} for this agent go to ${joinNames(names)} instead.` : `When ticked, ${what} for this agent go to ${joinNames(names)} instead.`) + noLoginLine(row.tcs, 'box');
+    hint = (row.tcOnly ? `${what[0].toUpperCase()}${what.slice(1)} for this agent go to ${joinNames(names)} instead.` : `When ticked, ${what} for this agent go to ${joinNames(names)} instead.`) + noLoginLine(row.tcs, 'box')
+    // TC-ONLY-3 (Francis, Nov 23 2026): fee change and title commitment notices go to both
+    hint += ` Fee change and title commitment notices go to both ${agentName ? String(agentName).trim() : 'the agent'} and the TC.`;
   }
   return { checked: !!row.tcOnly, disabled, hasTc, hint, title: !canEdit ? 'Only the processor, pre-processor, CLA TC or an Admin can change this.' : (disabled ? hint : '') };
 }
