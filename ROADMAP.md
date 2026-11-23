@@ -3221,11 +3221,11 @@ This file lists the portal's major features: how each one should work, how far a
 - No new database file: the dashboard's existing open-file read now also asks for those four EMD columns. Admin fees reuse `getAgentFees`.
 - Cache stamp 202611291400, above main's 202611290700 and clear of open PR 407's 202611290800, so a saved copy of the shell is not reused.
 
-## Only communicate with TC (TC-ONLY-1, TC-ONLY-2, TC-ONLY-2b)
+## Only communicate with TC (TC-ONLY-1, TC-ONLY-2, TC-ONLY-2b, TC-ONLY-2c)
 
 **How it should work.** On a file's Order Contacts, each buyer's agent and listing agent row has an **Only communicate with TC** box. CLA staff who run the file (processor, pre-processor, CLA TC, Admin) can tick it. When it is ticked, every email and portal alert meant for that agent on that file goes to their transaction coordinator instead: the Buyer Agent TC or Listing Agent TC on the same side who is linked to that agent. The box is disabled until a TC is linked on that side. The email compose and the Email sellers and agents preview say when an email will go to the TC instead.
 
-**Status: In progress.** John Coester, phone call and chat, Nov 22 2026, 3:12-4:09 PM ET. TC-ONLY-1 (the routing in the database, [PR 412](https://github.com/Johncoester/cla-portal-demo/pull/412)) is Live on TEST, merged Nov 22 2026, 8:12 PM ET. TC-ONLY-2 (the screens, [PR 414](https://github.com/Johncoester/cla-portal-demo/pull/414)) is Live on TEST, merged Nov 23 2026, 7:16 AM ET. TC-ONLY-2b (this section's PR) fixes what the CRM Bot's review of PR 414 found. Neither has a database file.
+**Status: In progress.** John Coester, phone call and chat, Nov 22 2026, 3:12-4:09 PM ET. TC-ONLY-1 (the routing in the database, [PR 412](https://github.com/Johncoester/cla-portal-demo/pull/412)) is Live on TEST, merged Nov 22 2026, 8:12 PM ET. TC-ONLY-2 (the screens, [PR 414](https://github.com/Johncoester/cla-portal-demo/pull/414)) is Live on TEST, merged Nov 23 2026, 7:16 AM ET. TC-ONLY-2b ([PR 415](https://github.com/Johncoester/cla-portal-demo/pull/415), Live Nov 23 2026, 8:10 AM ET) fixes what the CRM Bot's review of PR 414 found. TC-ONLY-2c (this section's PR) fixes what its review of PR 415 found, and adds one small database file (20261129050000_tc_only_needs_tc_email.sql).
 
 **What's built**
 
@@ -3242,7 +3242,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/tc-only.md](docs/specs/tc-only.md)
 - TC-ONLY-2b (CRM Bot review of PR 414, Nov 23): a TC with a name but no email counts as no TC, so the screens say the email is held instead of "goes to <TC>". When the TC has no portal login, a line says in-app alerts for that agent are held. Admin and Super admin need the admin flag, like the server. The compose matches an agent by their contact email or their portal-login email, like the server. Sales staff no longer make a status read the server would refuse.
-- PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), [414](https://github.com/Johncoester/cla-portal-demo/pull/414) (screens), TC-ONLY-2b (review fixes).
+- TC-ONLY-2c (CRM Bot review of PR 415, Nov 23): when a TC has no portal login, the screens say portal alerts and most automatic emails are held until the TC is invited, while emails staff type and title package, post-closing, scheduling and Task Builder emails still go to them. With two TCs where only one has a login, it's worded per TC (the alerts go to the one with a login). A TC with no email shows one message. The server now refuses to tick the box when no linked TC on that side has an email.
+- PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), [414](https://github.com/Johncoester/cla-portal-demo/pull/414) (screens), [415](https://github.com/Johncoester/cla-portal-demo/pull/415) (review fixes), TC-ONLY-2c (second review fixes + server guard).
 
 **Decisions**
 

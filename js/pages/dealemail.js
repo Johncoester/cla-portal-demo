@@ -7,7 +7,7 @@ import { editorHtml, mountEditor } from './compose.js?v=202611249900';
 import { canUseGmail, introRecipients, introTemplate, hasSignature, fileTag } from '../data/gmail-email.js?v=202611191000';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611291500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { tcOnlyMap, tcOnlyNotes, isTcOnlyRole, canReadTcOnly } from '../data/tc-only.js?v=202611300545';
+import { tcOnlyMap, tcOnlyNotes, isTcOnlyRole, canReadTcOnly } from '../data/tc-only.js?v=202611300700';
 import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);

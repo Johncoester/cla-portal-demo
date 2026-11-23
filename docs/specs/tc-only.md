@@ -63,6 +63,13 @@ Task Builder's "Transaction coordinator" email choice now also reaches the agent
 - The compose matches a TC-only agent by contact email or portal-login email, the same as `resolve_recipients`. The login emails come from one by-id `profiles` read, made only when a ticked agent with a login is on the file.
 - Sales staff, and anyone else the server would refuse, don't call `tc_only_status`.
 
+## TC-ONLY-2c: second review fixes (CRM Bot review of PR 415)
+
+- A TC with an email but no portal login: portal alerts and most automatic emails (reminders, portal notices) for the agent are held until the TC is invited. Emails staff type, and title package, post-closing, scheduling and Task Builder emails, still go to the TC's email. The Contacts hint opens with exactly those emails, so it doesn't say "emails and alerts".
+- Two TCs where only one has a login: the alerts and automatic emails go to the one with a login. The screens say so per TC and don't say anything is held.
+- A TC with no email: one message ("Their linked TC, X, has no email address..."), not two.
+- Database (20261129050000_tc_only_needs_tc_email.sql): `public.set_participant_tc_only` refuses to tick the box when no TC linked to the agent on that side has an email (a contact email or a portal-login email). Unticking is always allowed. The activity line and the returned `tcs` list only TCs with an email. Who may call it is unchanged (staff/manager on the file). Rollback: supabase/rollbacks/20261129050000_tc_only_needs_tc_email.sql. Test: test/test-tc-only-needs-email-sql.sh (disposable local Postgres).
+
 ## Not done yet
 - Task Builder pages do not show the "goes to the TC" note. Their emails are still routed by the database.
 - Invites the staff send to an agent's own login are not swapped (the invite is for the agent's account).
