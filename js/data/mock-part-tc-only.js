@@ -9,7 +9,8 @@ export function tcOnlyPart(x) {
     const seen = new Set();
     return load().participants.filter((t) => t.dealId === a.dealId && t.role === role && !t.removed && links.some((l) => l.agentContactId === a.contactId && l.tcContactId === t.contactId))
       .filter((t) => (seen.has(t.contactId) ? false : seen.add(t.contactId)))
-      .map((t) => { const c = contact(t.contactId); return { name: `${c.firstName || ''} ${c.lastName || ''}`.trim(), email: String(c.email || '').toLowerCase(), hasLogin: !!c.profileId }; })
+      .map((t) => { const c = contact(t.contactId); const pr = c.profileId ? (load().profiles.find((q) => q.id === c.profileId && q.status !== 'disabled') || null) : null;
+        return { name: `${c.firstName || ''} ${c.lastName || ''}`.trim(), email: String(String(c.email || '').trim() || (pr && pr.email) || '').toLowerCase(), hasLogin: !!pr }; })
       .sort((p, q) => p.name.localeCompare(q.name));
   };
   const allowed = (u, dealId) => { if (!(isManager(u) || u.isAdmin)) fail('Only CLA staff on this file can change who gets the agent\'s emails.'); dealOr404(u, dealId); };
@@ -18,6 +19,12 @@ export function tcOnlyPart(x) {
       const u = needUser(); allowed(u, dealId);
       return clone(load().participants.filter((p) => p.dealId === dealId && (p.role === 'Buyer Agent' || p.role === 'Listing Agent') && !p.removed)
         .map((p) => ({ participantId: p.id, role: p.role, tcOnly: !!p.tcOnly, tcs: targets(p) })));
+    },
+    // TC-ONLY-2b: profileId -> portal-login email (staff only), so compose matches an agent by contact email or login email like the server
+    async tcOnlyLoginEmails(profileIds) {
+      needUser();
+      const ids = new Set((profileIds || []).filter(Boolean));
+      return Object.fromEntries(load().profiles.filter((q) => ids.has(q.id) && q.email).map((q) => [q.id, String(q.email).trim().toLowerCase()]));
     },
     async setParticipantTcOnly(participantId, on) {
       const u = needUser();

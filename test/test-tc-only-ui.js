@@ -8,7 +8,7 @@ globalThis.window = window; globalThis.document = document; globalThis.HTMLEleme
 globalThis.location = { hash: '#/deals/deal-1/contacts', pathname: '/', search: '' };
 const { createMockAdapter } = await import('../js/data/mock-adapter.js');
 const { toText } = await import('../js/ui.js');
-const { tcOnlyBox, tcOnlyNotes, tcOnlyPreviewNote, tcOnlyMap, canSetTcOnly, TC_ONLY_LABEL } = await import('../js/data/tc-only.js');
+const { tcOnlyBox, tcOnlyNotes, tcOnlyPreviewNote, tcOnlyMap, canSetTcOnly, canReadTcOnly, TC_ONLY_LABEL } = await import('../js/data/tc-only.js');
 const { render } = await import('../js/pages/dealcontacts.js');
 
 let fail = 0;
@@ -33,6 +33,35 @@ ok(tcOnlyNotes(rows, parts, ['other@example.test']).length === 0 && tcOnlyNotes(
 ok(/goes to their TC, Riley Coordinator/.test(tcOnlyPreviewNote(rows, 'p1')) && /held and not sent/.test(tcOnlyPreviewNote(rows, 'p2')) && tcOnlyPreviewNote(rows, 'p9') === '', 'Email sellers and agents preview notes');
 ok(canSetTcOnly({ role: 'Processor' }) && canSetTcOnly({ role: 'Preprocessor' }) && canSetTcOnly({ role: 'Transaction Coordinator' }) && canSetTcOnly({ role: 'Super admin', isAdmin: true })
   && !canSetTcOnly({ role: 'Sales Person' }) && !canSetTcOnly({ role: 'Outside user' }) && !canSetTcOnly({ role: 'Outside user', accountRole: 'agent_tc' }), 'who can tick it: processor, pre-processor, CLA TC, Admin');
+
+// ---------- TC-ONLY-2b (CRM Bot review of PR 414) ----------
+// a TC with a name but no email is not a usable TC: the database holds the email, so the screen must say "held", not "goes to <TC>"
+const noEmail = { tcOnly: false, tcs: [{ name: 'Nora Noemail', email: '', hasLogin: false }] };
+const nb = tcOnlyBox(noEmail, 'Buyer Agent', { canEdit: true });
+ok(nb.hasTc === false && nb.disabled === true && !/go to Nora/.test(nb.hint) && /no email address/.test(nb.hint), 'a TC with no email counts as no TC: the box is disabled and says why');
+const noEmailOn = tcOnlyMap([{ participantId: 'p1', role: 'Buyer Agent', tcOnly: true, tcs: noEmail.tcs }]);
+const ne = tcOnlyNotes(noEmailOn, [{ id: 'p1', role: 'Buyer Agent', contact: { firstName: 'Bianca', lastName: 'Agent', email: 'bianca@example.test' } }], ['bianca@example.test']);
+ok(ne.length === 1 && ne[0].kind === 'held' && /no email address/.test(ne[0].text) && !/Nora/.test(ne[0].text), 'compose: a ticked agent whose TC has no email shows the held note');
+ok(/held and not sent/.test(tcOnlyPreviewNote(noEmailOn, 'p1')) && !/Nora/.test(tcOnlyPreviewNote(noEmailOn, 'p1')), 'Email sellers and agents: held wording for a TC with no email');
+// a TC with an email but no portal login: emails go to the TC, but in-app alerts are held
+const noLogin = { tcOnly: true, tcs: [{ name: 'Lou Nologin', email: 'lou.tc@example.test', hasLogin: false }] };
+const lb = tcOnlyBox(noLogin, 'Buyer Agent', { canEdit: true });
+ok(/go to Lou Nologin instead/.test(lb.hint) && /no portal login yet, so in-app alerts for this agent are held/.test(lb.hint), 'box hint: a TC with no portal login says in-app alerts are held');
+const nlRows = tcOnlyMap([{ participantId: 'p1', role: 'Buyer Agent', tcOnly: true, tcs: noLogin.tcs }]);
+const nl = tcOnlyNotes(nlRows, [{ id: 'p1', role: 'Buyer Agent', contact: { email: 'bianca@example.test' } }], ['bianca@example.test']);
+ok(nl[0].kind === 'redirect' && /Lou Nologin/.test(nl[0].text) && /in-app alerts for this agent are held/.test(nl[0].text), 'compose note: no-login line');
+ok(/in-app alerts for this agent are held/.test(tcOnlyPreviewNote(nlRows, 'p1')), 'preview note: no-login line');
+ok(!/portal login/.test(tcOnlyBox(linked, 'Buyer Agent', { canEdit: true }).hint) && !/portal login/.test(tcOnlyBox({ tcOnly: true, tcs: [{ name: 'Riley', email: 'r@example.test', hasLogin: true }] }, 'Buyer Agent', { canEdit: true }).hint), 'no extra line when the TC has a login (or the flag is unknown)');
+// compose matches an agent by contact email OR portal-login email, like the server
+const lp = [{ id: 'p1', role: 'Buyer Agent', contact: { firstName: 'Bianca', lastName: 'Agent', email: 'bianca@example.test', profileId: 'u-b' } }];
+const lr = tcOnlyMap([{ participantId: 'p1', role: 'Buyer Agent', tcOnly: true, tcs: linked.tcs }]);
+ok(tcOnlyNotes(lr, lp, ['Bianca.Login@Example.test'], { 'u-b': 'bianca.login@example.test' }).length === 1, 'compose: the agent typed by their portal-login email gets the note');
+ok(tcOnlyNotes(lr, lp, ['bianca.login@example.test'], new Map([['u-b', 'bianca.login@example.test']])).length === 1, 'login emails can be a Map too');
+ok(tcOnlyNotes(lr, lp, ['bianca.login@example.test']).length === 0 && tcOnlyNotes(lr, lp, ['bianca@example.test'], {}).length === 1, 'contact email still matches; no login map, no login match');
+// the server's admin rule: the admin flag, not the role name
+ok(!canSetTcOnly({ role: 'Admin' }) && !canSetTcOnly({ role: 'Super admin' }) && canSetTcOnly({ role: 'Admin', isAdmin: true }) && canSetTcOnly({ role: 'Sales Person', isAdmin: true }),
+  'Admin / Super admin need the admin flag (private.is_admin), like the server; any role with the flag may');
+ok(!canReadTcOnly({ role: 'Sales Person' }) && !canReadTcOnly({ role: 'Sales Team' }) && canReadTcOnly({ role: 'Processor', viewOnly: true }) && !canSetTcOnly({ role: 'Processor', viewOnly: true }), 'sales staff do not read it; view-only staff read but cannot change');
 
 // ---------- the demo portal, every role ----------
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
@@ -72,19 +101,41 @@ ok((await api.tcOnlyStatus('deal-1')).find((r) => r.participantId === 'dp-1-bage
 app = await paint('u-proc'); box = app.querySelector('[data-tc-only="dp-1-bagent"]');
 box.checked = true; box.dispatchEvent(new window.Event('change')); await wait(20);
 ok((await api.tcOnlyStatus('deal-1')).find((r) => r.participantId === 'dp-1-bagent').tcOnly === true, 'ticking on the screen turns it on');
-app = await paint('u-sp');
-box = app.querySelector('[data-tc-only="dp-1-bagent"]');
-ok(!box || box.hasAttribute('disabled'), 'sales person: the box is not editable');
+// TC-ONLY-2b: sales staff make no status call (the server would refuse it), and see no box
+let calls = 0; const realStatus = api.tcOnlyStatus; api.tcOnlyStatus = async (...a) => { calls += 1; return realStatus(...a); };
+for (const who of ['u-sp', 'u-team']) {
+  calls = 0; app = await paint(who);
+  ok(!app.querySelector('[data-tc-only]') && calls === 0, `${who}: no box and no refused status call`);
+}
+for (const who of ['u-proc', 'u-preproc', 'u-tc', 'u-admin']) {
+  calls = 0; app = await paint(who);
+  ok(calls === 1 && app.querySelector('[data-tc-only="dp-1-bagent"]'), `${who}: one status read and the box shows`);
+}
+api.tcOnlyStatus = realStatus;
+// a TC with no portal login on the demo file: the hint on the screen says alerts are held
+await api.signInDev('u-proc');
 for (const who of ['u-bagent', 'u-lagent', 'u-buyer', 'u-seller']) {
   app = await paint(who).catch(() => null);
   ok(!app || !app.querySelector('[data-tc-only]'), `${who}: no box on Contacts`);
 }
 
+const realS2 = api.tcOnlyStatus;
+api.tcOnlyStatus = async (id) => (await realS2(id)).map((r) => (r.participantId === 'dp-1-bagent' ? { ...r, tcs: r.tcs.map((t) => ({ ...t, hasLogin: false })) } : r));
+app = await paint('u-proc');
+ok(/in-app alerts for this agent are held/.test(app.querySelector('[data-tc-only-row="dp-1-bagent"]').textContent), 'Contacts: TC with no portal login shows the held-alerts line');
+api.tcOnlyStatus = async (id) => (await realS2(id)).map((r) => (r.participantId === 'dp-1-bagent' ? { ...r, tcs: r.tcs.map((t) => ({ ...t, email: '' })) } : r));
+app = await paint('u-proc');
+ok(/no email address/.test(app.querySelector('[data-tc-only-row="dp-1-bagent"]').textContent) && !/go to Riley/.test(app.querySelector('[data-tc-only-row="dp-1-bagent"]').textContent), 'Contacts: TC with no email shows the held wording');
+api.tcOnlyStatus = realS2;
+ok(typeof api.tcOnlyLoginEmails === 'function' && Object.keys(await api.tcOnlyLoginEmails(['u-bagent'])).length === 1, 'demo portal: login emails for compose');
+
 // ---------- the compose and preview notes are wired ----------
 const email = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
 ok(email.includes('data-tc-only-note') && email.includes('tcOnlyNotes(') && email.includes("'[data-mail-bcc]'"), 'compose shows a note for To, Cc and Bcc');
+ok(email.includes('canReadTcOnly(user)') && email.includes('tcOnlyLoginEmails(') && email.includes('all, tcLogins)'), 'compose: no call for sales; matches login emails');
 const dealSrc = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 ok(dealSrc.includes('tcOnlyPreviewNote(') && dealSrc.includes('data-tc-only-note'), 'Email sellers and agents preview shows the note');
+ok(dealSrc.includes('canReadTcOnly(user)') && dealSrc.includes('automationModal(api, d, user)'), 'Email sellers and agents: no status call for sales');
 
 console.log(fail ? fail + ' failed' : 'tc-only ui passed');
 if (fail) process.exit(1);
