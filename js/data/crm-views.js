@@ -2,7 +2,7 @@
  * "Aesthetics - Buttons and Options"). Pure helpers + constants shared by the mock adapter, the pages and the tests. Mirrored by migration 56:
  *   crm_views (+ crm_view_criteria, crm_view_columns, crm_view_shares, crm_view_pins) and crm_saved_filters (+ crm_saved_filter_values),
  *   crm_search_columns. Every part is a typed row (no JSON blobs), so "which views use field X" or "who pinned what" is a plain query. */
-import { moduleFields } from './crm-analytics.js?v=202611290800';
+import { moduleFields } from './crm-analytics.js?v=202611301000';
 export const VIEW_MODULES = ['contacts', 'leads', 'accounts', 'deals'];
 export const VIEW_MODULE_LABEL = { contacts: 'Clients', leads: 'Leads', accounts: 'Companies', deals: 'Deals' };
 export const VIEW_VISIBILITY = [['me', 'Only me'], ['all', 'Everyone with the CRM'], ['custom', 'Selected users']];
