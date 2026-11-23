@@ -11,7 +11,7 @@
 --
 -- Needs 20261129010000_crm_deal_report_fields.sql (RPT-1) only for order; it does not call it.
 -- Not applied by this commit. Apply on TEST after the pull request merges.
--- Rollback: supabase/rollbacks/20261129020000_crm_deal_report_tasks.sql
+-- Rollback: supabase/rollbacks/20261129020500_crm_deal_report_tasks.sql
 begin;
 set local lock_timeout = '3s';
 
