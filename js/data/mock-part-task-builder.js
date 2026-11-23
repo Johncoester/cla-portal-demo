@@ -13,7 +13,7 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved file template or a written message, with merge fields) and the "File closed"
  * trigger. Emails are queued in the outbox; a test run sends the email only to the admin trying it. */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611291500';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, taskKeys, isTestRunTask, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611291600';
 import { renderFlowEmail, testCopy, emailRecipients, emailRoleName, signatureText, withSignature } from './flow-email.js?v=202611291500';
 import { SEED_SHARED } from './file-email-templates.js?v=202611291500';
 import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';
@@ -33,7 +33,7 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
   const db = () => ensureTaskFlows(load());
   const admin = () => { const u = needUser(); if (!canManageTaskBuilder(u)) fail(TASK_BUILDER_ADMIN_ONLY); return u; };
   const clean = (input) => { try { return cleanFlow(input); } catch (e) { return fail(e.message); } };
-  const view = (f) => ({ ...f, steps: (f.steps || []).map((s) => ({ ...s, text: stepText(s) })), conditions: { ...f.conditions }, triggerText: triggerText(f.trigger, f.triggerDays),
+  const view = (f) => ({ ...f, steps: (f.steps || []).map((s) => ({ ...s, text: stepText(s) })), conditions: { ...f.conditions }, triggerText: triggerText(f.trigger, f.triggerDays, f.triggerTaskName), triggerTask: f.triggerTask || null, triggerTaskName: f.triggerTaskName || null,
     conditionsText: conditionsText(f.conditions), runsNow: triggerRuns(f.trigger), scope: f.scope || 'new', scopeText: scopeText(f), activatedAt: f.activatedAt || null,
     createdByName: f.createdBy ? nameOf(f.createdBy) : '', updatedByName: f.updatedBy ? nameOf(f.updatedBy) : '' });
   const one = (d, id) => d.taskFlows.find((f) => f.id === id) || fail('That flow was not found. Refresh the page and try again.');
@@ -174,9 +174,9 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
   const start = (d, flow, deal, at) => { const r = { id: nid('tfr'), ...newRun(flow, deal.id, at) }; d.taskFlowRuns.push(r); return r; };
   // an event on a file: start the flows it triggers. A new order's runs move on at the next check, after Place Order has added the people;
   // an EMD or closing date change moves them on straight away.
-  function onEvent(dealId, event) {
+  function onEvent(dealId, event, keys) {
     const d = db(); const deal = d.deals.find((x) => x.id === dealId); if (!dealRuns(deal) && !(event === 'file_closed' && deal && deal.status === 'Closed')) return 0; const at = now(); let n = 0;
-    flowsForEvent(d.taskFlows, event, deal).forEach((f) => { if (mayStart(f, d.taskFlowRuns.filter((r) => r.dealId === dealId))) { start(d, f, deal, at); n++; } });
+    flowsForEvent(d.taskFlows, event, deal, keys).forEach((f) => { if (mayStart(f, d.taskFlowRuns.filter((r) => r.dealId === dealId))) { start(d, f, deal, at); n++; } });
     if (!n) return 0;
     save(); lastTick = 0;
     if (event !== 'order_opened') tick();
@@ -205,12 +205,12 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
     async createTaskFlow(input = {}) { const u = admin(); const v = clean(input); const d = db();
       if (nameTaken(d, v.name, null)) fail(DUPLICATE_NAME);
       const t = now(); const f = { id: nid('flow'), ...v, active: false, createdAt: t, createdBy: u.id, updatedAt: t, updatedBy: u.id };
-      d.taskFlows.push(f); log(d, u, f, 'created', `Starts: ${triggerText(f.trigger, f.triggerDays)}. ${f.steps.length} ${f.steps.length === 1 ? 'step' : 'steps'}. Off.`); save(); return view(f); },
+      d.taskFlows.push(f); log(d, u, f, 'created', `Starts: ${triggerText(f.trigger, f.triggerDays, f.triggerTaskName)}. ${f.steps.length} ${f.steps.length === 1 ? 'step' : 'steps'}. Off.`); save(); return view(f); },
     async updateTaskFlow(id, input = {}) { const u = admin(); const v = clean(input); const d = db(); const f = one(d, id);
       if (nameTaken(d, v.name, id)) fail(DUPLICATE_NAME);
       const changes = [];
       if (f.name !== v.name) changes.push(`name was "${f.name}"`);
-      if (f.trigger !== v.trigger || (f.triggerDays || null) !== (v.triggerDays || null)) changes.push(`starts: was ${triggerText(f.trigger, f.triggerDays)}, now ${triggerText(v.trigger, v.triggerDays)}`);
+      if (f.trigger !== v.trigger || (f.triggerDays || null) !== (v.triggerDays || null) || (f.triggerTask || null) !== (v.triggerTask || null)) changes.push(`starts: was ${triggerText(f.trigger, f.triggerDays, f.triggerTaskName)}, now ${triggerText(v.trigger, v.triggerDays, v.triggerTaskName)}`);
       if ((f.description || '') !== v.description) changes.push('description changed');
       if (JSON.stringify(f.conditions) !== JSON.stringify(v.conditions)) changes.push(`which files: now ${conditionsText(v.conditions)}`);
       if (JSON.stringify(f.steps) !== JSON.stringify(v.steps)) changes.push(`steps changed (${v.steps.length})`);
@@ -257,6 +257,15 @@ export function watchTaskFlowEvents(api, load) {
   wrap('updateEmdAlta', (a) => a[0]);
   wrap('setStage', (a) => a[0]);   // the last stage closes the file (funds disbursed)
   wrap('setDealStatus', (a) => a[0]);
+  // TB-11 (Nov 22): a task checked off on a file starts the "Task completed" templates that name it. Tasks are completed from many places
+  // (the task list, forms, scheduling...), so every call that may change data is watched: tasks that are done afterwards but were not before.
+  const doneIds = () => new Set((load().tasks || []).filter((t) => t.status === 'done').map((t) => t.id));
+  Object.keys(api).forEach((name) => { const fn = api[name];
+    if (typeof fn !== 'function' || name.startsWith('_') || /^(list|get|is|can|search|count|find|sign|whoAmI|current)/.test(name)) return;
+    api[name] = async function (...args) { const before = doneIds(); const r = await fn.apply(this, args);
+      try { (load().tasks || []).filter((t) => t.status === 'done' && !before.has(t.id) && !isTestRunTask(t)).forEach((t) => event(t.dealId, 'task_completed', taskKeys(t))); }
+      catch (e) { /* a template problem never stops the task from saving */ }
+      return r; }; });
   ['getDeal', 'listTasks'].forEach((name) => { const fn = api[name]; if (typeof fn !== 'function') return;
     api[name] = async function (...args) { lazyTick(); return fn.apply(this, args); }; });
 }
