@@ -55,6 +55,14 @@ Task Builder's "Transaction coordinator" email choice now also reaches the agent
 - Code: `js/data/tc-only.js` (the rules for the box and notes), `js/data/supabase-tc-only.js`, `js/data/mock-part-tc-only.js`,
   `js/pages/dealcontacts.js`, `js/pages/dealemail.js`, `js/pages/deal.js`. Test: `test/test-tc-only-ui.js` (every role on the demo portal).
 
+## TC-ONLY-2b: review fixes (CRM Bot review of PR 414, no database file)
+
+- A TC with no email address is treated as no TC on the screens (the database holds those emails). The box stays disabled until the TC has an email, and the compose and preview notes use the "held" wording.
+- When a linked TC has an email but no portal login (`hasLogin` false from `tc_only_status`), the box hint and the notes add: in-app alerts for this agent are held until the TC is invited.
+- Who can read or tick it on screen matches `private.is_manager()`: role Processor, Preprocessor or Transaction Coordinator, or the admin flag. The role name Admin or Super admin alone isn't enough.
+- The compose matches a TC-only agent by contact email or portal-login email, the same as `resolve_recipients`. The login emails come from one by-id `profiles` read, made only when a ticked agent with a login is on the file.
+- Sales staff, and anyone else the server would refuse, don't call `tc_only_status`.
+
 ## Not done yet
 - Task Builder pages do not show the "goes to the TC" note. Their emails are still routed by the database.
 - Invites the staff send to an agent's own login are not swapped (the invite is for the agent's account).

@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611300440';
+import { prefetchDealTab } from './deal-tab.js?v=202611300600';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -34,7 +34,7 @@ import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-f
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
-import { tcOnlyMap, tcOnlyPreviewNote } from '../data/tc-only.js?v=202611291700';
+import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611300545';
 // The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
 const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
 function staffSections(ctx, dealId) {
@@ -269,7 +269,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
     const eb = $('#editdeal', root); if (eb) eb.addEventListener('click', guard(() => editModal(api, d, refresh, user.id)));
     const as = $('#addsales', root); if (as) as.addEventListener('change', guard(async () => { if (!as.value) return; await api.addDealSalesPerson(d.id, as.value); toast('Salesperson added'); refresh(); }));
     $$('[data-rm-sales]', root).forEach((b) => b.addEventListener('click', guard(async () => { await api.removeDealSalesPerson(d.id, b.dataset.rmSales); toast('Salesperson removed'); refresh(); })));
-    const ab = $('[data-email-sellers-agents]', root); if (ab) ab.addEventListener('click', guard(() => automationModal(api, d)));
+    const ab = $('[data-email-sellers-agents]', root); if (ab) ab.addEventListener('click', guard(() => automationModal(api, d, user)));
     const wb = $('#wirebtn', root); if (wb) wb.addEventListener('click', guard(() => wireModal(api, d)));
     $$('[data-add-party]', root).forEach((b) => b.addEventListener('click', guard(() => addPartyModal(api, d, b.dataset.addParty, refresh, b.dataset.replaceParty || ''))));
     const en = $('[data-edit-notes]', root); if (en) en.addEventListener('click', guard(() => editModal(api, d, refresh, user.id)));
@@ -753,14 +753,15 @@ function automationSection(d, refi) {
       <p class="small" data-gmail-on><span class="pill info">Gmail</span> Sends from your own @clatitle.com Gmail once it is connected (Profile Setting &gt; Gmail). The email goes to the address on the file.</p></div>
       <button type="button" class="m-btn" data-email-sellers-agents ${refi ? raw('disabled title="A refinance has no sellers or agents"') : ''}>Email sellers and agents</button></div></div>`;
 }
-async function automationModal(api, d) {
+async function automationModal(api, d, user) {
   const g = api.getGmailStatus ? await api.getGmailStatus().catch(() => ({ connected: false })) : { connected: false };
   const on = !!(g && g.connected && g.status === 'connected');
   // one sign-off only: when the portal signature goes on the email, the built-in body leaves the name to it
   const P = await api.previewSellerAgentEmails(d.id, { portalSignature: on && hasSignature(g.signatureHtml) }); const sendable = P.messages.filter((m) => m.email);
   // TC-ONLY-2: say which agent emails go to the agent's TC instead (the database swaps them when they are sent)
   let tcRows = new Map();
-  if (api.tcOnlyStatus && P.messages.some((x) => x.agent)) { try { tcRows = tcOnlyMap(await api.tcOnlyStatus(d.id)); } catch (e) { tcRows = new Map(); } }
+  if (api.tcOnlyStatus && canReadTcOnly(user) && P.messages.some((x) => x.agent)) {   // TC-ONLY-2b: no refused call for sales staff
+    try { tcRows = tcOnlyMap(await api.tcOnlyStatus(d.id)); } catch (e) { tcRows = new Map(); } }
   const tcNote = (x) => (x.agent ? tcOnlyPreviewNote(tcRows, x.participantId) : '');
   // John, Nov 9 (Gmail phase 1); Nov 13: Send goes out one email per person from the user's own Gmail through gmail-send, to the address on the file.
   const m = modal('Email sellers and agents', html`${on ? html`<div class="notice info" data-gmail-on-modal>Sends one email per person from <strong>${g.mailbox}</strong>.</div>`
