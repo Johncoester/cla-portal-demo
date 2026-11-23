@@ -3087,6 +3087,36 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Open a document folder (FF-107)
+
+**How it should work.** On an order's Documents page, each folder on the Folders tab is clickable and opens to show the documents inside. People who can already upload can upload into the open folder. They can list, preview, and download those files. Move from inside a folder, and anything about "save", are not in this item. Sales still cannot move files. The Word editor stays held. Buyers, sellers, and agents still do not see the Folders tab. Document visibility stays as it already is.
+
+**Status: Building.** Tracker FF-107. Francis Santos, confirmed items 1-4 on Nov 23 2026, 12:04 PM ET (Gmail 1a2095e4887afd30). Source: Francis confirm-back Nov 23. Pull request pending, after FF-106 (PR 421). No database file.
+
+**What's built**
+
+- Folder names on the Folders tab, including Unfiled, open that folder.
+- An open folder lists its files, with preview and download, a back link, and upload into that folder for people who can already upload.
+- Sales can open a folder and see the files. They still cannot add, move, or upload.
+- Buyers, sellers, and agents still do not get the Folders tab. Staff-only files in a folder stay hidden from them.
+
+**What's still missing**
+
+- Not merged or checked on TEST yet. Do not mark Live before that.
+- Move from inside a folder, and "save", wait for a clearer answer from Francis.
+- The Word editor stays held.
+
+**Links**
+
+- Spec: [docs/specs/ff-107-folder-open.md](docs/specs/ff-107-folder-open.md)
+- Related: [docs/specs/document-folders.md](docs/specs/document-folders.md)
+
+**Decisions**
+
+- This is items 1-4 only. Move-from-folder and "save" are not built.
+- Sales permissions stay as they are today.
+
+
 ## CRM Companies column sort (Feedback 30 follow-up item 1)
 
 **How it should work.** On CRM, then Companies, each column header sorts the All Companies list. The first click sorts up. The second click sorts down. The same arrow used on Leads, Clients, and Deals shows the direction. Search, filters, and pages stay in effect.
