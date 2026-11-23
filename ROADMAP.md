@@ -231,6 +231,36 @@ This file lists the portal's major features: how each one should work, how far a
 - Loan opens the existing Title loan check. Commitment opens the existing Schedule A page. Earnest & Commissions opens Basic Info, where earnest money and the commission summary already sit.
 - Other Contacts stays under General because that page already existed in the second column.
 - The shell cache stamp is 202611247600.
+- On a phone, the This File menu is behind a button (JC-MOBILE-1).
+
+---
+
+## Mobile This File menu (JC-MOBILE-1)
+
+**How it should work.** On a phone, the This File sidebar (File Overview, My Tasks, Inbox, Documents, Scheduling Details, and the rest of the file links) starts closed behind a This File button that sits in the page, so the menu never covers the property address or order details. Tapping the button opens a drawer with a dimmed backdrop. Tapping a file tab, Close, the dimmed area, or Escape closes it. On a computer the left sidebar is unchanged. A buyer or seller who already uses the light file shell (no sidebar) is unchanged.
+
+**Status: Building.** Tracker item JC-MOBILE-1. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET.
+
+**What's built**
+
+- On viewports 860px and narrower, This File is a button in the page flow. The file links are hidden until the button is tapped.
+- The open menu is a left drawer with a Close button and a backdrop. A tab, Close, the backdrop, or Escape closes it.
+- The computer sidebar, Show portal menu, and the buyer/seller light shell are unchanged.
+
+**What's missing**
+
+- Not on TEST yet. No database file.
+- The oversized sticky order header on a phone is a separate item (JC-MOBILE-2).
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [File sidebar (FF-103)](#file-sidebar-ff-103).
+
+**Decisions**
+
+- The phone breakpoint stays 860px, the same one the sidebar already uses.
+- No database change.
 
 ---
 

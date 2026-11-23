@@ -143,6 +143,7 @@ body.theme-cards #view:has(> [data-tc-dash-row]) > * { order: 2; } body.theme-ca
   body.theme-cards .nav-sep { width: 100%; padding: 8px 4px 2px; }
   body.theme-cards .right-bar { margin-left: 0; padding: 22px 18px 56px; } body.theme-cards .footer-bar { margin-left: 0; }
   body.theme-cards .page-title, body.theme-cards .tc-page-title { font-size: 30px; }
+  body.theme-cards .this-file-nav.is-open { background: var(--tc-side); }
 }
 @media (max-width: 560px) { .theme-cards .tc-dash-row, .theme-cards .tc-cols, .theme-cards .tc-party-grid { grid-template-columns: 1fr; }
   .theme-cards .tc-cols > div + div, .theme-cards .tc-party:nth-child(even) { border-left: 0; padding: 18px 0 0; } }
