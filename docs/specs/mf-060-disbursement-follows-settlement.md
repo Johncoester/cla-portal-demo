@@ -20,3 +20,10 @@
 ## Not changed
 
 - The buyer closing-date lock (a buyer's proposed time never writes the file closing date) is held and untouched.
+
+## Follow-up MF-060b (Nov 23 2026)
+
+From the CLA CRM Bot's post-merge review of PR 413. Migration `20261129050000_disbursement_keep_on_clear.sql` (rollback in `supabase/rollbacks/`):
+- Clearing the settlement date no longer wipes the disbursement date. The reset runs only when a new settlement date is set.
+- When the trigger resets a hand-set disbursement date, it writes one activity log entry (`disbursement.date`, "Disbursement date 2026-12-03 reset to follow the closing date (2026-12-04)") through the existing `private.log_activity` helper. An automatic date that stays automatic logs nothing.
+- The Disbursement Details date is not changed; John is asking Matt about it separately.

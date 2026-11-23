@@ -17,3 +17,7 @@ The Tasks tab and the task page open on the file shell, which has no parties, an
 
 - No database change. Who can see which contacts is unchanged; a buyer or seller still sees only their own tasks.
 - The cross-file All Tasks page, agent task pages, and the TC overview already use their own labels and are not part of this item.
+
+## Who sees which names (MF-060b, Nov 23 2026)
+
+Outside viewers on a file (agents, TCs, lenders, buyers, sellers) now see party names on the tasks they can see. These are the same names their Contacts screen already shows: the names come from the same `deal_contacts` / `deal_entities` reads, so no one sees a name they could not already see. For example, a seller's agent now sees the sellers' names on seller tasks. A buyer or seller still sees only their own side, and a buyer-only or seller-only viewer does not see the other side's agent. When the read leaves a side out, the task says "Buyer" or "Seller" instead of a name. Names are always escaped. Tests: `test/test-task-party-names-access.js` (from the CLA CRM Bot's post-merge review of PR 416).
