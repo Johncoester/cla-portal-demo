@@ -74,5 +74,15 @@ ok(above("Prince George's", 270000, 372000, { occ: false }).reduce((a, l) => a +
 ok(above('Montgomery', 600000, 480000).length === 0, 'no extra tax when the loan is below the price');
 agree('PG loan above price', purchase('MD', "Prince George's", 525000, 536287));
 
+// Pennsylvania and West Virginia (Nov 23 2026, calculator PR #3)
+{ const pa = proposeFees(purchase('PA', 'York', 400000, 320000)), sum = (re, who) => money(pa.lines.filter((l) => re.test(l.description) && (!who || l.paidBy === who)).reduce((a, l) => a + l.amount, 0));
+  ok(sum(/State realty transfer/) === 4000 && sum(/Local realty transfer/) === 4000, 'PA York $400k: 1% state + 1% local realty transfer tax: ' + sum(/State realty/) + ' / ' + sum(/Local realty/));
+  ok(pa.lines.some((l) => /Owner's Title Policy/.test(l.description)), 'PA prices an owner\'s policy (TIRBOP rates)');
+  const phl = proposeFees(purchase('PA', 'Philadelphia', 400000, 320000)).lines.filter((l) => /Local realty transfer/.test(l.description)).reduce((a, l) => a + l.amount, 0);
+  ok(money(phl) === 14312, 'PA Philadelphia local transfer tax 3.578% ($14,312): ' + phl);
+  const pgh = proposeFees(purchase('PA', 'Allegheny', 400000, 320000), { area: 'Pittsburgh' }).lines.filter((l) => /Local realty transfer/.test(l.description)).reduce((a, l) => a + l.amount, 0);
+  ok(money(pgh) === 16000, 'PA Pittsburgh municipality rate 4% when the area is passed: ' + pgh);
+  const wv = proposeFees(purchase('WV', 'Berkeley', 400000, 320000)), ex = money(wv.lines.filter((l) => /excise/i.test(l.description) && l.paidBy === 'seller').reduce((a, l) => a + l.amount, 0));
+  ok(ex === 3080, 'WV Berkeley seller excise $3,080 on $400k: ' + ex); }
 console.log(fail ? fail + ' failed' : 'fee engine passed');
 process.exit(fail ? 1 : 0);

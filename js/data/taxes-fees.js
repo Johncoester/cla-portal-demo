@@ -5,7 +5,7 @@
 import {
   proposeFees, diffProposal, previewView, defaultRecordingDocs, RECORDING_DOCS, calcTypeOf, countyOf, countyIsKnown,
   COUNTY_UNKNOWN, CALC_STATES, NO_OO, calculatorCore as C, isCalculated, isOverridden
-} from './fee-engine.js?v=202611247900';
+} from './fee-engine.js?v=202611290310';
 import { addressOnFile, textField, zipCounties } from './fee-place.js?v=202611247700';
 import { calculateRateSheet, questionsFor } from './tax-rate-calc.js?v=202611244001';
 
@@ -330,7 +330,7 @@ export function taxesFeesSetup(deal, fees, R, rate, bundle = null) {
     countyNote: '',
     source: rate && rate.source ? { label: rate.source.label || '', snapshot: rate.source.snapshot || '' } : null
   };
-  if (!CALC_STATES.includes(state)) return { ...base, questions: [], answers: {}, manual: {}, reason: `CLA rates cover MD, VA, DC and FL only (this order is in ${state || 'no state'}).` };
+  if (!CALC_STATES.includes(state)) return { ...base, questions: [], answers: {}, manual: {}, reason: `CLA rates cover MD, VA, DC, FL, PA and WV only (this order is in ${state || 'no state'}).` };
   if (!countyIsKnown(R, deal || {})) return { ...base, questions: [], answers: {}, manual: {}, reason: unknownReason(place) };
   const county = countyOf(R, deal || {});
   const qs = bundle ? questionsFor(bundle, { state, county, city: textField(deal, 'city') }, type) : [];

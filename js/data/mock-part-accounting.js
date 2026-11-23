@@ -12,8 +12,8 @@ import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, di
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.
-const engine = () => import('./fee-engine.js?v=202611247900');
-const taxes = () => import('./taxes-fees.js?v=202611247900');
+const engine = () => import('./fee-engine.js?v=202611290310');
+const taxes = () => import('./taxes-fees.js?v=202611290800');
 const taxStore = () => import('./mock-part-tax-rates.js?v=202611247700');
 const VIA = 'CLA rates';
 

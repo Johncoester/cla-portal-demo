@@ -34,3 +34,20 @@ Claude ran Francis's closed files through the calculator (31 of 40 readable). Re
 - **FL-26-32311**: no mortgage doc stamps or intangible tax on the statement. Needs checking.
 
 Unreadable (scanned pages): MD-26-32302 and DC-26-32006, 32046, 32071, 32106, 32339, 32519.
+
+## Pennsylvania and West Virginia (added Nov 23 2026, REC-CALC-8)
+
+- PA realty transfer tax:
+  - The state's 1% plus the local rate (standard 1%; Philadelphia 3.578%; listed municipalities have their own rate), split 50/50.
+  - No tax on mortgages or refinances.
+  - Where Lodestar and the Chicago Title rate chart disagree (Ferguson Twp., Hermitage, Sharon), the higher figure is used.
+  - Mt. Oliver uses Allegheny County's 2% local rate. Lodestar's 5% total looks wrong.
+- WV excise tax:
+  - $1.10 per $500 to the state plus the county rate as Lodestar charges it ($1.10–$2.75 per $500), paid by the seller.
+  - Mason County is capped at the legal maximum of $2.75; Lodestar shows $3.85.
+  - Deeds of trust are exempt.
+- WV recording: $32 per deed or deed of trust and $12 per release, plus $1 per page over 5, a $20 Affordable Housing fee on deeds, and $1 per document for the clerk.
+- PA recording:
+  - Philadelphia and Allegheny are flat fees.
+  - Other counties use their own fee schedule or a figure backed out from Lodestar's total.
+  - Counties with no row use $106.25 for a deed or mortgage and $79.75 for a satisfaction, plus $2 per page over 4. This can be high where no UPI fee is charged.

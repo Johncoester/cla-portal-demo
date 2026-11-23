@@ -1203,6 +1203,31 @@ This file lists the portal's major features: how each one should work, how far a
 - Melissa Gamble, Nov 16: collect recordation and transfer tax on the amount above the price. Assignment fees are not added to the price.
 - The Baltimore City exemption split (Melissa: the exemption applies to the buyer's side) is not changed here. Lodestar and two closed files (Montgomery, Washington County) split it 50/50, so John decides first.
 
+
+## Recording calculator Pennsylvania and West Virginia (REC-CALC-8)
+
+**How it should work.** Calculate fees works on Pennsylvania and West Virginia orders. Recording fees and taxes match CLA's Lodestar calculator, and PA title premiums follow the TIRBOP rates that Fidelity files.
+
+**Status: Built, not merged (Nov 23 2026).** John Coester, Nov 23 2026 (voice), assigned to Claude. Calculator [PR 3](https://github.com/Johncoester/cla-closing-cost-calculator/pull/3) and this portal PR. No database file. The rows are already on the live fee sheet.
+
+**What's built**
+
+- PA and WV are calculator states. The copied calculator code and saved rates include PA and WV.
+- PA charges the 1% state transfer tax plus the local rate, split 50/50 (Philadelphia 3.578%). Municipalities with their own rate are rows the engine uses when given `area`.
+- WV charges the state excise tax plus the county rate, paid by the seller.
+- PA premiums: owner's and lender's issued together cost one charge on the higher amount. Enhanced costs the sale rate +10% +$400. Refinances use the non-sale rate. CPL is $125.
+- Tests: York and Philadelphia taxes, Pittsburgh with `area`, Berkeley WV excise.
+
+**What's still missing**
+
+- A municipality field on the order. Until then, PA uses the standard local rate and warns which towns differ.
+- WV premiums. Calculate fees warns until Fidelity's WV rate manual is added (John is getting it).
+- CLA's PA/WV settlement fees. Janine and Francis enter them in CLA_Fees.
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-pa-wv.md](docs/specs/recording-calculator-pa-wv.md)
+- Source: John Coester, Nov 23 2026 (voice).
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.
