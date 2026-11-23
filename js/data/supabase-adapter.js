@@ -16,6 +16,7 @@ import { taxRatesSupabase } from './supabase-tax-rates.js?v=202611247700';
 import { payoffsSupabase } from './supabase-payoffs.js?v=202611247900';
 import { agentFeesSupabase } from './supabase-agent-fees.js?v=202611247900';
 import { titleSupabase } from './supabase-title.js?v=202611247700';
+import { tcOnlySupabase } from './supabase-tc-only.js?v=202611291700';
 import { policySupabase } from './supabase-policy.js?v=202611112100';
 import { fundingSupabase } from './supabase-funding.js?v=202611247900';
 import { postClosingSupabase } from './supabase-postclosing.js?v=202611111900';
@@ -1012,6 +1013,7 @@ export async function createSupabaseAdapter(cfg) {
   // ACCOUNTING (John, Nov 3; migration 34): only when features.accounting === true (off by default everywhere) AND the database switch is on.
   Object.assign(a, accountingSupabase({ sb, ok, flags: a.features }));
   Object.assign(a, taxRatesSupabase({ sb, me }));
+  Object.assign(a, tcOnlySupabase({ sb, ok }));   // TC-ONLY-2: Only communicate with TC on a file's agent
   // PAYOFFS / HOA / FFB / GROUND RENT (John, Nov 4; migration 42): same switches as accounting, staff only
   Object.assign(a, payoffsSupabase({ sb, ok, flags: a.features, api: a }));
   // AGENT FEES (AF-2, John Nov 12): per side commission / admin fee / other fees; the database functions decide who sees and changes what
