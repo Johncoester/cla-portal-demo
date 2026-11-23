@@ -31,7 +31,7 @@ ok(cards[0].name === 'Paula Processor' && cards[0].id === 'u-proc', 'the Process
 ok(cards[1].role === 'Preprocessor' && cards[1].name === 'Pat Preprocessor' && cards[1].id === 'u-preproc', 'the Preprocessor card shows the assigned CLA Preprocessor from Edit order details');
 ok(!cards.some((c) => c.role === 'Transaction Coordinator') && !cards.some((c) => c.name === 'Terry Coordinator'),
   'the former Transaction Coordinator Closing Team card is gone; the CLA TC name is not shown as its own card');
-ok(cards[2].role === 'Licensed Settlement Agent' && cards[2].name === '' && cards[2].blankBecause === 'no-field', 'Licensed Settlement Agent stays blank');
+ok(cards[2].role === 'Licensed Settlement Agent' && cards[2].name === '' && !cards[2].blankBecause && cards[2].id === '', 'Licensed Settlement Agent stays blank when none is assigned, with the same empty pattern as Preprocessor');
 ok(cards[3].role === 'Sales Person' && cards[3].name === 'Sam Salesperson', 'the Sales Person card is unchanged');
 
 // DC-26-78512 as stored on TEST: deals.preprocessor_user_id is null; Ellen is a deal_participants

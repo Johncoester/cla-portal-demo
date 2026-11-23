@@ -1,11 +1,11 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill, toText } from '../ui.js?v=202611161500';
-import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
+import { runsOrders, PARTICIPANT_ROLES, CLA_TEAM_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611302300';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611247700';
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611302000';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611302000';
-import { copyPlainText } from './deal.js?v=202611302200';
+import { copyPlainText } from './deal.js?v=202611302300';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
@@ -28,11 +28,11 @@ export async function contactCopyOutcome(value, kind, deps) {
 }
 
 // contact type (John, Nov 2): CLA staff have none, so the select is not offered for them
-const STAFF_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'];
+const STAFF_ROLES = CLA_TEAM_ROLES;
 const ctypeSelect = (sel = '', name = 'contactType') => html`<label>Contact type<select name="${name}" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select><span class="field-hint">${AGENT_TC_TYPE_NOTE}</span></label>`;
 // FF-108b: required Assigned to (Buyer's Agent TC / Listing Agent TC). Always shown for a Transaction coordinator, including an existing one with a prior link.
 const assignedToField = (selected = '', { hidden = true } = {}) => html`<label class="span2" data-tc-assigned ${hidden ? raw('hidden') : ''}>${ASSIGNED_TO_LABEL} <span class="req">*</span><select name="assignedTo" data-tc-assigned-sel aria-label="${ASSIGNED_TO_LABEL}"><option value="">Select...</option>${TC_ASSIGN_CHOICES.map((c) => html`<option value="${c.value}" ${c.value === selected ? raw('selected') : ''}>${c.label}</option>`)}</select></label>`;
-const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent', 'Buyer Agent TC']], ['SELLER', ['Client-Seller', 'Listing Agent', 'Listing Agent TC']], ['REALTOR', ['Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
+const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent', 'Buyer Agent TC']], ['SELLER', ['Client-Seller', 'Listing Agent', 'Listing Agent TC']], ['REALTOR', ['Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', CLA_TEAM_ROLES]];
 const contactRoleChoices = (deal) => rolesForNewContact(PARTICIPANT_ROLES, { refinance: isRefi(deal), blocked: REFI_BLOCKED_ROLES });
 
 // FF-108: put Buyer Agent TC / Listing Agent TC rows right after the last row of their agent (same role side); others unchanged

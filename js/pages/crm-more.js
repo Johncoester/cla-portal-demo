@@ -1,6 +1,6 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
 import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611161500';
-import { localDate } from '../data/constants.js?v=202611247700';
+import { localDate } from '../data/constants.js?v=202611302300';
 import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611247700';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611160300';

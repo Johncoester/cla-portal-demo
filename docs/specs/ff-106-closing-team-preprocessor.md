@@ -14,7 +14,7 @@ Staff see Closing Team cards in this order: Processor, Preprocessor, Licensed Se
 
 ## What is not in this change
 
-No database file. Licensed Settlement Agent still has no saved field, so that name stays blank. The agent's own TC on Order Contacts is unchanged. This change does not assign Ellen or anyone else as a Preprocessor on TEST. Not Live until the pull request is merged and checked on TEST.
+No database file for FF-106. FF-109 later fills Licensed Settlement Agent from an Order Contacts assignment (see ff-109-licensed-settlement-agent.md). The agent's own TC on Order Contacts is unchanged. This change does not assign Ellen or anyone else as a Preprocessor on TEST. Not Live until the pull request is merged and checked on TEST.
 
 
 ## FF-106c (Francis retest Nov 23 2026, 4:17 PM ET, Gmail 1a20a453c50c3fd5)

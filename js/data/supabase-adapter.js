@@ -2,7 +2,7 @@
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611247700';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611247700';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611302300';
 import { textToHtml } from './gmail-email.js?v=202611191000';
 import { agentTcAlreadyMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611301500';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
@@ -26,7 +26,7 @@ import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';  
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611247700';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611247700';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611302300';
 import { crmSupabase } from './supabase-crm.js?v=202611302100';
 import { hrSupabase } from './supabase-hr.js?v=202611247700';
 import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611302100';

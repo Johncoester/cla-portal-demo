@@ -2,7 +2,7 @@
 // Each side picks a closing location (default: the closest CLA Title office) and the dates and times that work. The processor sees both answers on the file.
 import { html, raw, $, guard, toast, formData } from '../ui.js?v=202611161500';
 import { slotText } from './dealclosing.js?v=202611247700';
-import { CLOSING_LOCATIONS } from '../data/constants.js?v=202611247700';
+import { CLOSING_LOCATIONS } from '../data/constants.js?v=202611302300';
 import { OFFICE_LOCATION } from '../data/cla-offices.js?v=202611247700';
 
 export async function render({ api, params }) {

@@ -2,7 +2,7 @@
 // tasks/<id>, meetings/<id>, calls (the list) and calls/<id>; followups (older link) shows Home. Labels follow John's Zoho (Clients / Companies); internal names stay contacts / accounts.
 // Reachable only when the `crm` feature flag is on (app.js never loads this module otherwise) and only for CLA staff (adapter refuses others).
 import { html, raw, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
-import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES, AGENT_TC_TYPE } from '../data/constants.js?v=202611247700';
+import { CONTACT_TYPES, contactTypeLabel, US_STATES, US_STATE_NAMES, AGENT_TC_TYPE } from '../data/constants.js?v=202611302300';
 import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611289960';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
 import { LEAD_SOURCES, RELATIONSHIP_STATUSES, ROLES_IN_COMPANY, ACCOUNT_KINDS, accountKindLabel, accountKindForType } from '../data/crm.js?v=202611247700';

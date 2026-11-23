@@ -3,7 +3,7 @@
  * lender_role is sent only when a Loan Officer, Lender TC, or Mortgage Broker is chosen, so a company
  * with no person still inserts on a database that has not added that column yet. */
 import { cleanLenderRole } from './lender-file.js?v=202611247700';
-import { CONTACT_TYPE_CODES } from './constants.js?v=202611247700';
+import { CONTACT_TYPE_CODES } from './constants.js?v=202611302300';
 const CONTACT_TYPES = new Set(CONTACT_TYPE_CODES);
 
 /* A database check that still has the old list says so in plain words. CLA staff never get a type. */

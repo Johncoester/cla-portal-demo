@@ -1,6 +1,6 @@
 // AGENT INVITE + ACCOUNT SETUP and the "Your agent" card (John, Nov 4). Pure rules shared by the mock adapter, the Supabase adapter and the pages.
 // FAKE DATA ONLY. Nothing here sends anything: the portal sends no email; staff copy the one-time link by hand.
-import { phoneOk, fmtPhone, PHONE_MSG, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611247700';
+import { phoneOk, fmtPhone, PHONE_MSG, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611302300';
 export const INVITE_DAYS = 14;                       // a pending invite link works for 14 days, then it shows as expired (Resend makes a new link)
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;      // the picked file (before crop)
 export const PHOTO_STORED_MAX = 400 * 1024;          // the cropped picture kept (data URL in the mock; Storage object in Supabase)

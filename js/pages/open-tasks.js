@@ -2,7 +2,7 @@
 // looks and sorts like Open Orders. For outside users (agents, clients and coordinators on per-file roles) and agent logins. One my_task_list
 // read and the order list (for each file's role label and stage) run at the same time. What shows still follows each file's rules.
 import { html, fmtDate, pill, $, $$ } from '../ui.js?v=202611161500';
-import { STAGES, localDate } from '../data/constants.js?v=202611247700';
+import { STAGES, localDate } from '../data/constants.js?v=202611302300';
 
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const TC_LABEL = 'Transaction Coordinator';

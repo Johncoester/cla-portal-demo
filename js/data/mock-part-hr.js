@@ -8,7 +8,7 @@
  *   d.hrInvites          [{id, employeeId, token, email, createdAt, createdBy, expiresAt, acceptedAt, acceptedProfileId, revokedAt, revokedBy}]   (link only, 14 days)
  *   d.hrChangeHistory    [{id, seq, tableName, rowId, employeeId, field, column, oldValue, newValue, action, changedBy, changedByName, changedAt}]   (append only)
  * Nothing is ever deleted: archive / deactivate instead. No SSNs or other government ID numbers. */
-import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611247700';
+import { isSuperAdmin, isOutside, EMPLOYEE_ROLE } from './constants.js?v=202611302300';
 import { ensureHrFeedback, hrFeedbackPart } from './mock-part-hr-feedback.js?v=202611247700';
 import { moduleAccess } from './modules.js?v=202611247700';
 import { ensureModules } from './mock-part-modules.js?v=202611247700';

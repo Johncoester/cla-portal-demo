@@ -4,7 +4,7 @@ import { html, raw, toText, $, $$, fmtDate, formData, modal, closeModal, guard, 
 import { crmSort } from '../data/crm.js?v=202611247700';
 import { DEAL_COLS } from '../data/crm-deal-cols.js?v=202611070139';
 import { display, moduleFields, DEAL_STAGES, dealStageOf, statusForDealStage } from '../data/crm-analytics.js?v=202611302100';
-import { runsOrders } from '../data/constants.js?v=202611247700';
+import { runsOrders } from '../data/constants.js?v=202611302300';
 import { crmDealName, beginColumnPrefs, schedulePageSizeSave } from '../data/crm-columns.js?v=202611160300';
 import { allListCatalogKeys, allListDefaultKeys, allListFirstPaint } from '../data/crm-all-columns.js?v=202611302100';
 import { columnChooserHtml, wireColumnChooser } from './crm-columns.js?v=202611249870';

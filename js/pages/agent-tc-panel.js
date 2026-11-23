@@ -1,7 +1,7 @@
 /* Transaction coordinators on an agent's profile or contact record (TC-2).
  * Add, remove, and show the list. The same buttons and form layout as the rest of the portal. */
 import { html, $, $$, guard, toast } from '../ui.js?v=202611161500';
-import { fmtPhone } from '../data/constants.js?v=202611247700';
+import { fmtPhone } from '../data/constants.js?v=202611302300';
 import { newCoordinatorProblem, personName, TC_NEED_PERSON, TC_SELF, sameContactOrEmail } from '../data/agent-tc-links.js?v=202611248300';
 
 const nameOf = (c) => personName(c);

@@ -4,7 +4,7 @@
 import { html, raw, toText, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
 import { GMAIL_OFF } from '../data/automation.js?v=202611247700';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611247700';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611302300';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { slotText } from './dealclosing.js?v=202611247700';
 import { viewTasksHref } from '../data/task-board.js?v=202611247700';
@@ -14,7 +14,7 @@ import { sourceChoices } from '../data/place-order.js?v=202611247700';
 import { themeOn } from '../theme.js?v=202611070139';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 
-const TABS = { tasks: './dealtasks.js?v=202611302200', inbox: './dealmsgs.js?v=202611302000', documents: './dealdocs.js?v=202611302000', contacts: './dealcontacts.js?v=202611302200', activity: './dealactivity.js?v=202611161500', closing: './dealclosing.js?v=202611247700', agreements: './dealagreements.js?v=202611161500', accounting: './dealaccounting.js?v=202611302000' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
+const TABS = { tasks: './dealtasks.js?v=202611302200', inbox: './dealmsgs.js?v=202611302000', documents: './dealdocs.js?v=202611302000', contacts: './dealcontacts.js?v=202611302300', activity: './dealactivity.js?v=202611161500', closing: './dealclosing.js?v=202611247700', agreements: './dealagreements.js?v=202611161500', accounting: './dealaccounting.js?v=202611302000' };   // accounting: behind the `accounting` flag (app.js + the page refuse when off)
 
 export async function render(ctx) {
   const { api, params } = ctx; const tab = params.tab;
