@@ -2693,6 +2693,33 @@ This file lists the portal's major features: how each one should work, how far a
 - A blank name means nobody is assigned. The role title stays.
 - More than one salesperson means more than one Sales Person card.
 
+
+## Preprocessor on the Closing Team card (FF-106)
+
+**How it should work.** On the staff File Overview, the Closing Team row includes a Preprocessor card. It shows the assigned CLA Preprocessor's name. If none is assigned, the name is blank and the role title stays. Layout, styling, the other Closing Team roles, and the agent's own Transaction Coordinator role and link stay unchanged.
+
+**Status: Building.** Tracker FF-106. Francis Santos, confirmed Nov 23 2026, 11:59 AM ET (Gmail 1a209598512b3bd1). Source: Francis confirm-back Nov 23. Pull request pending. No database file.
+
+**What's built**
+
+- Closing Team cards are Processor, Preprocessor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person (one card per salesperson).
+- Hosted File Overview fills the Preprocessor name from the staff already saved on the file.
+- Buyers, sellers, and agents still do not get the staff Closing Team row.
+
+**What's still missing**
+
+- Not merged or checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/ff-106-closing-team-preprocessor.md](docs/specs/ff-106-closing-team-preprocessor.md)
+- Related layout: [docs/specs/file-overview-layout.md](docs/specs/file-overview-layout.md)
+
+**Decisions**
+
+- This adds a card. It does not rename Transaction Coordinator to Preprocessor.
+- A blank name means nobody is assigned. The role title stays.
+
 ## File reports in the CRM report builder (RPT)
 
 **How it should work.** Reports on files are built in the CRM's report builder, on the Deals report type (a Deal is a portal file). John's daily pre-closing report is the first target: processor, order number, open and close dates, the source of business with a contact, company, cell and email, key task dates, county, address, and each agent with a name, cell and email. Reports can then be emailed on a schedule. One report builder, not two.
