@@ -918,6 +918,10 @@ body.theme-cards .ss-pin { background: var(--tc-side); }
   .this-file-backdrop:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 35; background: rgba(11, 42, 69, .4); }
   body.this-file-nav-open { overflow: hidden; }
 }
+@media (max-width: 860px) {
+  /* JC-MOBILE-2 (John, Nov 23 2026 3:34 PM ET): on a phone the order header scrolls away with the page instead of staying pinned. */
+  .order-header, body.theme-cards .order-header { position: static; top: auto; z-index: auto; }
+}
 
 /* ---------- FILE TASKS TAB: one box per side (John, Nov 4 2026). Soft tints, dark ink labels (all >= 7:1 on their tint). ---------- */
 .side-box { border: 1px solid var(--sb-line); background: var(--sb-bg); border-radius: 10px; padding: 0 14px 12px; margin: 0 0 16px; }

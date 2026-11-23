@@ -41,3 +41,9 @@ Source: John Coester, mobile video Nov 23 2026 3:34 PM ET, confirmed "yes" at 5:
 On a phone (860px and narrower), the This File file links start closed behind a This File button in the page flow, so the white menu does not cover the property address or order details. Tapping the button opens a drawer with a Close button and a dimmed backdrop. Tapping a file tab, Close, the backdrop, or Escape closes the drawer. On a computer the left sidebar is unchanged. A buyer or seller who already uses the light file shell (no sidebar) is unchanged. This does not change any page, calculation, or saved figure, and it does not add a database change.
 
 The oversized sticky order header on a phone is a separate item (JC-MOBILE-2).
+
+## Mobile order header (JC-MOBILE-2)
+
+Source: John Coester, mobile video Nov 23 2026 3:34 PM ET, confirmed "yes" at 5:04 PM ET. Tracker item JC-MOBILE-2.
+
+On a phone (860px and narrower), the order header at the top of File Overview (order number, stage, property address, price, parties, opened and county, settlement and disbursement dates) is not sticky. It scrolls away with the page so it does not stay pinned over half the screen. On a computer the header still stays pinned under the top bar. This does not change any page content, calculation, or saved figure, and it does not add a database change.
