@@ -5,13 +5,13 @@ import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=2
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611249900';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611249900';
-import { copyPlainText } from './deal.js?v=202611300600';
+import { copyPlainText } from './deal.js?v=202611300700';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
-import { TC_ONLY_LABEL, canReadTcOnly, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611300545';
+import { TC_ONLY_LABEL, canReadTcOnly, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611300700';
 import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */

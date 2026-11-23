@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611300600';
+import { prefetchDealTab } from './deal-tab.js?v=202611300700';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -34,7 +34,7 @@ import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-f
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
-import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611300545';
+import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611300700';
 // The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
 const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
 function staffSections(ctx, dealId) {

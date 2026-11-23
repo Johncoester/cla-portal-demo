@@ -33,6 +33,8 @@ export function tcOnlyPart(x) {
       allowed(u, a.dealId);
       const side = a.role === 'Listing Agent' ? 'listing' : 'buyer';
       const tcs = targets(a);
+      // TC-ONLY-2c: like the server, a linked TC with no email can't stand in for the agent
+      if (on && tcs.length && !tcs.some((t) => t.email)) fail(`This agent's TC on the ${side} side has no email address, so nothing could reach them. Add the TC's email on Contacts first, then tick Only communicate with TC.`);
       if (on && !tcs.length) fail(`This agent has no TC on the ${side} side of this file. Add their transaction coordinator on Contacts first, then tick Only communicate with TC.`);
       a.tcOnly = !!on;
       const c = contact(a.contactId); const name = `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'The agent';

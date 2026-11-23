@@ -43,14 +43,28 @@ const noEmailOn = tcOnlyMap([{ participantId: 'p1', role: 'Buyer Agent', tcOnly:
 const ne = tcOnlyNotes(noEmailOn, [{ id: 'p1', role: 'Buyer Agent', contact: { firstName: 'Bianca', lastName: 'Agent', email: 'bianca@example.test' } }], ['bianca@example.test']);
 ok(ne.length === 1 && ne[0].kind === 'held' && /no email address/.test(ne[0].text) && !/Nora/.test(ne[0].text), 'compose: a ticked agent whose TC has no email shows the held note');
 ok(/held and not sent/.test(tcOnlyPreviewNote(noEmailOn, 'p1')) && !/Nora/.test(tcOnlyPreviewNote(noEmailOn, 'p1')), 'Email sellers and agents: held wording for a TC with no email');
-// a TC with an email but no portal login: emails go to the TC, but in-app alerts are held
+// a TC with an email but no portal login: typed emails (and title package, post-closing, scheduling, Task Builder emails) go to the TC;
+// portal alerts and most automatic emails are held. TC-ONLY-2c (CRM Bot review of PR 415): the wording now says exactly that (it said only 'in-app alerts').
 const noLogin = { tcOnly: true, tcs: [{ name: 'Lou Nologin', email: 'lou.tc@example.test', hasLogin: false }] };
 const lb = tcOnlyBox(noLogin, 'Buyer Agent', { canEdit: true });
-ok(/go to Lou Nologin instead/.test(lb.hint) && /no portal login yet, so in-app alerts for this agent are held/.test(lb.hint), 'box hint: a TC with no portal login says in-app alerts are held');
+ok(/^Emails staff type, and title package, post-closing, scheduling and Task Builder emails, for this agent go to Lou Nologin instead\./.test(lb.hint) && /no portal login yet, so portal alerts and most automatic emails \(reminders and portal notices\) for this agent are held until they're invited\./.test(lb.hint) && !/[Ee]mails and alerts/.test(lb.hint),
+  'box hint: a TC with no portal login: the opening line names the emails that still reach them, then says portal alerts and most automatic emails are held');
 const nlRows = tcOnlyMap([{ participantId: 'p1', role: 'Buyer Agent', tcOnly: true, tcs: noLogin.tcs }]);
 const nl = tcOnlyNotes(nlRows, [{ id: 'p1', role: 'Buyer Agent', contact: { email: 'bianca@example.test' } }], ['bianca@example.test']);
-ok(nl[0].kind === 'redirect' && /Lou Nologin/.test(nl[0].text) && /in-app alerts for this agent are held/.test(nl[0].text), 'compose note: no-login line');
-ok(/in-app alerts for this agent are held/.test(tcOnlyPreviewNote(nlRows, 'p1')), 'preview note: no-login line');
+ok(nl[0].kind === 'redirect' && /goes to their TC, Lou Nologin, instead/.test(nl[0].text) && /portal alerts and most automatic emails \(reminders and portal notices\) for this agent are held until they're invited \(title package, post-closing, scheduling and Task Builder emails still go to them\)/.test(nl[0].text), 'compose note: no-login line');
+ok(/portal alerts and most automatic emails \(reminders and portal notices\) for this agent are held until they're invited/.test(tcOnlyPreviewNote(nlRows, 'p1')), 'preview note: no-login line');
+// TC-ONLY-2c: two TCs, only one with a login: the alerts go to the one with a login, so nothing is said to be held
+const mixed = { tcOnly: true, tcs: [{ name: 'Lou Nologin', email: 'lou.tc@example.test', hasLogin: false }, { name: 'Sam Login', email: 'sam.tc@example.test', hasLogin: true }] };
+const mb = tcOnlyBox(mixed, 'Buyer Agent', { canEdit: true }).hint;
+ok(/^Emails and alerts for this agent go to Lou Nologin and Sam Login instead\./.test(mb) && /Lou Nologin has no portal login yet, so portal alerts and most automatic emails go only to Sam Login\. Lou Nologin still gets emails staff type, and title package, post-closing, scheduling and Task Builder emails\./.test(mb) && !/held/.test(mb),
+  'two TCs, one without a login: worded per TC, nothing held');
+const mRows = tcOnlyMap([{ participantId: 'p1', role: 'Buyer Agent', tcOnly: true, tcs: mixed.tcs }]);
+ok(/go only to Sam Login/.test(tcOnlyPreviewNote(mRows, 'p1')) && !/held/.test(tcOnlyPreviewNote(mRows, 'p1')), 'preview note: two TCs, one without a login, nothing held');
+// TC-ONLY-2c: ticked box whose only TC has no email: one message (not 'No TC is linked' plus 'has no email address')
+const one = tcOnlyBox({ tcOnly: true, tcs: [{ name: 'Nora Noemail', email: '', hasLogin: false }] }, 'Buyer Agent', { canEdit: true });
+ok(one.disabled === false && one.hint === "Their linked TC, Nora Noemail, has no email address, so emails and alerts for this agent are held. Add the TC's email on Contacts, or untick the box." && !/No TC is linked/.test(one.hint),
+  'ticked, only TC has no email: one clear message, and the box can still be unticked');
+ok(nb.hint === "Their linked TC, Nora Noemail, has no email address. Add the TC's email on Contacts first.", 'not ticked, only TC has no email: one clear message');
 ok(!/portal login/.test(tcOnlyBox(linked, 'Buyer Agent', { canEdit: true }).hint) && !/portal login/.test(tcOnlyBox({ tcOnly: true, tcs: [{ name: 'Riley', email: 'r@example.test', hasLogin: true }] }, 'Buyer Agent', { canEdit: true }).hint), 'no extra line when the TC has a login (or the flag is unknown)');
 // compose matches an agent by contact email OR portal-login email, like the server
 const lp = [{ id: 'p1', role: 'Buyer Agent', contact: { firstName: 'Bianca', lastName: 'Agent', email: 'bianca@example.test', profileId: 'u-b' } }];
@@ -122,12 +136,27 @@ for (const who of ['u-bagent', 'u-lagent', 'u-buyer', 'u-seller']) {
 const realS2 = api.tcOnlyStatus;
 api.tcOnlyStatus = async (id) => (await realS2(id)).map((r) => (r.participantId === 'dp-1-bagent' ? { ...r, tcs: r.tcs.map((t) => ({ ...t, hasLogin: false })) } : r));
 app = await paint('u-proc');
-ok(/in-app alerts for this agent are held/.test(app.querySelector('[data-tc-only-row="dp-1-bagent"]').textContent), 'Contacts: TC with no portal login shows the held-alerts line');
+ok(/portal alerts and most automatic emails \(reminders and portal notices\) for this agent are held until they're invited/.test(app.querySelector('[data-tc-only-row="dp-1-bagent"]').textContent), 'Contacts: TC with no portal login shows the held line');
 api.tcOnlyStatus = async (id) => (await realS2(id)).map((r) => (r.participantId === 'dp-1-bagent' ? { ...r, tcs: r.tcs.map((t) => ({ ...t, email: '' })) } : r));
 app = await paint('u-proc');
 ok(/no email address/.test(app.querySelector('[data-tc-only-row="dp-1-bagent"]').textContent) && !/go to Riley/.test(app.querySelector('[data-tc-only-row="dp-1-bagent"]').textContent), 'Contacts: TC with no email shows the held wording');
 api.tcOnlyStatus = realS2;
 ok(typeof api.tcOnlyLoginEmails === 'function' && Object.keys(await api.tcOnlyLoginEmails(['u-bagent'])).length === 1, 'demo portal: login emails for compose');
+
+// TC-ONLY-2c: the demo portal refuses ticking when the only linked TC has no email (same as the server's new guard)
+{
+  await api.signInDev('u-proc');
+  await api.setParticipantTcOnly('dp-1-bagent', false);
+  const before = await api.tcOnlyStatus('deal-1');
+  const rc = (before.find((r) => r.participantId === 'dp-1-bagent').tcs[0] || {});
+  ok(rc.email === 'riley.tc@example.test', 'demo: Riley is linked with an email');
+  const nora = await api.createAndLinkAgentTc('c-lagent', { firstName: 'Nora', lastName: 'Noemail', email: '', phone: '301-555-0198', company: 'Harbor Realty (fake)' }).catch((e) => e);
+  const lst = (await api.tcOnlyStatus('deal-1')).find((r) => r.participantId === 'dp-1-lagent');
+  if (!(nora instanceof Error) && lst && lst.tcs.length && !lst.tcs.some((t) => t.email)) {
+    await rejects(() => api.setParticipantTcOnly('dp-1-lagent', true), 'demo: the listing agent whose only TC has no email cannot be ticked', /has no email address/);
+  } else console.log('note: the demo cannot add a TC with no email (' + (nora instanceof Error ? nora.message : 'TC has an email or is not on the file') + '); covered by the helpers and the SQL test');
+  await api.setParticipantTcOnly('dp-1-bagent', true);
+}
 
 // ---------- the compose and preview notes are wired ----------
 const email = readFileSync(new URL('../js/pages/dealemail.js', import.meta.url), 'utf8');
