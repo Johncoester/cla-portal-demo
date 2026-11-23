@@ -166,7 +166,7 @@ ok "$(as 22222222-2222-4222-8222-222222222222 "select count(*)::text from jsonb_
 ok "$(as 22222222-2222-4222-8222-222222222222 "select x->>'title' from jsonb_array_elements(public.crm_deal_report_tasks()) x where (x->>'dealId') = '$REAL';")" "Confirm EMD Receipt" "before the fix, that row is the real file's task title"
 
 q -c "drop function public.crm_deal_report_tasks();"
-q -f "$ROOT/supabase/migrations/20261129020500_crm_deal_report_tasks.sql"
+q -f "$ROOT/supabase/migrations/20261129100000_crm_deal_report_tasks.sql"
 
 ok "$(val "select p.prosecdef::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'crm_deal_report_tasks';")" "false" "after the fix, crm_deal_report_tasks is SECURITY INVOKER"
 ok "$(as 22222222-2222-4222-8222-222222222222 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_tasks()) x where (x->>'dealId') = '$REAL';")" "0" "a demo Processor gets 0 tasks from real files"
@@ -181,10 +181,10 @@ err "set test.uid = '44444444-4444-4444-8444-444444444444'; select public.crm_de
 ok "$(val "select has_function_privilege('anon', 'public.crm_deal_report_tasks()', 'execute')::text;")" "false" "anon cannot run the function"
 ok "$(val "select has_table_privilege('authenticated', 'public.tasks', 'select')::text;")" "false" "the migration did not grant table-level SELECT on public.tasks"
 
-q -f "$ROOT/supabase/rollbacks/20261129020500_crm_deal_report_tasks.sql"
+q -f "$ROOT/supabase/rollbacks/20261129100000_crm_deal_report_tasks.sql"
 ok "$(val "select to_regprocedure('public.crm_deal_report_tasks()') is null::text;")" "true" "rollback drops the function"
 
-q -f "$ROOT/supabase/migrations/20261129020500_crm_deal_report_tasks.sql"
+q -f "$ROOT/supabase/migrations/20261129100000_crm_deal_report_tasks.sql"
 ok "$(as 22222222-2222-4222-8222-222222222222 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_tasks()) x where (x->>'dealId') = '$REAL';")" "0" "re-applying the fix again leaves the demo Processor with 0 real-file tasks"
 
 if [ "$fail" -ne 0 ]; then echo "$fail failed"; exit 1; fi

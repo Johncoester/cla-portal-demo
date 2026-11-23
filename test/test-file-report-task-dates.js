@@ -61,7 +61,7 @@ if (sales) { await api.signInDev(sales.id); const mine = await api.runCrmReport(
   ok(!mine.rows.some((r) => r.cells[0].text === deal.fileNumber), 'a Sales Person who is not on the file does not get its tasks in a report'); }
 
 // ---- hosted side ----
-const hosted = read('../js/data/supabase-crm-surface.js'); const sql = read('../supabase/migrations/20261129020500_crm_deal_report_tasks.sql');
+const hosted = read('../js/data/supabase-crm-surface.js'); const sql = read('../supabase/migrations/20261129100000_crm_deal_report_tasks.sql');
 ok(hosted.includes("sb.rpc('crm_deal_report_tasks')") && hosted.includes('wantTasks ? taskRows() : Promise.resolve([])') && hosted.includes('const wantTasks = reportUsesTasks(def);'), 'the hosted report reads the tasks only when the report names a task column');
 ok(hosted.includes('async listCrmReportTaskTitles()') && hosted.includes('The task date columns are not on this database yet'), 'the builder can list task names, and a report says so when the database file is not applied');
 ok(sql.includes('if not private.crm_user() then raise exception') && sql.includes('join private.crm_visible_deal_ids()') && sql.includes("t.status <> 'cancelled'") && sql.includes('revoke all on function public.crm_deal_report_tasks() from public, anon;'), 'the database function is staff-only, limited to files the person may see, and leaves out cancelled tasks');

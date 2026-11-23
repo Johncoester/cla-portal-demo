@@ -19,9 +19,12 @@
 -- uses INVOKER.
 --
 -- Needs 20261129060000_crm_deal_report_fields_sec.sql (RPT-1-SEC) for
--- private.crm_visible_deal_ids(). Not applied by this commit. Apply on TEST
--- after the pull request merges.
--- Rollback: supabase/rollbacks/20261129020500_crm_deal_report_tasks.sql
+-- private.crm_visible_deal_ids(). The stamp is 20261129100000 so this file
+-- runs after that helper (the earlier 20261129020500 name would replay first
+-- and fail). 20261129070000-20261129090000 are left free for other in-flight
+-- work (FF-106/107 were building and had not claimed a stamp). Not applied
+-- by this commit. Apply on TEST after the pull request merges.
+-- Rollback: supabase/rollbacks/20261129100000_crm_deal_report_tasks.sql
 begin;
 set local lock_timeout = '3s';
 
