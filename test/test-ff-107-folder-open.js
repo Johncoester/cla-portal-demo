@@ -1,6 +1,8 @@
-/* FF-107 items 1-4 (Francis Santos, confirmed Nov 23 2026, 12:04 PM ET, Gmail 1a2095e4887afd30).
+/* FF-107 items 1-5 (Francis Santos, confirmed Nov 23 2026, 12:04 PM ET, Gmail 1a2095e4887afd30,
+ * and item 5 / no Word-editor save on Nov 23 2026, 12:23 PM ET, Gmail 1a2096f682f1ada4).
  * Folders on Documents are clickable and open to list, preview, download, and upload inside.
- * Move-from-folder and Save are not in this item. Sales still cannot move. No Word editor.
+ * A Move button inside an open folder moves a file to another folder, for roles that can already move.
+ * Sales still cannot move. The held Word editor is not built.
  * Fake names. No network. */
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
@@ -73,13 +75,33 @@ ok(open.root.querySelector('[data-doc-folder-open]') && open.root.querySelector(
   'an open folder has a back link to the folder list');
 ok((open.root.querySelector('[data-open-folder-name]')?.textContent || '') === 'Contract & addenda',
   'the open folder shows its name');
-ok(open.root.querySelector('#doctable') && !open.root.querySelector('#foldertable') && !open.root.querySelector('#movefile') && !open.root.querySelector('#addfolder'),
-  'an open folder shows its files and does not add a move-from-folder control');
+ok(open.root.querySelector('#doctable') && !open.root.querySelector('#foldertable') && !open.root.querySelector('#addfolder'),
+  'an open folder shows its files and does not show the folder list or Add folder');
+const openMove = bindElements(open.root.querySelector('#movefile'));
+ok(openMove && open.root.querySelector('[data-folder-move]'), 'an open folder has a Move button for a processor');
+ok([...openMove.elements.docId.options].some((o) => o.value === added.id)
+  && ![...openMove.elements.docId.options].some((o) => o.value && o.value !== added.id && o.value !== staffOnly.id),
+  'Move inside the open folder lists that folder\'s files');
+ok([...openMove.elements.folderId.options].some((o) => o.value === '')
+  && ![...openMove.elements.folderId.options].some((o) => o.value === contract.id),
+  'Move inside the open folder offers other folders, including Unfiled, not the folder that is already open');
+openMove.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+ok(open.root.querySelector('[data-move-err]').textContent === 'Choose a document to move.', 'Move with no document is refused');
+const setValue = (el, value) => { Object.defineProperty(el, 'value', { configurable: true, get: () => value }); };
+setValue(openMove.elements.docId, added.id);
+setValue(openMove.elements.folderId, '');
+const origMove = api.moveDocument.bind(api);
+let moved = null;
+api.moveDocument = async (id, folderId) => { moved = { id, folderId }; return { id, folderId }; };
+openMove.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+await new Promise((r) => setTimeout(r, 30));
+ok(moved && moved.id === added.id && moved.folderId === null, 'Move from the open folder sends the file to the chosen folder');
+api.moveDocument = origMove;
 ok(open.root.querySelector(`[data-open="${added.id}"]`) && open.root.querySelector(`[data-open="${staffOnly.id}"]`),
   'a processor can list and preview the files in the folder, including a staff-only file');
 ok(open.root.querySelector('#upbtn'), 'a processor can upload from an open folder');
 open.root.querySelector('#upbtn').click();
-const up = bindElements(document.querySelector('#mf') || document.querySelector('form'));
+const up = bindElements(document.querySelector('#uf'));
 const folderSelect = up && (up.elements.folderId || up.querySelector?.('[name=folderId]'));
 ok(folderSelect && (folderSelect.value === contract.id || folderSelect.getAttribute('value') === contract.id ||
   [...(folderSelect.options || [])].some((o) => o.value === contract.id && o.selected)),
@@ -99,8 +121,8 @@ ok(missing.root.querySelector('[data-folder-missing]') && missing.root.querySele
 const sales = await paint('u-sp', `#/deals/deal-1/documents?t=folders&f=${contract.id}`);
 ok(sales.root.querySelector('[data-doc-tab="folders"]') && sales.root.querySelector(`[data-open="${added.id}"]`),
   'sales can open a folder and see the files inside it');
-ok(!sales.root.querySelector('#addfolder') && !sales.root.querySelector('#movefile') && !sales.root.querySelector('#upbtn'),
-  'sales still cannot add a folder, move a file, or upload');
+ok(!sales.root.querySelector('#addfolder') && !sales.root.querySelector('#movefile') && !sales.root.querySelector('[data-folder-move]') && !sales.root.querySelector('#upbtn'),
+  'sales still cannot add a folder, move a file from the open folder, or upload');
 
 const buyerList = await paint('u-buyer', `#/deals/deal-1/documents?t=folders&f=${contract.id}`);
 ok(!buyerList.root.querySelector('[data-doc-tab="folders"]') && !buyerList.root.querySelector('[data-doc-folder-open]') && !buyerList.root.querySelector('#foldertable'),

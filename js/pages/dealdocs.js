@@ -92,6 +92,16 @@ export async function render({ api, user, deal, refresh }) {
     ? (openId === '' ? unfiled : (orderedFolders.find((f) => f.id === openId) || null))
     : null;
   const moveChoices = portalDocs.map((d) => ({ id: d.id, label: `${d.name} (${d.folderName || 'Unfiled'})` }));
+  const openMoveChoices = folderOpen
+    ? portalDocs.filter((d) => (openId ? d.folderId === openId : !d.folderId)).map((d) => ({ id: d.id, label: d.name }))
+    : [];
+  const openMoveDest = orderedFolders.filter((f) => f.id !== openId);
+  const openMoveForm = canChangeFolders ? (openMoveChoices.length ? html`<form id="movefile" class="form-grid" data-folder-move novalidate>
+      <label class="span2">Document<select name="docId"><option value="">Choose a document</option>${options(openMoveChoices, '', (d) => d.label, (d) => d.id)}</select></label>
+      <label class="span2">Move into<select name="folderId">${openId !== '' ? html`<option value="">Unfiled</option>` : ''}${options(openMoveDest, '', (f) => f.name, (f) => f.id)}</select></label>
+      <p class="span2 err-text" data-move-err role="alert"></p>
+      <div class="span2"><button class="m-btn" type="submit">Move</button></div>
+    </form>` : html`<p class="muted" data-move-empty>No documents in this folder yet. Upload a file, then you can move it to another folder.</p>`) : '';
   const folderPane = html`<div data-doc-folders>
     <div class="box-title"><h2><span class="h-ico"></span>Document folders</h2>${canChangeFolders ? html`<button class="m-btn right" type="button" id="addfolder">Add folder</button>` : ''}</div>
     <p class="muted small">Folders on this order. The number is how many files are in each folder.</p>
@@ -116,6 +126,7 @@ export async function render({ api, user, deal, refresh }) {
     <p class="muted small"><a href="${href('folders', null)}" data-folder-back>All folders</a></p>
     <div class="box-title"><h2><span class="h-ico"></span><span data-open-folder-name>${openFolderRow ? openFolderRow.name : 'Folder'}</span></h2></div>
     ${openFolderRow ? fileList : html`<p class="muted" data-folder-missing>That folder is not on this order.</p>`}
+    ${openFolderRow ? openMoveForm : ''}
   </div>`;
   const sigRows = sigs.map((r) => html`<tr data-sigreq="${r.id}"><td>${r.docName}</td><td>${r.signers.map((s) => html`<div>${s.name} <span class="muted small">(${s.roleLabel})</span> ${s.status === 'signed' ? html`${pill('signed', 'ok')} <span class="muted small">${fmtDateTime(s.signedAt)}</span>` : pill(r.status === 'cancelled' ? 'cancelled' : 'requested', r.status === 'cancelled' ? '' : 'info')}</div>`)}</td>
     <td>${pill(r.status, r.status === 'signed' ? 'ok' : r.status === 'requested' ? 'info' : '')}<br><span class="muted small">requested by ${r.requestedByName} ${fmtDateTime(r.requestedAt)}</span></td><td>${manage && r.status === 'requested' ? html`<button class="ghost" data-sigcancel="${r.id}">Cancel request</button>` : ''}</td></tr>`);

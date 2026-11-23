@@ -3089,22 +3089,22 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Open a document folder (FF-107)
 
-**How it should work.** On an order's Documents page, each folder on the Folders tab is clickable and opens to show the documents inside. People who can already upload can upload into the open folder. They can list, preview, and download those files. Move from inside a folder, and anything about "save", are not in this item. Sales still cannot move files. The Word editor stays held. Buyers, sellers, and agents still do not see the Folders tab. Document visibility stays as it already is.
+**How it should work.** On an order's Documents page, each folder on the Folders tab is clickable and opens to show the documents inside. People who can already upload can upload into the open folder. They can list, preview, and download those files. Staff who can already move files get a Move button inside the open folder that moves a file to another folder. Sales still cannot move files. The Word editor stays held. Buyers, sellers, and agents still do not see the Folders tab. Document visibility stays as it already is.
 
-**Status: Building.** Tracker FF-107. Francis Santos, confirmed items 1-4 on Nov 23 2026, 12:04 PM ET (Gmail 1a2095e4887afd30). Source: Francis confirm-back Nov 23. Pull request pending, after FF-106 (PR 421). No database file.
+**Status: Building.** Tracker FF-107. Francis Santos, confirmed items 1-4 on Nov 23 2026, 12:04 PM ET (Gmail 1a2095e4887afd30) and item 5 on Nov 23 2026, 12:23 PM ET (Gmail 1a2096f682f1ada4). Source: Francis confirm-back Nov 23. Pull request pending, after FF-106 (PR 421). No database file.
 
 **What's built**
 
 - Folder names on the Folders tab, including Unfiled, open that folder.
 - An open folder lists its files, with preview and download, a back link, and upload into that folder for people who can already upload.
+- A Move button inside the open folder moves a file to another folder, for the same roles that can already move on the folder list.
 - Sales can open a folder and see the files. They still cannot add, move, or upload.
 - Buyers, sellers, and agents still do not get the Folders tab. Staff-only files in a folder stay hidden from them.
 
 **What's still missing**
 
 - Not merged or checked on TEST yet. Do not mark Live before that.
-- Move from inside a folder, and "save", wait for a clearer answer from Francis.
-- The Word editor stays held.
+- The Word editor stays held ("save" means editing a document).
 
 **Links**
 
