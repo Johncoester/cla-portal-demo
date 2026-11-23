@@ -4,7 +4,7 @@
 
 **Tracker:** CRM Feedback 31 item 1.
 
-**Status:** In progress. Pull request [359](https://github.com/Johncoester/cla-portal-demo/pull/359) added the charts. Reorder (F31b, row 414) is pull request [393](https://github.com/Johncoester/cla-portal-demo/pull/393). Not merged. Not Live. A database file is included and has not been applied.
+**Status:** In progress. Pull request [359](https://github.com/Johncoester/cla-portal-demo/pull/359) added the charts. Reorder (F31b, row 414) landed in pull request [393](https://github.com/Johncoester/cla-portal-demo/pull/393). Janine's Nov 23 2026 retest failed with one chart. That fix is pull request [423](https://github.com/Johncoester/cla-portal-demo/pull/423). Not Live until it is checked on TEST. A database file is included and has not been applied.
 
 ## What the user sees
 
@@ -12,9 +12,13 @@ On a CRM dashboard, each chart has **Add to Home**. That puts a copy on the sign
 
 On Home, each added chart has **Refresh**, **Rename**, and **Remove**. There is no resize.
 
-The **...** button at the top right of CRM Home opens a small menu with **Reorder**. Reorder shows **Move up** and **Move down** on each chart, and **Done**. That order is saved for the signed-in person and is still there after they leave Home and come back. Dragging a chart by its title can also change the order. It is not the only way.
+The charts sit below the fixed Home sections: the task list, Today's Leads, and Amount by Stage.
 
-When Home has no charts, Reorder is disabled and the menu says there is nothing to reorder.
+The **...** button at the top right of CRM Home opens a small menu with **Reorder**. Reorder is offered only when Home has two or more charts. It shows **Move up** and **Move down** on each chart, and **Done**. That order is saved for the signed-in person and is still there after they leave Home and come back. Dragging a chart by its title can also change the order. It is not the only way.
+
+The top chart's **Move up** and the bottom chart's **Move down** are greyed out. They do not move that chart. A second click while a save is still running waits, so the saves cannot land out of order.
+
+When Home has one chart, Reorder is greyed out and the menu says: Add another chart to Home to reorder. There is only one. Removing charts until one is left closes Reorder and shows that same note. When Home has no charts, Reorder is greyed out and the menu says there is nothing to reorder.
 
 Rename and Remove change only the Home copy. The chart on the dashboard keeps its name, and Remove only takes it off Home.
 
