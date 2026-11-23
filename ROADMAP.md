@@ -2948,7 +2948,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's built**
 
 - Add to Home on every chart of a dashboard the person can open.
-- Home shows those charts after the rest of the page, with Refresh, Rename, Remove, and Reorder (Move up and Move down) from the ... menu. Dragging by the title can also change the order.
+- Home shows those charts after the rest of the page, with Refresh, Rename, Remove, and Reorder (Move up and Move down) from the ... menu. Reorder is offered only when there are two or more charts. Dragging by the title can also change the order.
 - The Home name and the Home order are stored for that person only. The dashboard chart is unchanged.
 - If the person has no Home charts, Home does not ask again during that browser tab, and it does not load chart numbers.
 - If the database file is not applied yet, Add to Home is hidden.
@@ -2992,9 +2992,9 @@ This file lists the portal's major features: how each one should work, how far a
 
 ## Reorder charts on CRM Home (F31b, row 414)
 
-**How it should work.** On CRM Home, a **...** button at the top right opens a small menu with **Reorder**. Reorder shows **Move up** and **Move down** on each Home chart, plus **Done**. The new order is saved for that person and is still there after they leave Home and come back. Another person does not see or change it. Refresh, Rename, and Remove keep working. When Home has no charts, Reorder is disabled and the menu says there is nothing to reorder.
+**How it should work.** On CRM Home, the charts sit below the fixed sections (the task list, Today's Leads, and Amount by Stage). A **...** button at the top right opens a small menu with **Reorder**. Reorder is offered only when that person has two or more charts. It shows **Move up** and **Move down** on each Home chart, plus **Done**. The top chart's Move up and the bottom chart's Move down are greyed out. The new order is saved for that person and is still there after they leave Home and come back. A second click while a save is still running does not start another save. Another person does not see or change it. Refresh, Rename, and Remove keep working. With one chart, Reorder is greyed out and the menu says to add another chart. When Home has no charts, Reorder is greyed out and the menu says there is nothing to reorder.
 
-**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. Pull request: [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393). No new database file. Not Live.
+**Status: In progress.** Janine Santos, Nov 19 2026, confirmed Nov 20 2026 ("yes, that's it"). Tracker F31b, row 414. Follow-up to JN-CRM-31-1 / PR 359. Reorder itself is [PR 393](https://github.com/Johncoester/cla-portal-demo/pull/393), merged. Janine's Nov 23 2026 retest on TEST failed: with one chart, Move up looked clickable and did nothing. This fix greys that out and offers Reorder only when there are two or more charts. No new database file. Not Live.
 
 **What's built**
 
@@ -3003,12 +3003,14 @@ This file lists the portal's major features: how each one should work, how far a
 - Leaving Home and coming back shows the same order. Another person's Home is separate.
 - Refresh, Rename, and Remove still work.
 - An empty Home disables Reorder and shows a short note.
+- One chart greys out Reorder and says to add another chart. Removing down to one chart closes Reorder.
+- The top Move up and the bottom Move down are greyed out. Move buttons stay grey while a save is running.
 - Dragging by the title can still change the order. It is not the only way.
 
 **What's still missing**
 
-- Not checked on TEST yet. Do not mark Live before that.
-- The Home chart table from PR 359 is still not applied on TEST. Reorder uses that table and does not add one.
+- This one-chart fix is not checked on TEST yet. Do not mark Live before that.
+- No new database file. Reorder still uses the Home chart rows that person already has.
 
 **Links**
 
@@ -3021,6 +3023,8 @@ This file lists the portal's major features: how each one should work, how far a
 - No new database file. The order is the position already stored for that person.
 - The menu has Reorder only. Zoho also shows Add Component and View in Full Screen. Those are not part of this change.
 - Move up and Move down are the way to reorder. Dragging stays as an extra.
+- Reorder needs two or more charts. One chart is not a list that can be reordered.
+- The grey look for a disabled Move button is only on the Home charts, so other ghost buttons stay as they are.
 
 ---
 

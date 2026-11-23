@@ -113,6 +113,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: var(--s4) 0; }
 .m-btn-lg { padding: 12px 22px; font-size: var(--fs-md); }
 .ghost, .back-btn { background: var(--surface); color: var(--ink-2); border: 1px solid var(--line-2); padding: 6px 12px; font-size: var(--fs-sm); box-shadow: var(--sh-1); }
 .ghost:hover, .back-btn:hover { background: var(--surface-2); border-color: #b4bfcf; color: var(--ink); }
+/* Home charts only. Beats body.theme-cards .ghost (theme-cards.css) so a disabled Move up or Move down stays grey. */
+[data-home-charts] .ghost:disabled, [data-home-charts] .ghost:disabled:hover { opacity: .45; cursor: not-allowed; box-shadow: none; background: var(--surface); border-color: var(--line-2); color: var(--ink-2); }
 .view-btn { background: var(--navy-50); color: var(--navy-700); border: 1px solid var(--navy-200); padding: 4px 12px; font-size: var(--fs-sm); margin-top: 4px; } .view-btn:hover { background: var(--navy-100); }
 .ghost.danger { border-color: var(--bad-line); color: var(--bad); } .ghost.danger:hover { background: var(--bad-bg); }
 .ghost.small, button.small { padding: 3px 8px; font-size: var(--fs-xs); } .ghost.on { background: var(--navy-100); border-color: var(--navy-200); color: var(--navy-800); }
