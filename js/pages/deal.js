@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611291700';
+import { prefetchDealTab } from './deal-tab.js?v=202611300430';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -304,7 +304,7 @@ async function editModal(api, d, refresh, meId) {
   const m = modal('Edit order details', html`<form id="edf" class="form-grid">
     <label class="span2">Street<input name="street" required value="${v('street')}"></label><label>City<input name="city" required value="${v('city')}"></label>
     <label>State<select name="state" required><option value="">Select state</option>${US_STATE_NAMES.map(([c, n]) => html`<option value="${c}" ${c === d.state ? raw('selected') : ''}>${n} (${c})</option>`)}${d.state && !US_STATES.includes(d.state) ? html`<option value="${d.state}" selected>${d.state}</option>` : ''}</select></label><label>ZIP<input name="zip" value="${v('zip')}"></label>${countyFieldHtml(d.state, d.county, '(pick from the list)')}
-    <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${officeDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label><label>Disbursement date<input type="date" name="disbursementDate" value="${v('disbursementDate')}" data-disbursement-input><span class="field-hint">Leave blank for the automatic date (${disbursementFor({ ...d, disbursementDate: '' }).note}).</span></label>
+    <label>Open date<input type="date" name="openDate" required value="${v('openDate')}" max="${officeDate()}"></label>    <label>Closing date<input type="date" name="closingDate" value="${v('closingDate')}"></label><label>Disbursement date<input type="date" name="disbursementDate" value="${v('disbursementDate')}" data-disbursement-input><span class="field-hint">Leave blank for the automatic date (${disbursementFor({ ...d, disbursementDate: '' }).note}).${isRefi(d) ? '' : ' Changing the closing date resets this to the closing date.'}</span></label>
     ${refi ? html`<p class="span2 muted small" data-refi-edit>Refinance: no purchase price or EMD.${d.purchasePrice != null || d.emdAmount != null || d.emdDueDate ? ' This older order still has one; saving clears it.' : ''}</p><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>`
       : html`<label>Purchase price<input name="purchasePrice" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.purchasePrice)}"></label><label>Loan amount<input name="loanAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.loanAmount)}"></label>
     <label>EMD amount<input name="emdAmount" inputmode="decimal" data-money autocomplete="off" value="${moneyShow(d.emdAmount)}"></label><label>EMD due date<input type="date" name="emdDueDate" value="${v('emdDueDate')}"></label>`}
