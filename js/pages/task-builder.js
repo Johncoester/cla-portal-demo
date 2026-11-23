@@ -7,7 +7,7 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved template or a written message with merge fields) and the "File closed" trigger. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps, triggerNeedsTask, taskChoices } from '../data/task-builder.js?v=202611301317';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps, triggerNeedsTask, taskChoices } from '../data/task-builder.js?v=202611301341';
 import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611291500';
 import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611291500';
 const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you. From: pick a staff member to send it as them (blank = the file\'s processor). The signature is their portal (Gmail) signature, else their CRM signature, else name, CLA Title & Escrow, email and phone.';

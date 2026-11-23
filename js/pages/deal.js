@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611300700';
+import { prefetchDealTab } from './deal-tab.js?v=202611301200';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -515,13 +515,15 @@ export function nameInitials(name) {
   if (!bits.length) return '';
   return `${bits[0][0] || ''}${bits.length > 1 ? bits[bits.length - 1][0] : ''}`.toUpperCase();
 }
-/* Licensed Settlement Agent has no saved field. The name stays blank. Closer is a different role and is not copied here.
- * The card says Transaction Coordinator. "Transaction Coordinator for CLA" in the picture is sample text, not the role. */
+/* FF-106: Closing Team includes a Preprocessor card (assigned CLA preprocessor, or a blank name if none).
+ * Licensed Settlement Agent has no saved field. The name stays blank. Closer is a different role and is not copied here.
+ * The Transaction Coordinator card stays. "Transaction Coordinator for CLA" in the picture is sample text, not the role. */
 export function closingTeamCards(d) {
   const sales = (d.salesPeople || []).map((s) => ({ id: (s && s.id) || '', name: teamName(s && (s.name || `${s.firstName || ''} ${s.lastName || ''}`)) })).filter((s) => s.id || s.name);
   const salesCards = (sales.length ? sales : [{ id: '', name: '' }]).map((s) => ({ role: 'Sales Person', name: s.name, id: s.id }));
   return [
     { role: 'Processor', name: teamName(d.processorName), id: d.processorId || '' },
+    { role: 'Preprocessor', name: teamName(d.preprocessorName), id: d.preprocessorUserId || '' },
     { role: 'Transaction Coordinator', name: teamName(d.tcName), id: d.tcUserId || '' },
     { role: 'Licensed Settlement Agent', name: '', id: '', blankBecause: 'no-field' },
     ...salesCards,
