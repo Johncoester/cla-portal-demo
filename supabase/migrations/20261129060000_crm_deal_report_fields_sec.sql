@@ -5,12 +5,15 @@
 -- agent and source phones and emails on real files. The CRM Bot's rule 27 review of PR 419
 -- found the same pattern there and flagged this live hole on main.
 --
--- This redefines the function as SECURITY INVOKER so RLS (including the demo_scope policies)
--- applies, keeps the staff check and the file-visibility rule, and filters
--- is_demo = viewer_is_demo() in a helper that works out the caller's scope once.
--- private.business_source_label() is not called: it is DEFINER, not granted to authenticated,
--- and it reads contacts while skipping RLS. The label is built from already-visible source
--- and contact rows, plus private.crm_option_label (already granted to authenticated).
+-- This keeps the function SECURITY DEFINER (search_path pinned) so participant and contact
+-- RLS is not fired on every join (INVOKER was a large speed regression). The file-level
+-- leak stays closed by joining private.crm_visible_deal_ids(), which works out the caller's
+-- scope once and filters is_demo = viewer_is_demo(). Each contacts join also requires
+-- c.is_demo = private.viewer_is_demo(), so a mis-flagged real contact on a demo file is hidden.
+-- private.business_source_label() is not called: it reads contacts while skipping the
+-- demo_scope policy. The source label is built in-function; the source contact is looked up
+-- under DEFINER but only when c.is_demo matches the caller, so a Sales Person still gets a
+-- referrer who is not a party on the file, without crossing demo/real.
 --
 -- Apply on TEST once after this pull request merges. Do not apply the rollback on TEST.
 -- Rollback: supabase/rollbacks/20261129060000_crm_deal_report_fields_sec.sql
@@ -37,6 +40,12 @@ begin
     where table_schema = 'public' and table_name = 'deals' and column_name = 'is_demo'
   ) then
     raise exception 'drift: public.deals.is_demo is missing';
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'contacts' and column_name = 'is_demo'
+  ) then
+    raise exception 'drift: public.contacts.is_demo is missing';
   end if;
 end $$;
 
@@ -75,7 +84,7 @@ create function public.crm_deal_report_fields()
 returns jsonb
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = pg_catalog, public
 as $$
 begin
@@ -97,13 +106,13 @@ begin
     from public.deals g
     join private.crm_visible_deal_ids() v(id) on v.id = g.id
     left join lateral (select string_agg(btrim(c.first_name || ' ' || c.last_name), ', ' order by p.created_at, p.id) as names
-      from public.deal_participants p join public.contacts c on c.id = p.contact_id where p.deal_id = g.id and p.role = 'Client-Buyer') b on true
+      from public.deal_participants p join public.contacts c on c.id = p.contact_id and c.is_demo = private.viewer_is_demo() where p.deal_id = g.id and p.role = 'Client-Buyer') b on true
     left join lateral (select string_agg(btrim(c.first_name || ' ' || c.last_name), ', ' order by p.created_at, p.id) as names
-      from public.deal_participants p join public.contacts c on c.id = p.contact_id where p.deal_id = g.id and p.role = 'Client-Seller') s on true
+      from public.deal_participants p join public.contacts c on c.id = p.contact_id and c.is_demo = private.viewer_is_demo() where p.deal_id = g.id and p.role = 'Client-Seller') s on true
     left join lateral (select btrim(c.first_name || ' ' || c.last_name) as name, coalesce(c.company, '') as company, coalesce(nullif(btrim(c.mobile), ''), c.phone, '') as phone, coalesce(c.email, '') as email
-      from public.deal_participants p join public.contacts c on c.id = p.contact_id where p.deal_id = g.id and p.role = 'Buyer Agent' order by p.created_at, p.id limit 1) ba on true
+      from public.deal_participants p join public.contacts c on c.id = p.contact_id and c.is_demo = private.viewer_is_demo() where p.deal_id = g.id and p.role = 'Buyer Agent' order by p.created_at, p.id limit 1) ba on true
     left join lateral (select btrim(c.first_name || ' ' || c.last_name) as name, coalesce(c.company, '') as company, coalesce(nullif(btrim(c.mobile), ''), c.phone, '') as phone, coalesce(c.email, '') as email
-      from public.deal_participants p join public.contacts c on c.id = p.contact_id where p.deal_id = g.id and p.role = 'Listing Agent' order by p.created_at, p.id limit 1) la on true
+      from public.deal_participants p join public.contacts c on c.id = p.contact_id and c.is_demo = private.viewer_is_demo() where p.deal_id = g.id and p.role = 'Listing Agent' order by p.created_at, p.id limit 1) la on true
     left join lateral (
       select x.source,
         case split_part(btrim(x.source), ':', 1)
@@ -119,7 +128,8 @@ begin
     left join lateral (select btrim(c.first_name || ' ' || c.last_name) as name, coalesce(c.company, '') as company, coalesce(nullif(btrim(c.mobile), ''), c.phone, '') as phone, coalesce(c.email, '') as email
       from public.contacts c
       -- CASE, not AND: Postgres may evaluate both sides of an AND, and a source with no contact id ('google', 'lender') is not a uuid
-      where c.id = case when split_part(src.source, ':', 2) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(src.source, ':', 2)::uuid end) sc on true)
+      where c.id = case when split_part(src.source, ':', 2) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(src.source, ':', 2)::uuid end
+        and c.is_demo = private.viewer_is_demo()) sc on true)
     , '[]'::jsonb);
 end $$;
 
@@ -129,16 +139,19 @@ grant execute on function public.crm_deal_report_fields() to authenticated;
 do $readback$
 declare src text;
 begin
-  if exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-             where n.nspname = 'public' and p.proname = 'crm_deal_report_fields' and p.prosecdef) then
-    raise exception 'readback: crm_deal_report_fields is still SECURITY DEFINER';
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = 'public' and p.proname = 'crm_deal_report_fields' and p.prosecdef) then
+    raise exception 'readback: crm_deal_report_fields is not SECURITY DEFINER';
   end if;
   select pg_get_functiondef('public.crm_deal_report_fields()'::regprocedure) into src;
   if position('private.crm_user()' in src) = 0 or position('private.crm_visible_deal_ids()' in src) = 0 then
     raise exception 'readback: the staff-only check or the visible-files helper is missing';
   end if;
+  if (select count(*) from regexp_matches(src, 'c.is_demo = private.viewer_is_demo()', 'g')) < 5 then
+    raise exception 'readback: not every contacts join filters c.is_demo = private.viewer_is_demo()';
+  end if;
   if position('private.business_source_label(' in src) > 0 then
-    raise exception 'readback: the function still calls business_source_label (DEFINER, skips contact RLS)';
+    raise exception 'readback: the function still calls business_source_label (skips contact demo_scope)';
   end if;
   if has_function_privilege('anon', 'public.crm_deal_report_fields()', 'execute') then
     raise exception 'readback: anon can call crm_deal_report_fields';

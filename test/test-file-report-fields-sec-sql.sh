@@ -53,7 +53,8 @@ create table public.contacts (
   company text,
   mobile text,
   phone text,
-  email text
+  email text,
+  is_demo boolean not null default false
 );
 create table public.deal_participants (
   id uuid primary key default gen_random_uuid(),
@@ -146,20 +147,26 @@ insert into public.deals (id, file_number, state, zip, lender_name, stage, proce
   ('55555555-5555-4555-8555-555555555555', 'MD-26-REAL', 'MD', '20850', 'Real Bank', 5, '11111111-1111-4111-8111-111111111111', 'Chris Closer', false),
   ('66666666-6666-4666-8666-666666666666', 'MD-26-DEMO', 'MD', '20852', 'Demo Bank', 2, '22222222-2222-4222-8222-222222222222', 'Dana Closer', true);
 
-insert into public.contacts (id, first_name, last_name, company, mobile, phone, email) values
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Testy', 'Buyerman', null, null, null, 'testy@example.test'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Sally', 'Sellerton', null, null, null, 'sally@example.test'),
-  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Lisa', 'Listing', 'Listing Realty', '240-555-0111', '301-555-0100', 'lisa@example.test'),
-  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Dana', 'Demobuyer', null, null, null, 'dana@example.test');
+insert into public.contacts (id, first_name, last_name, company, mobile, phone, email, is_demo) values
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Testy', 'Buyerman', null, null, null, 'testy@example.test', false),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Sally', 'Sellerton', null, null, null, 'sally@example.test', false),
+  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Lisa', 'Listing', 'Listing Realty', '240-555-0111', '301-555-0100', 'lisa@example.test', false),
+  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Dana', 'Demobuyer', null, null, null, 'dana@example.test', true),
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Owen', 'Offfile', 'Offfile Co', '240-555-0999', '301-555-0999', 'owen@example.test', false),
+  ('ffffffff-ffff-4fff-8fff-ffffffffffff', 'Real', 'OnDemo', null, null, null, 'realondemo@example.test', false);
 
 insert into public.deal_participants (deal_id, contact_id, role) values
   ('55555555-5555-4555-8555-555555555555', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Client-Buyer'),
   ('55555555-5555-4555-8555-555555555555', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Client-Seller'),
   ('55555555-5555-4555-8555-555555555555', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Listing Agent'),
-  ('66666666-6666-4666-8666-666666666666', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Client-Buyer');
+  ('66666666-6666-4666-8666-666666666666', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'Client-Buyer'),
+  ('66666666-6666-4666-8666-666666666666', 'ffffffff-ffff-4fff-8fff-ffffffffffff', 'Client-Buyer');
 
 insert into public.deal_business_sources (deal_id, source) values
-  ('55555555-5555-4555-8555-555555555555', 'listing_agent:cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+  ('55555555-5555-4555-8555-555555555555', 'lender:eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+
+insert into public.deal_sales_people (deal_id, sales_id) values
+  ('55555555-5555-4555-8555-555555555555', '33333333-3333-4333-8333-333333333333');
 SQL
 
 q -f "$ROOT/supabase/migrations/20261129010000_crm_deal_report_fields.sql"
@@ -172,13 +179,16 @@ ok "$(as 22222222-2222-4222-8222-222222222222 "select x->>'buyerNames' from json
 
 q -f "$ROOT/supabase/migrations/20261129060000_crm_deal_report_fields_sec.sql"
 
-ok "$(val "select p.prosecdef::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'crm_deal_report_fields';")" "false" "after the fix, crm_deal_report_fields is SECURITY INVOKER"
+ok "$(val "select p.prosecdef::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'crm_deal_report_fields';")" "true" "after the fix, crm_deal_report_fields stays SECURITY DEFINER"
 ok "$(as 22222222-2222-4222-8222-222222222222 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$REAL';")" "0" "a demo Processor gets 0 rows from real files"
 ok "$(as 22222222-2222-4222-8222-222222222222 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$DEMO';")" "1" "a demo Processor still sees the demo file"
+ok "$(as 22222222-2222-4222-8222-222222222222 "select x->>'buyerNames' from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$DEMO';")" "Dana Demobuyer" "a demo file with a non-demo buyer contact shows no name for that contact to the demo viewer"
 ok "$(as 11111111-1111-4111-8111-111111111111 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$REAL';")" "1" "a real Processor still sees the real file"
 ok "$(as 11111111-1111-4111-8111-111111111111 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$DEMO';")" "0" "a real Processor does not see the demo file"
-ok "$(as 11111111-1111-4111-8111-111111111111 "select (x->>'buyerNames') || '|' || (x->>'listingAgentPhone') || '|' || (x->>'sourceOfBusiness') from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$REAL';")" "Testy Buyerman|240-555-0111|Listing agent — Lisa Listing" "a real Processor still gets buyer, agent phone and source label"
-ok "$(as 33333333-3333-4333-8333-333333333333 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_fields()) x;")" "0" "a Sales Person who is not on either file gets no rows"
+ok "$(as 11111111-1111-4111-8111-111111111111 "select (x->>'buyerNames') || '|' || (x->>'listingAgentPhone') || '|' || (x->>'sourceOfBusiness') || '|' || (x->>'sourceContactName') from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$REAL';")" "Testy Buyerman|240-555-0111|Lender — Owen Offfile|Owen Offfile" "a real Processor still gets buyer, agent phone and a referrer who is not a party on the file"
+ok "$(as 33333333-3333-4333-8333-333333333333 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$REAL';")" "1" "a Sales Person on the file sees it"
+ok "$(as 33333333-3333-4333-8333-333333333333 "select (x->>'sourceOfBusiness') || '|' || (x->>'sourceContactName') from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$REAL';")" "Lender — Owen Offfile|Owen Offfile" "a Sales Person still gets the referrer name when that contact is not a party on the file"
+ok "$(as 33333333-3333-4333-8333-333333333333 "select count(*)::text from jsonb_array_elements(public.crm_deal_report_fields()) x where x->>'id' = '$DEMO';")" "0" "a real Sales Person does not see the demo file"
 err "set test.uid = '44444444-4444-4444-8444-444444444444'; select public.crm_deal_report_fields();" "The CRM is for CLA staff only." "a buyer agent is refused"
 ok "$(val "select has_function_privilege('anon', 'public.crm_deal_report_fields()', 'execute')::text;")" "false" "anon cannot run the function"
 
