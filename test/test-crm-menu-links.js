@@ -137,7 +137,7 @@ const chain = [
   ['js/pages/crm-forms.js', '202611301000'],
   ['js/pages/crm-home.js', '202611301100'],
   ['js/pages/crm.js', '202611301000'],
-  ['js/app.js', '202611301800'],
+  ['js/app.js', '202611302000'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
