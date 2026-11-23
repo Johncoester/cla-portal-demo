@@ -6,7 +6,7 @@
  * nothing is sent until an Admin turns the flow on (John: "I'll test it and turn it on when I feel ready").
  * TEST COPY (John): "Try on one file" fills in that file's real names and address but sends the email ONLY to the admin trying it.
  * Mirrored in SQL: migration 20261127010000_task_flow_email_step.sql. Pure: no adapter, no DOM. */
-import { FILE_TEMPLATE_FIELD_KEYS, mergeValues, renderMerge } from './file-email-templates.js?v=202611247700';
+import { FILE_TEMPLATE_FIELD_KEYS, mergeValues, renderMerge } from './file-email-templates.js?v=202611291500';
 
 export const EMAIL_ROLES = [['Client-Buyer', 'Buyer'], ['Client-Seller', 'Seller'], ['Buyer Agent', "Buyer's agent"], ['Listing Agent', 'Listing agent'],
   ['non_referring_agents', "Agents who didn't refer the file"], ['Transaction Coordinator', 'Transaction coordinator'], ['Lender', 'Lender']];
@@ -41,7 +41,7 @@ export function cleanEmailStep(s = {}, n = 'Step') {
   const templateId = String(s.templateId || '').trim();
   if (templateId) {
     if (!/^[A-Za-z0-9-]{1,64}$/.test(templateId)) throw new Error(`${n}: choose a saved template, or write the email.`);
-    return { type: 'send_email', sendTo: s.sendTo, templateId, templateName: String(s.templateName || '').trim().slice(0, 120) };
+    return { type: 'send_email', sendTo: s.sendTo, templateId, templateName: String(s.templateName || '').trim().slice(0, 120), ...cleanSender(s, n) };
   }
   const subject = String(s.subject == null ? '' : s.subject).replace(/\s+/g, ' ').trim();
   const body = String(s.body == null ? '' : s.body).replace(/\r\n/g, '\n').trim();
@@ -51,8 +51,27 @@ export function cleanEmailStep(s = {}, n = 'Step') {
   if (body.length > EMAIL_BODY_MAX) throw new Error(`${n}: the message is too long. Use ${EMAIL_BODY_MAX} characters or fewer.`);
   const bad = [...new Set([...unknownTokens(subject), ...unknownTokens(body)])];
   if (bad.length) throw new Error(`${n}: {{${bad[0]}}} is not a merge field. Use one from the list, for example {{buyer_first_name}} or {{property_address}}.`);
-  return { type: 'send_email', sendTo: s.sendTo, subject, body };
+  return { type: 'send_email', sendTo: s.sendTo, subject, body, ...cleanSender(s, n) };
 }
+
+/* SEND AS + SIGNATURE (John, Nov 22 2026): "What about my signature?... let's do that." An email step can be sent as a named staff member
+ * (for example John, for his owner intro) instead of the file's processor, and can end with the sender's signature. `from` is a staff
+ * profile id, or blank for the file's processor. `signature` adds the sender's portal signature (Profile > Gmail card), else their CRM
+ * signature, else their name, "CLA Title & Escrow", email and phone. Steps saved before this have neither: processor, no signature. */
+export function cleanSender(s = {}, n = 'Step') {
+  const from = String(s.from == null ? '' : s.from).trim();
+  if (from && !/^[\w-]{1,64}$/.test(from)) throw new Error(`${n}: choose who the email is from.`);
+  const out = {}; if (from) out.from = from; if (s.signature === true || s.signature === 'true' || s.signature === 'on') out.signature = true;
+  return out;
+}
+// the sign-off added under the message: a saved signature (HTML is turned into text), else a plain one from the profile
+export function signatureText(person = {}, savedHtml = '') {
+  const saved = htmlToText(savedHtml || '');
+  if (saved) return saved;
+  const name = `${person.firstName || ''} ${person.lastName || ''}`.replace(/\s+/g, ' ').trim();
+  return [name, 'CLA Title & Escrow', [person.email, person.phone].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
+}
+export const withSignature = (body, sig) => (sig ? `${String(body || '').replace(/\s+$/, '')}\n\n${sig}` : String(body || ''));
 
 export function emailStepText(s) {
   const what = s.templateId ? `the "${s.templateName || 'saved'}" template` : `"${s.subject}"`;
@@ -69,8 +88,8 @@ export function htmlToText(h) {
 /* The email for one person. deal: { fileNumber, street, city, state, zip, closingDate, purchasePrice, loanAmount, lenderName, processorName,
  * processorEmail, participants: [{ role, contact: { firstName, lastName, email } }] }. to: { email }. src: { subject, body } (text) or
  * { subject, bodyHtml } (a template). Returns { subject, body }. */
-export function renderFlowEmail(deal, to, src, { today } = {}) {
-  const values = mergeValues(deal, { name: deal.processorName || 'CLA Title & Escrow' }, { today, toEmails: [to.email] });
+export function renderFlowEmail(deal, to, src, { today, senderName } = {}) {
+  const values = mergeValues(deal, { name: senderName || deal.processorName || 'CLA Title & Escrow' }, { today, toEmails: [to.email] });
   const body = src.bodyHtml != null ? htmlToText(src.bodyHtml) : String(src.body || '');
   return { subject: renderMerge(src.subject, values, { mode: 'text' }).out.replace(/\s+/g, ' ').trim(), body: renderMerge(body, values, { mode: 'text' }).out };
 }
