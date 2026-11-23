@@ -8,7 +8,7 @@
  * Nothing here deletes: dashboards, components and reports are RETIRED (hidden, restorable). Mirrored by migration 30. */
 import { withFileColumns, withTaskColumns, taskTitlesInUse, reportKeys, isTaskKey, MODULE_CODES, moduleName, SEARCH_MODULES, REPORT_MODULES, DASH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, parseQuery, searchMatch, moduleFields, reportFields,
   RELATED, joinRows, runReport, reportCsv, cleanCriteria, applyCriteria, criteriaText, chartData, measureOf, measureLabel, groupOf, display, dealStageOf, CALL_TYPES,
-  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611301000';
+  COMPONENT_CODES, CHART_CODES, VISIBILITY, DEPARTMENTS, SHARE_ROLES, dashboardVisible, dashboardEditable, reportVisible, reportEditable as reportEditableRule, NUMERIC, isDateType, calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, DATE_PRESETS, AGG_FNS, CF_ENTITY_OF, DEFAULT_COLUMNS } from './crm-analytics.js?v=202611301800';
 import { ensureNov3b } from './crm-nov3b.js?v=202611070139';
 import { DISBURSEMENT_KEYS } from './crm-disbursement.js?v=202611070139';
 import { flattenCustom, optLabel, optionsOf } from './crm-config.js?v=202611247700';
@@ -193,9 +193,9 @@ export function crmNov3bPart(x, h) {
   // ---------- reports ----------
   const reportOf = (u, id) => { const r = db().crmReports.find((z) => z.id === str(id, 60)); if (!r || !reportVisible(u, r)) fail('Report not found.'); return r; };
   const userNames = () => db().profiles.map((p) => ({ id: p.id, name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.id }));   // user values in filter text show names
-  const reportEditable = (u, r) => !crmReadOnly(u) && (u.isAdmin || r.createdBy === u.id);
+  const reportEditable = (u, r) => reportEditableRule(u, { createdBy: r.createdBy, personal: isPersonalFolder(r.folderId) }, crmReadOnly(u));   // RPT-3a
   const folderName = (id) => { if (isPersonalFolder(id)) { const p = prof(id.slice(9)); return p ? `${p.firstName} ${p.lastName}`.trim() : 'Personal'; } return (db().crmReportFolders.find((f) => f.id === id) || {}).name || ''; };
-  const folderFor = (u, v) => { const id = str(v, 80) || personalFolderId(u.id); if (isPersonalFolder(id)) { if (id !== personalFolderId(u.id)) fail('You can only save into shared folders or your own folder.'); return id; }
+  const folderFor = (u, v) => { const id = str(v, 80) || personalFolderId(u.id); if (crmReadOnly(u) && id !== personalFolderId(u.id)) fail('Your reports are saved in your own folder.'); if (isPersonalFolder(id)) { if (id !== personalFolderId(u.id)) fail('You can only save into shared folders or your own folder.'); return id; }
     if (!db().crmReportFolders.some((f) => f.id === id)) fail('Pick a folder from the list.'); return id; };
   function cleanReport(u, input, cur, cfg) {
     const has = (k) => !cur || input[k] !== undefined; const r = cur ? { ...cur } : {};
@@ -426,14 +426,14 @@ export function crmNov3bPart(x, h) {
     async listCrmReports({ includeRetired = false } = {}) { const u = crmUser(); return db().crmReports.filter((r) => reportVisible(u, r) && (!isPersonalFolder(r.folderId) || r.folderId === personalFolderId(u.id)) && (includeRetired || !r.retiredAt))
       .map((r) => reportOut(u, r)).sort((a, b) => a.name.localeCompare(b.name)); },
     async getCrmReport(id) { const u = crmUser(); const r = reportOf(u, id); if (isPersonalFolder(r.folderId) && r.folderId !== personalFolderId(u.id)) fail('Report not found.'); return { ...reportOut(u, r), fields: reportFields(r.module, r.related, cfgFor(u), { taskTitles: taskTitles(u), keys: reportKeys(r) }) }; },
-    async createCrmReport(input = {}) { const u = crmEditor(); const cfg = cfgFor(u); const r = cleanReport(u, input, null, cfg);
+    async createCrmReport(input = {}) { const u = crmUser(); const cfg = cfgFor(u); const r = cleanReport(u, input, null, cfg);
       const row = { id: nid('rep'), ...r, createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now(), lastAccessedAt: null, retiredAt: null }; db().crmReports.push(row); save(); return reportOut(u, row); },
-    async updateCrmReport(id, patch = {}) { const u = crmEditor(); const r = reportOf(u, id); if (!reportEditable(u, r)) fail('Only the person who made this report (or an Admin) can change it; use Clone to make your own.');
+    async updateCrmReport(id, patch = {}) { const u = crmUser(); const r = reportOf(u, id); if (!reportEditable(u, r)) fail('Only the person who made this report (or an Admin) can change it; use Clone to make your own.');
       const v = cleanReport(u, patch, r, cfgFor(u)); Object.assign(r, v, { modifiedBy: u.id, modifiedAt: now() }); save(); return reportOut(u, r); },
-    async cloneCrmReport(id, { name, folderId } = {}) { const u = crmEditor(); const src = reportOf(u, id);
+    async cloneCrmReport(id, { name, folderId } = {}) { const u = crmUser(); const src = reportOf(u, id);
       const row = { ...clone(src), id: nid('rep'), name: (str(name, 120) || `Copy of ${src.name}`).slice(0, 120), folderId: folderFor(u, folderId || personalFolderId(u.id)), share: { mode: 'all', users: [], roles: [] },
         createdBy: u.id, createdAt: now(), modifiedBy: u.id, modifiedAt: now(), lastAccessedAt: null, retiredAt: null, clonedFrom: src.id }; db().crmReports.push(row); save(); return reportOut(u, row); },
-    async retireCrmReport(id, retired = true) { const u = crmEditor(); const r = reportOf(u, id); if (!reportEditable(u, r)) fail('Only the person who made this report (or an Admin) can retire it.');
+    async retireCrmReport(id, retired = true) { const u = crmUser(); const r = reportOf(u, id); if (!reportEditable(u, r)) fail('Only the person who made this report (or an Admin) can retire it.');
       r.retiredAt = retired ? r.retiredAt || now() : null; r.retiredBy = retired ? u.id : null; r.modifiedAt = now(); save(); return reportOut(u, r); },
     // run a saved report (id) or an unsaved definition; a saved one gets its Last Accessed Date
     async listCrmReportTaskTitles() { return taskTitles(crmUser()); },

@@ -6,7 +6,7 @@
 import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtDateTime, modal, closeModal, pill } from '../ui.js?v=202611161500';
 import { relatedLists, localStamp, entityLabel } from '../data/crm.js?v=202611247700';
 import { CALL_TYPE_CHOICES, CALL_REMINDERS, CALL_TO_TYPES, RELATED_TO_TYPES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT, durationText, durationWords, reminderLabel, defaultCallSubject } from '../data/crm-calls.js?v=202611247700';
-import { optSel, lbl } from './crm-custom.js?v=202611301000';
+import { optSel, lbl } from './crm-custom.js?v=202611301800';
 import { ownerSel, tabs, head } from './crm-kit.js?v=202611289980';
 import { modOn } from '../data/modules.js?v=202611247700';   // module switches: Calls not Live = no call menu / call columns for regular users
 
