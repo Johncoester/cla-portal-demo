@@ -10,7 +10,7 @@ const selectValue = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.pro
 Object.defineProperty(window.HTMLSelectElement.prototype, 'value', { configurable: true, get() { return selectValue.get.call(this); },
   set(v) { const want = String(v); [...this.options].forEach((o) => { if (o.getAttribute('value') === want) o.setAttribute('selected', ''); else o.removeAttribute('selected'); }); } });
 
-const { cleanEmailStep, emailStepText, htmlToText, renderFlowEmail, testCopy } = await import('../js/data/flow-email.js');
+const { cleanEmailStep, emailStepText, htmlToText, renderFlowEmail, testCopy, cleanSender, signatureText, withSignature } = await import('../js/data/flow-email.js');
 const { cleanSteps, stepText, hasTaskStep, advanceRun, newRun, STEP_TYPES, TRIGGERS, triggerRuns, dealRunsFor } = await import('../js/data/task-builder.js');
 const { createMockAdapter } = await import('../js/data/mock-adapter.js');
 const { toText } = await import('../js/ui.js');
@@ -147,6 +147,47 @@ ok(stepTimeline('file_closed', null, [{ type: 'wait', days: 2 }, { type: 'send_e
   ok(/due the same day/.test(m3.querySelector('[data-tb-step="1"] [data-tb-step-when]').textContent) && /Due \(days after it's created\)/.test(m3.querySelector('[data-tb-step="1"]').textContent), 'the line updates as you type, and the due box says days after it is created');
   const em = m3.querySelector('[data-tb-step="1"] [data-tb-step-type]'); em.value = 'send_email'; em.dispatchEvent(new window.Event('change', { bubbles: true }));
   ok([...m3.querySelectorAll('[data-tb-step="1"] [data-tb-step-field="sendTo"] option')].some((o) => o.getAttribute('value') === 'non_referring_agents' && /didn't refer/.test(o.textContent)), 'the email step can be sent to the agents who did not refer the file'); }
+
+// ---------- Nov 22 (John, by voice): send as a named staff member, with that person's signature ----------
+ok(JSON.stringify(cleanEmailStep({ ...thanks, from: 'u-admin', signature: true })).includes('"from":"u-admin","signature":true'), 'an email step keeps who it is from and the signature box');
+ok(!('from' in cleanEmailStep(thanks)) && !('signature' in cleanEmailStep(thanks)), 'a step saved before this has neither: the processor sends it, no signature');
+ok(/choose who the email is from/.test(thrown(() => cleanSender({ from: 'john <x>' }, 'Step 2'))), 'a From that is not a staff member is refused in plain words');
+ok(signatureText({ firstName: 'John', lastName: 'Coester', email: 'john@cla.test', phone: '301-555-0100' }) === 'John Coester\nCLA Title & Escrow\njohn@cla.test · 301-555-0100', 'with no saved signature: name, CLA Title & Escrow, email and phone');
+ok(signatureText({ firstName: 'John' }, '<p>John Coester<br>CEO</p>') === 'John Coester\nCEO', 'a saved signature is used, as plain text');
+ok(withSignature('Hi Bea,\n\nThanks.\n', 'John') === 'Hi Bea,\n\nThanks.\n\nJohn' && withSignature('Hi', '') === 'Hi', 'the signature goes under the message after a blank line');
+ok(renderFlowEmail(deal, { email: 'bea@example.com' }, { subject: 'Hi', body: 'This is {{sender_name}}.' }, { senderName: 'John Coester' }).body === 'This is John Coester.', '{{sender_name}} is the person it is from');
+{ const api4 = createMockAdapter({ storage: mem(), sessionStorage: mem() });
+  await api4.signInDev('u-admin');
+  const staff = await api4.listActiveStaff(); const me = staff.find((s) => s.id === 'u-admin'); const meName = `${me.firstName} ${me.lastName}`.trim();
+  const fl = await api4.createTaskFlow({ name: 'Owner intro', trigger: 'order_opened', steps: [{ type: 'send_email', sendTo: 'Client-Buyer', subject: 'Welcome from CLA Title', body: 'Hi {{recipient_first_name}}, this is {{sender_name}}, the owner.', from: 'u-admin', signature: true }] });
+  ok(fl.steps[0].from === 'u-admin' && fl.steps[0].signature === true, 'the demo portal saves From and the signature box');
+  const r1 = await api4.tryTaskFlowOnFile(fl.id, 'deal-1');
+  ok(r1.log.some((l) => new RegExp(`Test copy queued for you \\(.+\\), from ${meName}\\.`).test(l.text)), 'the run history says who it is from');
+  const box = ((await api4.listOutbox()) || []).find((o) => /^\[Test\] Welcome from CLA Title/.test(o.subject || ''));
+  ok(!!box && box.senderType === 'other' && box.fromName === meName && box.senderProfileId === 'u-admin', 'the test copy is from that person, not the processor');
+  ok(!!box && box.body.includes(`this is ${meName}, the owner.`) && /\n\n.+\nCLA Title & Escrow/.test(box.body), 'the message names them and ends with their signature');
+  if (api4.saveCrmSignature) { await api4.saveCrmSignature('<p>John, CEO</p>');
+    await api4.tryTaskFlowOnFile(fl.id, 'deal-1');
+    const copies = ((await api4.listOutbox()) || []).filter((o) => /^\[Test\] Welcome from CLA Title/.test(o.subject || ''));
+    ok(copies.length === 2 && copies.some((o) => /\n\nJohn, CEO$/.test(o.body)), 'their saved signature is used when they have one'); }
+  const fl2 = await api4.createTaskFlow({ name: 'Old style', trigger: 'order_opened', steps: [{ type: 'send_email', sendTo: 'Client-Buyer', subject: 'Plain one', body: 'Hello.' }] });
+  await api4.tryTaskFlowOnFile(fl2.id, 'deal-1');
+  const box3 = ((await api4.listOutbox()) || []).find((o) => /^\[Test\] Plain one/.test(o.subject || ''));
+  ok(!!box3 && box3.senderType !== 'other' && /Hello\.$/.test(box3.body), 'a step with no From still goes from the processor with no signature');
+  // the form
+  const app4 = document.getElementById('app'); const v4 = await render({ api: api4, user: { id: 'u-admin', role: 'Super admin', isAdmin: true, status: 'active' }, refresh() {} });
+  app4.innerHTML = toText(v4.body); v4.mount(app4);
+  app4.querySelector('[data-tb-new]').click();
+  const m4 = document.getElementById('modal');
+  m4.querySelector('[data-tb-add-step]').click();
+  const ty = m4.querySelector('[data-tb-step="0"] [data-tb-step-type]'); ty.value = 'send_email'; fire(ty, 'change');
+  const fromSel = m4.querySelector('[data-tb-step="0"] [data-tb-step-field="from"]');
+  ok(!!fromSel && fromSel.options[0].textContent === "The file's processor" && [...fromSel.options].some((o) => o.getAttribute('value') === 'u-admin'), 'the email step has From: the file\'s processor, or any staff member');
+  const sigBox = m4.querySelector('[data-tb-step="0"] [data-tb-step-sig]');
+  ok(!!sigBox && sigBox.hasAttribute('checked'), 'Add the sender\'s signature is ticked on a new email step');
+  ok([...m4.querySelectorAll('[data-tb-step="0"] [data-tb-insert] option')].some((o) => o.textContent === "Recipient's first name"), 'Insert field says "Recipient\'s first name" (no "from To")');
+  document.querySelector('#modal [data-close]').click();
+}
 
 console.log(fail ? `${fail} failed` : 'all passed');
 process.exit(fail ? 1 : 0);

@@ -13,9 +13,9 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved file template or a written message, with merge fields) and the "File closed"
  * trigger. Emails are queued in the outbox; a test run sends the email only to the admin trying it. */
 import { cleanFlow, canManageTaskBuilder, TASK_BUILDER_ADMIN_ONLY, sameName, DUPLICATE_NAME, triggerText, triggerRuns, TRIGGER_NOT_RUNNING,
-  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611290700';
-import { renderFlowEmail, testCopy, emailRecipients, emailRoleName } from './flow-email.js?v=202611281200';
-import { SEED_SHARED } from './file-email-templates.js?v=202611247700';
+  hasTaskStep, NO_TASK_STEP, flowsForEvent, timeTriggerMet, mayStart, newRun, advanceRun, dealRuns, dealRunsFor, stepText, conditionsText, cleanScope, scopeText } from './task-builder.js?v=202611291500';
+import { renderFlowEmail, testCopy, emailRecipients, emailRoleName, signatureText, withSignature } from './flow-email.js?v=202611291500';
+import { SEED_SHARED } from './file-email-templates.js?v=202611291500';
 import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';
 import { senderFor } from './email-senders.js?v=202611247700';
 import { taskEnabled } from './task-switches.js?v=202611247700';
@@ -122,17 +122,27 @@ export function taskBuilderPart({ load, save, needUser, nid, now, fail, nameOf, 
     if (!people.length) { notes.push({ at, text: `No ${who} on this file, so the email was not sent.` }); return; }
     if (!withEmail.length) { notes.push({ at, text: `The ${who} on this file has no email address, so the email was not sent.` }); return; }
     const mailDeal = dealForMail(d, deal); const today = at.slice(0, 10);
+    // who it is from (Nov 22): a named staff member, else the file's processor; and their signature when the step asks for it
+    let person = t.from ? (d.profiles || []).find((z) => z.id === t.from && (z.status || 'active') === 'active' && z.email) : null;
+    if (t.from && !person) notes.push({ at, text: 'The person this email is from is no longer an active staff member with an email, so it goes from the file\'s processor.' });
+    const proc = (d.profiles || []).find((z) => z.id === deal.processorId) || null;
+    const signer = person || proc;
+    const senderName = signer ? `${signer.firstName || ''} ${signer.lastName || ''}`.trim() : '';
+    const sig = t.signature && signer ? signatureText(signer, ((d.crmSignatures || {})[signer.id] || {}).html || '') : '';
+    const fromFields = person ? { senderType: 'other', senderProfileId: person.id, fromEmail: person.email, fromName: senderName, email: person.email, displayName: senderName, from: `${senderName} <${person.email}>`, senderFallback: false }
+      : senderFor(d, 'processor', deal.id);
+    const render = (to) => { const mail = renderFlowEmail(mailDeal, { email: to }, src, { today, senderName }); return { ...mail, body: withSignature(mail.body, sig) }; };
     const queue = (toProfileId, toEmail, toName, mail) => { const ob = { id: nid('ob'), channel: 'email', status: 'queued', kind: 'task_flow_email', toProfileId, toEmail, toName,
       subject: mail.subject, body: mail.body, taskId: null, dealId: deal.id, createdBy: run.trialTo || null, createdAt: at, sentAt: null, templateKey: 'task_flow_email', flowId: flow.id, runId: run.id };
-      Object.assign(ob, senderFor(d, 'processor', deal.id)); d.outbox.push(ob); };
+      Object.assign(ob, fromFields); d.outbox.push(ob); };
     if (run.trial) {   // test copy: the real names and address, sent only to the admin trying it
       const me = (d.profiles || []).find((z) => z.id === run.trialTo); if (!me || !me.email) return;
-      const first = renderFlowEmail(mailDeal, { email: String(withEmail[0].email).trim().toLowerCase() }, src, { today });
+      const first = render(String(withEmail[0].email).trim().toLowerCase());
       queue(me.id, me.email, `${me.firstName || ''} ${me.lastName || ''}`.trim() || me.email, testCopy(first, withEmail.map((c) => `${c.firstName || ''} ${c.lastName || ''}`.trim() + ` <${c.email}>`).join(', ')));
-      notes.push({ at, text: `Test copy queued for you (${me.email}).` }); return;
+      notes.push({ at, text: `Test copy queued for you (${me.email})${person ? `, from ${senderName}` : ''}.` }); return;
     }
     withEmail.forEach((c) => { const to = String(c.email).trim().toLowerCase();
-      queue(c.profileId || null, to, `${c.firstName || ''} ${c.lastName || ''}`.trim() || to, renderFlowEmail(mailDeal, { email: to }, src, { today })); });
+      queue(c.profileId || null, to, `${c.firstName || ''} ${c.lastName || ''}`.trim() || to, render(to)); });
     if (withEmail.length < people.length) notes.push({ at, text: `${people.length - withEmail.length} ${who} on this file has no email address and was skipped.` });
   };
   const makeTasks = (d, flow, run, deal, specs, at) => {
