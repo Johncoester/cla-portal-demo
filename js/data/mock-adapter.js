@@ -45,6 +45,7 @@ import { underwriterPart } from './mock-part-underwriter.js?v=202611247900';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611247700';
 import { agentInvitePart } from './mock-part-agent-invite.js?v=202611249900';
 import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611289960';
+import { tcOnlyPart } from './mock-part-tc-only.js?v=202611291700';
 import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
 import { gmailMock } from './supabase-gmail.js?v=202611291500';
@@ -529,6 +530,7 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   Object.assign(api, agentFeesPart(ctx));       // AF-2 (John, Nov 12): agent fees per side (commission, admin fee, other fees)
   Object.assign(api, agentInvitePart(ctx));   // John, Nov 4: agent invites (link shown, nothing sent), agent profiles, the clients' "Your agent" card
   Object.assign(api, agentTcLinksPart(ctx));   // TC-2: link outside transaction coordinators to a real estate agent
+  Object.assign(api, tcOnlyPart(ctx));   // TC-ONLY-2: Only communicate with TC on a file's agent
   Object.assign(api, recordingPart(ctx, flags, api));
   Object.assign(api, fwpPart(ctx, flags, api));
   Object.assign(api, nov5Part(ctx));   // Nov 5: task admin, alert groups, entity attorneys, CPL prices, file coverage

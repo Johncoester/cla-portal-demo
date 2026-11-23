@@ -5,12 +5,13 @@ import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=2
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611249900';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611249900';
-import { copyPlainText } from './deal.js?v=202611291500';
+import { copyPlainText } from './deal.js?v=202611291700';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
+import { TC_ONLY_LABEL, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611291700';
 import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
@@ -35,6 +36,17 @@ export async function render({ api, user, deal, refresh }) {
   const repaint = () => { if (api.dropFileReads) api.dropFileReads(); refresh(); };
   const edit = runsOrders(user); const staffView = !user.accountRole && user.role !== 'Outside user'; const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];
   const list = deal.participants.filter((p) => !grp || grp.includes(p.role));
+  // TC-ONLY-2 (John, Nov 22 2026): "Only communicate with TC" on each buyer's agent / listing agent. CLA staff only; one read, only when the file has an agent.
+  const tcEdit = canSetTcOnly(user);
+  let tcRows = new Map();
+  if (staffView && api.tcOnlyStatus && deal.participants.some((p) => isTcOnlyRole(p.role) && !p.removed)) {
+    try { tcRows = tcOnlyMap(await api.tcOnlyStatus(deal.id)); } catch (e) { tcRows = new Map(); }   // the box stays hidden; emails are still routed by the database
+  }
+  const tcBox = (p) => {
+    const b = staffView && !p.removed ? tcOnlyBox(tcRows.get(p.id), p.role, { canEdit: tcEdit }) : null;
+    if (!b) return '';
+    return html`<div class="small tc-only-box" data-tc-only-row="${p.id}"><label class="check small" title="${b.title}"><input type="checkbox" data-tc-only="${p.id}" ${b.checked ? raw('checked') : ''} ${b.disabled ? raw('disabled') : ''}> ${TC_ONLY_LABEL}</label><div class="muted small" data-tc-only-hint>${b.hint}</div></div>`;
+  };
   const party = new Set((deal.agentParties || []).map((p) => p.contactId));
   const separate = (p) => list.some((q) => q.id !== p.id && q.contactId !== p.contactId && sameParty([q], p.contact, p.role));
   const rows = list.map((p) => {
@@ -47,7 +59,7 @@ export async function render({ api, user, deal, refresh }) {
       : html`<td>${fmtPhone(p.contact.phone)} ${phoneBtn}</td><td>${p.contact.email} ${emailBtn}</td>`;
     const dup = separate(p) ? html` <span class="pill warn" data-duplicate-party title="Another ${p.role} row has the same name. Edit saves only this contact.">Separate contact</span>` : '';
     // TC-BTN-REMOVE (John, Nov 19 2026, screenshot of MD-26-97260): no Transaction coordinators button on this list.
-    return html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${who}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${dup}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${agentTcLabel(p.role, sideAgentName(deal.participants, p.role))}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}${roleBit ? html` · ${roleBit}` : ''}</td><td>${p.contact.company}</td>${contactCells}
+    return html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${who}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${dup}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${agentTcLabel(p.role, sideAgentName(deal.participants, p.role))}${tcBox(p)}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}${roleBit ? html` · ${roleBit}` : ''}</td><td>${p.contact.company}</td>${contactCells}
     <td class="nowrap">${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`;
   });
   const body = html`${staffView ? lenderSectionHtml(deal, { canEdit: edit }) : ''}<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
@@ -64,6 +76,17 @@ export async function render({ api, user, deal, refresh }) {
     $$('[data-unlink]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Remove this person from the order? (Their contact record, documents and messages are kept.)')) return; await api.removeParticipant(deal.id, b.dataset.unlink); toast('Removed from order'); repaint(); })));
     $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const row = deal.participants.find((p) => p.id === b.dataset.edit); if (!row || !row.contact || !row.contact.id) { toast('This contact cannot be edited from this row.', 'err'); return; } const same = deal.participants.filter((p) => p.contactId === row.contactId); editContact(row.contact, same.some((p) => STAFF_ROLES.includes(p.role)), same); }));
     const ab = $('#addp', root); if (ab) ab.addEventListener('click', guard(addPerson));
+    $$('[data-tc-only]', root).forEach((cb) => cb.addEventListener('change', async () => {
+      const on = cb.checked; cb.disabled = true;
+      try {
+        const r = await api.setParticipantTcOnly(cb.dataset.tcOnly, on);
+        toast(on ? `Only communicate with TC is on. Emails and alerts for this agent now go to ${(r.tcs || []).join(', ') || 'their TC'}.` : 'Only communicate with TC is off. The agent gets emails again.');
+        repaint();
+      } catch (e) {
+        cb.checked = !on; cb.disabled = false;
+        toast(`${(e && e.message) || 'That did not save.'} Nothing was changed.`, 'err');
+      }
+    }));
     $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole)));
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
     if (staffView) mountLenderSection(root, { api, deal, refresh: repaint });

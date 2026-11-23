@@ -3220,3 +3220,30 @@ This file lists the portal's major features: how each one should work, how far a
 - Files with no EMD amount, due date, or holder are left off the outstanding EMD card. Refinance files have no EMD.
 - No new database file: the dashboard's existing open-file read now also asks for those four EMD columns. Admin fees reuse `getAgentFees`.
 - Cache stamp 202611291400, above main's 202611290700 and clear of open PR 407's 202611290800, so a saved copy of the shell is not reused.
+
+## Only communicate with TC (TC-ONLY-1, TC-ONLY-2)
+
+**How it should work.** On a file's Order Contacts, each buyer's agent and listing agent row has an **Only communicate with TC** box. CLA staff who run the file (processor, pre-processor, CLA TC, Admin) can tick it. When it is ticked, every email and portal alert meant for that agent on that file goes to their transaction coordinator instead: the Buyer Agent TC or Listing Agent TC on the same side who is linked to that agent. The box is disabled until a TC is linked on that side. The email compose and the Email sellers and agents preview say when an email will go to the TC instead.
+
+**Status: In progress.** John Coester, phone call and chat, Nov 22 2026, 3:12-4:09 PM ET. TC-ONLY-1 (the routing in the database, [PR 412](https://github.com/Johncoester/cla-portal-demo/pull/412)) is Live on TEST, merged Nov 22 2026, 8:12 PM ET. TC-ONLY-2 is the screens (this section's PR). It has no database file.
+
+**What's built**
+
+- TC-ONLY-1: `deal_participants.tc_only`, and `private.resolve_recipients`, which is checked on every queued email (outbox), every portal alert and every typed Gmail send. It swaps the agent for their TC, or holds the email when no TC is linked. Every swap and hold is logged in `comm_redirect_log`.
+- TC-ONLY-2: the box on Order Contacts, with a line under it saying who gets the emails or what to add first. The compose shows a note when a TC-only agent is in To, Cc or Bcc. The Email sellers and agents preview shows a note on that agent's message.
+- Outside users (agents, TCs, buyers, sellers) never see the box or the notes.
+
+**What's still missing**
+
+- The team's answers to the Nov 22 questions (alerts too, threads, fee and title notices, who can tick it). The defaults are in [docs/specs/tc-only.md](docs/specs/tc-only.md).
+- The Task Builder pages do not show the note. Task Builder emails are still routed by the database.
+
+**Links**
+
+- Spec: [docs/specs/tc-only.md](docs/specs/tc-only.md)
+- PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), TC-ONLY-2 (screens).
+
+**Decisions**
+
+- The screens only explain what will happen. The database (TC-ONLY-1) decides who actually gets each email, so an old page or a direct API call can't get around it.
+- A box that's already ticked can always be unticked, even after the TC was removed. That way staff can always turn emails back on to the agent.
