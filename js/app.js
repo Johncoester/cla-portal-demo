@@ -215,6 +215,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   }) : '';
   const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${tasksNav}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
     : deal ? html`<li class="nav-sep">This file</li>${fileHead}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? orderNav : legacyFile}` : '';   // FF-103: Accounting readers get the rearranged file menu. Everyone else keeps the shorter menu.
+  const thisFileNav = dealNav ? html`<li class="this-file-tool"><button type="button" class="ghost this-file-toggle" data-this-file-toggle aria-expanded="false" aria-controls="this-file-nav">This File</button></li><li class="this-file-nav" id="this-file-nav" data-this-file-nav tabindex="-1"><div class="this-file-nav-head"><span>This File</span><button type="button" class="ghost this-file-nav-close" data-this-file-close aria-label="Close This File menu">Close</button></div><ul class="nav nav-pills">${dealNav}</ul></li>` : '';   // JC-MOBILE-1 (John, Nov 23 2026 3:34 PM ET): on a phone the file menu starts behind This File
   // Inside a file the portal menu starts closed for every role. The file name and file tabs stay. The button only shows or hides that menu.
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
@@ -247,7 +248,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
         <ul class="user-dd" hidden><li><a href="#/profile">Profile Setting</a></li>${demoMenu(u)}${sessionStorage.getItem(LOCK_KEY) ? html`<li class="muted" data-locked-note>${VIEW_AS && VIEW_AS.viewing ? `Viewing as this person from ${VIEW_AS.owner.firstName} ${VIEW_AS.owner.lastName}'s admin link` : 'Test link: signed in as this person only'}</li>` : raw('<li><a href="#" data-signout>Logout</a></li>')}</ul></div>
     </div></div></div>
   <div class="wrapper-main">
-    <div class="left-bar">${deal ? orderPin() : sideSearchOn ? mainPin() : ''}<div class="logo">${sidebarHead}</div>${fileNav ? html`<button type="button" class="ghost file-nav-toggle" data-file-nav-toggle aria-expanded="false" aria-controls="global-nav">Show portal menu</button>` : ''}<div class="main-nav"><ul class="nav nav-pills"${fileNav ? raw(' data-order-only-nav') : ''}>${fileNav ? html`<li class="nav-global-wrap" id="global-nav" data-global-nav hidden><ul class="nav nav-pills">${core}${contact}</ul></li>${dealNav}` : sideSearchOn && !isStaff(u.role) ? moreWrap(u, html`${core}${contact}`) : html`${core}${contact}`}</ul></div></div>
+    <div class="left-bar">${deal ? orderPin() : sideSearchOn ? mainPin() : ''}<div class="logo">${sidebarHead}</div>${fileNav ? html`<button type="button" class="ghost file-nav-toggle" data-file-nav-toggle aria-expanded="false" aria-controls="global-nav">Show portal menu</button>` : ''}<div class="main-nav"><ul class="nav nav-pills"${fileNav ? raw(' data-order-only-nav') : ''}>${fileNav ? html`<li class="nav-global-wrap" id="global-nav" data-global-nav hidden><ul class="nav nav-pills">${core}${contact}</ul></li>${thisFileNav}` : sideSearchOn && !isStaff(u.role) ? moreWrap(u, html`${core}${contact}`) : html`${core}${contact}`}</ul></div>${fileNav ? html`<div class="this-file-backdrop" data-this-file-backdrop hidden></div>` : ''}</div>
     <div class="right-bar">
       <h1 class="welcome-title" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
@@ -671,6 +672,24 @@ function wireFileNav() {
   btn.addEventListener('click', (e) => { e.preventDefault(); apply(box.hidden); });
   wireFileFolds();
 }
+function wireThisFileNav() {
+  const btn = $('[data-this-file-toggle]'); const panel = $('[data-this-file-nav]'); const back = $('[data-this-file-backdrop]'); const closeBtn = $('[data-this-file-close]');
+  if (!btn || !panel) return;
+  const setOpen = (open) => {
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    panel.classList.toggle('is-open', open);
+    if (back) back.hidden = !open;
+    document.body.classList.toggle('this-file-nav-open', open);
+    if (open) { if (closeBtn) closeBtn.focus(); else panel.focus(); }
+    else btn.focus();
+  };
+  setOpen(false);
+  btn.addEventListener('click', (e) => { e.preventDefault(); setOpen(btn.getAttribute('aria-expanded') !== 'true'); });
+  if (closeBtn) closeBtn.addEventListener('click', (e) => { e.preventDefault(); setOpen(false); });
+  if (back) back.addEventListener('click', () => setOpen(false));
+  panel.addEventListener('click', (e) => { if (e.target.closest('a.nav-link')) setOpen(false); });
+  panel.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false); } });
+}
 function syncFeedback(person) {
   syncStaffFeedbackWidget({ user: person || null, demoActive: !!(DEMO_VIEW && DEMO_VIEW.active), viewingAs: !!(VIEW_AS && VIEW_AS.viewing), getApi: getAdapter });
 }
@@ -679,7 +698,7 @@ function wireChrome(u) {
   wireBots();
   prepareVoiceShell({ userId: u && u.id, dealId: shellDeal && shellDeal.id });   // another file, person or role stops the microphone
   getAdapter().then((api) => mountVoiceChrome($('#app'), { api, deal: voiceMenuOn() ? voiceDeal(shellDeal) : null, enabled: voiceMenuOn() }));
-  wireFileNav(); wireViewAs(); startHeartbeat(u);
+  wireFileNav(); wireThisFileNav(); wireViewAs(); startHeartbeat(u);
   const stop = $('[data-view-as-stop]');
   if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); stopVoiceNow(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });
   if (demoTimer) clearTimeout(demoTimer);

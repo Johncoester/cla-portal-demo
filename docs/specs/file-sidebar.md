@@ -33,3 +33,11 @@ Payoffs, Taxes & Prorations, and Other Contacts show only for someone who could 
 ## What it does not do
 
 It does not add a Properties page. The address and parcel stay on File Overview. It does not change any form, calculation, or saved figure. It does not add a database change.
+
+## Mobile (JC-MOBILE-1)
+
+Source: John Coester, mobile video Nov 23 2026 3:34 PM ET, confirmed "yes" at 5:04 PM ET. Tracker item JC-MOBILE-1.
+
+On a phone (860px and narrower), the This File file links start closed behind a This File button in the page flow, so the white menu does not cover the property address or order details. Tapping the button opens a drawer with a Close button and a dimmed backdrop. Tapping a file tab, Close, the backdrop, or Escape closes the drawer. On a computer the left sidebar is unchanged. A buyer or seller who already uses the light file shell (no sidebar) is unchanged. This does not change any page, calculation, or saved figure, and it does not add a database change.
+
+The oversized sticky order header on a phone is a separate item (JC-MOBILE-2).
