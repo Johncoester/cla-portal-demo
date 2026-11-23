@@ -4,11 +4,11 @@ import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime, fmtMoney,
 import { localDate } from '../data/constants.js?v=202611247700';
 import { HOME_TASK_FILTERS, HOME_TASK_DEFAULT, homeTaskFilter, sortTasks, amountByStage, entityLabel, REPEAT_EVERY, dueTone, daysOverdue, taskOpen } from '../data/crm.js?v=202611247700';
 import { tabs, head } from './crm-kit.js?v=202611289980';
-import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611290800';
+import { taskModal, meetingModal, fmtWhen } from './crm-forms.js?v=202611301000';
 import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
-import { inviteBtn, invitePreview } from './crm-janine.js?v=202611290800';
+import { inviteBtn, invitePreview } from './crm-janine.js?v=202611301000';
 import { optionsOf, optLabel } from '../data/crm-config.js?v=202611247700';
-import { lbl } from './crm-custom.js?v=202611290800';
+import { lbl } from './crm-custom.js?v=202611301000';
 import { chartSvg, kpiHtml, targetHtml, funnelHtml } from './crm-charts.js?v=202611161500';
 import { homeChartsSkip, writeProbe, homeChartMessage, pageSession } from '../data/crm-home-charts.js?v=202611247000';
 const subj = (cfg, s) => optLabel(cfg, 'taskSubject', s, { mark: false });   // Task Subject is free text; a subject that is a list option shows its current name

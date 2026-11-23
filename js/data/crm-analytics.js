@@ -96,6 +96,40 @@ export function withFileColumns(row, extra, stages = []) {
   if (!out.lenderName && x.lenderName) out.lenderName = x.lenderName;   // the hosted Deals row has no lender name
   return out;
 }
+// TASK DATES AS REPORT COLUMNS (RPT-2, John, Nov 22 2026). John's pre-closing report shows when "Confirm EMD Receipt" and "Title - CLEAR TO CLOSE"
+// are due. Every task name used on a file gives a Deals report two date columns: "Task: <name>: Due Date" and "Task: <name>: Completed Date".
+// The column key carries the task name, so a saved report still shows its column after that task is no longer in use.
+export const TASK_DUE = 'taskdue:'; export const TASK_DONE = 'taskdone:';
+export const isTaskKey = (k) => typeof k === 'string' && (k.startsWith(TASK_DUE) || k.startsWith(TASK_DONE));
+export const taskTitleOfKey = (k) => (k.startsWith(TASK_DUE) ? k.slice(TASK_DUE.length) : k.startsWith(TASK_DONE) ? k.slice(TASK_DONE.length) : '');
+const taskName = (t) => String(t == null ? '' : t).replace(/\s+/g, ' ').trim().slice(0, 200);
+export const taskFieldOf = (key) => (isTaskKey(key) && taskTitleOfKey(key) ? F(key, `Task: ${taskTitleOfKey(key)}: ${key.startsWith(TASK_DUE) ? 'Due Date' : 'Completed Date'}`, 'date', { task: taskTitleOfKey(key) }) : null);
+// the task columns a report offers: two per task name in use, plus any task column the report already names
+export function taskReportFields(titles = [], keys = []) {
+  const names = [...new Set((titles || []).map(taskName).filter(Boolean))]; const out = new Map();
+  for (const t of names) { out.set(TASK_DUE + t, taskFieldOf(TASK_DUE + t)); out.set(TASK_DONE + t, taskFieldOf(TASK_DONE + t)); }
+  for (const k of keys || []) if (isTaskKey(k) && !out.has(k)) { const f = taskFieldOf(k); if (f) out.set(k, f); }
+  return [...out.values()];
+}
+// every column key a report definition names (columns, groups, totals, filters, sort)
+export const reportKeys = (def = {}) => [...(def.columns || []), ...(def.rowGroups || []), ...(def.aggregates || []).map((a) => a && a.field), ...(def.filters || []).map((c) => c && c.field), def.sort && def.sort.field].filter(Boolean);
+export const reportUsesTasks = (def) => reportKeys(def).some(isTaskKey);
+// the task names in use, most used first (the column picker's order), from task rows [{ dealId, title }]
+export function taskTitlesInUse(tasks = [], max = 200) {
+  const n = new Map(); for (const t of tasks || []) { const k = taskName(t && t.title); if (k) n.set(k, (n.get(k) || 0) + 1); }
+  return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, max).map(([k]) => k);
+}
+// one Deals row + its task dates. tasks = that file's tasks [{ title, dueDate, completedAt, status }]; a cancelled task is not counted.
+// A file can hold the same task twice (one per buyer). Due Date is then the earliest due date. Completed Date is filled only when every
+// one of them is done, with the latest completed date.
+export function withTaskColumns(row, tasks = [], keys = []) {
+  const out = { ...row }; const by = new Map();
+  for (const t of tasks || []) { if (!t || t.status === 'cancelled') continue; const k = taskName(t.title); if (!k) continue; (by.get(k) || by.set(k, []).get(k)).push(t); }
+  for (const key of keys) { if (!isTaskKey(key)) continue; const list = by.get(taskTitleOfKey(key)) || [];
+    if (key.startsWith(TASK_DUE)) { const d = list.map((t) => dayOf(t.dueDate)).filter(Boolean).sort(); out[key] = d[0] || null; }
+    else { const all = list.length > 0 && list.every((t) => t.status === 'done'); const d = list.map((t) => dayOf(t.completedAt)).filter(Boolean).sort(); out[key] = all && d.length ? d[d.length - 1] : null; } }
+  return out;
+}
 // all fields of a module (built-in + the active custom fields the viewer may see; cfg = getCrmSettings() for this viewer)
 export function moduleFields(module, cfg) {
   const base = (BASE[module] || []).map((f) => ({ ...f }));
@@ -312,8 +346,9 @@ export const AGG_FNS = [['sum', 'Sum'], ['avg', 'Average'], ['min', 'Minimum'], 
 export const RELATED = { contacts: ['deals', 'tasks', 'meetings', 'calls', 'opportunities'], leads: ['tasks', 'meetings', 'calls'], accounts: ['contacts', 'deals', 'opportunities', 'tasks'],
   deals: ['contacts'], tasks: [], meetings: [], calls: [] };
 // the fields of a report: the primary module's, then each related module's with a prefix
-export function reportFields(module, related, cfg) {
-  return [...moduleFields(module, cfg), ...(module === 'deals' ? FILE_REPORT_FIELDS.map((f) => ({ ...f })) : []), ...(related || []).filter((m) => (RELATED[module] || []).includes(m)).flatMap((m) => moduleFields(m, cfg).map((f) => ({ ...f, key: `${m}.${f.key}`, label: `${moduleName(m)}: ${f.label}`,
+// opts (Deals reports only): taskTitles = the task names in use, keys = the column keys the report already names (reportKeys(def))
+export function reportFields(module, related, cfg, opts = {}) {
+  return [...moduleFields(module, cfg), ...(module === 'deals' ? [...FILE_REPORT_FIELDS.map((f) => ({ ...f })), ...taskReportFields(opts.taskTitles, opts.keys)] : []), ...(related || []).filter((m) => (RELATED[module] || []).includes(m)).flatMap((m) => moduleFields(m, cfg).map((f) => ({ ...f, key: `${m}.${f.key}`, label: `${moduleName(m)}: ${f.label}`,
     labelKey: f.labelKey ? `${m}.${f.labelKey}` : undefined, link: f.link ? `${m}.${f.link}` : undefined, module: m })))];
 }
 // joined rows: one row per (record, related record); a record with no related record stays (left join)

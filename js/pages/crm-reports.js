@@ -3,9 +3,9 @@
  * Aggregate Columns, Filters (AND / OR), sort. Run, Save, Edit, Clone, Export (CSV: Admin / Super admin only), Send Email (saved, NOT sent).
  * Shared with everyone unless restricted to users / roles. Nothing is deleted: reports are RETIRED (hidden, restorable). Function only. */
 import { html, raw, $, $$, guard, toast, modal, closeModal, toText, fmtDateTime } from '../ui.js?v=202611161500';
-import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, calendarBucket, isDateType } from '../data/crm-analytics.js?v=202611290800';
+import { REPORT_MODULES, RELATED, moduleName, reportFields, AGG_FNS, NUMERIC, BUCKETS, calendarBucket, isDateType } from '../data/crm-analytics.js?v=202611301000';
 import { tabs, head } from './crm-kit.js?v=202611289980';
-import { criteriaEditor } from './crm-criteria.js?v=202611290800';
+import { criteriaEditor } from './crm-criteria.js?v=202611301000';
 import { composeOverlay } from './crm-compose.js?v=202611247700';
 import { fmtNum } from './crm-charts.js?v=202611161500';
 
@@ -74,6 +74,8 @@ async function runPage(c) {
 async function builderPage(c, rep) {
   const { api, me, owners, cfg } = c; if (!me.canEdit) throw new Error('The Processor has read-only access to the CRM.');
   const [fl, targets] = await Promise.all([api.listCrmReportFolders(), api.listCrmShareTargets()]);
+  // RPT-2: task names in use, for the Deals report's task date columns (a failed read just leaves them out)
+  let taskTitles = []; try { taskTitles = api.listCrmReportTaskTitles ? await api.listCrmReportTaskTitles() : []; } catch (e) { taskTitles = []; }
   const st = rep ? { ...JSON.parse(JSON.stringify(rep)) } : null;
   const body = html`${tabs('reports')}${head(rep ? `Edit report: ${rep.name}` : 'Create Report', me)}<div data-report-builder></div>`;
   function mount(root) {
@@ -106,7 +108,7 @@ async function builderPage(c, rep) {
       share: { mode: f.mode.value, users: [...f.users.selectedOptions].map((o) => o.value), roles: [...f.roles.selectedOptions].map((o) => o.value) } }); closeModal(); next(); });
   }
   function draw(box, s) {
-    const fields = reportFields(s.module, s.related, cfg); s.columns ||= fields.slice(0, 6).map((f) => f.key); const lab = (k) => (fields.find((f) => f.key === k) || { label: k }).label;
+    const fields = reportFields(s.module, s.related, cfg, { taskTitles, keys: [...(s.columns || []), ...(s.rowGroups || []), ...(s.filters || []).map((f) => f && f.field)].filter(Boolean) }); s.columns ||= fields.slice(0, 6).map((f) => f.key); const lab = (k) => (fields.find((f) => f.key === k) || { label: k }).label;
     const nums = fields.filter((f) => NUMERIC.includes(f.type));
     box.innerHTML = toText(html`<p data-builder-head><strong>${s.name}</strong> · ${moduleName(s.module)}${s.related.length ? ` + ${s.related.map(moduleName).join(', ')}` : ''} <button type="button" class="linkish" data-edit-details>Report Details</button></p>
       <div style="display:flex;gap:16px;flex-wrap:wrap">

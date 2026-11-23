@@ -67,7 +67,7 @@ if (sales) { await api.signInDev(sales.id); const mine = await api.runCrmReport(
 
 // ---- hosted side ----
 const hosted = read('../js/data/supabase-crm-surface.js'); const sql = read('../supabase/migrations/20261129010000_crm_deal_report_fields.sql');
-ok(hosted.includes("sb.rpc('crm_deal_report_fields')") && hosted.includes('withFileColumns(r, by.get(r.id), STAGES)') && hosted.includes('const { rows, notice } = await reportRowsOf(def.module);'), 'the hosted report read loads the file columns once per run and merges them by file');
+ok(hosted.includes("sb.rpc('crm_deal_report_fields')") && hosted.includes('withFileColumns(r, by.get(r.id), STAGES)') && hosted.includes('await reportRowsOf(def.module, def);'), 'the hosted report read loads the file columns once per run and merges them by file');
 ok(/catch \(e\) \{ return null; \}/.test(hosted) && hosted.includes('are not on this database yet'), 'if the database file is not applied yet the report still runs and says the file columns are blank');
 ok(!/rowsOf = async \(module\) => \{[^}]*crm_deal_report_fields/.test(hosted), 'lists, search and dashboards do not make the extra read');
 ok(sql.includes('if not private.crm_user() then raise exception') && sql.includes('where private.crm_deal_visible(g.id)') && sql.includes('revoke all on function public.crm_deal_report_fields() from public, anon;'), 'the database function is staff-only, returns only files the person may see, and is closed to the public');
