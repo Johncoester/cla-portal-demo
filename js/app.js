@@ -57,7 +57,7 @@ const pages = {
   'admin/templates': () => loadRoute(() => import('./pages/templates.js?v=202611247700')),
   library: () => loadRoute(() => import('./pages/library.js?v=202611247700')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
-  outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611247700')),
+  outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611310100')),
   tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611302200')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)

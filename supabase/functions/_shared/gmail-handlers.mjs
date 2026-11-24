@@ -18,7 +18,7 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const STAFF_ONLY = `Gmail in the portal is for CLA staff logins (${GMAIL_ROLES.join(', ')}).`;
 
-class ReconnectError extends Error {}
+export class ReconnectError extends Error {}
 const wrongProject = (deps) => deps.projectRef !== TEST_PROJECT_REF;
 
 async function staffGate(deps) {
@@ -43,7 +43,7 @@ export async function accessTokenFor(deps, refresh) {
   if (r.body && (r.body.error === 'invalid_grant' || r.body.error === 'unauthorized_client')) throw new ReconnectError('Google access was revoked or expired. Connect Gmail again on your Profile.');
   throw new Error(`Google did not refresh access (HTTP ${r.status}).`);
 }
-async function gmail(deps, token, path, init = {}) {
+export async function gmail(deps, token, path, init = {}) {
   const res = await deps.fetch(`${GMAIL}${path}`, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init.body ? { 'Content-Type': 'application/json' } : {}) } });
   let body = null; try { body = await res.json(); } catch (e) { body = null; }
   return { ok: res.ok, status: res.status, body };
@@ -70,7 +70,7 @@ function sameFileList(wanted, got) {
 /* JSON {raw: base64url} drops attachments once the message is more than a few MB (Gmail still returns 200
  * and a message id, so the portal used to record the names and tell the sender it worked). Attachments go
  * as the RFC822 bytes on the resumable upload endpoint instead. */
-async function sendRfc822(deps, access, rawBytes, { threadId } = {}) {
+export async function sendRfc822(deps, access, rawBytes, { threadId } = {}) {
   const start = await deps.fetch('https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send?uploadType=resumable', {
     method: 'POST',
     headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'message/rfc822', 'X-Upload-Content-Length': String(rawBytes.length) },
