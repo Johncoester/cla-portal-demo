@@ -1,8 +1,8 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611301900';
+import { getAdapter } from './data/adapter.js?v=202611302100';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611301700';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611302000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611300430';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611247700';
@@ -15,11 +15,11 @@ import { phaseOf } from './data/agent-portal.js?v=202611247700';
 import { scheduleNavLines } from './data/scheduling-details.js?v=202611247700';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611247700';
-import { canInviteAgents } from './data/agent-profile.js?v=202611249900';
-import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611249900';
+import { canInviteAgents } from './data/agent-profile.js?v=202611302000';
+import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611302000';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611247700';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611291500';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611302000';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
@@ -44,13 +44,13 @@ export function useRouteLoader(next) {
 }
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
-  login: () => loadRoute(() => import('./pages/entry.js?v=202611291500')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611301700')),
+  login: () => loadRoute(() => import('./pages/entry.js?v=202611302000')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611302000')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611301500')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611301700')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611302000')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611289960')),
-  profile: () => loadRoute(() => import('./pages/profile.js?v=202611249900')),
+  profile: () => loadRoute(() => import('./pages/profile.js?v=202611302000')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
   templates: () => loadRoute(() => import('./pages/templates.js?v=202611247700')),
@@ -58,21 +58,21 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611247700')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611247700')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611301700')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611302000')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611247700')),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => loadRoute(() => import('./pages/crm.js?v=202611301900')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => loadRoute(() => import('./pages/crm.js?v=202611302100')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611247700')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
-  'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611249900')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611249900')),     // the agent's one-time setup link (no sign-in)
+  'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611302000')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
+  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611302000')),     // the agent's one-time setup link (no sign-in)
   underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611247900')),
   'tax-rates': () => loadRoute(() => import('./pages/tax-rates.js?v=202611247700')),
-  hr: () => loadRoute(() => import('./pages/hr.js?v=202611249900')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  hr: () => loadRoute(() => import('./pages/hr.js?v=202611302000')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611247700')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611291500')),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611302000')),   // John, Nov 9: Admin > Email Templates (file Email tab)
   'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611291600')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => loadRoute(() => import('./pages/demo-view.js?v=202611161500')),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => loadRoute(() => import('./pages/voice-demo.js?v=202611161500')),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
@@ -704,8 +704,8 @@ function wireChrome(u) {
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
-    import('./pages/crm-search.js?v=202611301900').then((m) => m.wireHeaderSearch(api));
-    import('./pages/crm-janine.js?v=202611301900').then((m) => m.mountHeaderCreate(u));
+    import('./pages/crm-search.js?v=202611302100').then((m) => m.wireHeaderSearch(api));
+    import('./pages/crm-janine.js?v=202611302100').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });

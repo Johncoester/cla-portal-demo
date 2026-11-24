@@ -74,7 +74,7 @@ r = await run({ invite: { kind: 'agent', token: TOKEN } }, { ctx: { mailbox: nul
 ok(r.res.status === 200 && r.j.sent === true && r.j.from === 'testportal@clatitle.com' && !r.j.connectGmail, 'no connected Gmail is needed: the invite still goes from testportal');
 r = await run({ invite: { kind: 'agent', token: 'short' } }); ok(r.res.status === 400 && !r.calls.auth.length, 'a bad token is refused before anything');
 r = await run({ invite: { kind: 'agent', token: TOKEN } }, { rpcError: 'Only CLA staff can send portal invites.' });
-ok(r.res.status === 403 && /Only CLA staff/.test(r.j.error) && !r.calls.auth.length, 'someone who may not invite (e.g. a TC) is refused, nothing sent');
+ok(r.res.status === 403 && /Only CLA staff/.test(r.j.error) && !r.calls.auth.length, 'someone who may not invite (e.g. an outside user) is refused, nothing sent');
 r = await run({ invite: { kind: 'agent', token: TOKEN } }, { info: { ...fileInfo, email: 'carrie.real@remax.example' } });
 // Nov 13 (John): no test-address list on TEST. A real address gets its invite like any other.
 ok(r.res.status === 200 && r.j.sent === true && r.calls.auth.length === 1 && r.calls.auth[0].email === 'carrie.real@remax.example', 'Live Test sends the invite to a real (non-test) address');

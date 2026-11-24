@@ -239,7 +239,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** On a phone, the This File sidebar (File Overview, My Tasks, Inbox, Documents, Scheduling Details, and the rest of the file links) starts closed behind a This File button that sits in the page, so the menu never covers the property address or order details. Tapping the button opens a drawer with a dimmed backdrop. Tapping a file tab, Close, the dimmed area, or Escape closes it. On a computer the left sidebar is unchanged. A buyer or seller who already uses the light file shell (no sidebar) is unchanged.
 
-**Status: Building.** Tracker item JC-MOBILE-1. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET.
+**Status: Live.** Tracker item JC-MOBILE-1. [PR 430](https://github.com/Johncoester/cla-portal-demo/pull/430), merged bbaeec6e Nov 23 2026, 6:04 PM ET. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET. No database file.
 
 **What's built**
 
@@ -249,7 +249,6 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's missing**
 
-- Not on TEST yet. No database file.
 - The oversized sticky order header on a phone is a separate item (JC-MOBILE-2).
 
 **Links**
@@ -260,6 +259,33 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - The phone breakpoint stays 860px, the same one the sidebar already uses.
+- No database change.
+
+---
+
+## Mobile order header (JC-MOBILE-2)
+
+**How it should work.** On a phone, the large order header (order number, stage, property address, price, buyers and sellers, opened and county, settlement and disbursement dates) scrolls away with the page. It does not stay pinned to the top and take up half the screen. On a computer the header still stays pinned under the top bar.
+
+**Status: Building.** Tracker item JC-MOBILE-2. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET.
+
+**What's built**
+
+- On viewports 860px and narrower, the order header uses `position: static` so it scrolls away normally.
+- On a computer the header stays sticky under the top bar.
+
+**What's missing**
+
+- Not on TEST yet. No database file.
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [Mobile This File menu (JC-MOBILE-1)](#mobile-this-file-menu-jc-mobile-1).
+
+**Decisions**
+
+- The phone breakpoint stays 860px, the same one JC-MOBILE-1 uses.
 - No database change.
 
 ---
@@ -1391,6 +1417,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CLA staff can send portal invites (STAFF-INVITE-1)
+
+**How it should work.** Any CLA Title employee who can open orders can click Invite to portal (and Resend) and send the invite: Processor, Preprocessor, Sales Person, Sales Team, Transaction Coordinator, Admin, and Super admin. The email always comes from testportal@clatitle.com. The inviter does not need to connect Gmail. Outside users (agents, buyers, sellers, lenders, and an agent's own TC) and HR-only Employee logins still cannot send invites. Who can be invited is unchanged.
+
+**Status: Building.** John Coester, chat, Nov 23 2026, 5:07 PM ET. Tracker item STAFF-INVITE-1. Not Live until this pull request is merged and `supabase/migrations/20261129120000_staff_invite_cla_employees.sql` is applied on TEST.
+
+**What's built**
+
+- The button, the Agent Invites page, and every invite call use the same staff list, including a CLA Transaction Coordinator.
+- The database helper `private.can_invite_agents` matches that list.
+- The Invite to portal and Agent Invites screens say the email comes from testportal@clatitle.com and that Gmail does not need to be connected.
+
+**What's still missing**
+
+- Live until the pull request is merged and the database file is applied on TEST.
+- The database error text on some older invite functions still lists the pre-STAFF-INVITE-1 roles (the check itself uses `can_invite_agents`, so a Transaction Coordinator is allowed).
+
+**Links**
+
+- Spec: [docs/specs/staff-invite.md](docs/specs/staff-invite.md)
+- Source: John Coester, chat, Nov 23 2026, 5:07 PM ET. Tracker item STAFF-INVITE-1.
+
+**Decisions**
+
+- "CLA Title employee" here means a staff account that can open orders (`STAFF_ACCOUNT_ROLES`), not an HR-only Employee login.
+- This reverses the Nov 4 2026 "No for now" decision that a CLA staff Transaction Coordinator could not send invites.
+
+---
+
 ## TC portal invite (TC-INVITE-1)
 
 **How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
@@ -1418,7 +1473,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
 - A coordinator gets the short client login, not the agent account.
-- A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+- STAFF-INVITE-1 (John, Nov 23 2026 5:07 PM ET) lifts the earlier rule that a CLA staff Transaction Coordinator cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
 
 ---
 

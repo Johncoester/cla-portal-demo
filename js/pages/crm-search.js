@@ -2,7 +2,7 @@
  * typing shows quick results grouped by module; Enter (or "View all results") opens the full results page #/crm/search/<q>[/<module>] with an
  * "All Modules" dropdown and one table per module with Zoho's columns. Matches name, email and phone (phone by its digits). Only records you may see. */
 import { html, raw, $, $$, guard, toText, esc, modal, closeModal, toast } from '../ui.js?v=202611161500';
-import { SEARCH_MODULES, moduleName, highlight } from '../data/crm-analytics.js?v=202611301900';
+import { SEARCH_MODULES, moduleName, highlight } from '../data/crm-analytics.js?v=202611302100';
 import { tabs, head } from './crm-kit.js?v=202611289980';
 
 const resultsHref = (q, module = 'all') => `#/crm/search/${encodeURIComponent(q)}${module && module !== 'all' ? '/' + module : ''}`;

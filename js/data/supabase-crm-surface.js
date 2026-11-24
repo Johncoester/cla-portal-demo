@@ -8,7 +8,7 @@ import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
   calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, withFileColumns, withTaskColumns, taskTitlesInUse, reportKeys, reportUsesTasks, isTaskKey, reportEditable,
-} from './crm-analytics.js?v=202611301900';
+} from './crm-analytics.js?v=202611302100';
 import { cleanHomeTitle, homeChartsMissing, homeChartMessage } from './crm-home-charts.js?v=202611247000';
 
 const RECENT = new Map();

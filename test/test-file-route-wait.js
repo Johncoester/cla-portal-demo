@@ -33,7 +33,7 @@ const gate = (name, fn) => async (...args) => {
   return fn(...args);
 };
 
-const { getAdapter } = await import('../js/data/adapter.js?v=202611290200');
+const { getAdapter } = await import('../js/data/adapter.js?v=202611302100');
 const api = await getAdapter();
 await api.signInDev('u-admin');
 const orig = {

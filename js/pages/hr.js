@@ -10,7 +10,7 @@
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import { hrCanManage, hrIsSuper, filterEmployees, initials, fullNameOf, COUNTRIES, EMPLOYMENT_TYPES, EMPLOYMENT_STATUSES, PAY_TYPES, PAY_CURRENCIES, WORK_LOCATIONS, portalRoleForDesignation, EMPLOYEE_ROLE_FILTER,
   HR_INVITE_DAYS, FIELD_LABEL, labelOf, jobTitleOf } from '../data/hr.js?v=202611247700';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611249900';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611302000';
 import { companyDocsPage, employeeDocsCard, sharedDocsCard, portalTimeCard, wireEmployeeDocs, wireSharedDocs } from './hr-feedback.js?v=202611247700';
 const PILL = { active: 'ok', on_leave: 'warn', separated: 'bad' };
 const INV = { pending: ['Invite pending', 'warn'], expired: ['Invite expired', 'bad'], revoked: ['Invite revoked', ''], none: ['No login yet', ''], accepted: ['Has login', 'ok'] };
@@ -124,7 +124,7 @@ async function list({ api, user, refresh }) {
 async function addForm({ api, user, go }) {
   const [lk, all, code] = await Promise.all([api.listHrLookups(), api.listHrEmployees(), api.generateHrEmployeeCode()]);
   const deps = lk.departments.filter((d) => !d.archivedAt).map((d) => [d.id, d.name]); const des = lk.designations.filter((d) => !d.archivedAt).map((d) => [d.id, d.name]);
-  const body = html`<section class="hr-page" data-hr-add>${head(user, 'Add Employee', 'One step. The person gets a one-time invite link. The portal emails it from your connected Gmail. If it cannot, the link stays here with the reason.')}
+  const body = html`<section class="hr-page" data-hr-add>${head(user, 'Add Employee', 'One step. The person gets a one-time invite link. The portal emails it from testportal@clatitle.com. If it cannot, the link stays here with the reason. You do not need to connect Gmail.')}
     <form class="card hr-form" data-hr-add-form><div class="form-grid">
       <label>Employee ID <span class="req">*</span><span class="hr-inline"><input name="employeeCode" value="${code}" maxlength="20" required data-hr-code><button type="button" class="ghost" data-hr-generate>Generate</button></span></label>
       <label>Country <span class="req">*</span><select name="country" data-hr-country>${opt(COUNTRIES, 'US')}</select></label>

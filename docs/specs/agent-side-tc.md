@@ -26,7 +26,7 @@ Source: Francis Santos, Nov 16 2026, 3:10 PM ET (message 1a1e5fbfe4183a9f), scre
 
 John Coester asked for this in chat on Nov 20 2026, 10:41 AM ET, from his screenshot of Order Contacts on MD-26-97260: "yes of course a TC needs an invite." It reverses the FF-088 decision that these two roles get no invite.
 
-- Order Contacts shows Invite to portal on a Buyer Agent TC or Listing Agent TC row when that person has no portal login and is not removed, the same as for a buyer, seller or agent. The same staff can press it: Processor, Preprocessor, Sales Person, Sales Team, Admin and Super admin. A CLA staff Transaction Coordinator still cannot send invites.
+- Order Contacts shows Invite to portal on a Buyer Agent TC or Listing Agent TC row when that person has no portal login and is not removed, the same as for a buyer, seller or agent. Any CLA Title employee who can open orders can press it: Processor, Preprocessor, Sales Person, Sales Team, Transaction Coordinator, Admin and Super admin (STAFF-INVITE-1, John, Nov 23 2026 5:07 PM ET). HR-only Employee and outside users still cannot.
 - The dialog names the role as Transaction coordinator. The email comes from testportal@clatitle.com like every portal invite.
 - The coordinator gets the short client login (name, email, cell phone, password). They sign in as an Outside user on that file. There is no agent profile, brokerage or license form.
 - Share Files can invite a coordinator who has no login, the same way.
