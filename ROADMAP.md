@@ -3611,3 +3611,33 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The faster search is only the page asking for the modules together and skipping reads this page does not show.
 - Rule 9 waived by John on Nov 21 for CRM items.
+
+---
+
+## Documents From column shows the real sender (FF-113)
+
+**How it should work.** On a file's Documents list, the From column shows the real sender: the email's From on a document that arrived as an email attachment, and the person who uploaded it when an agent or client added it in the portal. It must not show the file processor just because the attachment landed in their mailbox.
+
+**Status: Building.** Tracker item FF-113. Francis Santos, Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a; she confirmed "Both" on Nov 24 2026 at 6:18 PM ET. Pull request pending. No database file.
+
+**What's built**
+
+- Gmail-copied attachments (rows with an email attachment key) take their From name from the file's email record, not from the processor mailbox stored as the uploader.
+- If that From address is someone on the file, the column shows their name and file role, the same way an upload does.
+- Documents uploaded by an agent or client still show that person (MF-045). Search and the From sort use the name that is shown.
+- A buyer or seller still sees "CLA Title & Escrow" for a document another party uploaded.
+
+**What's still missing**
+
+- Not on TEST yet. No database file. Cache stamp 202611310500.
+- Existing emailed attachments show the real sender when the email record is still on the file. If that record is missing or From is blank, the column falls back to the stored uploader (usually the processor) or "Not recorded". Nothing was backfilled.
+
+**Links**
+
+- Spec: [docs/specs/ff-113-documents-from.md](docs/specs/ff-113-documents-from.md)
+- Related: [MF-045 Documents From](#file-page-fixes-from-janines-nov-12-video) (name and role of whoever shared a document).
+
+**Decisions**
+
+- No database change and no change to `uploaded_by`. Access and sharing still use the stored uploader. The Documents list only changes what From displays.
+- Francis confirmed both cases: emailed attachments and agent or client uploads.
