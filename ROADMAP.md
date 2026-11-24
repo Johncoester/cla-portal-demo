@@ -37,23 +37,24 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
-## Portal email sender (OUTBOX-SEND-1)
+## Portal email sender (OUTBOX-SEND-1 / OUTBOX-SEND-2)
 
-**How it should work.** Automatic portal emails (fee notices, reminders, scheduling, title package, Task Builder emails) wait in the outbox. A sender picks them up every minute and sends them from portal@clatitle.com through Amazon SES (Resend also built in), and each email shows sent, failed, skipped or blocked with the reason. A switch decides Test mode (only clatestportal+ test addresses) or Live; it starts in Test mode and only the database owner can change it.
+**How it should work.** Automatic portal emails (fee notices, reminders, scheduling, title package, Task Builder emails) wait in the outbox. Every minute a job sends them from the file's processor's own Gmail (the same connection as Send on a file), and each email shows sent (with the time), not sent, skipped or held, with the reason, on the Reminder Outbox page. A switch decides Test mode (only clatestportal+ test addresses) or Live; it starts in Test mode and only the database owner can change it.
 
-**Status: Partial.** Tracker item OUTBOX-SEND-1. John Coester, Nov 24 2026, 11:06 AM ET (t2041u). Database file 20261131000000_outbox_sender.sql. Pull request: [PR 436](https://github.com/Johncoester/cla-portal-demo/pull/436).
+**Status: Partial.** Tracker item OUTBOX-SEND-1 (row 466). John Coester, Nov 24 2026, 11:06 AM ET (t2041u) and 12:24 PM ET ("Send reminders from the file's processor"). Database file 20261131000000_outbox_sender.sql (applied on TEST). Pull requests: [PR 436](https://github.com/Johncoester/cla-portal-demo/pull/436) and OUTBOX-SEND-2 (no database file).
 
 **What's built**
 
-- Statuses queued / sending / sent / failed / skipped / blocked with a reason, retries (5 tries), no double sends, and the 629-email backlog marked skipped ("pre-sender backlog, not sent").
+- Statuses queued / sending / sent / failed / skipped / blocked with a reason, retries only for temporary Google problems, no double sends, and the 633-email backlog marked skipped ("pre-sender backlog, not sent").
+- Sender = the file's processor's connected Gmail. No processor, an inactive processor, or a Gmail that is not connected or was revoked: not sent, with the reason.
 - send_blocked and the TC-only rule are checked again at send time. Wire instruction files are never attached.
-- The outbox-send edge function with an email-service layer (SES or Resend) and an every-minute job that calls it only once John creates its Vault token.
+- The Reminder Outbox page shows the real status, sent time and reason.
 
 **What's still missing**
 
-- John: AWS SES domain + IAM key, Cloudflare DNS (DKIM, MAIL FROM), the portal@ Google Group for replies, the function secrets and the Vault token. Steps in [docs/specs/outbox-sender.md](docs/specs/outbox-sender.md).
-- The Reminder Outbox page and a few file pages still say "queued - not sent"; they should show the real status and reason (next PR, needs a cache stamp).
-- Bounce and complaint handling (SES event feed) and Live mode on production.
+- John: create the Vault token that starts the every-minute job (one SQL line). Steps in [docs/specs/outbox-sender.md](docs/specs/outbox-sender.md).
+- The From column on the Reminder Outbox page still shows the address the email was queued with (often portal@); the sent email itself is from the processor and is on the file's Email tab.
+- Live mode on production.
 
 **Links**
 
