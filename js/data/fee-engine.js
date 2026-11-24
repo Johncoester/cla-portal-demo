@@ -374,6 +374,43 @@ export function lastOptions(fees, deal) {
 // John, Nov 3 call: the order's own First-time buyer / Primary residence answers (Place Order / Edit order) win over the last run's options
 export const orderAnswers = (deal) => ({ occ: deal && deal.primaryResidence ? deal.primaryResidence : '', fthb: deal && deal.firstTimeBuyer ? deal.firstTimeBuyer : '' });
 export function orderOptions(deal) { const a = orderAnswers(deal); const o = {}; if (a.occ) o.occ = a.occ === 'yes'; if (a.fthb) o.fthb = a.fthb === 'yes'; return o; }
+
+// REC-CALC-9 (John, Nov 24 2026: "connect the calculator fees to the portal"): fees fill in by themselves when a file is opened, once the order
+// has the basics. Staff no longer have to press Calculate fees. It only runs when every question the calculator needs is answered: state, county,
+// purchase or refinance, price (purchase) or loan (refinance), and principal residence / first-time buyer where the state asks them. The number of
+// payoffs is not asked (not known until title and the seller come in): a purchase starts with one release, the closer fixes it later.
+// It runs again when one of those order answers changes after the last run. Lines staff changed by hand are kept (same rules as Calculate fees).
+export const AUTO_FIELDS = ['state', 'county', 'type', 'price', 'loan', 'occ', 'fthb'];
+export function autoFillCheck(deal, fees, R = vendoredTables()) {
+  const d = deal || {}; const state = String(d.state || '').toUpperCase(); const missing = [];
+  if (!CALC_STATES.includes(state)) return { ready: false, due: false, missing: [], reason: state ? `CLA rates cover MD, VA, DC, FL, PA, WV and MI only (this order is in ${state}).` : 'The order has no state yet.' };
+  const type = calcTypeOf(d); const tx = String(d.transactionType || d.transaction_type || '').trim();
+  if (!tx) missing.push('purchase or refinance');
+  if (!String(d.county || '').trim()) missing.push('county'); else if (!countyIsKnown(R, d)) missing.push('a county from the list');
+  const price = Number(d.purchasePrice ?? d.purchase_price) || 0; const loan = Number(d.loanAmount ?? d.loan_amount) || 0;
+  if (type !== 'refi' && !(price > 0)) missing.push('purchase price');
+  if (type === 'refi' && !(loan > 0)) missing.push('loan amount');
+  const a = orderAnswers(d);
+  if (!NO_OO.test(state) && !a.occ) missing.push('primary residence (yes / no)');
+  if (!NO_OO.test(state) && type !== 'refi' && !a.fthb) missing.push('first-time buyer (yes / no)');
+  if (missing.length) return { ready: false, due: false, missing, reason: `Fees fill in by themselves once the order has: ${missing.join(', ')}.` };
+  if (/^(closed|cancelled)$/i.test(String(d.status || ''))) return { ready: false, due: false, missing: [], reason: `This file is ${String(d.status).toLowerCase()}, so its fees don't fill in by themselves. Use Calculate fees if you need them.` };
+  const calced = (fees || []).filter((f) => !f.retired && isCalculated(f));
+  // a file whose title or government fees were typed in by hand (older files) is left alone: Calculate fees shows what would change first
+  const byHand = (fees || []).filter((f) => !f.retired && !isCalculated(f) && !f.presetKey && !f.proration && (f.altaSection === 'title' || f.altaSection === 'government'));
+  if (!calced.length && byHand.length) return { ready: false, due: false, missing: [], reason: `This file already has ${byHand.length} title or government fee${byHand.length === 1 ? '' : 's'} entered by hand, so CLA rates don't fill in by themselves. Use Calculate fees to compare and apply.` };
+  let options = lastOptions(fees, d);
+  if (!calced.length && type !== 'refi' && !(Number(d.payoffCount) > 0) && options.docs && options.docs.Release && !(Number(options.docs.Release[0]) > 0)) options = { ...options, docs: { ...options.docs, Release: [1, options.docs.Release[1] || 3] } };
+  let due = !calced.length ? 'first' : '';
+  if (!due) {
+    const last = calced.sort((x, y) => String(y.calc.at || '').localeCompare(String(x.calc.at || '')))[0].calc.inputs || {};
+    let now; try { now = calcInputs(d, options, R); } catch (e) { return { ready: false, due: false, missing: [], reason: e.message }; }
+    const changed = AUTO_FIELDS.filter((k) => JSON.stringify(last[k] ?? null) !== JSON.stringify(now[k] ?? null));
+    if (changed.length) due = 'changed:' + changed.join(',');
+  }
+  try { calcInputs(d, options, R); } catch (e) { return { ready: false, due: false, missing: [], reason: e.message }; }
+  return { ready: true, due, missing: [], reason: '', options };
+}
 export { C as calculatorCore };
 
 // ---------------- shapes the adapters hand to the page (plain JSON) ----------------

@@ -12,8 +12,8 @@ import { cleanCdDetails, cdDetailChanges, prepaidEscrowLines, cdcalcFeeInput, di
 const PRORATION_VIA = 'Settlement date change (prorations re-saved)';
 // CLA RATES (John, Nov 3): the fee engine (+ the vendored calculator code and rate tables) is loaded only when a CLA-rate method is called,
 // so with the flag off it is never loaded at all.
-const engine = () => import('./fee-engine.js?v=202611290310');
-const taxes = () => import('./taxes-fees.js?v=202611290800');
+const engine = () => import('./fee-engine.js?v=202611301700');
+const taxes = () => import('./taxes-fees.js?v=202611301300');
 const taxStore = () => import('./mock-part-tax-rates.js?v=202611247700');
 const VIA = 'CLA rates';
 
@@ -85,6 +85,10 @@ export function accountingPart(x, flags) {
       }
       if (retireExamples) for (const x of D.examples) { const f = feeOf(x.id); if (!f.retired) { retire(u, f, VIA + ' (EXAMPLE fee replaced)'); r.examplesRetired++; } }
       save(); return r; },
+    // REC-CALC-9: fees fill in by themselves when a file is opened, once the order has the basics (fee-engine autoFillCheck). Same apply as Calculate fees.
+    async autoFillFees(dealId) { const { deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates();
+      const chk = E.autoFillCheck(d, feesOf(dealId), rates.tables); if (!chk.ready || !chk.due) return { applied: false, ready: chk.ready, due: chk.due || '', missing: chk.missing, reason: chk.reason };
+      const r = await this.applyCalculatedFees(dealId, chk.options, { retireExamples: true }); return { applied: true, ready: true, due: chk.due, missing: [], reason: '', ...r }; },
     // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
     async getTaxesFeesSetup(dealId) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const bundle = (await taxStore()).bundleOf(load()); return clone(T.taxesFeesSetup(d, feesOf(dealId), rates.tables, rates, bundle)); },
     async previewTaxesFees(dealId, worksheet) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const bundle = (await taxStore()).bundleOf(load()); return clone(T.previewTaxesFees(d, worksheet, feesOf(dealId), rates.tables, rates.source, bundle)); },
