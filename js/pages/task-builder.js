@@ -7,7 +7,7 @@
  * TB-7 (John, Nov 20): "Send an email" steps (a saved template or a written message with merge fields) and the "File closed" trigger. */
 import { html, raw, toText, $, $$, guard, toast, fmtDateTime, fmtDate, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
 import { TRIGGERS, triggerNeedsDays, triggerOf, canManageTaskBuilder, cleanFlow, FLOWS_RUN_NOTE, DAYS_MIN, DAYS_MAX, NAME_MAX, DESC_MAX,
-  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps, triggerNeedsTask, taskChoices } from '../data/task-builder.js?v=202611291600';
+  TX_KINDS, STATES, ASSIGN_ROLES, STEP_TYPES, STEP_MAX, TITLE_MAX, DUE_MAX, triggerRuns, SCOPES, TRIAL_NOTE, hasTaskStep, FROM_NOW_TRIGGERS, stepTimeline, stepsToActions, actionsToSteps, actionLine, whenText, AT_MAX, cleanSteps, triggerNeedsTask, taskChoices } from '../data/task-builder.js?v=202611310000';
 import { EMAIL_ROLES, EMAIL_SUBJECT_MAX, EMAIL_BODY_MAX } from '../data/flow-email.js?v=202611291500';
 import { FILE_TEMPLATE_FIELDS } from '../data/file-email-templates.js?v=202611291500';
 const EMAIL_NOTE = 'Merge fields fill in from the file, for example {{buyer_first_name}} or {{property_address}}. Emails wait in the outbox and go out once the portal\'s mail switch is on. Try on one file sends a test copy only to you. From: pick a staff member to send it as them (blank = the file\'s processor). The signature is their portal (Gmail) signature, else their CRM signature, else name, CLA Title & Escrow, email and phone.';
@@ -64,15 +64,15 @@ export async function render(ctx) {
       <td class="small">${(r.log || []).slice(-3).map((l) => html`${l.text}<br>`)}</td></tr>`; };
   const body = html`<section class="task-builder-page" data-task-builder>
     <div class="page-head"><div><p class="eyebrow">Admin</p><h2 class="page-title">Task Builder</h2>
-      <p class="muted">Build automated workflows for title files. A template starts when something happens on a file (for example, the order is opened, or the EMD hasn't come in after 2 days), checks which files it applies to, then runs its steps.
+      <p class="muted">Build automated workflows for title files. An automation starts when something happens on a file (for example, the order is opened, or the EMD hasn't come in after 2 days), checks which files it applies to, then runs its steps.
       Admin / Super admin only.</p></div>
-      <div><button type="button" class="m-btn" data-tb-new>+ New template</button> <button type="button" class="ghost" data-tb-run-now>Check files now</button></div></div>
+      <div><button type="button" class="m-btn" data-tb-new>+ New automation</button> <button type="button" class="ghost" data-tb-run-now>Check files now</button></div></div>
     <div class="notice info" data-tb-run-note>${FLOWS_RUN_NOTE}</div>
-    <div class="card"><h3>Templates <span class="muted small">(${flows.length})</span></h3>
-      ${flows.length ? html`<table class="tbl" data-tb-table><thead><tr><th>Template and steps</th><th>What starts it</th><th>Which files</th><th>Status</th><th>Last changed</th><th></th></tr></thead><tbody>${flows.map(row)}</tbody></table>`
-        : html`<p class="muted" data-tb-empty>No templates yet. Click <strong>+ New template</strong> to add the first one.</p>`}</div>
-    <div class="card" data-tb-runs><h3>Recent runs</h3><p class="muted small">Each row is one template on one file.</p><table class="tbl"><thead><tr><th>Started</th><th>Template / file</th><th>Status</th><th>Latest</th></tr></thead><tbody>
-      ${runs.length ? runs.slice(0, 25).map(runRow) : html`<tr><td colspan="4" class="muted">No template has run on a file yet.</td></tr>`}</tbody></table></div>
+    <div class="card"><h3>Automations <span class="muted small">(${flows.length})</span></h3>
+      ${flows.length ? html`<table class="tbl" data-tb-table><thead><tr><th>Automation and steps</th><th>What starts it</th><th>Which files</th><th>Status</th><th>Last changed</th><th></th></tr></thead><tbody>${flows.map(row)}</tbody></table>`
+        : html`<p class="muted" data-tb-empty>No automations yet. Click <strong>+ New automation</strong> to add the first one.</p>`}</div>
+    <div class="card" data-tb-runs><h3>Recent runs</h3><p class="muted small">Each row is one automation on one file.</p><table class="tbl"><thead><tr><th>Started</th><th>Automation / file</th><th>Status</th><th>Latest</th></tr></thead><tbody>
+      ${runs.length ? runs.slice(0, 25).map(runRow) : html`<tr><td colspan="4" class="muted">No automation has run on a file yet.</td></tr>`}</tbody></table></div>
     <div class="card" data-tb-history><h3>History</h3><table class="tbl"><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>
       ${log.length ? log.slice(0, 20).map((l) => html`<tr data-tb-log><td class="small">${fmtDateTime(l.at)}</td><td>${l.byName || ''}</td><td><strong>${l.flowName}</strong> ${l.action}${l.detail ? html`: <br><span class="muted small" data-tb-log-detail>${l.detail}</span>` : ''}</td></tr>`)
         : html`<tr><td colspan="3" class="muted">No changes yet.</td></tr>`}</tbody></table></div>
@@ -82,7 +82,7 @@ export async function render(ctx) {
     $('[data-tb-new]', root).addEventListener('click', () => formModal(null));
     $('[data-tb-run-now]', root).addEventListener('click', guard(async () => {
       if (!api.runTaskFlowsNow) throw new Error('Checking files now is not available on this site yet.');
-      const r = await api.runTaskFlowsNow(); toast(`Checked. ${r.started || 0} template run(s) started, ${r.tasks || 0} task(s) created, ${r.emails || 0} request email(s) queued.`); refresh();
+      const r = await api.runTaskFlowsNow(); toast(`Checked. ${r.started || 0} automation run(s) started, ${r.tasks || 0} task(s) created, ${r.emails || 0} request email(s) queued.`); refresh();
     }));
     $$('[data-tb-edit]', root).forEach((b) => b.addEventListener('click', () => formModal(byId.get(b.dataset.tbEdit))));
     $$('[data-tb-on]', root).forEach((b) => b.addEventListener('click', () => turnOnModal(byId.get(b.dataset.tbOn))));
@@ -92,18 +92,18 @@ export async function render(ctx) {
     function turnOnModal(f) {
       const onlyNew = FROM_NOW_TRIGGERS.includes(f.trigger); const closedFlow = f.trigger === 'file_closed';
       const m = modal(`Turn on: ${f.name}`, html`<form id="tbon" class="form-grid" data-tb-on-form>
-        ${closedFlow ? html`<p class="span2">This template starts when a file is closed, so it runs on files closed from now on. Files already closed are not touched.</p>`
-          : onlyNew ? html`<p class="span2">This template starts when an order is opened, so it runs on orders placed from now on. Open orders already there are not touched.</p>`
+        ${closedFlow ? html`<p class="span2">This automation starts when a file is closed, so it runs on files closed from now on. Files already closed are not touched.</p>`
+          : onlyNew ? html`<p class="span2">This automation starts when an order is opened, so it runs on orders placed from now on. Open orders already there are not touched.</p>`
           : html`<fieldset class="span2" data-tb-scope-pick><legend>Run it on</legend>
             ${SCOPES.map(([v, l], i) => html`<label class="chk"><input type="radio" name="scope" value="${v}" data-tb-scope-opt="${v}" ${i === 0 ? raw('checked') : ''}> ${l}</label><br>`)}
-            <p class="muted small" data-tb-scope-hint>New files only: files opened after you turn it on. Existing open files too: the open files already there also get the template if they match. Try it on one file first if you're not sure.</p></fieldset>`}
+            <p class="muted small" data-tb-scope-hint>New files only: files opened after you turn it on. Existing open files too: the open files already there also get the automation if they match. Try it on one file first if you're not sure.</p></fieldset>`}
         <p class="span2 err-text" data-tb-on-err hidden></p>
         <div class="span2"><button class="m-btn" type="submit" data-tb-on-save>Turn on</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       $('#tbon', m).addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-tb-on-err]', m); err.hidden = true;
         const pick = $$('[data-tb-scope-opt]', m).find((x) => x.checked); const scope = closedFlow ? 'all' : onlyNew ? 'new' : (pick ? pick.value : 'new');
         try { await api.setTaskFlowActive(f.id, true, { scope }); closeModal();
           toast(closedFlow ? 'Turned on. It runs on files closed from now on.' : scope === 'all' ? 'Turned on for new and existing open files.' : 'Turned on for new files only.'); refresh();
-        } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not turn the template on. Try again.'; } });
+        } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not turn the automation on. Try again.'; } });
     }
 
     // Try on one file (John, Nov 14): run the flow once on one open file, now, to see how it works
@@ -122,17 +122,17 @@ export async function render(ctx) {
       $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (ran) refresh(); }));
       $('#tbtry', m).addEventListener('submit', async (e) => { e.preventDefault(); const err = $('[data-tb-try-err]', m); const out = $('[data-tb-try-result]', m); err.hidden = true;
         const dealId = $('[data-tb-try-file]', m).value;
-        if (!dealId) { err.hidden = false; err.textContent = 'Choose a file to try the template on.'; return; }
+        if (!dealId) { err.hidden = false; err.textContent = 'Choose a file to try the automation on.'; return; }
         const btn = $('[data-tb-try-run]', m); btn.disabled = true;
         try { const r = await api.tryTaskFlowOnFile(f.id, dealId); ran = true;
           out.hidden = false;
-          out.innerHTML = toText(html`<div class="card" data-tb-try-done><p><strong>${r.fileNumber}:</strong> ${r.status === 'skipped' ? 'this file does not match the template\'s Limit to certain files, so nothing was created.' : `${r.tasks} task(s) created.`}
+          out.innerHTML = toText(html`<div class="card" data-tb-try-done><p><strong>${r.fileNumber}:</strong> ${r.status === 'skipped' ? 'this file does not match the automation\'s Limit to certain files, so nothing was created.' : `${r.tasks} task(s) created.`}
             <a href="#/deals/${dealId}/tasks" data-tb-try-open>Open the file's tasks</a></p><ul class="small">${(r.log || []).map((l) => html`<li>${l.text}</li>`)}</ul></div>`);
         } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not run the test. Try again.'; }
         btn.disabled = false; });
     }
     $$('[data-tb-off]', root).forEach((b) => b.addEventListener('click', guard(async () => {
-      if (!confirm('Turn this template off? Runs already started pause, and it can be turned back on.')) return;
+      if (!confirm('Turn this automation off? Runs already started pause, and it can be turned back on.')) return;
       await api.setTaskFlowActive(b.dataset.tbOff, false); toast('Turned off.'); refresh();
     })));
 
@@ -144,32 +144,32 @@ export async function render(ctx) {
       let steps = stepsToActions(((f && f.steps) || []).map(({ text, ...s }) => ({ ...s })));
       const checks = (name, list, chosen) => list.map(([v, l]) => html`<label class="chk"><input type="checkbox" data-tb-cond="${name}" value="${v}" ${chosen.includes(v) ? raw('checked') : ''}> ${l}</label> `);
       const PICK = STEP_TYPES.filter(([v]) => v !== 'wait');
-      const m = modal(creating ? 'New template' : `Edit: ${f.name}`, html`<form id="tbf" class="form-grid" data-tb-form novalidate>
-        <label class="span2">Template name *<input name="name" maxlength="${NAME_MAX}" required value="${f ? f.name : ''}" placeholder="EMD reminder" data-tb-name-input></label>
+      const m = modal(creating ? 'New automation' : `Edit: ${f.name}`, html`<form id="tbf" class="form-grid" data-tb-form novalidate>
+        <label class="span2">Automation name *<input name="name" maxlength="${NAME_MAX}" required value="${f ? f.name : ''}" placeholder="EMD reminder" data-tb-name-input></label>
         <label class="span2">What starts it *<select name="trigger" required data-tb-trigger-input>
           <option value="">Choose…</option>
           ${TRIGGERS.map((t) => html`<option value="${t.code}" ${f && f.trigger === t.code ? raw('selected') : ''}>${t.label}${triggerRuns(t.code) ? '' : " (doesn't run yet)"}</option>`)}</select></label>
         <label class="span2" data-tb-days hidden>Days *<span class="muted small" data-tb-days-hint></span>
           <input name="triggerDays" type="number" min="${DAYS_MIN}" max="${DAYS_MAX}" step="1" inputmode="numeric" value="${f && f.triggerDays != null ? f.triggerDays : ''}" data-tb-days-input></label>
-        <label class="span2" data-tb-task hidden>Which task *<span class="muted small"> (the template starts when this task is checked off on a file)</span>
+        <label class="span2" data-tb-task hidden>Which task *<span class="muted small"> (the automation starts when this task is checked off on a file)</span>
           <select name="triggerTask" data-tb-task-input><option value="">Choose a task…</option>${(() => { const ch = taskChoices(taskTemplates, flows);
             if (f && f.triggerTask && !ch.some((c) => c.key === f.triggerTask)) ch.unshift({ key: f.triggerTask, name: f.triggerTaskName || f.triggerTask.replace(/^\w+:/, ''), group: 'Saved' });
             return [...new Set(ch.map((c) => c.group))].map((g) => html`<optgroup label="${g}">${ch.filter((c) => c.group === g).map((c) => html`<option value="${c.key}" data-name="${c.name}" ${f && f.triggerTask === c.key ? raw('selected') : ''}>${c.name}</option>`)}</optgroup>`); })()}<option value="__other">Another task (type its name)…</option></select>
           <input data-tb-task-other hidden maxlength="120" placeholder="The task's name, as it appears on the file" aria-label="Task name">
           <input type="hidden" name="triggerTaskName" value="${(f && f.triggerTaskName) || ''}" data-tb-task-name></label>
-        <label class="span2">Description <span class="muted small">(optional)</span><textarea name="description" rows="2" maxlength="${DESC_MAX}" data-tb-desc-input placeholder="What this template is for">${f ? f.description || '' : ''}</textarea></label>
+        <label class="span2">Description <span class="muted small">(optional)</span><textarea name="description" rows="2" maxlength="${DESC_MAX}" data-tb-desc-input placeholder="What this automation is for">${f ? f.description || '' : ''}</textarea></label>
         <details class="span2" data-tb-limit ${limited ? raw('open') : ''}><summary data-tb-limit-toggle>Limit to certain files <span class="muted small">(optional. Leave closed to run on every file)</span></summary>
         <fieldset data-tb-conds><legend class="small">Only run on files that match <span class="muted">(leave a group blank for "any")</span></legend>
           <p class="small"><strong>Transaction type:</strong> ${checks('transactionTypes', TX_KINDS, cond.transactionTypes || [])}</p>
           <p class="small"><strong>State:</strong> ${checks('states', STATES.map((s) => [s, s]), cond.states || [])}</p>
-          <p class="small" data-tb-sales-box><strong>Sales person:</strong> <input type="search" class="small" data-tb-sales-search placeholder="Type a name" aria-label="Find a sales person"> ${(() => { const chosenSales = cond.salesPeople || []; const salesChoices = sales.map((s) => [s.id, salesName(s.id)]); chosenSales.filter((id) => !sales.some((s) => s.id === id)).forEach((id) => salesChoices.push([id, salesName(id)])); return salesChoices.length ? checks('salesPeople', salesChoices, chosenSales) : html`<span class="muted">No staff found.</span>`; })()}<br><span class="muted small">This only picks which files the template runs on. Who gets each task is set on the step.</span></p>
+          <p class="small" data-tb-sales-box><strong>Sales person:</strong> <input type="search" class="small" data-tb-sales-search placeholder="Type a name" aria-label="Find a sales person"> ${(() => { const chosenSales = cond.salesPeople || []; const salesChoices = sales.map((s) => [s.id, salesName(s.id)]); chosenSales.filter((id) => !sales.some((s) => s.id === id)).forEach((id) => salesChoices.push([id, salesName(id)])); return salesChoices.length ? checks('salesPeople', salesChoices, chosenSales) : html`<span class="muted">No staff found.</span>`; })()}<br><span class="muted small">This only picks which files the automation runs on. Who gets each task is set on the step.</span></p>
         </fieldset></details>
         <fieldset class="span2" data-tb-steps-box><legend>Steps <span class="muted small">(each one says when it happens)</span></legend>
           <div data-tb-step-list></div>
           <button type="button" class="ghost small" data-tb-add-step>+ Add step</button></fieldset>
-        ${creating ? html`<p class="span2 muted small">New templates start Off. Turn it on from the list when it's ready.</p>` : ''}
+        ${creating ? html`<p class="span2 muted small">New automations start Off. Turn it on from the list when it's ready.</p>` : ''}
         <p class="span2 err-text" data-tb-err hidden></p>
-        <div class="span2"><button class="m-btn" type="submit" data-tb-save>${creating ? 'Create template' : 'Save changes'}</button>
+        <div class="span2"><button class="m-btn" type="submit" data-tb-save>${creating ? 'Create automation' : 'Save changes'}</button>
           <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
       const sel = $('[data-tb-trigger-input]', m); const days = $('[data-tb-days]', m);
       const showDays = () => { const t = triggerOf(sel.value); days.hidden = !triggerNeedsDays(sel.value); $('[data-tb-days-hint]', m).textContent = t && t.days ? ` (${t.days}, ${DAYS_MIN} to ${DAYS_MAX})` : ''; };
@@ -184,7 +184,7 @@ export async function render(ctx) {
       const stepRow = (s, i) => html`<div class="card small" data-tb-step="${i}">
         <p><strong>Step ${i + 1}:</strong> <span data-tb-step-when></span></p>
         <p class="small"><label>Do this <select data-tb-step-type aria-label="What step ${i + 1} does">${PICK.map(([v, l]) => html`<option value="${v}" ${s.type === v ? raw('selected') : ''}>${l}</option>`)}</select></label>
-          <label>When <input data-tb-step-field="at" data-tb-step-at type="number" min="0" max="${AT_MAX}" step="1" inputmode="numeric" value="${s.at != null ? s.at : 0}" aria-label="Days after the template starts" style="width:5em"> <span class="muted" data-tb-at-hint></span></label>
+          <label>When <input data-tb-step-field="at" data-tb-step-at type="number" min="0" max="${AT_MAX}" step="1" inputmode="numeric" value="${s.at != null ? s.at : 0}" aria-label="Days after the automation starts" style="width:5em"> <span class="muted" data-tb-at-hint></span></label>
           <button type="button" class="ghost small" data-tb-step-up ${i === 0 ? raw('disabled') : ''} aria-label="Move step ${i + 1} up">↑</button>
           <button type="button" class="ghost small" data-tb-step-down ${i === steps.length - 1 ? raw('disabled') : ''} aria-label="Move step ${i + 1} down">↓</button>
           <button type="button" class="ghost small" data-tb-step-remove>Remove</button></p>
@@ -212,7 +212,7 @@ export async function render(ctx) {
           <p class="small span2"><label>Insert field <select data-tb-insert aria-label="Insert a field into the email"><option value="">Choose a field to add where your cursor is…</option>${FILE_TEMPLATE_FIELDS.map(([k, l]) => html`<option value="${k}">${l}</option>`)}</select></label>
             <span class="muted">It fills in from the file when the email goes out.</span></p>`}
           <p class="muted small">${EMAIL_NOTE}</p>`
-        : html`<p class="muted">If the EMD is marked received on the file by this day, the template stops here. If not, it goes on to the next step.</p>`}</div>`;
+        : html`<p class="muted">If the EMD is marked received on the file by this day, the automation stops here. If not, it goes on to the next step.</p>`}</div>`;
       // the plain sentence on every step, kept up to date as the day, the trigger or any field changes
       const showWhen = () => { const tr = sel.value; const td = $('[data-tb-days-input]', m).value;
         $$('[data-tb-step]', list).forEach((box) => { const i = Number(box.dataset.tbStep); const el = $('[data-tb-step-when]', box); if (el) el.textContent = actionLine(tr, td, steps[i]) || '';
@@ -265,8 +265,8 @@ export async function render(ctx) {
           if (fd.triggerTask === '__other') { const typed = String(other.value || '').replace(/\s+/g, ' ').trim(); fd.triggerTask = typed ? `title:${typed}` : ''; fd.triggerTaskName = typed; }
           const input = cleanFlow({ ...fd, conditions, steps: actionsToSteps(steps) });   // checked here first, so a mistake never leaves the window
           if (creating) await api.createTaskFlow(input); else await api.updateTaskFlow(f.id, input);
-          closeModal(); toast(creating ? 'Template created. It is Off.' : 'Template saved.'); refresh();
-        } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not save the template. Try again.'; btn.disabled = false; }
+          closeModal(); toast(creating ? 'Automation created. It is Off.' : 'Automation saved.'); refresh();
+        } catch (ex) { err.hidden = false; err.textContent = ex.message || 'Could not save the automation. Try again.'; btn.disabled = false; }
       });
     }
   } };

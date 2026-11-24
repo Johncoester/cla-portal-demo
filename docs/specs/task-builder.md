@@ -53,6 +53,7 @@ The end goal is a drag-and-drop flowchart screen where "almost any task can be a
 | TB-7 | Email step (saved template or written message with merge fields) and the File closed trigger (John, Nov 20) |
 | TB-10 | Part of TB-4: send an email step as a named staff member, with that person's signature (John, Nov 22) |
 | TB-11 | "Task completed" trigger: a template starts when a chosen task is checked off (John, Nov 22) |
+| TB-12 | The page calls them "automations", not "templates" (John, Nov 23) |
 
 ## TB-1 as built
 
@@ -142,4 +143,8 @@ John: "Could Task Builder send an automatic email once a task is checked off?...
 - Turning it on asks no "which files" question: it runs on any open file from now on.
 - Database: 20261129020000_task_flow_task_completed.sql (task_flows.trigger_task and trigger_task_name, save_task_flow_v3, a trigger on tasks). The page uses save_task_flow_v3 only for this trigger, so other templates keep saving before the file is applied. Rollback in supabase/rollbacks (deletes Task completed templates). Not applied on TEST yet.
 - Note: the file's own "EMD received" box already has its own trigger ("EMD received"), which can send the same email today once a template uses it.
+
+## TB-12: automations, not templates (John, Nov 23 2026, by voice)
+
+There were two things called "templates": Admin > Task Templates (the standard tasks and forms) and Task Builder's own. John: "Yeah, name it automations." Task Builder now says "+ New automation", "Automation name", "Automations", "Create automation", and its messages say automation. Saved email templates keep their name. The database's own messages still say "flow" (unchanged). No database change.
 

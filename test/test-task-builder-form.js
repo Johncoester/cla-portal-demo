@@ -28,7 +28,7 @@ async function show() { const app = document.getElementById('app'); const v = aw
 const app = await show();
 app.querySelector('[data-tb-new]').click();
 const m = document.getElementById('modal');
-ok(!!m && !!m.querySelector('[data-tb-steps-box]') && !!m.querySelector('[data-tb-conds]') && /Template name/.test(m.textContent), 'New template opens with Template name, an optional Limit to certain files, and Steps');
+ok(!!m && !!m.querySelector('[data-tb-steps-box]') && !!m.querySelector('[data-tb-conds]') && /Automation name/.test(m.textContent), 'New automation opens with Automation name (John, Nov 23: templates are now automations), an optional Limit to certain files, and Steps');
 ok(!m.querySelector('[data-tb-limit]').hasAttribute('open'), 'Limit to certain files starts closed (John, Nov 21)');
 set(m.querySelector('[data-tb-name-input]'), 'EMD reminder');
 set(m.querySelector('[data-tb-trigger-input]'), 'emd_not_received');
@@ -90,7 +90,7 @@ let msg = ''; try { actionsToSteps([{ type: 'create_task', at: '61', title: 'A',
 ok(/Step 1: "When" must be a whole number of days from 0 to 60/.test(msg), 'a When of 61 days is refused in plain words');
 ok(actionLine('file_closed', null, { type: 'send_email', at: 2, sendTo: 'Client-Buyer' }) === '2 days after the file closes: email the buyer.' && actionLine('order_opened', null, { type: 'send_email', at: 0, sendTo: 'non_referring_agents' }) === "As soon as the order opens: email the agents who didn't refer the file.", 'each step reads as a sentence');
 const app3 = await show();
-ok(/\+ New template/.test(app3.textContent) && /Templates/.test(app3.textContent), 'the page says templates, not flows');
+ok(/\+ New automation/.test(app3.textContent) && /Automations/.test(app3.textContent) && !/New template/.test(app3.textContent), 'the page says automations (John, Nov 23), not templates or flows');
 app3.querySelector('[data-tb-new]').click();
 const m3 = document.getElementById('modal');
 m3.querySelector('[data-tb-add-step]').click();
