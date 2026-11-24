@@ -3611,3 +3611,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The faster search is only the page asking for the modules together and skipping reads this page does not show.
 - Rule 9 waived by John on Nov 21 for CRM items.
+
+---
+
+## CRM Send Email templates and Cc (JN-CRM-CC-1)
+
+**How it should work.** On a Client, Lead, or Company, Send Email → Insert Template offers that module's templates. Send saves the email on the record as Drafted (not sent). A Cc added in that window is kept and shows in the record's email history. A Deal has no email templates. A report has no email templates. Nothing is actually sent.
+
+**Status: In progress.** Janine Santos, TEST portal, Nov 24 2026, 6:06 PM ET. Tracker JN-CRM-CC-1 (row 470). No database file. Not Live until this is merged and someone checks it on TEST. Pull request not opened yet (one pull request at a time).
+
+**What's built**
+
+- The hosted Send Email window keeps the module the record page already passed (`contact` for a Client, and the same for a Lead, Company, Opportunity, or Deal). Insert Template opens that module's templates instead of saying there are no report templates.
+- A Deal still has no templates. The message says Deal. A report still says there are no report templates.
+- Cc and Bcc typed in Send Email are stored on the draft. The email history on the record shows the Cc. Opening the email shows it again. Nothing is sent.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- An Opportunity still cannot store its own Send Email draft. The saved-email table only allows a lead, client, company, or deal. The pipeline Email button is a different window and already uses Opportunity templates. Changing that would be a database change, and this item does not include one.
+
+**Links**
+
+- Spec: [docs/specs/crm-send-email-template.md](docs/specs/crm-send-email-template.md)
+
+**Decisions**
+
+- No database change. The module was dropped in the hosted compose context, and Cc was left off the saved row. Both are fixed in the CRM hosted code only.
+- No cache stamp change. The shell stays at 202611310200.
+- Rule 9 waived by John on Nov 21 for CRM items.

@@ -213,11 +213,16 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     async saveCrmRecentSearch(q) { const u = await who(); const s = parseQuery(q).q; if (!s) return { ok: true }; const bag = RECENT.get(u.id) || { items: [], searches: [] }; bag.searches = [s, ...bag.searches.filter((z) => z !== s)].slice(0, 10); RECENT.set(u.id, bag); return { ok: true }; },
     async getCrmComposeContext(entity, id) {
       const u = await who();
+      // The Send Email window reads entity and id to choose the template module and to save the draft.
+      // The screen already passed them (contact for a Client). Leaving them off made every record look like a report.
+      const known = ['lead', 'contact', 'account', 'opportunity', 'deal', 'report'];
+      const e = known.includes(entity) ? entity : String(entity || '');
+      const recordId = id == null ? '' : String(id);
       let recordName = 'Record'; let to = [];
-      try { const people = await self.crmRelatedEmails(entity, id); to = (people || []).map((p) => p.email).filter(Boolean); if (people && people[0]) recordName = people[0].name || recordName; } catch { /* a report compose has no record */ }
+      try { const people = await self.crmRelatedEmails(e, recordId); to = (people || []).map((p) => p.email).filter(Boolean); if (people && people[0]) recordName = people[0].name || recordName; } catch { /* a report compose has no record */ }
       let signature = ''; try { const s = ok(await sb.from('crm_user_signatures').select('html').eq('user_id', u.id).maybeSingle()); signature = (s && s.html) || ''; } catch { signature = ''; }
       const from = u.email ? [String(u.email).toLowerCase()] : [];
-      return { recordName, to, from, signature, sendNote: 'Gmail is not connected. Nothing is sent.', canAttachReport: !!u.isAdmin };
+      return { entity: e, id: recordId, recordName, to, from, signature, sendNote: 'Gmail is not connected. Nothing is sent.', canAttachReport: e === 'report' && !!u.isAdmin };
     },
     async getCrmEmailAttachment(emailId, fileId) {
       await who(); const f = ok(await sb.from('crm_attachments').select('id,name').eq('id', fileId).maybeSingle());
