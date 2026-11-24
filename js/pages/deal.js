@@ -3,7 +3,7 @@ import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, opti
 import { textToHtml, hasSignature } from '../data/gmail-email.js?v=202611191000';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES, contactTypeForRole } from '../data/constants.js?v=202611247700';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES, contactTypeForRole } from '../data/constants.js?v=202611302300';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611247700';
 import { slotText } from './dealclosing.js?v=202611247700';
@@ -21,7 +21,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611302000';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611302000';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611302200';
+import { prefetchDealTab } from './deal-tab.js?v=202611302300';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -529,14 +529,28 @@ export function assignedPreprocessor(d) {
   const id = c.profileId || row.profileId || '';
   return { id, name };
 }
+/* FF-109: show the Licensed Settlement Agent assigned in Order Contacts > CLA Team.
+ * There is no deals.*_user_id field for this role (unlike Processor / Preprocessor), so the
+ * existing Closing Team slot is filled from a participant with that role. Do not use the
+ * scheduling settlement agent/notary, the Closer, or an agent's TC. */
+export function assignedLicensedSettlementAgent(d) {
+  const parts = (d && Array.isArray(d.participants)) ? d.participants : [];
+  const row = parts.find((p) => p && !p.removed && p.role === 'Licensed Settlement Agent');
+  if (!row) return { id: '', name: '' };
+  const c = row.contact || {};
+  const name = teamName(c.name || `${c.firstName || ''} ${c.lastName || ''}`);
+  const id = c.profileId || row.profileId || '';
+  return { id, name };
+}
 export function closingTeamCards(d) {
   const sales = (d.salesPeople || []).map((s) => ({ id: (s && s.id) || '', name: teamName(s && (s.name || `${s.firstName || ''} ${s.lastName || ''}`)) })).filter((s) => s.id || s.name);
   const salesCards = (sales.length ? sales : [{ id: '', name: '' }]).map((s) => ({ role: 'Sales Person', name: s.name, id: s.id }));
   const pre = assignedPreprocessor(d);
+  const lsa = assignedLicensedSettlementAgent(d);
   return [
     { role: 'Processor', name: teamName(d.processorName), id: d.processorId || '' },
     { role: 'Preprocessor', name: pre.name, id: pre.id },
-    { role: 'Licensed Settlement Agent', name: '', id: '', blankBecause: 'no-field' },
+    { role: 'Licensed Settlement Agent', name: lsa.name, id: lsa.id },
     ...salesCards,
   ];
 }

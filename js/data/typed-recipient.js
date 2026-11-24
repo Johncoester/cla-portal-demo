@@ -2,7 +2,7 @@
  * Someone already on the file is picked from that list. Someone who is not is added to the file
  * as a buyer, seller, buyer's agent, or listing agent, then the existing Share Files path invites
  * them and holds the message. This file does not send anything by itself. */
-import { contactTypeForRole } from './constants.js?v=202611247700';
+import { contactTypeForRole } from './constants.js?v=202611302300';
 import { noLoginContactId } from './share-invite.js?v=202611249900';
 
 export const TYPED_ROLES = [

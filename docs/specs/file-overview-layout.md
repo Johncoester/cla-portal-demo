@@ -17,4 +17,4 @@ Staff see the tasks bar, then four boxes (the value large, the label under it), 
 
 ## What is not in this change
 
-No database file. There is no saved Licensed Settlement Agent on the file, so that card's name stays blank. The Closer field on Edit order details is unchanged. The status tracker words are unchanged. Not Live until someone checks it on TEST.
+No database file for the original layout. FF-109 later fills the Licensed Settlement Agent card from an Order Contacts assignment (see ff-109-licensed-settlement-agent.md). The Closer field on Edit order details is unchanged. The status tracker words are unchanged. Not Live until someone checks it on TEST.

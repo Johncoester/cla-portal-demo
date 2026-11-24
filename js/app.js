@@ -2,10 +2,10 @@
 import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611302100';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611302200';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611302300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611300430';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611247700';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611302300';
 import { canUseCrm } from './data/crm.js?v=202611247700';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
@@ -48,7 +48,7 @@ const pages = {
   dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611302200')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611301500')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611302200')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611302300')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611289960')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611302000')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),

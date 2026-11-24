@@ -2,7 +2,7 @@
 // (deal_contacts hides the other side, tasks/documents/threads/activity use their own policies).
 // This function does not invent rows, prices, or activity. A hidden contact keeps a blank phone and email.
 import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS } from './agent-portal.js?v=202611247700';
-import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611247700';
+import { CLA_PHONE, isRefi, viewOnly, isAgent, sideOf } from './constants.js?v=202611302300';
 import { partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
 

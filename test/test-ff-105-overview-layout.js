@@ -38,7 +38,7 @@ ok(staffFileFacts({ transactionType: 'Refinance', purchasePrice: null }).every((
 
 const cards = closingTeamCards(deal);
 ok(cards.map((c) => c.role).join('|') === 'Processor|Preprocessor|Licensed Settlement Agent|Sales Person|Sales Person', 'Closing Team uses the picture role names with the CLA slot labelled Preprocessor (FF-106b), with one Sales Person card each');
-ok(cards[0].name === 'Paula Processor' && cards[1].role === 'Preprocessor' && cards[1].name === 'Pat Pre' && cards[2].name === '' && cards[2].blankBecause === 'no-field', 'assigned people show, the CLA slot is Preprocessor, and Licensed Settlement Agent stays blank');
+ok(cards[0].name === 'Paula Processor' && cards[1].role === 'Preprocessor' && cards[1].name === 'Pat Pre' && cards[2].role === 'Licensed Settlement Agent' && cards[2].name === '' && !cards[2].blankBecause, 'assigned people show, the CLA slot is Preprocessor, and Licensed Settlement Agent stays blank until one is assigned');
 ok(!cards.some((c) => c.role === 'Transaction Coordinator') && !cards.some((c) => c.name === 'Tina Coordinator'), 'the CLA Transaction Coordinator is not a Closing Team card (FF-106b relabel)');
 ok(!cards.some((c) => c.name === 'Chris Closer') && !cards.some((c) => c.name === 'Transaction Coordinator for CLA'), 'Closer is not renamed, and the sample coordinator name is not stored');
 ok(nameInitials('Paula Processor') === 'PP' && nameInitials('') === '', 'a card uses initials, and a blank name has none');
