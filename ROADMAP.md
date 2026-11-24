@@ -37,6 +37,30 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Portal email sender (OUTBOX-SEND-1)
+
+**How it should work.** Automatic portal emails (fee notices, reminders, scheduling, title package, Task Builder emails) wait in the outbox. A sender picks them up every minute and sends them from portal@clatitle.com through Amazon SES (Resend also built in), and each email shows sent, failed, skipped or blocked with the reason. A switch decides Test mode (only clatestportal+ test addresses) or Live; it starts in Test mode and only the database owner can change it.
+
+**Status: Partial.** Tracker item OUTBOX-SEND-1. John Coester, Nov 24 2026, 11:06 AM ET (t2041u). Database file 20261131000000_outbox_sender.sql. Pull request: see the tracker row.
+
+**What's built**
+
+- Statuses queued / sending / sent / failed / skipped / blocked with a reason, retries (5 tries), no double sends, and the 629-email backlog marked skipped ("pre-sender backlog, not sent").
+- send_blocked and the TC-only rule are checked again at send time. Wire instruction files are never attached.
+- The outbox-send edge function with an email-service layer (SES or Resend) and an every-minute job that calls it only once John creates its Vault token.
+
+**What's still missing**
+
+- John: AWS SES domain + IAM key, Cloudflare DNS (DKIM, MAIL FROM), the portal@ Google Group for replies, the function secrets and the Vault token. Steps in [docs/specs/outbox-sender.md](docs/specs/outbox-sender.md).
+- The Reminder Outbox page and a few file pages still say "queued - not sent"; they should show the real status and reason (next PR, needs a cache stamp).
+- Bounce and complaint handling (SES event feed) and Live mode on production.
+
+**Links**
+
+- Spec: [docs/specs/outbox-sender.md](docs/specs/outbox-sender.md)
+
+---
+
 ## Agent fees flow
 
 **How it should work.** When CLA staff open a file, they enter each agent's fees for their side (listing agent and buyer's agent): the commission as a percent or a dollar amount, which always stay in sync with each other using the sales price; an admin fee (paid by the buyer for the buyer's agent and by the seller for the listing agent unless changed); and up to 5 other fees, each with a description, an amount and who it's paid to. Each agent sees and can change their own side in the portal. Before saving, they see a "You're changing X from $A to $B" check, and the fee is then marked "Agent confirmed". A TC can confirm for the agent. Once confirmed, the agent's figure wins. Staff can still change it, but they must give a reason, and the agent is told straight away (old value, new value, reason, who). When an agent changes a fee, the processor, pre-processor and TC on the file are told, in the portal and by email. The fees go straight onto the right lines in Accounting, and from there onto the Closing Disclosure (CD) and the ALTA settlement statement, which can also be generated as PDFs. Buyers and sellers never see commissions or agent fees. Every change is kept in a history: who, when, old value, new value, reason, and whether staff, the agent or the TC made it.
