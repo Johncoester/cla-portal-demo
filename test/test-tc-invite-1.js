@@ -1,7 +1,7 @@
 /* TC-INVITE-1 (John Coester, Nov 20 2026, 10:41 AM ET, chat: "yes of course a TC needs an invite").
    An agent's transaction coordinator row (Buyer Agent TC / Listing Agent TC) with no portal login gets Invite to portal on Order Contacts,
    the same as a buyer, seller or agent. The invite is the short client login (no agent profile form). Lenders, CLA staff and other roles
-   still get no button, a CLA staff Transaction Coordinator still cannot invite, and editing a coordinator's email sends nothing by itself.
+   still get no button, a CLA staff Transaction Coordinator can invite (STAFF-INVITE-1, Nov 23 2026), and editing a coordinator's email sends nothing by itself.
    Fake / mock data only. Nothing is sent. */
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 import { readFileSync } from 'node:fs';
@@ -24,9 +24,8 @@ const U = (role, extra = {}) => ({ id: 'x', role, status: 'active', isAdmin: fal
 
 // the rule
 ok(TC.every((r) => PORTAL_INVITE_ROLES.includes(r)), 'both coordinator roles are portal invite roles');
-for (const who of ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team']) ok(TC.every((r) => canInviteToPortal(U(who), r)), `${who} may invite an agent's coordinator`);
+for (const who of ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']) ok(TC.every((r) => canInviteToPortal(U(who), r)), `${who} may invite an agent's coordinator`);
 ok(TC.every((r) => canInviteToPortal(U('Super admin', { isAdmin: true }), r)), 'Super admin may invite an agent\'s coordinator');
-ok(TC.every((r) => !canInviteToPortal(U('Transaction Coordinator'), r)), 'a CLA staff Transaction Coordinator still may not invite');
 ok(TC.every((r) => inviteKindForRole(r) === 'client'), 'a coordinator gets the short client login, not the agent account');
 for (const r of ['Lender', 'Processor', 'Preprocessor', 'Sales Person', 'Transaction Coordinator', 'Abstractor', 'Attorney', '']) ok(!canInviteToPortal(U('Processor'), r), `still no invite for the ${r || 'blank'} role`);
 ok(TC.every((r) => SHARE_INVITE_ROLES.includes(r)) && !SHARE_INVITE_ROLES.includes('Lender'), 'Share Files can invite the same coordinator roles, still not a lender');
@@ -72,9 +71,10 @@ const me = await api.getSession();
 ok(me.role === 'Outside user' && me.email === 'tess.tc@example.test', 'the coordinator signs in as an Outside user');
 ok((await api.getMyAgentProfile()) === null, 'no agent profile was made for the coordinator');
 
-// a staff Transaction Coordinator is still refused, and a lender is refused by the data layer
+// a lender is still refused by the data layer; a staff Transaction Coordinator may invite (STAFF-INVITE-1)
 await api.signInDev('u-tc');
-await rejects(() => api.createPortalInvite({ dealId: 'deal-4', contactId: tc.id }), /Only CLA staff/, 'a staff Transaction Coordinator is refused');
+const asTc = await api.createPortalInvite({ dealId: 'deal-4', contactId: 'c-cora' });
+ok(asTc && asTc.link, 'a staff Transaction Coordinator can create a portal invite');
 await api.signInDev('u-proc');
 await rejects(() => api.createPortalInvite({ dealId: 'deal-4', contactId: lender.id }), /can be invited/, 'a lender is refused');
 
@@ -84,7 +84,7 @@ const back = readFileSync('supabase/rollbacks/20261125360000_tc_portal_invite.sq
 const list = "dp.role in ('Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC')";
 ok(sql.split(list).length === 3, 'the portal invite and the Share Files invite both accept the two coordinator roles');
 ok(/create or replace function private\.rpc_create_portal_invite/i.test(sql) && /create or replace function private\.rpc_create_thread_invited/i.test(sql), 'the migration recreates both functions');
-ok((sql.replace(/^--.*$/gm, '').match(/if not private\.can_invite_agents\(\)/g) || []).length === 2, 'both still require someone who may invite (a staff Transaction Coordinator may not)');
+ok((sql.replace(/^--.*$/gm, '').match(/if not private\.can_invite_agents\(\)/g) || []).length === 2, 'both still require someone who may invite (STAFF-INVITE-1 now includes a staff Transaction Coordinator)');
 ok(/then 'agent' else 'client' end/.test(sql) && /when dp\.role in \('Buyer Agent', 'Listing Agent'\) then 0/.test(sql), 'only the two agent roles get the agent account; a coordinator is a client invite');
 ok(/150cb04c7b6eda8be11071077f9f6b7f/.test(sql) && /c7eaa26169b75f5dfe958f309d8bb726/.test(sql), 'the migration stops if either live function changed since it was read');
 ok(!/rpc_invite_after_email_change|agent_tc_links|participant_tc_not_self|invite_service_accept/.test(sql.replace(/^--.*$/gm, '')), 'the email-change invite, the coordinator links, the self-block and the accept step are not touched');

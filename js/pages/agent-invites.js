@@ -1,9 +1,9 @@
 // AGENT INVITES (John, Nov 4): CLA staff (Processor, Sales Person, Sales Team, TC, Admin) invite a real estate agent to the portal from a file or the
 // contacts / CRM, see each invite's status (pending, accepted, expired, revoked) and Resend (new link) or Revoke (retired, never deleted).
-// Nov 9: Create and Resend email the invite from the inviter's own connected Gmail (gmail-send); the one-time link is also shown to copy.
+// Nov 9 / Nov 11: Create and Resend email the invite from testportal@clatitle.com (gmail-send); the one-time link is also shown to copy. Gmail does not need to be connected.
 import { html, raw, $, $$, guard, toast, fmtDateTime } from '../ui.js?v=202611161500';
-import { STATUS_LABEL } from '../data/agent-profile.js?v=202611249900';
-import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611249900';
+import { STATUS_LABEL } from '../data/agent-profile.js?v=202611302000';
+import { autoSendInvite, inviteSendNotice, inviteToast } from '../data/invite-send.js?v=202611302000';
 const PILL = { pending: 'warn', accepted: 'ok', expired: 'bad', revoked: '' };
 const abs = (link) => location.href.split('#')[0] + link;
 export async function render({ api, refresh }) {
@@ -26,7 +26,7 @@ export async function render({ api, refresh }) {
       <div class="form-grid" data-invite-new><label>First name<input name="firstName" maxlength="80"></label><label>Last name<input name="lastName" maxlength="80"></label><label class="span2">Email<input name="email" type="email" maxlength="160"></label></div>
       <label>Link it to a file (optional)<select name="dealId" data-invite-deal><option value="">No file</option>${files.map((f) => html`<option value="${f.dealId}"${f.dealId === preDeal ? raw(' selected') : ''}>${f.fileNumber}</option>`)}</select></label>
       <button class="m-btn" type="submit" data-invite-create>Create invite link</button>
-      <p class="muted small">The portal emails the invite from your connected Gmail (Profile Setting &gt; Gmail). The one-time link is also shown to copy.</p>
+      <p class="muted small">The portal emails the invite from testportal@clatitle.com. The one-time link is also shown to copy. You do not need to connect Gmail.</p>
       <div class="ai-link" data-invite-result hidden></div></form>
     <div class="ai-list"><ul class="nav-tabs">${tabs.map(([k, l, n]) => html`<li><a class="${k === flt ? 'active' : ''}" href="#/agent-invites${k ? '?status=' + k : ''}" data-invite-tab="${k || 'all'}">${l} <span class="tab-count">${n}</span></a></li>`)}</ul>
       <table class="tbl striped" data-invite-table><thead><tr><th>Agent</th><th>Status</th><th>File</th><th>Invited</th><th>Emailed</th><th>Link</th><th></th></tr></thead><tbody>${rows.length ? rows : html`<tr><td colspan="7" class="muted">No invites here.</td></tr>`}</tbody></table></div></div>`;
