@@ -124,6 +124,7 @@ post", so replies to portal emails reach a person. Sending through SES does not 
 
 ## Files
 
+- Pull request: [PR 436](https://github.com/Johncoester/cla-portal-demo/pull/436)
 - `supabase/migrations/20261131000000_outbox_sender.sql` (rollback in `supabase/rollbacks/`)
 - `supabase/functions/outbox-send/index.ts`, `supabase/functions/_shared/outbox-core.mjs`, `supabase/functions/_shared/outbox-providers.mjs`
 - Tests: `test/test-outbox-sender.js`, `test/test-outbox-sender-sql.sh`

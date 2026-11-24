@@ -41,7 +41,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Automatic portal emails (fee notices, reminders, scheduling, title package, Task Builder emails) wait in the outbox. A sender picks them up every minute and sends them from portal@clatitle.com through Amazon SES (Resend also built in), and each email shows sent, failed, skipped or blocked with the reason. A switch decides Test mode (only clatestportal+ test addresses) or Live; it starts in Test mode and only the database owner can change it.
 
-**Status: Partial.** Tracker item OUTBOX-SEND-1. John Coester, Nov 24 2026, 11:06 AM ET (t2041u). Database file 20261131000000_outbox_sender.sql. Pull request: see the tracker row.
+**Status: Partial.** Tracker item OUTBOX-SEND-1. John Coester, Nov 24 2026, 11:06 AM ET (t2041u). Database file 20261131000000_outbox_sender.sql. Pull request: [PR 436](https://github.com/Johncoester/cla-portal-demo/pull/436).
 
 **What's built**
 
