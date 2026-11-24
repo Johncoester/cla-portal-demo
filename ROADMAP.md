@@ -3583,3 +3583,31 @@ This file lists the portal's major features: how each one should work, how far a
 **Links**
 
 - Specs: [docs/specs/mf-060-disbursement-follows-settlement.md](docs/specs/mf-060-disbursement-follows-settlement.md), [docs/specs/mf-061-task-party-names.md](docs/specs/mf-061-task-party-names.md)
+
+---
+
+## CRM search results open the record (Feedback 39)
+
+**How it should work.** On CRM Search Results, the record name is a link and opens that record the same way the suggestion in the top search box already does. A client or lead shows the full name (Brendan Gallagher), not only the last name. A company shows its company name. A deal shows the property address. Tasks, meetings, and calls open from their subject or title.
+
+**Status: In progress.** Janine Santos, CRM Feedback 39, video Drive 1VRilAQ7JTZirY-5HgV4TVaP_ev-An0mZ. Confirmed by email "Yes, that's it" on Nov 24 2026, 1:20 PM ET. She also asked for the full name and for search results to come up faster. No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- The record name on Search Results is a link to the same address the suggestion uses: Clients `#/crm/contacts/<id>`, Leads `#/crm/leads/<id>`, Companies `#/crm/accounts/<id>`, Deals `#/crm/deals/<id>`, and the task, meeting, and call pages.
+- A stored name that is only the last name, when the first name is also saved, shows both. A name that is already the full name stays as saved. Companies and deals keep their own names.
+- Search asks for every module at the same time. It does not read last-activity rows, and it does not read every column of a lead or an activity. The header box still waits 200 milliseconds after a keystroke.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- The contact, company, and deal lists are still one read each of the existing list. Making those reads narrower would be a database change, and this item does not include one.
+
+**Links**
+
+- Spec: [docs/specs/crm-search-result-links.md](docs/specs/crm-search-result-links.md)
+
+**Decisions**
+
+- No database change. The faster search is only the page asking for the modules together and skipping reads this page does not show.
+- Rule 9 waived by John on Nov 21 for CRM items.

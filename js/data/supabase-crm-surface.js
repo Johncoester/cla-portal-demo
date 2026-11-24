@@ -7,9 +7,11 @@ import { isPersonalFolder, personalFolderId } from './crm-templates.js?v=2026112
 import {
   MODULE_CODES, COMPONENT_CODES, CHART_CODES, SEARCH_MODULES, SEARCH_COLUMNS, SEARCH_KEYS, SEARCH_MAX, moduleName, moduleFields, reportFields,
   parseQuery, searchMatch, chartData, measureOf, applyCriteria, runReport, reportCsv, dashboardVisible, dashboardEditable, reportVisible,
-  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, withFileColumns, withTaskColumns, taskTitlesInUse, reportKeys, reportUsesTasks, isTaskKey, reportEditable,
+  calendarBucket, groupingWithCalendar, presetKey, withPresetKeys, withFileColumns, withTaskColumns, taskTitlesInUse, reportKeys, reportUsesTasks, isTaskKey, reportEditable, dealStageOf,
 } from './crm-analytics.js?v=202611302100';
 import { cleanHomeTitle, homeChartsMissing, homeChartMessage } from './crm-home-charts.js?v=202611247000';
+import { withDealName } from './crm-columns.js?v=202611160300';
+import { propertyAddressOf } from './nov5-rules.js?v=202611247700';
 
 const RECENT = new Map();
 const row = (o) => o || {};
@@ -127,20 +129,83 @@ export function crmSurfaceSupabase({ sb, ok, camel, me, on, self }) {
     if (df.period) out = applyCriteria(out, [{ field: 'createdAt', op: 'is', value: df.period }], fields, { today });
     return out;
   };
+  // Search shows the person's full name. A stored name that is only the last name (or only the first) is replaced
+  // when both parts are on the row. A company or a deal has no first and last name, so its own name stays.
+  const recordTitle = (r) => {
+    const first = String(r.firstName || '').trim();
+    const last = String(r.lastName || '').trim();
+    const stored = String(r.name || '').trim();
+    if (first || last) {
+      const full = [first, last].filter(Boolean).join(' ');
+      if (!stored || stored.toLowerCase() === last.toLowerCase() || stored.toLowerCase() === first.toLowerCase()) return full;
+      return stored;
+    }
+    return stored || String(r.subject || '').trim();
+  };
+  const LEAD_COLS = 'id,first_name,last_name,company,email,phone,mobile,source,owner_id,archived_at';
+  const ACT_COLS = 'id,subject,due_date,status,priority,starts_at,ends_at,call_type,call_start,call_duration,entity,entity_id,owner_id,host_id,meeting_type,location,kind';
+  const PARTY_READ = {
+    lead: { table: 'crm_leads', cols: 'id,first_name,last_name', name: (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() },
+    contact: { table: 'contacts', cols: 'id,first_name,last_name', name: (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() },
+    account: { table: 'crm_accounts', cols: 'id,name', name: (r) => String(r.name || '').trim() },
+    deal: { table: 'deals', cols: 'id,street,city,state,zip', name: (r) => propertyAddressOf(r) },
+  };
+  const partyNames = async (raw) => {
+    const want = new Map();
+    (raw || []).forEach((a) => { if (!PARTY_READ[a.entity] || !a.entity_id) return; if (!want.has(a.entity)) want.set(a.entity, new Set()); want.get(a.entity).add(a.entity_id); });
+    const names = new Map();
+    await Promise.all([...want.entries()].map(async ([entity, ids]) => {
+      const spec = PARTY_READ[entity];
+      try {
+        const found = ok(await sb.from(spec.table).select(spec.cols).in('id', [...ids])) || [];
+        found.forEach((r) => { const name = spec.name(r); if (r.id && name) names.set(entity + ':' + r.id, name); });
+      } catch { /* a missed name leaves that cell blank; the other modules still show */ }
+    }));
+    return names;
+  };
+  const ownerName = (people, id) => (people.find((p) => p.id === id) || {}).name || '';
 
   return {
     async listCrmModuleRows(module) { await who(); if (!MODULE_CODES.includes(module)) throw new Error('Unknown CRM module.'); return rowsOf(module); },
     async searchCrm(q, { module = 'all', limit = 0 } = {}) {
-      const u = await who(); const pq = parseQuery(q); if (!pq.q) return { q: '', groups: [] };
+      await who(); const pq = parseQuery(q); if (!pq.q) return { q: '', groups: [] };
       const mods = module === 'all' ? SEARCH_MODULES : [module];
-      const groups = [];
-      for (const m of mods) {
-        let hits = []; try { hits = (await rowsOf(m)).filter((r) => searchMatch(r, pq, SEARCH_KEYS[m] || ['name'])); } catch { hits = []; }
+      // One shared people list, and one narrow read of tasks, meetings and calls. The module lists below start together.
+      // Search does not read last-activity rows: those columns are not on this page.
+      const ownersP = mods.includes('leads') ? self.listCrmOwners().catch(() => []) : Promise.resolve([]);
+      const staffP = mods.some((m) => m === 'tasks' || m === 'meetings' || m === 'calls') ? self.listCrmAssignees().catch(() => []) : Promise.resolve([]);
+      const actKinds = mods.map((m) => (m === 'tasks' ? 'task' : m === 'meetings' ? 'meeting' : m === 'calls' ? 'call' : '')).filter(Boolean);
+      const actP = actKinds.length ? (async () => { try { return ok(await sb.from('crm_activities').select(ACT_COLS).in('kind', actKinds)) || []; } catch { return []; } })() : Promise.resolve([]);
+      const load = async (m) => {
+        if (m === 'leads') {
+          const [raw, people] = await Promise.all([ok(await sb.from('crm_leads').select(LEAD_COLS)) || [], ownersP]);
+          return (raw || []).map((l) => ({ id: l.id, firstName: l.first_name || '', lastName: l.last_name || '', name: `${l.first_name || ''} ${l.last_name || ''}`.trim(), company: l.company || '', email: l.email || '', phone: l.phone || '', mobile: l.mobile || '', leadSource: l.source || '', ownerName: ownerName(people, l.owner_id), archived: !!l.archived_at }));
+        }
+        if (m === 'contacts') return (ok(await sb.rpc('crm_contact_list')) || []).map((c) => ({ ...c, archived: !!c.archived }));
+        if (m === 'accounts') return camel(ok(await sb.rpc('crm_account_list')) || []);
+        if (m === 'deals') return (ok(await sb.rpc('crm_deals', { p_status: 'All', p_owner: null, p_client: null, p_source: null })) || []).map((r) => withDealName({ ...r, stage: dealStageOf(r.stage || r.status) }));
+        const kind = m === 'tasks' ? 'task' : m === 'meetings' ? 'meeting' : 'call';
+        const [raw, people] = await Promise.all([actP, staffP]);
+        const rows = (raw || []).filter((a) => a.kind === kind);
+        const names = m === 'tasks' ? await partyNames(rows) : new Map();
+        return rows.map((a) => {
+          const r = camel(a);
+          const whoName = names.get(r.entity + ':' + r.entityId) || '';
+          return { ...r, name: r.subject || '', ownerName: ownerName(people, r.ownerId), hostName: ownerName(people, r.hostId), relatedTo: whoName || r.relatedTo || '', contactName: whoName || r.contactName || '' };
+        });
+      };
+      const loaded = await Promise.all(mods.map(async (m) => { try { return [m, await load(m)]; } catch { return [m, []]; } }));
+      const groups = loaded.map(([m, rows]) => {
+        const hits = rows.filter((r) => searchMatch(r, pq, SEARCH_KEYS[m] || { text: ['name'] }));
         const cols = SEARCH_COLUMNS[m] || [['name', 'Name']];
-        const list = hits.slice(0, limit > 0 ? limit : SEARCH_MAX).map((r) => ({ id: r.id, link: r._link || `#/crm/${m}/${r.id}`, title: r.name || r.subject || '', archived: !!r.archived,
-          cells: Object.fromEntries(cols.map(([k]) => [k, r[k] == null ? '' : String(r[k])])), links: { name: r._link || '', subject: r._link || '' } }));
-        groups.push({ module: m, label: moduleName(m), columns: cols, customColumns: false, rows: list, total: hits.length });
-      }
+        const list = hits.slice(0, limit > 0 ? limit : SEARCH_MAX).map((r) => {
+          const title = recordTitle(r);
+          const link = r._link || `#/crm/${m}/${r.id}`;
+          const cells = Object.fromEntries(cols.map(([k]) => [k, k === 'name' ? title : k === 'subject' ? String(r.subject || title || '') : r[k] == null ? '' : String(r[k])]));
+          return { id: r.id, link, title, archived: !!r.archived, cells, links: { name: link, subject: link } };
+        });
+        return { module: m, label: moduleName(m), columns: cols, customColumns: false, rows: list, total: hits.length };
+      });
       return { q: pq.q, phone: !!pq.digits, groups: groups.filter((g) => module !== 'all' || g.total) };
     },
     async noteCrmRecent(entity, id) { const u = await who(); const bag = RECENT.get(u.id) || { items: [], searches: [] }; const at = new Date().toISOString(); const cur = bag.items.find((z) => z.module === entity && z.id === id); if (cur) cur.at = at; else bag.items.push({ module: entity, id, at }); RECENT.set(u.id, bag); return { ok: true }; },
