@@ -17,12 +17,12 @@
  *   live sheet                  the calculator's loadFees(), shown on the form with the time it loaded
  *   calculatorSupabaseRateSource NOT CONNECTED: a placeholder showing where a reader of the calculator's tables would plug in. It refuses. */
 import * as C from './vendor/cla-calculator/calc-core.js?v=202611290300';
-import { STATE_COUNTIES } from './state-counties.js?v=202611223100';
+import { STATE_COUNTIES } from './state-counties.js?v=202611290700';
 import { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden } from './accounting.js?v=202611247900';
 export { CALC_SOURCE_ID, CALC_TAG, CALC_FIELDS, calcFields, isCalculated, isOverridden };
 
 export const CALC_SOURCE = { repo: 'github.com/Johncoester/cla-closing-cost-calculator', commit: '84c2fc4', snapshot: '2026-11-16', files: 'index.html (calc code), fee-snapshot.js (rate tables)' };
-export const CALC_STATES = ['MD', 'VA', 'DC', 'FL', 'PA', 'WV'];   // PA and WV added Nov 23 2026 (calculator PR #3)
+export const CALC_STATES = ['MD', 'VA', 'DC', 'FL', 'PA', 'WV', 'MI'];   // PA and WV added Nov 23 2026 (calculator PR #3), MI Nov 24 (PR #4)
 export const UNDERWRITER = 'Fidelity National Title';     // the only underwriter in the calculator's Premium_Tiers / Rules / Endorsements
 const fail = (m) => { throw new Error(m); };
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -110,7 +110,7 @@ export function countyIsKnown(R, deal) {
   if (state === 'DC') return true;
   const c = countyOf(R, deal || {}); return !!c && knownCounties(R, state).includes(c);
 }
-export const NO_OO = /^(FL|VA|PA|WV)$/;   // the calculator hides principal residence / first-time buyer in FL, VA, PA and WV (they change nothing there)
+export const NO_OO = /^(FL|VA|PA|WV|MI)$/;   // the calculator hides principal residence / first-time buyer in FL, VA, PA, WV and MI (they change nothing there)
 // options: everything the calculator asks that the order does not store. Defaults = the calculator's own defaults.
 // owner (Caroline Kim, Nov 4 2026): true = an owner's policy is issued (simultaneous issue with the lender's policy on a financed purchase);
 // false = the owner's policy is REMOVED: no owner's line, no owner's endorsements, and the lender's policy is priced at the full basic rate.
@@ -185,7 +185,7 @@ export function claFeeInputs(R, state, type) {
 }
 export function calcInputs(deal, options = {}, R = vendoredTables()) {
   if (!deal) fail('Order not found.');
-  const state = String(deal.state || '').toUpperCase(); if (!CALC_STATES.includes(state)) fail(`CLA rates cover MD, VA, DC, FL, PA and WV only (this order is in ${state || 'no state'}).`);
+  const state = String(deal.state || '').toUpperCase(); if (!CALC_STATES.includes(state)) fail(`CLA rates cover MD, VA, DC, FL, PA, WV and MI only (this order is in ${state || 'no state'}).`);
   if (!countyIsKnown(R, deal)) fail(COUNTY_UNKNOWN);
   const o = cleanOptions(options); const type = calcTypeOf(deal); const enh = enhancedSupport(R, state);
   const enhancedPlaceholder = !enh.supported && o.pol === 'enhanced' && !!options && options.pol === 'enhanced' && o.owner && type !== 'refi';
@@ -381,7 +381,7 @@ export function calcSetup(deal, fees, R = vendoredTables(), rate = null) {
   const state = String((deal && deal.state) || '').toUpperCase(); const type = calcTypeOf(deal || {}); const options = lastOptions(fees, deal);
   const source = rate && rate.source ? rate.source : { ...vendoredRateSource, loadTables: undefined, tablesSync: undefined, commit: CALC_SOURCE.commit, snapshot: CALC_SOURCE.snapshot };
   const base = { fromOrder: orderAnswers(deal), source, rateNote: rate && rate.note ? rate.note : '', state, type, options };
-  if (!CALC_STATES.includes(state)) return { ...base, covered: false, reason: `CLA rates cover MD, VA, DC, FL, PA and WV only (this order is in ${state || 'no state'}).` };
+  if (!CALC_STATES.includes(state)) return { ...base, covered: false, reason: `CLA rates cover MD, VA, DC, FL, PA, WV and MI only (this order is in ${state || 'no state'}).` };
   const county = countyOf(R, deal); const known = countyIsKnown(R, deal);
   const enhanced = enhancedSupport(R, state); if (!enhanced.supported && base.options.pol === 'enhanced') base.options = { ...base.options, pol: 'standard' };   // no enhanced rate: the form starts on basic
   let reason = ''; if (!known) reason = COUNTY_UNKNOWN; else try { calcInputs(deal, options, R); } catch (e) { reason = e.message; }

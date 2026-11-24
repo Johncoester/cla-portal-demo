@@ -1,6 +1,6 @@
 {
   "repo": "github.com/Johncoester/cla-closing-cost-calculator",
-  "commit": "26fb43a (calculator main after PRs #3 and #2 merged)",
+  "commit": "calc-core.js: 26fb43a (calculator main); fee-snapshot.js: f167d2d (calculator PR #4, Michigan)",
   "copiedOn": "2026-11-23",
   "files": {
     "calc-core.js": {
@@ -10,9 +10,9 @@
     },
     "fee-snapshot.js": {
       "from": "fee-snapshot.js",
-      "sha256": "ade008cbcab5af2a10298dad5d9a110e7d313636405ecc0992e0a63e4a2cc1de",
-      "bytes": 203410
+      "sha256": "748aabb89046e363a0db521fa689699a2a070255f06f52a7df8d1cb9ab8f9330",
+      "bytes": 225205
     }
   },
-  "note": "Re-copied by hand by Claude. Nov 23 2026: calculator PR #3 (Pennsylvania and West Virginia; PA municipality transfer-tax rows) merged with PR #2 (Maryland tax on the loan above the price). fee-snapshot.js now has the PA/WV rows (including WV premiums) that are on the live sheet. tools/vendor-cla-calculator.js is no longer in the repo."
+  "note": "Re-copied by hand by Claude. Nov 23 2026: calculator PR #3 (Pennsylvania and West Virginia; PA municipality transfer-tax rows) merged with PR #2 (Maryland tax on the loan above the price). fee-snapshot.js now has the PA/WV rows (including WV premiums) that are on the live sheet. tools/vendor-cla-calculator.js is no longer in the repo. Nov 24: fee-snapshot.js re-copied from calculator PR #4 (Michigan rows and Fidelity MI premiums); calc-core.js is unchanged by that PR."
 }

@@ -1,4 +1,4 @@
-# Recording calculator: Pennsylvania and West Virginia (REC-CALC-8)
+# Recording calculator: Pennsylvania, West Virginia and Michigan (REC-CALC-8)
 
 **Asked by:** John Coester, Nov 23 2026 (voice): "update the recording spreadsheet and update the calculator so we can now select West Virginia, Pennsylvania." Recording fees and taxes should match CLA's Lodestar calculator. Premiums should follow Fidelity's rates. Janine and Francis enter CLA's own settlement fees.
 
@@ -26,6 +26,20 @@
    - Reissue: 70%.
    - ALTA 8.1: $15. CPL: $50 lender + $25 buyer.
 7. No principal-residence or first-time-buyer questions in PA or WV (they change nothing there).
+
+## Michigan (added Nov 24 2026, calculator PR #4)
+
+- Recording: $30 per document, any number of pages, except deeds at $35 because Lodestar charges $35 in every county checked.
+- Transfer tax: the seller pays the state's $3.75 and the county's $0.55 per $500.
+- The owner's policy is paid by the seller (Michigan custom).
+- Premiums follow Fidelity's Michigan residential manual (Feb 12, 2025):
+  - The manual has no discount for a lender's policy issued with the owner's, and none for reissue.
+  - Residential endorsements cost nothing.
+- Checked against Lodestar for $400k / $320k in 7 counties:
+  - Recording: $65.
+  - Seller transfer tax: $3,440.
+  - Homeowner's policy: $2,374.
+  - Lender's policy: $1,222.
 
 ## Where it lives
 

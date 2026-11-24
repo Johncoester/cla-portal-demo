@@ -1204,7 +1204,7 @@ This file lists the portal's major features: how each one should work, how far a
 - The Baltimore City exemption split (Melissa: the exemption applies to the buyer's side) is not changed here. Lodestar and two closed files (Montgomery, Washington County) split it 50/50, so John decides first.
 
 
-## Recording calculator Pennsylvania and West Virginia (REC-CALC-8)
+## Recording calculator Pennsylvania, West Virginia and Michigan (REC-CALC-8)
 
 **How it should work.** Calculate fees works on Pennsylvania and West Virginia orders. Recording fees and taxes match CLA's Lodestar calculator, and PA title premiums follow the TIRBOP rates that Fidelity files.
 

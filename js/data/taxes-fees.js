@@ -330,7 +330,7 @@ export function taxesFeesSetup(deal, fees, R, rate, bundle = null) {
     countyNote: '',
     source: rate && rate.source ? { label: rate.source.label || '', snapshot: rate.source.snapshot || '' } : null
   };
-  if (!CALC_STATES.includes(state)) return { ...base, questions: [], answers: {}, manual: {}, reason: `CLA rates cover MD, VA, DC, FL, PA and WV only (this order is in ${state || 'no state'}).` };
+  if (!CALC_STATES.includes(state)) return { ...base, questions: [], answers: {}, manual: {}, reason: `CLA rates cover MD, VA, DC, FL, PA, WV and MI only (this order is in ${state || 'no state'}).` };
   if (!countyIsKnown(R, deal || {})) return { ...base, questions: [], answers: {}, manual: {}, reason: unknownReason(place) };
   const county = countyOf(R, deal || {});
   const qs = bundle ? questionsFor(bundle, { state, county, city: textField(deal, 'city') }, type) : [];

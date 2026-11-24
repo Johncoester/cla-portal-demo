@@ -84,5 +84,9 @@ agree('PG loan above price', purchase('MD', "Prince George's", 525000, 536287));
   ok(money(pgh) === 16000, 'PA Pittsburgh municipality rate 4% when the area is passed: ' + pgh);
   const wv = proposeFees(purchase('WV', 'Berkeley', 400000, 320000)), ex = money(wv.lines.filter((l) => /excise/i.test(l.description) && l.paidBy === 'seller').reduce((a, l) => a + l.amount, 0));
   ok(ex === 3080, 'WV Berkeley seller excise $3,080 on $400k: ' + ex); }
+// Michigan (Nov 24 2026, calculator PR #4): matches CLA's Lodestar calculator for Wayne, $400k / $320k
+{ const mi = proposeFees(purchase('MI', 'Wayne', 400000, 320000)), amt = (re, who) => money(mi.lines.filter((l) => re.test(l.description) && (!who || l.paidBy === who)).reduce((a, l) => a + l.amount, 0));
+  ok(amt(/transfer tax/i, 'seller') === 3440, 'MI Wayne $400k: seller pays $3,440 transfer tax ($3,000 state + $440 county): ' + amt(/transfer tax/i, 'seller'));
+  ok(amt(/^Recording/i) === 65 || amt(/Recording fee/i) === 65, 'MI recording $65 ($35 deed + $30 mortgage), as Lodestar: ' + amt(/Recording fee/i)); }
 console.log(fail ? fail + ' failed' : 'fee engine passed');
 process.exit(fail ? 1 : 0);
