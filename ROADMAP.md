@@ -3394,7 +3394,7 @@ This file lists the portal's major features: how each one should work, how far a
 - Spec: [docs/specs/tc-only.md](docs/specs/tc-only.md)
 - TC-ONLY-2b (CRM Bot review of PR 414, Nov 23): a TC with a name but no email counts as no TC, so the screens say the email is held instead of "goes to <TC>". When the TC has no portal login, a line says in-app alerts for that agent are held. Admin and Super admin need the admin flag, like the server. The compose matches an agent by their contact email or their portal-login email, like the server. Sales staff no longer make a status read the server would refuse.
 - TC-ONLY-2c (CRM Bot review of PR 415, Nov 23): when a TC has no portal login, the screens say portal alerts and most automatic emails are held until the TC is invited, while emails staff type and title package, post-closing, scheduling and Task Builder emails still go to them. With two TCs where only one has a login, it's worded per TC (the alerts go to the one with a login). A TC with no email shows one message. The server now refuses to tick the box when no linked TC on that side has an email.
-- FF-108 (Francis, report Nov 23 2026 12:40 PM ET, confirmed 1:23 PM ET): on Order Contacts, adding a TC for the listing agent (or buyer's agent) now also links them to that agent, so that agent's box can be ticked; before, the TC showed on the file but the box stayed greyed out. Each TC is listed directly under their agent. The greyed-out text names the agent ("Add a Listing Agent TC for <agent> first to use this."), and says when that side's TC is on the file but not linked. No database file.
+- FF-108 (Francis, report Nov 23 2026 12:40 PM ET, confirmed 1:23 PM ET): on Order Contacts, adding a TC for the listing agent (or buyer's agent) now also links them to that agent, so that agent's box can be ticked; before, the TC showed on the file but the box stayed greyed out. Each TC is listed directly under their agent. The greyed-out text names the agent ("Add a Listing Agent TC for <agent> first to use this."), and says when that side's TC is on the file but not linked. No database file. FF-108b adds the required Assigned to dropdown on Add Contact and Edit Contact (see the section below).
 - TC-ONLY-3 (Francis, answers Nov 23 2026 1:30 PM ET): fee change notices (email and portal alert) and title commitment emails now go to both the agent and their TC; everything else still goes to the TC only. The greeting on an email moved to a TC is "Hello <TC first name>". The other four answers already matched. Database file 20261129110000_tc_only_both_and_hello.sql; gmail-send updated for typed emails.
 - PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), [414](https://github.com/Johncoester/cla-portal-demo/pull/414) (screens), [415](https://github.com/Johncoester/cla-portal-demo/pull/415) (review fixes), TC-ONLY-2c (second review fixes + server guard), FF-108 (listing side, TC order, clearer text), TC-ONLY-3 (fee/commitment notices to both, Hello greeting).
 
@@ -3402,6 +3402,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 - The screens only explain what will happen. The database (TC-ONLY-1) decides who actually gets each email, so an old page or a direct API call can't get around it.
 - A box that's already ticked can always be unticked, even after the TC was removed. That way staff can always turn emails back on to the agent.
+
+
+## Assigned to on Add and Edit Contact (FF-108b)
+
+**How it should work.** On Order Contacts, when the role (Add contact) or contact type (Edit contact) is Transaction coordinator, a required **Assigned to** dropdown offers **Buyer's Agent TC** and **Listing Agent TC**. It stays visible even when staff pick an existing coordinator who already has a link to an agent; the known side is pre-selected and can be changed. Saving puts the coordinator on the chosen side, so they list under that agent. Place Order and Parties are unchanged.
+
+**Status: Building.** Tracker item FF-108b. Francis Santos, follow-up to FF-108, confirmed Nov 23 2026 5:21 PM ET (Gmail 1a20a80a4cca28a6), with a mockup of the Edit contact form. Pull request: [PR 434](https://github.com/Johncoester/cla-portal-demo/pull/434). No database file.
+
+**What's built**
+
+- Add Contact and Edit Contact show Assigned to * (Buyer's Agent TC / Listing Agent TC) whenever the person is a Transaction coordinator.
+- An existing coordinator with a prior `agent_tc_links` row still sees the dropdown; that side is pre-selected and can be changed. The chosen side is what is saved on the file.
+- Required validation, and a plain-language message when the chosen side's agent is not on the file.
+- Moving a coordinator from one side to the other adds the new role and removes the old one on this file.
+
+**What's missing**
+
+- Not on TEST yet. No database file. Cache stamp 202611302200.
+
+**Links**
+
+- Spec: [docs/specs/ff-108b-tc-assigned.md](docs/specs/ff-108b-tc-assigned.md).
+- Related: [Only communicate with TC](#only-communicate-with-tc-tc-only-1-tc-only-2-tc-only-2b-tc-only-2c), [Transaction coordinator, one choice (TC-5)](#transaction-coordinator-one-choice-tc-5).
+
+**Decisions**
+
+- The one role label stays "Transaction coordinator". Assigned to is how the side is chosen on Add and Edit Contact.
+- No database change: `deal_participants` already stores Buyer Agent TC / Listing Agent TC, and saving that role still links the coordinator to that side's agent.
+- Place Order and Parties keep the earlier "Which agent are they linked to?" follow-up.
 
 ---
 
