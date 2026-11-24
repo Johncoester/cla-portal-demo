@@ -36,6 +36,7 @@ import { countyFieldHtml, mountCountySelect } from './county-field.js?v=20261124
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
 import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611301500';
 // The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
+export const autoFillToast = (r) => `Fees filled in from CLA rates: ${r.added} added, ${r.updated} updated${r.retired ? `, ${r.retired} retired` : ''}${r.kept ? `, ${r.kept} changed by hand kept` : ''}.`;
 const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
 function staffSections(ctx, dealId) {
   const { api } = ctx;
@@ -83,6 +84,10 @@ export async function render(ctx) {
       ? { ...ctx.user, role: partyOnFile[0], roles: partyOnFile, selfRep: !!deal.selfRep, accountRole: ctx.user.role }
       : ctx.user);
   ctx = { ...ctx, user };
+  // REC-CALC-9 (John, Nov 24 2026): opening a file fills in its fees from CLA rates once the order has the basics (the Accounting tab does it itself)
+  if (api.autoFillFees && tab !== 'accounting' && !user.accountRole && user.role !== 'Outside user' && runsOrders(user)) {
+    Promise.resolve().then(() => api.autoFillFees(deal.id)).then((r) => { if (r && r.applied && (r.added || r.updated || r.retired)) toast(autoFillToast(r)); }).catch(() => {});
+  }
   const here = [['Orders', '#/orders'], [deal.fileNumber, `#/deals/${deal.id}`]];
   if (tab === 'spouse') throw new Error('That page does not exist.');
   if (tab === 'accounting' && !(api.features || {}).accounting) throw new Error('That page does not exist.');

@@ -9,8 +9,8 @@ import { blankContract, cleanContractTerms, fromContractRow, toContractRow, cont
 import { applyEarnestToDeal, earnestFromDeal, overlayEarnestFields, blankSharedEarnest } from './earnest-commission.js?v=202611246500';
 // CLA RATES (migration 36): calculated fees carry calc_source = 'cla-rates' + calc_key / calc_fields / rate_source / calculation / calc_inputs /
 // calc_version / calc_at; the trigger keeps `overridden` (a person changed what the calculation set). The engine loads lazily (flag off = never).
-const engine = () => import('./fee-engine.js?v=202611290310');
-const taxes = () => import('./taxes-fees.js?v=202611290800');
+const engine = () => import('./fee-engine.js?v=202611301700');
+const taxes = () => import('./taxes-fees.js?v=202611301300');
 const remoteRates = () => import('./supabase-tax-rates.js?v=202611247700');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
@@ -25,12 +25,12 @@ const fromRow = (r) => ({ id: r.id, dealId: r.deal_id, kind: r.kind, description
   createdAt: r.created_at, createdBy: r.created_by, updatedAt: r.updated_at, updatedBy: r.updated_by,
   ...(r.reduces ? { reduces: true } : {}), ...(r.lender_credit ? { lenderCredit: true } : {}), ...(r.proration ? { proration: r.proration } : {}), ...(r.charge_meta ? { meta: r.charge_meta } : {}),
   ...(r.calc_source ? { source: r.calc_source, calc: { key: r.calc_key, fields: r.calc_fields, rateSource: r.rate_source, calculation: r.calculation, inputs: r.calc_inputs, version: r.calc_version, at: r.calc_at } } : {}) });
-const dealOf = (d) => ({ id: d.id, fileNumber: d.file_number, state: d.state, county: d.county || '', primaryResidence: d.primary_residence || '', firstTimeBuyer: d.first_time_buyer || '', transactionType: d.transaction_type, purchasePrice: d.purchase_price == null ? null : Number(d.purchase_price), loanAmount: d.loan_amount == null ? null : Number(d.loan_amount), emdAmount: d.emd_amount == null ? null : Number(d.emd_amount),
+const dealOf = (d) => ({ id: d.id, fileNumber: d.file_number, status: d.status || '', state: d.state, county: d.county || '', primaryResidence: d.primary_residence || '', firstTimeBuyer: d.first_time_buyer || '', transactionType: d.transaction_type, purchasePrice: d.purchase_price == null ? null : Number(d.purchase_price), loanAmount: d.loan_amount == null ? null : Number(d.loan_amount), emdAmount: d.emd_amount == null ? null : Number(d.emd_amount),
   closingDate: d.closing_date || null, lenderName: d.lender_name || '', street: d.street || '', city: d.city || '', zip: d.zip || '', financial: d.financial && typeof d.financial === 'object' ? d.financial : {} });
 
 export function accountingSupabase({ sb, ok, flags }) {
   const on = () => { if (!flags.accounting) throw new Error(ACCOUNTING_OFF); };
-  const deal = async (id) => { const d = ok(await sb.from('deals').select('id,file_number,state,county,transaction_type,purchase_price,loan_amount,emd_amount,primary_residence,first_time_buyer,closing_date,lender_name,street,city,zip,financial').eq('id', id).maybeSingle()); if (!d) throw new Error('Order not found.'); return dealOf(d); };
+  const deal = async (id) => { const d = ok(await sb.from('deals').select('id,file_number,status,state,county,transaction_type,purchase_price,loan_amount,emd_amount,primary_residence,first_time_buyer,closing_date,lender_name,street,city,zip,financial').eq('id', id).maybeSingle()); if (!d) throw new Error('Order not found.'); return dealOf(d); };
   const withPayoffs = async (d) => ({ ...d, payoffCount: (ok(await sb.from('deal_payoffs').select('id').eq('deal_id', d.id).is('retired_at', null)) || []).length });
   const earnestDeal = async (id) => {
     const d = ok(await sb.from('deals').select('transaction_type,emd_amount,emd_due_date,financial').eq('id', id).maybeSingle()) || {};
@@ -78,6 +78,10 @@ export function accountingSupabase({ sb, ok, flags }) {
       }
       if (retireExamples) for (const x of D.examples) { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', x.id).select('id').single()); r.examplesRetired++; }
       return r; },
+    // REC-CALC-9: fees fill in by themselves when a file is opened, once the order has the basics (fee-engine autoFillCheck). Same apply as Calculate fees.
+    async autoFillFees(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const rates = await E.loadCalculatorRates();
+      const chk = E.autoFillCheck(d, await fees(dealId), rates.tables); if (!chk.ready || !chk.due) return { applied: false, ready: chk.ready, due: chk.due || '', missing: chk.missing, reason: chk.reason };
+      const r = await this.applyCalculatedFees(dealId, chk.options, { retireExamples: true }); return { applied: true, ready: true, due: chk.due, missing: [], reason: '', ...r }; },
     // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
     async getTaxesFeesSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.taxesFeesSetup(d, await fees(dealId), rates.tables, rates, bundle); },
     async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source, bundle); },
