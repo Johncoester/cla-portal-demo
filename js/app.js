@@ -1,6 +1,7 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611310200';
+import { getAdapter } from './data/adapter.js?v=202611310400';
+import { createNotificationLive, paintNotificationBadge } from './data/notif-live.js?v=202611310400';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
 import { prefetchDealTab } from './pages/deal-tab.js?v=202611302300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
@@ -507,14 +508,14 @@ export async function render() {
     if (asTok != null) history.replaceState(null, '', location.pathname + location.hash);
   }
   if (u && u.unprovisioned && api.mode === 'supabase') {
-    syncFeedback(null); stopVoiceNow();
+    syncFeedback(null); stopVoiceNow(); stopNotificationLive();
     root.innerHTML = toText(html`<div class="login-page" data-unprovisioned><div class="login-card"><h2 data-site-name="CLA Portal Live Test">CLA Portal Live Test</h2><p class="dev-banner" data-test-environment>TEST ENVIRONMENT</p><p>This login is not provisioned. An administrator assigns the role. Registration is closed, and this screen does not create an account.</p><p><a href="#" data-signout>Sign out</a></p></div></div>`);
     const out = root.querySelector('[data-signout]'); if (out) out.addEventListener('click', async (e) => { e.preventDefault(); await api.signOut(); location.hash = '#/login'; location.reload(); });
     return;
   }
   if (asTok != null && api.mode !== 'supabase') { const lk = lockForToken(asTok); let okLink = false;
     if (lk) { try { await api.pickPerson(lk.user); sessionStorage.setItem(LOCK_KEY, JSON.stringify(lk)); okLink = true; } catch (e) { okLink = false; } }
-    if (!okLink) { sessionStorage.removeItem(LOCK_KEY); try { await api.signOut(); } catch (e) { /* none */ } syncFeedback(null); stopVoiceNow(); root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is not valid</h2></div><p>Ask for a new link.</p>`); return; }
+    if (!okLink) { sessionStorage.removeItem(LOCK_KEY); try { await api.signOut(); } catch (e) { /* none */ } syncFeedback(null); stopVoiceNow(); stopNotificationLive(); root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is not valid</h2></div><p>Ask for a new link.</p>`); return; }
     let land = safeLanding(new URLSearchParams(location.search).get('file')); if (land) { try { await api.getDeal(land); } catch (e) { land = null; } }   // landing only, never wider access
     const qs = new URLSearchParams(location.search); const sec = qs.get('section') ? sectionHash(qs.get('section'), qs.get('file')) : null;   // section links pick the first page only
     if (typeof clearSessionWs === 'function') clearSessionWs();
@@ -531,7 +532,7 @@ export async function render() {
     if (my !== rendering) return;
     if (!u || u.id !== lockedId) { root.innerHTML = toText(html`<div class="box-title" data-bad-link><h2>This test link is no longer valid</h2></div>`); return; } }
   if (replaced()) return;
-  if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); stopVoiceNow(); if (route.page === 'deal') { try { sessionStorage.setItem(RETURN_KEY, location.hash); } catch (e) { /* the next signed-in render stays on home */ } } location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
+  if (!u && !PUBLIC.has(route.page)) { syncFeedback(null); stopVoiceNow(); stopNotificationLive(); if (route.page === 'deal') { try { sessionStorage.setItem(RETURN_KEY, location.hash); } catch (e) { /* the next signed-in render stays on home */ } } location.hash = '#/login'; return; }   // invite deep link: back to the order after sign-in
   const recovery = api.mode === 'supabase' && sessionStorage.getItem('cla-portal-recovery') === '1';
   if (recovery && route.page !== 'login') { location.hash = '#/login'; return; }
   if (u && route.page === 'login' && !recovery) { const back = savedFileReturn(); location.hash = back || ('#' + homeFor(u)); return; }
@@ -635,7 +636,7 @@ export async function render() {
     if (location.hash !== '#' + path) go(path);
     return;
   }
-  if (PUBLIC.has(route.page)) { stopVoiceNow(); root.innerHTML = toText(view.body); syncFeedback(u); }
+  if (PUBLIC.has(route.page)) { stopVoiceNow(); if (!u) stopNotificationLive(); root.innerHTML = toText(view.body); syncFeedback(u); }
   else { let shell; try { shell = await layout(u, view, route, ws, { unread: unreadP }); } catch (e) { if (replaced()) return; if (personMoved()) return render(); if (/sign in/i.test(e.message || '')) { stopVoiceNow(); location.hash = '#/login'; return; } throw e; }   // session ended mid-render
     if (!keepCurrent()) return;
     root.innerHTML = toText(shell); wireChrome(u); mountFileDates(root, { api, deal: shellDeal, refresh: render }); }
@@ -698,7 +699,7 @@ function wireChrome(u) {
   wireBots();
   prepareVoiceShell({ userId: u && u.id, dealId: shellDeal && shellDeal.id });   // another file, person or role stops the microphone
   getAdapter().then((api) => mountVoiceChrome($('#app'), { api, deal: voiceMenuOn() ? voiceDeal(shellDeal) : null, enabled: voiceMenuOn() }));
-  wireFileNav(); wireThisFileNav(); wireViewAs(); startHeartbeat(u);
+  wireFileNav(); wireThisFileNav(); wireViewAs(); startHeartbeat(u); startNotificationLive(u);
   const stop = $('[data-view-as-stop]');
   if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); stopVoiceNow(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });
   if (demoTimer) clearTimeout(demoTimer);
@@ -711,7 +712,7 @@ function wireChrome(u) {
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
   document.addEventListener('click', () => { if (dd) dd.hidden = true; }, { once: true });
   wireBell(); wireWs(u); getAdapter().then((api) => wireSideSearch(api, u, go));
-  const so = $('[data-signout]'); if (so) so.addEventListener('click', async (e) => { e.preventDefault(); stopVoiceNow(); const api = await getAdapter(); clearSessionWs(); stopHeartbeat(); if (api.hrSessionEnd) { try { await api.hrSessionEnd('logout'); } catch (er) { /* best effort */ } } await api.signOut(); location.hash = '#/login'; });
+  const so = $('[data-signout]'); if (so) so.addEventListener('click', async (e) => { e.preventDefault(); stopVoiceNow(); stopNotificationLive(); const api = await getAdapter(); clearSessionWs(); stopHeartbeat(); if (api.hrSessionEnd) { try { await api.hrSessionEnd('logout'); } catch (er) { /* best effort */ } } await api.signOut(); location.hash = '#/login'; });
   const rs = $('[data-reset]'); if (rs) rs.addEventListener('click', async (e) => { e.preventDefault(); if (!confirm('Reset all demo data back to the 4 fake deals?')) return; const api = await getAdapter(); await api.resetDemoData(); toast('Demo data reset'); render(); });
 }
 function wireWs(u) {
@@ -719,14 +720,43 @@ function wireWs(u) {
   if (b && dd) { b.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; }); document.addEventListener('click', () => { dd.hidden = true; }, { once: true }); }
   $$('[data-ws-pick]').forEach((el) => el.addEventListener('click', (e) => { e.preventDefault(); const id = el.dataset.wsPick; setWs(u, id); go(wsById(id).home); }));
 }
+// FF-115: keep the bell badge and the notifications list current without a full page reload.
+let notifLive = null;
+let notifLiveUser = '';
+function fillNotifList(dd, list) {
+  if (!dd) return;
+  const box = $('.notif-list', dd); if (!box) return;
+  box.innerHTML = toText(list.length ? list.map((n) => html`<li class="${n.readAt ? '' : 'unread'}"><a href="${n.link || '#/dashboard'}" data-nid="${n.id}">${n.fileNumber ? html`<strong data-notif-file>${n.fileNumber}</strong> <span class="muted small" data-notif-address>${n.address}</span><br>` : ''}${n.title}<br><span class="muted small">${new Date(n.createdAt).toLocaleString('en-US')}</span></a></li>`) : html`<li class="muted">No notifications.</li>`);
+  // FF-064 / FF-065: close the menu and open the item (draw again when it is the page already showing)
+  $$('[data-nid]', dd).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault();
+    openNotification({ href: a.getAttribute('href'), dd, getHash: () => location.hash, setHash: (h) => { location.hash = h; }, rerender: () => render(),
+      markRead: () => getAdapter().then((api2) => api2.markNotificationRead(a.dataset.nid)) }); }));
+}
+function stopNotificationLive() {
+  if (notifLive) notifLive.stop();
+  notifLive = null;
+  notifLiveUser = '';
+}
+function startNotificationLive(u) {
+  if (!u || !u.id) { stopNotificationLive(); return; }
+  if (notifLive && notifLiveUser === u.id) return;
+  stopNotificationLive();
+  notifLiveUser = u.id;
+  notifLive = createNotificationLive({
+    subscribe: (onEvent) => getAdapter().then((api) => api.subscribeNotifications ? api.subscribeNotifications(onEvent) : null),
+    getCount: () => getAdapter().then((api) => api.notificationCount()),
+    listNotifications: () => getAdapter().then((api) => api.listNotifications({ limit: 12 })),
+    listOpen: () => { const dd = $('.notif-dd'); return !!(dd && !dd.hidden); },
+    apply: ({ count, list }) => {
+      paintNotificationBadge(document, count);
+      if (list) fillNotifList($('.notif-dd'), list);
+    },
+  });
+  notifLive.start();
+}
 function wireBell() {
   const b = $('[data-bell]'); const dd = $('.notif-dd'); if (!b) return;
-  const fill = async () => { const api = await getAdapter(); const list = await api.listNotifications({ limit: 12 });
-    $('.notif-list', dd).innerHTML = toText(list.length ? list.map((n) => html`<li class="${n.readAt ? '' : 'unread'}"><a href="${n.link || '#/dashboard'}" data-nid="${n.id}">${n.fileNumber ? html`<strong data-notif-file>${n.fileNumber}</strong> <span class="muted small" data-notif-address>${n.address}</span><br>` : ''}${n.title}<br><span class="muted small">${new Date(n.createdAt).toLocaleString('en-US')}</span></a></li>`) : html`<li class="muted">No notifications.</li>`);
-    // FF-064 / FF-065: close the menu and open the item (draw again when it is the page already showing)
-    $$('[data-nid]', dd).forEach((a) => a.addEventListener('click', (e) => { e.preventDefault();
-      openNotification({ href: a.getAttribute('href'), dd, getHash: () => location.hash, setHash: (h) => { location.hash = h; }, rerender: () => render(),
-        markRead: () => getAdapter().then((api2) => api2.markNotificationRead(a.dataset.nid)) }); })); };
+  const fill = async () => { const api = await getAdapter(); const list = await api.listNotifications({ limit: 12 }); fillNotifList(dd, list); };
   b.addEventListener('click', async (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; if (!dd.hidden) await fill(); });
   dd.addEventListener('click', (e) => e.stopPropagation());
   $('[data-readall]', dd).addEventListener('click', async () => { const api = await getAdapter(); await api.markAllNotificationsRead(); render(); });
