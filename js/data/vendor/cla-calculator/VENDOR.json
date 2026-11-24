@@ -1,18 +1,18 @@
 {
   "repo": "github.com/Johncoester/cla-closing-cost-calculator",
-  "commit": "84c2fc4",
-  "copiedOn": "2026-11-16",
+  "commit": "calc-core.js: 26fb43a (calculator main); fee-snapshot.js: f167d2d (calculator PR #4, Michigan)",
+  "copiedOn": "2026-11-23",
   "files": {
     "calc-core.js": {
       "from": "index.html (first <script>, up to \"// ---------- UI ----------\")",
-      "sha256": "343079d4758b7b2f691b3808594301fe6caac217036e85c9c0404277825e734e",
-      "lines": 288
+      "sha256": "d99914949c5c9e1305a93cf187c915e9caebf1b4757aa862b27f79abee99ccc2",
+      "lines": 298
     },
     "fee-snapshot.js": {
       "from": "fee-snapshot.js",
-      "sha256": "8304ce37b0e3a3eb248990b6d9dda6ad0538ce2f544dbe5071d1910b024ee4c8",
-      "bytes": 129734
+      "sha256": "748aabb89046e363a0db521fa689699a2a070255f06f52a7df8d1cb9ab8f9330",
+      "bytes": 225205
     }
   },
-  "note": "Re-copied by hand by Claude (calculator PR #1: Virginia refinance with no payoff; Hampton Roads fee; Nov 16: MD original mortgagor note, Melissa's rate answers; calculator PR #2: Maryland tax on the loan above the price). fee-snapshot.js unchanged. tools/vendor-cla-calculator.js is no longer in the repo."
+  "note": "Re-copied by hand by Claude. Nov 23 2026: calculator PR #3 (Pennsylvania and West Virginia; PA municipality transfer-tax rows) merged with PR #2 (Maryland tax on the loan above the price). fee-snapshot.js now has the PA/WV rows (including WV premiums) that are on the live sheet. tools/vendor-cla-calculator.js is no longer in the repo. Nov 24: fee-snapshot.js re-copied from calculator PR #4 (Michigan rows and Fidelity MI premiums); calc-core.js is unchanged by that PR."
 }
