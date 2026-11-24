@@ -1,6 +1,6 @@
 // crm-more.js : CRM pipeline (Kanban + list) and Reports (John, Nov 2; follow-ups moved to CRM Home tasks). Function only, minimal styling.
 import { html, raw, toText, $, $$, guard, formData, toast, fmtDate, fmtMoney, modal, closeModal, pill } from '../ui.js?v=202611161500';
-import { localDate } from '../data/constants.js?v=202611247700';
+import { localDate } from '../data/constants.js?v=202611302300';
 import { OPP_STAGES, RELATIONSHIP_STATUSES, crmSort } from '../data/crm.js?v=202611247700';
 import { matchesDateWindow } from '../data/crm-date-filter.js?v=202611141300';
 import { pageOf, loadPageSize, selectPage, selectionState } from '../data/crm-bulk.js?v=202611160300';
@@ -10,7 +10,7 @@ import { tabs, head, sel, pairs, ownerSel, ctype, money, downloadCsv, pageSizeCo
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611247100';
 import { canChangeCrmRecord, CRM_LOCK_NOTE } from '../data/crm-visibility.js?v=202611247100';
 import { optionsOf, defaultOption, activeFields } from '../data/crm-config.js?v=202611247700';
-import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611301000';
+import { optSel, cfInputs, cfValue } from './crm-custom.js?v=202611302100';
 import { wireCompose } from './crm-templates.js?v=202611289980';
 
 const crumbs = (label) => [['CRM', '#/crm'], [label]];

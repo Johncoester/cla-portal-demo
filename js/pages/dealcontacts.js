@@ -1,18 +1,19 @@
 // Contacts tab: everyone on this file. Processor can add people (existing or new), edit them, and unlink them from the order.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, pill, toText } from '../ui.js?v=202611161500';
-import { runsOrders, PARTICIPANT_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
+import { runsOrders, PARTICIPANT_ROLES, CLA_TEAM_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611302300';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611247700';
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611249900';
-import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611249900';
-import { copyPlainText } from './deal.js?v=202611301300';
+import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611302000';
+import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611302000';
+import { copyPlainText } from './deal.js?v=202611302300';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
-import { TC_ONLY_LABEL, canReadTcOnly, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611300700';
-import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
+import { TC_ONLY_LABEL, canReadTcOnly, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611301500';
+import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcRolesFromLinks } from '../data/agent-tc.js?v=202611301500';
+import { ASSIGNED_TO_LABEL, TC_ASSIGN_CHOICES, knownTcAssignedRole, moveAssignedTcOnFile, tcAssignedProblem, tcAssignedRole } from '../data/tc-assigned.js?v=202611302200';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
 export function contactCopyMessage(copied, kind) {
@@ -27,15 +28,32 @@ export async function contactCopyOutcome(value, kind, deps) {
 }
 
 // contact type (John, Nov 2): CLA staff have none, so the select is not offered for them
-const STAFF_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator'];
+const STAFF_ROLES = CLA_TEAM_ROLES;
 const ctypeSelect = (sel = '', name = 'contactType') => html`<label>Contact type<select name="${name}" aria-label="Contact type"><option value="">(not set)</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}" ${v === sel ? raw('selected') : ''}>${l}</option>`)}</select><span class="field-hint">${AGENT_TC_TYPE_NOTE}</span></label>`;
-const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent', 'Buyer Agent TC']], ['SELLER', ['Client-Seller', 'Listing Agent', 'Listing Agent TC']], ['REALTOR', ['Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator']]];
+// FF-108b: required Assigned to (Buyer's Agent TC / Listing Agent TC). Always shown for a Transaction coordinator, including an existing one with a prior link.
+const assignedToField = (selected = '', { hidden = true } = {}) => html`<label class="span2" data-tc-assigned ${hidden ? raw('hidden') : ''}>${ASSIGNED_TO_LABEL} <span class="req">*</span><select name="assignedTo" data-tc-assigned-sel aria-label="${ASSIGNED_TO_LABEL}"><option value="">Select...</option>${TC_ASSIGN_CHOICES.map((c) => html`<option value="${c.value}" ${c.value === selected ? raw('selected') : ''}>${c.label}</option>`)}</select></label>`;
+const GROUPS = [['ALL', null], ['BUYER', ['Client-Buyer', 'Buyer Agent', 'Buyer Agent TC']], ['SELLER', ['Client-Seller', 'Listing Agent', 'Listing Agent TC']], ['REALTOR', ['Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']], ['CLIENT', ['Client-Buyer', 'Client-Seller']], ['CLA TEAM', CLA_TEAM_ROLES]];
 const contactRoleChoices = (deal) => rolesForNewContact(PARTICIPANT_ROLES, { refinance: isRefi(deal), blocked: REFI_BLOCKED_ROLES });
+
+// FF-108: put Buyer Agent TC / Listing Agent TC rows right after the last row of their agent (same role side); others unchanged
+export function tcUnderAgents(rows) {
+  const AGENT = { 'Buyer Agent TC': 'Buyer Agent', 'Listing Agent TC': 'Listing Agent' };
+  const out = rows.filter((p) => !(AGENT[p.role] && rows.some((q) => q.role === AGENT[p.role])));
+  for (const tcRole of ['Buyer Agent TC', 'Listing Agent TC']) {
+    const tcs = rows.filter((p) => p.role === tcRole && rows.some((q) => q.role === AGENT[tcRole]));
+    if (!tcs.length) continue;
+    let at = -1; out.forEach((p, i) => { if (p.role === AGENT[tcRole]) at = i; });
+    out.splice(at + 1, 0, ...tcs);
+  }
+  return out;
+}
 
 export async function render({ api, user, deal, refresh }) {
   const repaint = () => { if (api.dropFileReads) api.dropFileReads(); refresh(); };
   const edit = runsOrders(user); const staffView = !user.accountRole && user.role !== 'Outside user'; const g = new URLSearchParams(location.hash.split('?')[1] || '').get('g') || 'ALL'; const grp = (GROUPS.find((x) => x[0] === g) || GROUPS[0])[1];
-  const list = deal.participants.filter((p) => !grp || grp.includes(p.role));
+  // FF-108 (Francis, Nov 23 2026): each agent's coordinator sits directly under that agent (Buyer Agent TC under the Buyer Agent,
+  // Listing Agent TC under the Listing Agent). Everyone else keeps their order. A TC whose agent is not in this view stays where it was.
+  const list = tcUnderAgents(deal.participants.filter((p) => !grp || grp.includes(p.role)));
   // TC-ONLY-2 (John, Nov 22 2026): "Only communicate with TC" on each buyer's agent / listing agent. CLA staff only; one read, only when the file has an agent.
   const tcEdit = canSetTcOnly(user);   // TC-ONLY-2b: read only for roles the server allows (canReadTcOnly), so sales staff make no refused call
   let tcRows = new Map();
@@ -43,7 +61,10 @@ export async function render({ api, user, deal, refresh }) {
     try { tcRows = tcOnlyMap(await api.tcOnlyStatus(deal.id)); } catch (e) { tcRows = new Map(); }   // the box stays hidden; emails are still routed by the database
   }
   const tcBox = (p) => {
-    const b = staffView && !p.removed ? tcOnlyBox(tcRows.get(p.id), p.role, { canEdit: tcEdit }) : null;
+    // FF-108: the greyed-out text names the agent, and says when that side's coordinator is on the file but not linked to them
+    const sideTcRole = p.role === 'Listing Agent' ? 'Listing Agent TC' : 'Buyer Agent TC';
+    const unlinked = deal.participants.filter((q) => q.role === sideTcRole && !q.removed).map((q) => contactDisplayName(q.contact)).filter(Boolean);
+    const b = staffView && !p.removed ? tcOnlyBox(tcRows.get(p.id), p.role, { canEdit: tcEdit, agentName: contactDisplayName(p.contact), sideTcNames: unlinked }) : null;
     if (!b) return '';
     return html`<div class="small tc-only-box" data-tc-only-row="${p.id}"><label class="check small" title="${b.title}"><input type="checkbox" data-tc-only="${p.id}" ${b.checked ? raw('checked') : ''} ${b.disabled ? raw('disabled') : ''}> ${TC_ONLY_LABEL}</label><div class="muted small" data-tc-only-hint>${b.hint}</div></div>`;
   };
@@ -74,7 +95,7 @@ export async function render({ api, user, deal, refresh }) {
       toast(outcome.message, outcome.level);
     })));
     $$('[data-unlink]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Remove this person from the order? (Their contact record, documents and messages are kept.)')) return; await api.removeParticipant(deal.id, b.dataset.unlink); toast('Removed from order'); repaint(); })));
-    $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const row = deal.participants.find((p) => p.id === b.dataset.edit); if (!row || !row.contact || !row.contact.id) { toast('This contact cannot be edited from this row.', 'err'); return; } const same = deal.participants.filter((p) => p.contactId === row.contactId); editContact(row.contact, same.some((p) => STAFF_ROLES.includes(p.role)), same); }));
+    $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => { const row = deal.participants.find((p) => p.id === b.dataset.edit); if (!row || !row.contact || !row.contact.id) { toast('This contact cannot be edited from this row.', 'err'); return; } const same = deal.participants.filter((p) => p.contactId === row.contactId); editContact(row.contact, same.some((p) => STAFF_ROLES.includes(p.role)), same, row.role); }));
     const ab = $('#addp', root); if (ab) ab.addEventListener('click', guard(addPerson));
     $$('[data-tc-only]', root).forEach((cb) => cb.addEventListener('change', async () => {
       const on = cb.checked; cb.disabled = true;
@@ -93,7 +114,8 @@ export async function render({ api, user, deal, refresh }) {
   } };
 
   // John, Nov 2: type-to-search picker (name / email / phone / brokerage).
-  // TC-5: one role, Transaction coordinator. The side follows the linked agent on this file.
+  // TC-5: one role, Transaction coordinator. FF-108b: a required Assigned to dropdown picks the side
+  // (Buyer's Agent TC or Listing Agent TC). It stays visible for an existing coordinator, with the known side pre-selected.
   // Francis, Nov 9: same Place Order inline "Add … as a new person" when there is no match,
   // so adding a party on an already-opened file no longer dead-ends on "clear the search box".
   async function addPerson() {
@@ -105,7 +127,7 @@ export async function render({ api, user, deal, refresh }) {
       <label class="span2" data-dir-wrap hidden>Existing company or person<select data-dir-select aria-label="Existing company or person"><option value="">Not listed — type them below</option></select></label>
       <div class="span2">${pickerHtml('contactId', 'Contact')}</div>
       <div class="span2 form-grid" data-newperson><h4 class="span2">&mdash; or enter full details &mdash;</h4><label data-fn>First name<input name="firstName"></label><label>Last name<input name="lastName"></label><label>Email<input name="email" type="email"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone></label><label data-co>Company / brokerage<input name="company"></label>${ctypeSelect('')}<label data-lrole hidden>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">No contact person</option>${LENDER_CONTACT_ROLES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}</select></label></div>
-      <label class="span2" data-tc-which hidden>Which agent are they linked to?<select data-tc-agent aria-label="Which agent are they linked to?"><option value="">Choose…</option></select></label>
+      ${assignedToField("")}
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
     const roleSel = $('[name=role]', m);
     const dirWrap = $('[data-dir-wrap]', m); const dirSel = $('[data-dir-select]', m);
@@ -146,25 +168,27 @@ export async function render({ api, user, deal, refresh }) {
     const chosenContactId = () => (pk && pk.value) || (directoryChoice(dirSel.value).kind === 'person' ? directoryChoice(dirSel.value).contactId : '');
     const resolveTc = async (contactId) => {
       const agents = fileAgents(deal.participants);
-      const choices = tcAgentChoices(agents);
       let linkedRoles = [];
       if (contactId) linkedRoles = tcRolesFromLinks(agents, await linkedAgentIdsFor(api, contactId, agents));
-      return { choices, linkedRoles };
+      return { agents, linkedRoles };
     };
+    let tcPickFor = '';
     const paintTc = async () => {
       const gen = ++tcGen;
-      const wrap = $('[data-tc-which]', m);
-      const sel = $('[data-tc-agent]', m);
+      const wrap = $('[data-tc-assigned]', m);
+      const sel = $('[data-tc-assigned-sel]', m);
       if (!wrap || !sel) return;
       if (!isAgentTcPick(roleSel.value)) { wrap.hidden = true; return; }
-      const { choices, linkedRoles } = await resolveTc(chosenContactId());
+      const contactId = chosenContactId();
+      const { linkedRoles } = await resolveTc(contactId);
       if (gen !== tcGen) return;
-      if (linkedRoles.length || !choices.length) { wrap.hidden = true; return; }
       const keep = sel.value;
-      sel.replaceChildren();
-      const blank = document.createElement('option'); blank.value = ''; blank.textContent = 'Choose…'; sel.appendChild(blank);
-      for (const c of choices) { const opt = document.createElement('option'); opt.value = c.value; opt.textContent = c.label; sel.appendChild(opt); }
-      if ([...sel.options].some((o) => o.value === keep)) sel.value = keep;
+      const known = knownTcAssignedRole({ linkedRoles });
+      if (contactId !== tcPickFor) {
+        sel.value = known || '';
+        tcPickFor = contactId;
+      } else if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
+      else if (!keep && known) sel.value = known;
       wrap.hidden = false;
     };
     const pk = mountPicker($('[data-picker=contactId]', m), () => people, {
@@ -193,29 +217,29 @@ export async function render({ api, user, deal, refresh }) {
       if (isAgentTcPick(f.role)) {
         const known = id ? people.find((p) => p.id === id) : null;
         const person = { contactId: id || '', email: (known && known.email) || f.email || '' };
-        const { choices, linkedRoles } = await resolveTc(id);
-        const which = ($('[data-tc-agent]', m) || {}).value || '';
-        const side = tcSideProblem({ hasPerson: true, linkedRoles, choice: which, choices });
+        const { agents } = await resolveTc(id);
+        const assigned = (($('[data-tc-assigned-sel]', m) || {}).value) || '';
+        const side = tcAssignedProblem({ hasPerson: true, choice: assigned, agents });
         if (side) throw new Error(side);
-        const self = selfTcOnOrderProblem(person, fileAgents(deal.participants), tcRolesToSave({ linkedRoles, choice: which, choices }));
+        const self = selfTcOnOrderProblem(person, agents, assigned ? [assigned] : []);
         if (self) throw new Error(self);
       }
       if (!id) { const c = await api.createContact({ firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone, company: f.company, contactType: f.contactType || typeFor(f.role) }); id = c.id; if (!reused) reused = people.find((p) => p.id === c.id) || null; }
       if (isAgentTcPick(f.role)) {
-        const { choices, linkedRoles } = await resolveTc(id);
-        const choice = ($('[data-tc-agent]', m) || {}).value || '';
-        const problem = tcSideProblem({ hasPerson: true, linkedRoles, choice, choices });
+        const { agents } = await resolveTc(id);
+        const assigned = (($('[data-tc-assigned-sel]', m) || {}).value) || '';
+        const problem = tcAssignedProblem({ hasPerson: true, choice: assigned, agents });
         if (problem) throw new Error(problem);
-        for (const role of tcRolesToSave({ linkedRoles, choice, choices })) {
-          try { await api.addParticipant(deal.id, id, role); }
-          catch (err) { if (!isAlreadyTcMessage(err && err.message)) throw err; }
-        }
+        // FF-108b: the Assigned to choice is the stored side. If this person was already on the other
+        // side (for example an earlier agent_tc_links auto-place), move them so they list only under the chosen agent.
+        const current = ((await api.getDeal(deal.id)) || deal).participants || [];
+        await moveAssignedTcOnFile(api, deal.id, id, assigned, current);
       } else await api.addParticipant(deal.id, id, f.role);
       closeModal(); toast(reused && String(f.email || '').trim() ? reuseContactMessage(reused) : 'Contact added'); repaint(); }));
   }
   // Nov 9 (Francis: "can't invite buyers and sellers"; John: "a processor needs to be able to invite"): Invite to portal for a buyer, seller or agent
   // row with no login, right here on the file. A contact with no email gets one typed here (saved on the contact). The one-time link is shown to
-  // copy, and (Nov 9, later) the portal emails it from the inviter's own Gmail (invite-send.js). Agents land on the agent account form, buyers / sellers on a short login form.
+  // copy. Since Nov 11 the portal emails it from testportal@clatitle.com (invite-send.js), never from the inviter's Gmail. Agents land on the agent account form, buyers / sellers on a short login form.
   function invitePortal(contactId, role) {
     const p = deal.participants.find((x) => x.contactId === contactId && x.role === role); if (!p) return; const c = p.contact; const hasEmail = !!String(c.email || '').trim();
     const who = inviteKindForRole(role) === 'agent' ? 'agent account' : 'portal login';
@@ -223,7 +247,7 @@ export async function render({ api, user, deal, refresh }) {
       <label class="span2">Email<input name="email" type="email" maxlength="160" value="${c.email || ''}" ${hasEmail ? raw('readonly') : raw('required placeholder="name@example.com"')} data-invite-email></label>
       ${hasEmail ? '' : html`<p class="muted small span2" data-invite-email-note>This contact has no email yet. The email you enter is saved on the contact.</p>`}
       <div class="span2"><button class="m-btn" type="submit" data-invite-create>Create invite link</button> <button type="button" class="ghost" data-close>Close</button></div>
-      <p class="muted small span2">The portal emails the invite from your connected Gmail. The link is also shown here to copy.</p>
+      <p class="muted small span2">The portal emails the invite from testportal@clatitle.com. The link is also shown here to copy. You do not need to connect Gmail.</p>
       <div class="span2" data-invite-result hidden></div></form>`, { wide: true });
     let made = false;
     const showResult = (sendR, link, person) => {
@@ -260,11 +284,28 @@ export async function render({ api, user, deal, refresh }) {
       toast(inviteToast(sendR)); }));
     $$('[data-close]', m).forEach((b) => b.addEventListener('click', () => { if (made) repaint(); }));   // repaint the tab; Resend / Revoke stay on Agent Invites
   }
-  function editContact(c, staff, same = []) {
+  async function editContact(c, staff, same = [], openedRole = '') {
     const opened = { firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '', phone: c.phone || '', company: c.company || '', contactType: c.contactType || '', lenderRole: c.lenderRole || '' };
+    const tcRows = same.filter((p) => isAgentTcRole(p.role) && !p.removed);
+    const agents = fileAgents(deal.participants);
+    let linkedRoles = [];
+    if (!staff && (opened.contactType === AGENT_TC_TYPE || tcRows.length)) {
+      try { linkedRoles = tcRolesFromLinks(agents, await linkedAgentIdsFor(api, c.id, agents)); } catch (e) { linkedRoles = []; }
+    }
+    const initialAssigned = knownTcAssignedRole({ fileRoles: tcRows.map((p) => p.role), linkedRoles, preferredRole: openedRole });
+    const showAssigned = !staff && (opened.contactType === AGENT_TC_TYPE || tcRows.length);
     const m = modal('Edit contact', html`<form id="ecf" class="form-grid"><label>First name<input name="firstName" value="${opened.firstName}"></label><label>Last name<input name="lastName" value="${opened.lastName}"></label>
       <label>Email<input name="email" type="email" autocomplete="off" value="${opened.email}"></label><label>Phone<input name="phone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${opened.phone}"></label><label>Company<input name="company" value="${opened.company}"></label>${staff ? html`<p class="muted small">CLA staff have no contact type.</p>` : ctypeSelect(opened.contactType || '')}${!staff && (c.contactType === 'lender' || c.lenderRole) ? html`<label>Lender contact type<select name="lenderRole" aria-label="Lender contact type"><option value="">Not set</option>${[...LENDER_CONTACT_ROLES, [MORTGAGE_BROKER_ROLE, 'Mortgage Broker']].map(([v, l]) => html`<option value="${v}" ${v === (c.lenderRole || '') ? raw('selected') : ''}>${l}</option>`)}</select></label>` : ''}
+      ${staff ? '' : assignedToField(initialAssigned, { hidden: !showAssigned })}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
+    const paintEditAssigned = () => {
+      const wrap = $('[data-tc-assigned]', m);
+      if (!wrap) return;
+      const type = (($('[name=contactType]', m) || {}).value) || '';
+      wrap.hidden = !(type === AGENT_TC_TYPE || tcRows.length);
+    };
+    const typeSel = $('[name=contactType]', m);
+    if (typeSel) typeSel.addEventListener('change', paintEditAssigned);
     $('#ecf', m).addEventListener('submit', guard(async (e) => {
       e.preventDefault();
       const form = $('#ecf', m);
@@ -273,6 +314,17 @@ export async function render({ api, user, deal, refresh }) {
       if (!staff) submitted.contactType = read('contactType');
       if (!submitted.firstName.trim() && !submitted.company.trim()) throw new Error('Enter a first name, or a company or entity name.');
       if (submitted.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submitted.email)) throw new Error('Enter a valid email for this person.');
+      const wrap = $('[data-tc-assigned]', m);
+      const assignedSel = $('[data-tc-assigned-sel]', m);
+      const assignedShown = !!(wrap && !wrap.hidden);
+      const assigned = assignedShown ? String((assignedSel && assignedSel.value) || '') : '';
+      if (assignedShown) {
+        const alreadyOnSide = tcRows.some((p) => p.role === assigned);
+        const side = tcAssignedProblem({ hasPerson: true, choice: assigned, agents, alreadyOnSide });
+        if (side) throw new Error(side);
+        const self = selfTcOnOrderProblem({ contactId: c.id, email: submitted.email || c.email || '' }, agents, assigned ? [assigned] : []);
+        if (self) throw new Error(self);
+      }
       const patch = contactWritePatch(opened, submitted);
       const lenderEl = !staff && form.querySelector('[name="lenderRole"]');
       if (lenderEl) {
@@ -280,9 +332,13 @@ export async function render({ api, user, deal, refresh }) {
         if (submitted.contactType && submitted.contactType !== 'lender' && lenderRole) throw new Error('Loan Officer, Lender TC, and Mortgage Broker are lender contacts only.');
         if (lenderRole !== (opened.lenderRole || '')) patch.lenderRole = lenderRole;
       }
-      if (!Object.keys(patch).length) { closeModal(); toast('No changes to save'); return; }
-      const saved = await api.updateContact(c.id, patch);
-      assertContactSaved(patch, saved);
+      const assignedChanged = assignedShown && tcAssignedRole(assigned) && (tcRows.some((p) => p.role !== assigned) || !tcRows.some((p) => p.role === assigned));
+      if (!Object.keys(patch).length && !assignedChanged) { closeModal(); toast('No changes to save'); return; }
+      if (Object.keys(patch).length) {
+        const saved = await api.updateContact(c.id, patch);
+        assertContactSaved(patch, saved);
+      }
+      if (assignedChanged) await moveAssignedTcOnFile(api, deal.id, c.id, assigned, same);
       // Prefer an agent role when the same person is both agent and client on this file,
       // so the automatic invite matches that role (FF-073e / John, 1:30 PM ET Nov 13).
       const inviteRole = (same.find((p) => inviteKindForRole(p.role) === 'agent') || same.find((p) => shouldInviteAfterEmailChange(p.role, opened.email, submitted.email)) || {}).role || '';

@@ -1,6 +1,6 @@
 // AGENT INVITE + ACCOUNT SETUP and the "Your agent" card (John, Nov 4). Pure rules shared by the mock adapter, the Supabase adapter and the pages.
 // FAKE DATA ONLY. Nothing here sends anything: the portal sends no email; staff copy the one-time link by hand.
-import { isStaff, phoneOk, fmtPhone, PHONE_MSG } from './constants.js?v=202611247700';
+import { phoneOk, fmtPhone, PHONE_MSG, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611302300';
 export const INVITE_DAYS = 14;                       // a pending invite link works for 14 days, then it shows as expired (Resend makes a new link)
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;      // the picked file (before crop)
 export const PHOTO_STORED_MAX = 400 * 1024;          // the cropped picture kept (data URL in the mock; Storage object in Supabase)
@@ -8,12 +8,15 @@ export const PHOTO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'
 export const PHOTO_SHAPES = ['circle', 'square'];
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const NO_EMAIL_NOTE = 'Nothing is emailed: the portal does not send email. Copy this one-time link and send it to the agent yourself.';
-// who may invite: Processor, Sales Person, Sales Team, Admin / Super admin. NOT Transaction Coordinators (John, Nov 4 1:48 PM: "No for now"):
-// a TC gets no Agent Invites page, no Invite to portal button, and every invite call refuses (mirrored by private.can_invite_agents in migration 41)
-export const canInviteAgents = (u) => !!u && u.status !== 'removed' && (u.isAdmin || isStaff(u.role)) && (u.isAdmin || u.role !== 'Transaction Coordinator');
+// who may invite (STAFF-INVITE-1, John, Nov 23 2026, 5:07 PM ET): any CLA Title employee login that can open orders.
+// That is STAFF_ACCOUNT_ROLES: Processor, Preprocessor, Sales Person, Sales Team, Transaction Coordinator, Admin, Super admin.
+// Not an HR-only Employee (no order access and no invites). Not an outside user (agents, buyers, sellers, lenders, outside TCs).
+// This used to exclude a CLA staff Transaction Coordinator (John, Nov 4 2026, "No for now"); that block is lifted.
+// Mirrored by private.can_invite_agents.
+export const canInviteAgents = (u) => !!u && u.status !== 'removed' && (u.isAdmin || STAFF_ACCOUNT_ROLES.includes(u.role));
 // Portal invite from a file (John + Francis, Nov 9: "a processor needs to be able to invite"): the same staff who may invite agents
-// (Processor, Preprocessor, Sales Person, Sales Team, Admin; still not a TC) invite a Client-Buyer, Client-Seller, Buyer Agent or Listing Agent
-// row that has no portal login. Agents get the agent account form; buyers and sellers a short login form (no brokerage / license).
+// invite a Client-Buyer, Client-Seller, Buyer Agent or Listing Agent row that has no portal login. Agents get the agent account form;
+// buyers and sellers a short login form (no brokerage / license).
 // TC-INVITE-1 (John, Nov 20 2026, 10:41 AM ET: "yes of course a TC needs an invite"): an agent's transaction coordinator row
 // (Buyer Agent TC / Listing Agent TC) is invited too, with the same short login form as a buyer or seller (kind 'client', no agent profile).
 export const PORTAL_INVITE_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC'];

@@ -3,7 +3,7 @@
  *   - CSV import (parse, column mapping, sample templates with fake data),
  *   - meeting invite preview + .ics file (NOTHING IS SENT: Gmail is not connected),
  *   - the "+ Create New" module list. See docs/CRM-JANINE-NOV3.md. */
-import { US_STATES } from './constants.js?v=202611247700';
+import { US_STATES } from './constants.js?v=202611302300';
 
 // ---------------- ZIP -> county ----------------
 let ZIP_TABLE = null;

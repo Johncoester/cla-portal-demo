@@ -5,7 +5,7 @@
  * Activity feed (only things they can already open). Nothing here deletes anything; documents stay permanent. */
 import { phaseOf, UPDATE_TOPICS, ORG_PERMISSIONS, AGENT_TASKS, agentTaskDef, CLIENT_ROLE_OF, validateAgentAnswers, sanitizeMessageHtml, htmlToText, inviteEmail } from './agent-portal.js?v=202611247700';
 import { senderFor } from './email-senders.js?v=202611247700';
-import { CLA_PHONE, isRefi } from './constants.js?v=202611247700';
+import { CLA_PHONE, isRefi } from './constants.js?v=202611302300';
 import { SCHEDULE_CODE, sideOfRole, schedulePatch, partyRecipients, schedulingLinkEmail, schedulingToldEmail, INVITE_FROM, INVITE_FROM_NAME } from './scheduling-details.js?v=202611247700';
 import { settlementOffices, officeNameOf } from './mock-part-offices.js?v=202611247700';
 export function agentPortal(x) {

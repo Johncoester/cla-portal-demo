@@ -14,7 +14,8 @@ ok(buyer.includes("link('closing', 'Closing appointment', 'task')") && !buyer.in
 const side = readFileSync(new URL('../js/file-sidebar.js', import.meta.url), 'utf8');
 ok(app.includes("link('closing', 'Scheduling Details', 'task')") && side.includes("link('closing', 'Scheduling Details', 'task')"), 'Scheduling Details stays in the file sidebar');
 ok(!app.includes('${accountingMenu}') && staff.includes('acctCanRead(u)') && app.includes("fundingOn && !acctOn ? link('funding', 'Funding'"), 'FF-103 replaces the Accounting sub-list; Funding stays for someone who cannot see Accounting');
-ok(app.includes('id="global-nav" data-global-nav hidden') && app.includes('</ul></li>${dealNav}') && app.includes('apply(false)'), 'the collapsed portal menu still starts closed and does not hide the file sidebar');
+// JC-MOBILE-1 (rule 5): the file sidebar is now ${thisFileNav}, which still contains ${dealNav}, after the hidden portal menu — not inside it. The assertion was updated to that wrap; it is not loosened.
+ok(app.includes('id="global-nav" data-global-nav hidden') && app.includes('</ul></li>${thisFileNav}') && app.includes('${dealNav}') && !app.includes('data-global-nav hidden><ul class="nav nav-pills">${core}${contact}</ul></li>${dealNav}') && app.includes('apply(false)'), 'the collapsed portal menu still starts closed and does not hide the file sidebar');
 ok(!app.includes("link('accounting', 'Accounting'"), 'the old helper call is not how the file sidebar draws Accounting');
 
 const page = readFileSync(new URL('../js/pages/dealaccounting.js', import.meta.url), 'utf8');

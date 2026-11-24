@@ -71,7 +71,7 @@ const page = readFileSync(new URL('../js/pages/ordernew.js', import.meta.url), '
 const contacts = readFileSync(new URL('../js/pages/dealcontacts.js', import.meta.url), 'utf8');
 const parties = readFileSync(new URL('../js/pages/deal.js', import.meta.url), 'utf8');
 ok((page.match(/\$\{agentTcCard\(\)\}/g) || []).length === 1 && page.includes('Which agent are they linked to?') && !page.includes('Which agent do they work for?'), 'Place Order has one coordinator card');
-ok(contacts.includes('Which agent are they linked to?') && contacts.includes('tcRolesFromLinks') && !contacts.includes('Which agent do they work for?'), 'Add contact resolves the side from the link');
+ok(contacts.includes('Assigned to') && contacts.includes("Buyer's Agent TC") && contacts.includes('tcRolesFromLinks') && !contacts.includes('Which agent are they linked to?') && !contacts.includes('Which agent do they work for?'), "Add contact uses the Assigned to dropdown (Buyer's Agent TC / Listing Agent TC)");
 ok(parties.includes('Which agent are they linked to?') && parties.includes('+ Add transaction coordinator') && !parties.includes('Which agent do they work for?'), 'Parties uses the one choice');
 
 console.log(fail ? `tc-5: ${fail} failed` : 'tc-5 passed');

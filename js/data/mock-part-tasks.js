@@ -5,7 +5,7 @@ import { ssnDigits, ssnGrouped, ssnMask, ssnStaff, withoutSsn } from './buyer-ss
 import { senderFor } from './email-senders.js?v=202611247700';
 import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611247700';   // Task switch OFF: no new copy (existing copies kept)
 import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611247700';
-import { maskAccount } from './constants.js?v=202611247700';
+import { maskAccount } from './constants.js?v=202611302300';
 import { taskDueDate } from './due-date.js?v=202611110300';
 import { COMMISSION_TASK_REFUSED, AGENT_ROLE_SIDE } from './agent-fees.js?v=202611246500';
 export function tasksAndForms(x) {

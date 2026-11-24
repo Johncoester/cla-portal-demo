@@ -146,7 +146,18 @@ export const BUYER_SHARE_NOTE = 'Share with CLA Title: CLA Title staff and your 
 export const CLIENT_SHARE_NOTE = 'Share with CLA Title: CLA Title staff and your own agent on this file can see it. The other side (their agent and client) cannot.';
 // Participant roles on a deal = the 8 order roles plus non-login parties (never 'Admin')
 // John, Nov 4 meeting: abstractors and underwriters are parties too (non-login, like Lender / HOA; migration 49 allows them)
-export const PARTICIPANT_ROLES = [...DEAL_ROLES, 'Lender', 'HOA', 'Abstractor', 'Underwriter', 'Other'];
+// CLA Team file roles on Order Contacts (login roles stay in STAFF_ACCOUNT_ROLES / DEAL_ROLES).
+// Licensed Settlement Agent is a per-file assignment, not a new login or task-assignee role (FF-109).
+export const CLA_TEAM_ROLES = ['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Licensed Settlement Agent'];
+// Insert Licensed Settlement Agent after the other CLA Team roles so Add Contact lists it with Processor / Preprocessor / Sales.
+export const PARTICIPANT_ROLES = (() => {
+  const roles = [];
+  for (const role of DEAL_ROLES) {
+    roles.push(role);
+    if (role === 'Transaction Coordinator') roles.push('Licensed Settlement Agent');
+  }
+  return [...roles, 'Lender', 'HOA', 'Abstractor', 'Underwriter', 'Other'];
+})();
 // 25 MB per file (was 1.5 MB, which refused ordinary phone photos of an ID). The mock keeps file contents in IndexedDB (file-store.js);
 // Supabase Storage bucket 'deal-documents' allows 25 MiB. Mirrored by migration 13 (allowed extensions).
 export const MAX_UPLOAD_BYTES = 25_000_000;

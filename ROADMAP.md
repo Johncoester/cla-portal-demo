@@ -231,6 +231,62 @@ This file lists the portal's major features: how each one should work, how far a
 - Loan opens the existing Title loan check. Commitment opens the existing Schedule A page. Earnest & Commissions opens Basic Info, where earnest money and the commission summary already sit.
 - Other Contacts stays under General because that page already existed in the second column.
 - The shell cache stamp is 202611247600.
+- On a phone, the This File menu is behind a button (JC-MOBILE-1).
+
+---
+
+## Mobile This File menu (JC-MOBILE-1)
+
+**How it should work.** On a phone, the This File sidebar (File Overview, My Tasks, Inbox, Documents, Scheduling Details, and the rest of the file links) starts closed behind a This File button that sits in the page, so the menu never covers the property address or order details. Tapping the button opens a drawer with a dimmed backdrop. Tapping a file tab, Close, the dimmed area, or Escape closes it. On a computer the left sidebar is unchanged. A buyer or seller who already uses the light file shell (no sidebar) is unchanged.
+
+**Status: Live.** Tracker item JC-MOBILE-1. [PR 430](https://github.com/Johncoester/cla-portal-demo/pull/430), merged bbaeec6e Nov 23 2026, 6:04 PM ET. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET. No database file.
+
+**What's built**
+
+- On viewports 860px and narrower, This File is a button in the page flow. The file links are hidden until the button is tapped.
+- The open menu is a left drawer with a Close button and a backdrop. A tab, Close, the backdrop, or Escape closes it.
+- The computer sidebar, Show portal menu, and the buyer/seller light shell are unchanged.
+
+**What's missing**
+
+- The oversized sticky order header on a phone is a separate item (JC-MOBILE-2).
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [File sidebar (FF-103)](#file-sidebar-ff-103).
+
+**Decisions**
+
+- The phone breakpoint stays 860px, the same one the sidebar already uses.
+- No database change.
+
+---
+
+## Mobile order header (JC-MOBILE-2)
+
+**How it should work.** On a phone, the large order header (order number, stage, property address, price, buyers and sellers, opened and county, settlement and disbursement dates) scrolls away with the page. It does not stay pinned to the top and take up half the screen. On a computer the header still stays pinned under the top bar.
+
+**Status: Building.** Tracker item JC-MOBILE-2. Source: John mobile video Nov 23 2026 3:34 PM ET, confirmed Nov 23 5:04 PM ET.
+
+**What's built**
+
+- On viewports 860px and narrower, the order header uses `position: static` so it scrolls away normally.
+- On a computer the header stays sticky under the top bar.
+
+**What's missing**
+
+- Not on TEST yet. No database file.
+
+**Links**
+
+- Spec: [docs/specs/file-sidebar.md](docs/specs/file-sidebar.md).
+- Related: [Mobile This File menu (JC-MOBILE-1)](#mobile-this-file-menu-jc-mobile-1).
+
+**Decisions**
+
+- The phone breakpoint stays 860px, the same one JC-MOBILE-1 uses.
+- No database change.
 
 ---
 
@@ -1362,6 +1418,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## CLA staff can send portal invites (STAFF-INVITE-1)
+
+**How it should work.** Any CLA Title employee who can open orders can click Invite to portal (and Resend) and send the invite: Processor, Preprocessor, Sales Person, Sales Team, Transaction Coordinator, Admin, and Super admin. The email always comes from testportal@clatitle.com. The inviter does not need to connect Gmail. Outside users (agents, buyers, sellers, lenders, and an agent's own TC) and HR-only Employee logins still cannot send invites. Who can be invited is unchanged.
+
+**Status: Building.** John Coester, chat, Nov 23 2026, 5:07 PM ET. Tracker item STAFF-INVITE-1. Not Live until this pull request is merged and `supabase/migrations/20261129120000_staff_invite_cla_employees.sql` is applied on TEST.
+
+**What's built**
+
+- The button, the Agent Invites page, and every invite call use the same staff list, including a CLA Transaction Coordinator.
+- The database helper `private.can_invite_agents` matches that list.
+- The Invite to portal and Agent Invites screens say the email comes from testportal@clatitle.com and that Gmail does not need to be connected.
+
+**What's still missing**
+
+- Live until the pull request is merged and the database file is applied on TEST.
+- The database error text on some older invite functions still lists the pre-STAFF-INVITE-1 roles (the check itself uses `can_invite_agents`, so a Transaction Coordinator is allowed).
+
+**Links**
+
+- Spec: [docs/specs/staff-invite.md](docs/specs/staff-invite.md)
+- Source: John Coester, chat, Nov 23 2026, 5:07 PM ET. Tracker item STAFF-INVITE-1.
+
+**Decisions**
+
+- "CLA Title employee" here means a staff account that can open orders (`STAFF_ACCOUNT_ROLES`), not an HR-only Employee login.
+- This reverses the Nov 4 2026 "No for now" decision that a CLA staff Transaction Coordinator could not send invites.
+
+---
+
 ## TC portal invite (TC-INVITE-1)
 
 **How it should work.** An agent's transaction coordinator on a file (Buyer Agent TC or Listing Agent TC) who has no portal login gets Invite to portal on Order Contacts, the same as a buyer, seller or agent. They get the short client login and sign in as an Outside user on that file. No agent profile, brokerage or license form. The email comes from testportal@clatitle.com.
@@ -1389,7 +1474,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 - This reverses the FF-088 decision that the agents' coordinators get no invite (John, Nov 20 2026).
 - A coordinator gets the short client login, not the agent account.
-- A CLA staff Transaction Coordinator still cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
+- STAFF-INVITE-1 (John, Nov 23 2026 5:07 PM ET) lifts the earlier rule that a CLA staff Transaction Coordinator cannot send invites. The TC self-block (PR 372) and the agent links are unchanged.
 
 ---
 
@@ -2695,17 +2780,17 @@ This file lists the portal's major features: how each one should work, how far a
 - More than one salesperson means more than one Sales Person card.
 
 
-## Preprocessor on the Closing Team card (FF-106)
+## Preprocessor on the Closing Team card (FF-106 / FF-106b / FF-106c)
 
-**How it should work.** On the staff File Overview, the Closing Team row includes a Preprocessor card. It shows the assigned CLA Preprocessor's name. If none is assigned, the name is blank and the role title stays. Layout, styling, the other Closing Team roles, and the agent's own Transaction Coordinator role and link stay unchanged.
+**How it should work.** On the staff File Overview, the Closing Team slot that was labelled Transaction Coordinator is the CLA preprocessor slot. The label reads Preprocessor and shows the assigned CLA Preprocessor's name, whether staff set them in Edit order details or added them as a Preprocessor in Order Contacts. If none is assigned, the name is blank and the role title stays Preprocessor. An agent's own Transaction Coordinator role and link stay unchanged and do not appear in this slot.
 
-**Status: Building.** Tracker FF-106. Francis Santos, confirmed Nov 23 2026, 11:59 AM ET (Gmail 1a209598512b3bd1). Source: Francis confirm-back Nov 23. Pull request pending. No database file.
+**Status: Building.** Tracker FF-106c. Francis Santos retest failed Nov 23 2026, 4:17 PM ET (Gmail 1a20a453c50c3fd5) on DC-26-78512: Ellen Ahern was assigned as Preprocessor but her name did not show. Source: Francis retest 4:17 PM. Pull request pending. No database file.
 
 **What's built**
 
-- Closing Team cards are Processor, Preprocessor, Transaction Coordinator, Licensed Settlement Agent, and Sales Person (one card per salesperson).
-- Hosted File Overview fills the Preprocessor name from the staff already saved on the file.
-- Buyers, sellers, and agents still do not get the staff Closing Team row.
+- Closing Team cards are Processor, Preprocessor, Licensed Settlement Agent, and Sales Person.
+- The name comes from `preprocessorUserId` when set, otherwise from a deal participant with role Preprocessor.
+- Buyer Agent TC, Listing Agent TC, and Transaction Coordinator participants are not used for this card.
 
 **What's still missing**
 
@@ -2718,8 +2803,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Decisions**
 
-- This adds a card. It does not rename Transaction Coordinator to Preprocessor.
-- A blank name means nobody is assigned. The role title stays.
+- FF-106c does not write `preprocessor_user_id` when a Preprocessor is added only as a contact. It reads both assignment places for display.
+- Ellen Ahern's TEST role is unchanged.
 
 ## File reports in the CRM report builder (RPT)
 
@@ -2731,12 +2816,14 @@ This file lists the portal's major features: how each one should work, how far a
 
 - RPT-1 ([PR 407](https://github.com/Johncoester/cla-portal-demo/pull/407), built by Claude, merged a85ff113 on Nov 22 2026 at 1:44 PM ET). A Deals report offers 23 more columns: State, Zip Code, Contract Date, File Step, Processor, Pre-processor, Transaction Coordinator, Closer, Buyer, Seller, Source of Business with its contact, company, phone and email, and the Buyer Agent and Listing Agent each with company, phone and email. They can be shown, filtered, sorted and grouped like any other column. The phone is the mobile when there is one. They are on reports only; the Deals list and its column picker are unchanged. A person sees the same files in a report as on the Deals list. Database file `20261129010000_crm_deal_report_fields.sql` was applied on TEST as v20261122184434.
 - RPT-1-SEC ([PR 420](https://github.com/Johncoester/cla-portal-demo/pull/420), merged 134d28cc on Nov 23 2026 at 12:17 PM ET). The RPT-1 function was SECURITY DEFINER and `crm_deal_visible` does not separate demo accounts from real files, so a demo Processor could read buyer and seller names and agent and source phones and emails on real files. This keeps `crm_deal_report_fields()` SECURITY DEFINER (INVOKER was too slow), joins `private.crm_visible_deal_ids()` (caller scope once, demo/real files separated), and filters `c.is_demo = private.viewer_is_demo()` on every contacts join. Database file `20261129060000_crm_deal_report_fields_sec.sql` was applied on TEST as v20261123171848. A demo Processor gets 0 real-file rows; a real Processor's real-file output is unchanged.
-- RPT-2 (built by Claude, branch `claude/file-report-task-dates`, [PR 419](https://github.com/Johncoester/cla-portal-demo/pull/419), not merged). Every task name in use on a file gives a Deals report two date columns: "Task: <name>: Due Date" and "Task: <name>: Completed Date". They can be shown, filtered, sorted and grouped, so a report can list files where clear to close is due and not done. When a file has the same task twice, Due Date is the earliest and Completed Date is filled only when all of them are done. Cancelled tasks are not counted. The tasks are read only when a report uses a task column. Database file `20261129100000_crm_deal_report_tasks.sql` adds one read-only function that returns task names, dates and status. The function is SECURITY INVOKER (no new GRANT on `public.tasks`) and joins `private.crm_visible_deal_ids()`, so a demo Processor gets no tasks from real files; disabled and retired template rules stay with the existing tasks policies. A test checks that a demo Processor gets 0 tasks from real files. Not Live until that file is applied and a report is checked on TEST.
+- RPT-2 ([PR 419](https://github.com/Johncoester/cla-portal-demo/pull/419), built by Claude, merged Nov 23 2026). Every task name in use on a file gives a Deals report two date columns: "Task: <name>: Due Date" and "Task: <name>: Completed Date". They can be shown, filtered, sorted and grouped, so a report can list files where clear to close is due and not done. When a file has the same task twice, Due Date is the earliest and Completed Date is filled only when all of them are done. Cancelled tasks are not counted. The tasks are read only when a report uses a task column. Database file `20261129100000_crm_deal_report_tasks.sql` adds one read-only function that returns task names, dates and status. The function is SECURITY INVOKER (no new GRANT on `public.tasks`) and joins `private.crm_visible_deal_ids()`, so a demo Processor gets no tasks from real files; disabled and retired template rules stay with the existing tasks policies. A test checks that a demo Processor gets 0 tasks from real files. Not Live until that file is applied and a report is checked on TEST.
 
 **What's still missing**
 
 - A report loads every task of every file the person can see and works the dates out in the browser, the same way CRM reports already load their rows. That is fine on TEST. Before real volume, the filtering should move to the database.
-- RPT-3: reports emailed on a schedule to chosen people.
+- RPT-3a (built by Claude, [PR 424](https://github.com/Johncoester/cla-portal-demo/pull/424), not merged). John, Nov 22 2026: "Processors should be able to build their own reports." A Processor or Preprocessor is read-only in the CRM. They can now create, save, change, clone and retire reports in their own folder. They cannot save into a shared folder, change someone else's report, share, export or send a report by email. On the hosted site everyone with the CRM now has a "My reports" folder (it was missing there, so the Report Details box had no own folder to offer). Database file `20261130013000_crm_reports_own_folder.sql` changes who may save and change a report (own folder only for read-only roles); who can see a report is unchanged. Not Live until that file is applied and a Processor saves a report on TEST.
+- RPT-3b (next, Claude): a schedule on a saved report. John's rules, Nov 22 2026: only an Admin or Super admin sets up or changes a schedule; it can send to any email address; the full list of recipients always shows on the scheduled report.
+- RPT-3c (after 3b, Claude): the job that builds the report at the scheduled time and queues the email. Open question for John: portal emails made by the system wait in the outbox on TEST and nothing sends them yet, so a scheduled report would wait there too until the portal has a sender.
 - Reports live inside the CRM, so only people with CRM access can open them. A processor's own pre-closing list is not reachable from the portal side yet.
 - The Lender column on a Deals report is blank on TEST unless the file columns are loaded (the hosted Deals row has no lender name). RPT-1 fills it on reports.
 
@@ -3308,12 +3395,43 @@ This file lists the portal's major features: how each one should work, how far a
 - Spec: [docs/specs/tc-only.md](docs/specs/tc-only.md)
 - TC-ONLY-2b (CRM Bot review of PR 414, Nov 23): a TC with a name but no email counts as no TC, so the screens say the email is held instead of "goes to <TC>". When the TC has no portal login, a line says in-app alerts for that agent are held. Admin and Super admin need the admin flag, like the server. The compose matches an agent by their contact email or their portal-login email, like the server. Sales staff no longer make a status read the server would refuse.
 - TC-ONLY-2c (CRM Bot review of PR 415, Nov 23): when a TC has no portal login, the screens say portal alerts and most automatic emails are held until the TC is invited, while emails staff type and title package, post-closing, scheduling and Task Builder emails still go to them. With two TCs where only one has a login, it's worded per TC (the alerts go to the one with a login). A TC with no email shows one message. The server now refuses to tick the box when no linked TC on that side has an email.
-- PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), [414](https://github.com/Johncoester/cla-portal-demo/pull/414) (screens), [415](https://github.com/Johncoester/cla-portal-demo/pull/415) (review fixes), TC-ONLY-2c (second review fixes + server guard).
+- FF-108 (Francis, report Nov 23 2026 12:40 PM ET, confirmed 1:23 PM ET): on Order Contacts, adding a TC for the listing agent (or buyer's agent) now also links them to that agent, so that agent's box can be ticked; before, the TC showed on the file but the box stayed greyed out. Each TC is listed directly under their agent. The greyed-out text names the agent ("Add a Listing Agent TC for <agent> first to use this."), and says when that side's TC is on the file but not linked. No database file. FF-108b adds the required Assigned to dropdown on Add Contact and Edit Contact (see the section below).
+- TC-ONLY-3 (Francis, answers Nov 23 2026 1:30 PM ET): fee change notices (email and portal alert) and title commitment emails now go to both the agent and their TC; everything else still goes to the TC only. The greeting on an email moved to a TC is "Hello <TC first name>". The other four answers already matched. Database file 20261129110000_tc_only_both_and_hello.sql; gmail-send updated for typed emails.
+- PRs: [412](https://github.com/Johncoester/cla-portal-demo/pull/412) (routing), [414](https://github.com/Johncoester/cla-portal-demo/pull/414) (screens), [415](https://github.com/Johncoester/cla-portal-demo/pull/415) (review fixes), TC-ONLY-2c (second review fixes + server guard), FF-108 (listing side, TC order, clearer text), TC-ONLY-3 (fee/commitment notices to both, Hello greeting).
 
 **Decisions**
 
 - The screens only explain what will happen. The database (TC-ONLY-1) decides who actually gets each email, so an old page or a direct API call can't get around it.
 - A box that's already ticked can always be unticked, even after the TC was removed. That way staff can always turn emails back on to the agent.
+
+
+## Assigned to on Add and Edit Contact (FF-108b)
+
+**How it should work.** On Order Contacts, when the role (Add contact) or contact type (Edit contact) is Transaction coordinator, a required **Assigned to** dropdown offers **Buyer's Agent TC** and **Listing Agent TC**. It stays visible even when staff pick an existing coordinator who already has a link to an agent; the known side is pre-selected and can be changed. Saving puts the coordinator on the chosen side, so they list under that agent. Place Order and Parties are unchanged.
+
+**Status: Building.** Tracker item FF-108b. Francis Santos, follow-up to FF-108, confirmed Nov 23 2026 5:21 PM ET (Gmail 1a20a80a4cca28a6), with a mockup of the Edit contact form. Pull request: [PR 434](https://github.com/Johncoester/cla-portal-demo/pull/434). No database file.
+
+**What's built**
+
+- Add Contact and Edit Contact show Assigned to * (Buyer's Agent TC / Listing Agent TC) whenever the person is a Transaction coordinator.
+- An existing coordinator with a prior `agent_tc_links` row still sees the dropdown; that side is pre-selected and can be changed. The chosen side is what is saved on the file.
+- Required validation, and a plain-language message when the chosen side's agent is not on the file.
+- Moving a coordinator from one side to the other adds the new role and removes the old one on this file.
+
+**What's missing**
+
+- Not on TEST yet. No database file. Cache stamp 202611302200.
+
+**Links**
+
+- Spec: [docs/specs/ff-108b-tc-assigned.md](docs/specs/ff-108b-tc-assigned.md).
+- Related: [Only communicate with TC](#only-communicate-with-tc-tc-only-1-tc-only-2-tc-only-2b-tc-only-2c), [Transaction coordinator, one choice (TC-5)](#transaction-coordinator-one-choice-tc-5).
+
+**Decisions**
+
+- The one role label stays "Transaction coordinator". Assigned to is how the side is chosen on Add and Edit Contact.
+- No database change: `deal_participants` already stores Buyer Agent TC / Listing Agent TC, and saving that role still links the coordinator to that side's agent.
+- Place Order and Parties keep the earlier "Which agent are they linked to?" follow-up.
 
 ---
 

@@ -5,7 +5,7 @@
  * Tasks are cancelled, never deleted. Users: disabled, or "removed" by an Admin (row kept so their documents, messages and history stay). */
 import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, PARTICIPANT_ROLES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, DEAL_ROLES, ADMIN_ROLE, SUPER_ADMIN_ROLE, isAdminRole, isSuperAdmin, SALES_ROLES, isSalesRole, runsOrders, viewOnly, isViewOnly, localDate, localDayOf, isRealDate,
   isProcessor, isStaff, isClient, isAgent, sideOf, OUTSIDE, OUTSIDE_FILE_ROLES, STAFF_ACCOUNT_ROLES, isOutside, pairAllowed, fileRoleLabel, visibilityChoices,
-  phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611247700';
+  phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611302300';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
 import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611249300';
@@ -13,7 +13,7 @@ import { indexedDbFileStore } from './file-store.js?v=202611070139';
 import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611247700';
 import { dealsAndAuth } from './mock-part-deals.js?v=202611300900';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611289960';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611301500';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611247700';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
@@ -22,7 +22,7 @@ import { closingSchedule } from './mock-part-schedule.js?v=202611247700';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611247700';
 import { mattNov2 } from './mock-part-nov2.js?v=202611247700';
-import { crmPart } from './mock-part-crm.js?v=202611301000';
+import { crmPart } from './mock-part-crm.js?v=202611302100';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611247700';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611247700';
@@ -43,7 +43,7 @@ import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611247700';
 import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611247700';
 import { underwriterPart } from './mock-part-underwriter.js?v=202611247900';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611247700';
-import { agentInvitePart } from './mock-part-agent-invite.js?v=202611249900';
+import { agentInvitePart } from './mock-part-agent-invite.js?v=202611302000';
 import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611289960';
 import { tcOnlyPart } from './mock-part-tc-only.js?v=202611300700';
 import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611247900';
@@ -54,7 +54,7 @@ import { titlePart, ensureTitle } from './mock-part-title.js?v=202611247700';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611247700';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611247700';
-import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611301452';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
+import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611310000';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611247700';
 import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611247700';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';

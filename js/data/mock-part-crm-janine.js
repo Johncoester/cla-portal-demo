@@ -14,7 +14,7 @@ import { appendCrmNote, noteStamp } from './crm-bulk.js?v=202611160300';
 import { ensureSettings } from './crm-config.js?v=202611247700';
 import { companyKey } from './crm.js?v=202611247700';
 import { canOwnCrmRecords } from './crm-owner.js?v=202611289960';
-import { US_STATE_NAMES } from './constants.js?v=202611247700';
+import { US_STATE_NAMES } from './constants.js?v=202611302300';
 
 const seenData = new WeakSet();
 // runs on every CRM read (cheap after the first time for one in-memory copy); changes are saved with the next save. Never removes a value.

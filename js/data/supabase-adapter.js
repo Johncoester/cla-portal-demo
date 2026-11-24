@@ -2,9 +2,9 @@
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
 import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611247700';
-import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611247700';
+import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611302300';
 import { textToHtml } from './gmail-email.js?v=202611191000';
-import { agentTcAlreadyMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611248300';
+import { agentTcAlreadyMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611301500';
 import { cleanFileNumber, FILE_NUMBER_TAKEN } from './file-number.js?v=202611222500';
 import { officeDate } from './office-date.js?v=202611102100';
 import { clientActivityFrom } from './client-activity.js?v=202611102100';
@@ -26,19 +26,19 @@ import { roleAccessSupabase } from './supabase-role-access.js?v=202611100100';  
 import { taskSwitchesSupabase } from './supabase-task-switches.js?v=202611247700';
 import { callItemsSupabase } from './supabase-callitems.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
-import { runsOrders as runsOrdersCI } from './constants.js?v=202611247700';
-import { crmSupabase } from './supabase-crm.js?v=202611301000';
+import { runsOrders as runsOrdersCI } from './constants.js?v=202611302300';
+import { crmSupabase } from './supabase-crm.js?v=202611302100';
 import { hrSupabase } from './supabase-hr.js?v=202611247700';
-import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611301000';
+import { feedbackNov4Supabase } from './supabase-feedback-nov4.js?v=202611302100';
 import { officesSupabase } from './supabase-offices.js?v=202611247700';
-import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611301452';   // John, Nov 13: Admin > Task Builder (TB-1)
+import { taskBuilderSupabase } from './supabase-task-builder.js?v=202611310000';   // John, Nov 13: Admin > Task Builder (TB-1)
 import { closingLocationSupabase } from './supabase-closing-location.js?v=202611247700';
 import { tcSupabase } from './supabase-tc.js?v=202611247700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611247700';
 import { gmailSupabase } from './supabase-gmail.js?v=202611291500';
 import { nov5Supabase } from './supabase-nov5.js?v=202611247700';
 import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611247700';
-import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611249900';
+import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611302000';
 import { staffSupabase } from './supabase-staff.js?v=202611247700';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';

@@ -3,14 +3,14 @@ import { html, raw, toText, esc, $, $$, guard, formData, modal, closeModal, opti
 import { textToHtml, hasSignature } from '../data/gmail-email.js?v=202611191000';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES, contactTypeForRole } from '../data/constants.js?v=202611247700';
+import { runsOrders, STAGES, DEAL_STATUSES, isProcessor, fmtPhone, localDate, US_STATE_NAMES, US_STATES, isRefi, moneyShow, moneyAmount, OUTSIDE_FILE_ROLES, contactTypeForRole } from '../data/constants.js?v=202611302300';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { modOn } from '../data/modules.js?v=202611247700';
 import { slotText } from './dealclosing.js?v=202611247700';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611247700';
 import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { cleanFileNumber } from '../data/file-number.js?v=202611222500';
-import { composeModal } from './compose.js?v=202611249900';
+import { composeModal } from './compose.js?v=202611302000';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611247700';
 import { processorPickLabel, processorPickError } from '../data/processor-pick.js?v=202611222000';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611247700';
@@ -18,10 +18,10 @@ import { canManageClosingLocations } from '../data/closing-location.js?v=2026112
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611247700';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611247700';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611249900';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611249900';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611302000';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611302000';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611301300';
+import { prefetchDealTab } from './deal-tab.js?v=202611302300';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -29,12 +29,12 @@ import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
 import { myTasksHref } from '../data/task-board.js?v=202611247700';
 import { earnestView } from '../data/earnest-commission.js?v=202611246500';
-import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611248300';
+import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611301500';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611247700';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
-import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611300700';
+import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611301500';
 // The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
 const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
 function staffSections(ctx, dealId) {
@@ -515,17 +515,42 @@ export function nameInitials(name) {
   if (!bits.length) return '';
   return `${bits[0][0] || ''}${bits.length > 1 ? bits[bits.length - 1][0] : ''}`.toUpperCase();
 }
-/* FF-106: Closing Team includes a Preprocessor card (assigned CLA preprocessor, or a blank name if none).
- * Licensed Settlement Agent has no saved field. The name stays blank. Closer is a different role and is not copied here.
- * The Transaction Coordinator card stays. "Transaction Coordinator for CLA" in the picture is sample text, not the role. */
+/* FF-106c: show the CLA Preprocessor from Edit order details (preprocessorUserId) or, if
+ * that field is empty, from an Order Contacts participant with role Preprocessor. Do not use
+ * an agent's Buyer Agent TC, Listing Agent TC, or a Transaction Coordinator participant. */
+export function assignedPreprocessor(d) {
+  const fromDeal = { id: (d && d.preprocessorUserId) || '', name: teamName(d && d.preprocessorName) };
+  if (fromDeal.id || fromDeal.name) return fromDeal;
+  const parts = (d && Array.isArray(d.participants)) ? d.participants : [];
+  const row = parts.find((p) => p && p.role === 'Preprocessor');
+  if (!row) return { id: '', name: '' };
+  const c = row.contact || {};
+  const name = teamName(c.name || `${c.firstName || ''} ${c.lastName || ''}`);
+  const id = c.profileId || row.profileId || '';
+  return { id, name };
+}
+/* FF-109: show the Licensed Settlement Agent assigned in Order Contacts > CLA Team.
+ * There is no deals.*_user_id field for this role (unlike Processor / Preprocessor), so the
+ * existing Closing Team slot is filled from a participant with that role. Do not use the
+ * scheduling settlement agent/notary, the Closer, or an agent's TC. */
+export function assignedLicensedSettlementAgent(d) {
+  const parts = (d && Array.isArray(d.participants)) ? d.participants : [];
+  const row = parts.find((p) => p && !p.removed && p.role === 'Licensed Settlement Agent');
+  if (!row) return { id: '', name: '' };
+  const c = row.contact || {};
+  const name = teamName(c.name || `${c.firstName || ''} ${c.lastName || ''}`);
+  const id = c.profileId || row.profileId || '';
+  return { id, name };
+}
 export function closingTeamCards(d) {
   const sales = (d.salesPeople || []).map((s) => ({ id: (s && s.id) || '', name: teamName(s && (s.name || `${s.firstName || ''} ${s.lastName || ''}`)) })).filter((s) => s.id || s.name);
   const salesCards = (sales.length ? sales : [{ id: '', name: '' }]).map((s) => ({ role: 'Sales Person', name: s.name, id: s.id }));
+  const pre = assignedPreprocessor(d);
+  const lsa = assignedLicensedSettlementAgent(d);
   return [
     { role: 'Processor', name: teamName(d.processorName), id: d.processorId || '' },
-    { role: 'Preprocessor', name: teamName(d.preprocessorName), id: d.preprocessorUserId || '' },
-    { role: 'Transaction Coordinator', name: teamName(d.tcName), id: d.tcUserId || '' },
-    { role: 'Licensed Settlement Agent', name: '', id: '', blankBecause: 'no-field' },
+    { role: 'Preprocessor', name: pre.name, id: pre.id },
+    { role: 'Licensed Settlement Agent', name: lsa.name, id: lsa.id },
     ...salesCards,
   ];
 }

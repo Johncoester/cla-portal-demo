@@ -65,6 +65,10 @@ hr { border: 0; border-top: 1px solid var(--line); margin: var(--s4) 0; }
 .left-bar { position: fixed; top: var(--topbar-h); left: 0; bottom: 0; width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--line); overflow-y: auto; padding: var(--s3) var(--s3) var(--s6); }
 .nav-global-wrap { list-style: none; margin: 0 0 8px; }
 .file-nav-toggle { margin: 0 0 8px; }
+/* JC-MOBILE-1 (John, Nov 23 2026 3:34 PM ET): on a phone, This File sits behind a button so it never covers the page. Desktop is unchanged. */
+.this-file-tool, .this-file-nav-head, .this-file-backdrop { display: none; }
+.this-file-nav { display: contents; }
+.this-file-nav > .nav { display: contents; }
 .right-bar { margin-left: var(--sidebar-w); padding: var(--s5) var(--s7) 72px; min-height: calc(100vh - var(--topbar-h)); max-width: calc(var(--sidebar-w) + 1440px); }
 .footer-bar { margin-left: var(--sidebar-w); background: var(--surface); border-top: 1px solid var(--line); padding: var(--s3) var(--s7); display: flex; justify-content: space-between; gap: var(--s4); font-size: var(--fs-sm); color: var(--ink-3); }
 .foot-logo { height: 20px; vertical-align: middle; margin-right: 8px; opacity: .8; }
@@ -894,6 +898,29 @@ body.theme-cards .ss-pin { background: var(--tc-side); }
   .left-bar, body.theme-cards .left-bar { display: contents; } .main-nav { background: var(--tc-side, var(--surface)); padding: 4px 12px; border-bottom: 1px solid var(--line); }
   .left-bar .logo { background: var(--surface); padding: 0 12px; } .ss-pin, body.theme-cards .ss-pin { top: var(--topbar-h); padding: 10px 12px; margin: 0; background: var(--tc-side, var(--surface)); z-index: 15; }
   .nav-more details > ul { flex-direction: row; flex-wrap: wrap; }
+}
+@media (max-width: 860px) {
+  /* JC-MOBILE-1: This File is a button in the page flow. The menu opens as a drawer and does not sit over the file. */
+  .this-file-tool { display: block; flex: 1 0 auto; list-style: none; margin: 0; padding: 0; }
+  .this-file-toggle { display: inline-flex; align-items: center; min-height: 44px; margin: 0; }
+  .this-file-nav { display: none; }
+  .this-file-nav.is-open {
+    display: flex; flex-direction: column; position: fixed; top: var(--topbar-h); left: 0; bottom: 0;
+    width: min(22rem, 88vw); z-index: 40; background: var(--surface); border-right: 1px solid var(--line);
+    box-shadow: 8px 0 24px rgba(11, 42, 69, .18); overflow-y: auto; padding: 12px 12px 24px; -webkit-overflow-scrolling: touch;
+  }
+  .this-file-nav.is-open > .nav, body.theme-cards .this-file-nav.is-open > .nav {
+    display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; width: 100%;
+  }
+  .this-file-nav.is-open > .nav > .nav-sep:first-child { display: none; }
+  .this-file-nav-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 10px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-4); }
+  .this-file-nav-close { margin: 0; min-height: 44px; text-transform: none; letter-spacing: 0; font-weight: 600; }
+  .this-file-backdrop:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 35; background: rgba(11, 42, 69, .4); }
+  body.this-file-nav-open { overflow: hidden; }
+}
+@media (max-width: 860px) {
+  /* JC-MOBILE-2 (John, Nov 23 2026 3:34 PM ET): on a phone the order header scrolls away with the page instead of staying pinned. */
+  .order-header, body.theme-cards .order-header { position: static; top: auto; z-index: auto; }
 }
 
 /* ---------- FILE TASKS TAB: one box per side (John, Nov 4 2026). Soft tints, dark ink labels (all >= 7:1 on their tint). ---------- */

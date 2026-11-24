@@ -4,8 +4,8 @@
 //  d.agentProfiles {profileId: {cellPhone, officePhone, brokerage, licenseNumber, street, city, state, zip, otherContact, photo (data URL), photoShape, updatedAt}}
 //  d.agentBirthMD  {profileId: 'MM-DD'}  (month / day only; kept apart like d.agentBirthdates, the existing optional birthdate it reuses)
 // NOTHING IS SENT. createAgentInvite / resendAgentInvite return the one-time link path; the page shows it for staff to copy.
-import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611249900';
-import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611247700';
+import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611302000';
+import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611302300';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const fromNow = (n) => new Date(Date.now() + n * 864e5).toISOString();
@@ -28,12 +28,12 @@ export function ensureAgentInvites(d) {
 export function agentInvitePart(x) {
   const { load, save, nid, needUser, fail, prof, contactOf, dealsFor, clone, now, sess, SESSION_KEY, log } = x;
   const db = () => ensureAgentInvites(load());
-  const needInviter = () => { const u = needUser(); if (!canInviteAgents(u)) fail('Only CLA staff (Processor, Preprocessor, Sales Person, Sales Team, Admin) can invite people to the portal.'); return u; };
+  const needInviter = () => { const u = needUser(); if (!canInviteAgents(u)) fail('Only CLA staff (Processor, Preprocessor, Sales Person, Sales Team, Transaction Coordinator, Admin, or Super admin) can invite people to the portal.'); return u; };
   const linkOf = (inv) => '#/agent-invite/' + inv.token;
   const row = (inv, withLink) => { const st = inviteStatus(inv, now()); return { id: inv.id, contactId: inv.contactId, dealId: inv.dealId, fileNumber: ((db().deals.find((z) => z.id === inv.dealId) || {}).fileNumber) || '',
     firstName: inv.firstName, lastName: inv.lastName, email: inv.email, status: st, createdAt: inv.createdAt, createdByName: x.nameOf(inv.createdBy), expiresAt: inv.expiresAt, acceptedAt: inv.acceptedAt,
     revokedAt: inv.revokedAt, resentCount: inv.resentCount || 0, inviteKind: inv.inviteKind || 'agent', sentAt: inv.sentAt || null, sentTo: inv.sentTo || '', sendCount: inv.sendCount || 0, sendError: inv.sendError || '', ...(withLink && st === 'pending' ? { link: linkOf(inv) } : {}) }; };
-  const tcScope = () => true;   // TCs cannot invite at all (needInviter refuses them), so every inviter sees every invite
+  const tcScope = () => true;   // every CLA staff inviter (including a Transaction Coordinator) sees every invite
   const byToken = (t) => db().agentInvites.find((i) => i.token && i.token === String(t || ''));
   const mdOf = (pid) => { const d = db(); const v = d.agentBirthMD[pid]; if (v) { const [m, dd] = v.split('-').map(Number); return { birthMonth: m, birthDay: dd }; } return monthDayFromBirthdate((d.agentBirthdates || {})[pid]); };
   const fullProfile = (pid) => { const d = db(); const p = prof(pid); const a = d.agentProfiles[pid]; if (!p || !a) return null;

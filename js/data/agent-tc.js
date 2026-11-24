@@ -5,7 +5,7 @@
  * "Transaction coordinator". Buyer Agent TC and Listing Agent TC stay the stored roles.
  * The old role name Transaction Coordinator is not offered when adding someone.
  * A file that already has that role still keeps the row. */
-import { AGENT_TC_TYPE } from './constants.js?v=202611247700';
+import { AGENT_TC_TYPE } from './constants.js?v=202611302300';
 import { sameContactOrEmail } from './agent-tc-links.js?v=202611248300';
 
 export const BUYER_AGENT_TC = 'Buyer Agent TC';
@@ -177,6 +177,22 @@ export function tcSideProblem({ hasPerson, linkedRoles, choice, choices }) {
   if (!(choices || []).length) return TC_NEED_AGENT;
   if (!tcRoleFromChoice(choice, choices)) return TC_CHOOSE_AGENT;
   return '';
+}
+
+/* FF-108 (Francis, Nov 23 2026): adding a coordinator on Contacts for a chosen agent also links them to that agent
+ * (agent_tc_links, the same link the agent's contact record makes). Without the link the file showed them as that side's TC,
+ * but "Only communicate with TC" could not be ticked (it needs a TC linked to the agent). Already linked: nothing more to do.
+ * Returns { roles, linkProblem }: a link refusal does not undo the add; the page shows it in plain words. */
+export async function saveAgentTcOnFile(api, dealId, contactId, { linkedRoles, choice, choices }) {
+  const roles = tcRolesToSave({ linkedRoles, choice, choices });
+  for (const role of roles) {
+    try { await api.addParticipant(dealId, contactId, role); }
+    catch (err) { if (!isAlreadyTcMessage(err && err.message)) throw err; }
+  }
+  // TC-ONLY-3: no separate link call. Saving the role on the file links the coordinator to that side's agent on the server
+  // (private.link_tcs_from_file, TC-ASSIGN-1; the demo portal does the same), and the server skips Refinance files on purpose.
+  const linkProblem = '';
+  return { roles, linkProblem };
 }
 
 export function isAlreadyTcMessage(message) {

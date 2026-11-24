@@ -11,7 +11,7 @@
 // wires never shown to agents.
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611161500';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
-import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611247700';
+import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611302300';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611247700';
 import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611243801';
@@ -30,7 +30,7 @@ import { readEarnest } from '../data/earnest-commission.js?v=202611246500';
 import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611247700';
 import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611246500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
-import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, partyProblemLine, placeOrderTcChoices, roleForPartyField, selfTcOnOrderProblem, tcRolesFromLinks, tcRolesToSave, tcSideProblem, uniqueProblems } from '../data/agent-tc.js?v=202611248300';
+import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, partyProblemLine, placeOrderTcChoices, roleForPartyField, selfTcOnOrderProblem, tcRolesFromLinks, tcRolesToSave, tcSideProblem, uniqueProblems } from '../data/agent-tc.js?v=202611301500';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611247700';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;

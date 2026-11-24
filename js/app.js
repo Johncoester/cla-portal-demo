@@ -1,11 +1,11 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611301452';
+import { getAdapter } from './data/adapter.js?v=202611310000';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611301300';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611302300';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611300430';
-import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611247700';
+import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611302300';
 import { canUseCrm } from './data/crm.js?v=202611247700';
 import { canManageRoleAccess } from './data/role-access.js?v=202611100100';
 import { canUseGmail } from './data/gmail-email.js?v=202611191000';
@@ -15,11 +15,11 @@ import { phaseOf } from './data/agent-portal.js?v=202611247700';
 import { scheduleNavLines } from './data/scheduling-details.js?v=202611247700';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611247700';
-import { canInviteAgents } from './data/agent-profile.js?v=202611249900';
-import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611249900';
+import { canInviteAgents } from './data/agent-profile.js?v=202611302000';
+import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611302000';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611247700';
-import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611291500';   // John, Nov 4: one locked login link per fake user
+import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611302000';   // John, Nov 4: one locked login link per fake user
 import { isFeedbackPilot } from './data/staff-feedback.js?v=202611080400';
 import { syncStaffFeedbackWidget, openStaffFeedbackPanel, hideStaffFeedbackPanel } from './pages/staff-feedback-widget.js?v=202611082000';
 import { botRegistry } from './data/bot-registry.js?v=202611080400';
@@ -44,13 +44,13 @@ export function useRouteLoader(next) {
 }
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
-  login: () => loadRoute(() => import('./pages/entry.js?v=202611291500')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611301300')),
+  login: () => loadRoute(() => import('./pages/entry.js?v=202611302000')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611302200')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
-  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611248300')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611301300')),
+  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611301500')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611302300')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611289960')),
-  profile: () => loadRoute(() => import('./pages/profile.js?v=202611249900')),
+  profile: () => loadRoute(() => import('./pages/profile.js?v=202611302000')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
   templates: () => loadRoute(() => import('./pages/templates.js?v=202611247700')),
@@ -58,22 +58,22 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611247700')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611247700')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611301300')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611302200')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611247700')),   // MF-056 buyer / seller scheduling link (no sign-in)
-  crm: () => loadRoute(() => import('./pages/crm.js?v=202611301000')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
+  crm: () => loadRoute(() => import('./pages/crm.js?v=202611302100')),   // John, Nov 2: the CRM. Only reachable when the `crm` feature flag is on (features.js)
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611247700')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
-  'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611249900')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611249900')),     // the agent's one-time setup link (no sign-in)
+  'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611302000')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
+  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611302000')),     // the agent's one-time setup link (no sign-in)
   underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611247900')),
   'tax-rates': () => loadRoute(() => import('./pages/tax-rates.js?v=202611247700')),
-  hr: () => loadRoute(() => import('./pages/hr.js?v=202611249900')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
+  hr: () => loadRoute(() => import('./pages/hr.js?v=202611302000')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
   'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611247700')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
-  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611291500')),   // John, Nov 9: Admin > Email Templates (file Email tab)
-  'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611301452')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
+  'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611302000')),   // John, Nov 9: Admin > Email Templates (file Email tab)
+  'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611310000')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
   demo: () => loadRoute(() => import('./pages/demo-view.js?v=202611161500')),   // permanent Demo mode: Super admin views a seeded demo user
   'voice-demo': () => loadRoute(() => import('./pages/voice-demo.js?v=202611161500')),   // signed-in Live Test only; the header Voice test panel is the test, this route is not a file
   'staff-feedback': () => loadRoute(() => import('./pages/staff-feedback.js?v=202611161500')),};
@@ -215,6 +215,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
   }) : '';
   const dealNav = deal && pureBuyer ? html`<li class="nav-sep">This file</li>${link('overview', 'Overview', 'orders')}${tasksNav}${link('inbox', 'Messages', 'inbox')}${link('documents', 'Documents', 'documents')}${link('closing', 'Closing appointment', 'task')}${link('activity', 'Activity', 'activity')}`
     : deal ? html`<li class="nav-sep">This file</li>${fileHead}${(api.features || {}).accounting && acctCanRead(u) && modOn('accounting') ? orderNav : legacyFile}` : '';   // FF-103: Accounting readers get the rearranged file menu. Everyone else keeps the shorter menu.
+  const thisFileNav = dealNav ? html`<li class="this-file-tool"><button type="button" class="ghost this-file-toggle" data-this-file-toggle aria-expanded="false" aria-controls="this-file-nav">This File</button></li><li class="this-file-nav" id="this-file-nav" data-this-file-nav tabindex="-1"><div class="this-file-nav-head"><span>This File</span><button type="button" class="ghost this-file-nav-close" data-this-file-close aria-label="Close This File menu">Close</button></div><ul class="nav nav-pills">${dealNav}</ul></li>` : '';   // JC-MOBILE-1 (John, Nov 23 2026 3:34 PM ET): on a phone the file menu starts behind This File
   // Inside a file the portal menu starts closed for every role. The file name and file tabs stay. The button only shows or hides that menu.
   const fileNav = !!deal;
   const contact = isStaff(u.role) || hrOnly(u) ? '' : html`<li class="nav-item"><a class="nav-link contact-us ${route.page === 'contact-us' ? 'active' : ''}" href="#/contact-us"${tip('Contact Us')}>${lbl('contact-us', 'Contact Us')}</a></li>`;
@@ -247,7 +248,7 @@ async function layout(u, view, route, ws = 'everything', prep = {}) {
         <ul class="user-dd" hidden><li><a href="#/profile">Profile Setting</a></li>${demoMenu(u)}${sessionStorage.getItem(LOCK_KEY) ? html`<li class="muted" data-locked-note>${VIEW_AS && VIEW_AS.viewing ? `Viewing as this person from ${VIEW_AS.owner.firstName} ${VIEW_AS.owner.lastName}'s admin link` : 'Test link: signed in as this person only'}</li>` : raw('<li><a href="#" data-signout>Logout</a></li>')}</ul></div>
     </div></div></div>
   <div class="wrapper-main">
-    <div class="left-bar">${deal ? orderPin() : sideSearchOn ? mainPin() : ''}<div class="logo">${sidebarHead}</div>${fileNav ? html`<button type="button" class="ghost file-nav-toggle" data-file-nav-toggle aria-expanded="false" aria-controls="global-nav">Show portal menu</button>` : ''}<div class="main-nav"><ul class="nav nav-pills"${fileNav ? raw(' data-order-only-nav') : ''}>${fileNav ? html`<li class="nav-global-wrap" id="global-nav" data-global-nav hidden><ul class="nav nav-pills">${core}${contact}</ul></li>${dealNav}` : sideSearchOn && !isStaff(u.role) ? moreWrap(u, html`${core}${contact}`) : html`${core}${contact}`}</ul></div></div>
+    <div class="left-bar">${deal ? orderPin() : sideSearchOn ? mainPin() : ''}<div class="logo">${sidebarHead}</div>${fileNav ? html`<button type="button" class="ghost file-nav-toggle" data-file-nav-toggle aria-expanded="false" aria-controls="global-nav">Show portal menu</button>` : ''}<div class="main-nav"><ul class="nav nav-pills"${fileNav ? raw(' data-order-only-nav') : ''}>${fileNav ? html`<li class="nav-global-wrap" id="global-nav" data-global-nav hidden><ul class="nav nav-pills">${core}${contact}</ul></li>${thisFileNav}` : sideSearchOn && !isStaff(u.role) ? moreWrap(u, html`${core}${contact}`) : html`${core}${contact}`}</ul></div>${fileNav ? html`<div class="this-file-backdrop" data-this-file-backdrop hidden></div>` : ''}</div>
     <div class="right-bar">
       <h1 class="welcome-title" data-site-name="CLA Portal Live Test">Welcome ${u.firstName} ${u.lastName} to CLA Portal Live Test</h1>
       ${view.crumbs ? html`<ol class="breadcrumb"><li><a href="#${homeFor(u)}"><img src="assets/img/bread-home.png" alt="">Home</a></li>${view.crumbs.map(([label, href], i) => html`<li class="${i === view.crumbs.length - 1 ? 'active' : ''}">${href ? html`<a href="${href}">${label}</a>` : label}</li>`)}</ol>` : ''}
@@ -671,6 +672,24 @@ function wireFileNav() {
   btn.addEventListener('click', (e) => { e.preventDefault(); apply(box.hidden); });
   wireFileFolds();
 }
+function wireThisFileNav() {
+  const btn = $('[data-this-file-toggle]'); const panel = $('[data-this-file-nav]'); const back = $('[data-this-file-backdrop]'); const closeBtn = $('[data-this-file-close]');
+  if (!btn || !panel) return;
+  const setOpen = (open) => {
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    panel.classList.toggle('is-open', open);
+    if (back) back.hidden = !open;
+    document.body.classList.toggle('this-file-nav-open', open);
+    if (open) { if (closeBtn) closeBtn.focus(); else panel.focus(); }
+    else btn.focus();
+  };
+  setOpen(false);
+  btn.addEventListener('click', (e) => { e.preventDefault(); setOpen(btn.getAttribute('aria-expanded') !== 'true'); });
+  if (closeBtn) closeBtn.addEventListener('click', (e) => { e.preventDefault(); setOpen(false); });
+  if (back) back.addEventListener('click', () => setOpen(false));
+  panel.addEventListener('click', (e) => { if (e.target.closest('a.nav-link')) setOpen(false); });
+  panel.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false); } });
+}
 function syncFeedback(person) {
   syncStaffFeedbackWidget({ user: person || null, demoActive: !!(DEMO_VIEW && DEMO_VIEW.active), viewingAs: !!(VIEW_AS && VIEW_AS.viewing), getApi: getAdapter });
 }
@@ -679,14 +698,14 @@ function wireChrome(u) {
   wireBots();
   prepareVoiceShell({ userId: u && u.id, dealId: shellDeal && shellDeal.id });   // another file, person or role stops the microphone
   getAdapter().then((api) => mountVoiceChrome($('#app'), { api, deal: voiceMenuOn() ? voiceDeal(shellDeal) : null, enabled: voiceMenuOn() }));
-  wireFileNav(); wireViewAs(); startHeartbeat(u);
+  wireFileNav(); wireThisFileNav(); wireViewAs(); startHeartbeat(u);
   const stop = $('[data-view-as-stop]');
   if (stop) stop.addEventListener('click', async (e) => { e.preventDefault(); stopVoiceNow(); const api = await getAdapter(); if (api.stopDemoView) { try { await api.stopDemoView(); } catch (err) { toast(err.message); return; } } if (demoTimer) clearTimeout(demoTimer); location.hash = '#/dashboard'; render(); });
   if (demoTimer) clearTimeout(demoTimer);
   if (DEMO_VIEW && DEMO_VIEW.active && DEMO_VIEW.expiresAt) { const ms = new Date(DEMO_VIEW.expiresAt).getTime() - Date.now(); demoTimer = setTimeout(() => render(), Math.min(Math.max(ms + 250, 1000), 30 * 60 * 1000)); }
   getAdapter().then((api) => { if (crmSearchOn(u, api) && $('[data-global-search]')) {
-    import('./pages/crm-search.js?v=202611301000').then((m) => m.wireHeaderSearch(api));
-    import('./pages/crm-janine.js?v=202611301000').then((m) => m.mountHeaderCreate(u));
+    import('./pages/crm-search.js?v=202611302100').then((m) => m.wireHeaderSearch(api));
+    import('./pages/crm-janine.js?v=202611302100').then((m) => m.mountHeaderCreate(u));
   } });
   const btn = $('[data-usermenu]'); const dd = $('.user-dd');
   if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); dd.hidden = !dd.hidden; });
