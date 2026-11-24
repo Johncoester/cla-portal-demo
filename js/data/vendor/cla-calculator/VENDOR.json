@@ -1,6 +1,6 @@
 {
   "repo": "github.com/Johncoester/cla-closing-cost-calculator",
-  "commit": "334679c (merged with 84c2fc4)",
+  "commit": "26fb43a (calculator main after PRs #3 and #2 merged)",
   "copiedOn": "2026-11-23",
   "files": {
     "calc-core.js": {

@@ -1,4 +1,4 @@
-/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit 334679c (calculator PR #3, Nov 23 2026): fee-snapshot.js (embedded snapshot of the CLA Fee Tables sheet).
+/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit 26fb43a (calculator main after PR #3, Nov 24 2026): fee-snapshot.js (embedded snapshot of the CLA Fee Tables sheet).
  * READ-ONLY SOURCE: do not edit here. Copied by tools/vendor-cla-calculator.js on 2026-11-04; re-copied by hand by Claude on 2026-11-23 (PA and WV rows; WV premiums from Fidelity's WV manual)
  * Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header and the export line) is added.
  * sha256 of the copied text: ade008cbcab5af2a10298dad5d9a110e7d313636405ecc0992e0a63e4a2cc1de */

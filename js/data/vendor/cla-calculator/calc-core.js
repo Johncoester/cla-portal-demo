@@ -1,4 +1,4 @@
-/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at calculator branch claude/pa-wv-states 3f432f9 (PR #3, Nov 23 2026) merged with PR #2 84c2fc4: index.html, first <script> block up to the UI section (pure calculation code).
+/* VENDORED from cla-calculator (github.com/Johncoester/cla-closing-cost-calculator) at commit 26fb43a (calculator main after PR #3, Pennsylvania and West Virginia, and PR #2 merged Nov 24 2026): index.html, first <script> block up to the UI section (pure calculation code).
  * READ-ONLY SOURCE: do not edit here. Copied 2026-11-04 (tools/vendor-cla-calculator.js, no longer in the repo); re-copied by hand by Claude on 2026-11-15
  * (VA refinance with no payoff; Hampton Roads fee; Nov 16: MD original mortgagor note and Melissa's rate answers; Maryland tax on the loan above the price; Nov 23: Pennsylvania and West Virginia, PA municipality transfer-tax rows). Refresh with a newer calculator commit (see docs/CALCULATOR-FEES.md). Only the ES-module wrapper (this header, the import and the export line) is added.
  * sha256 of the copied text: d99914949c5c9e1305a93cf187c915e9caebf1b4757aa862b27f79abee99ccc2 */
