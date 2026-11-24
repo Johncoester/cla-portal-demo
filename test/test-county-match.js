@@ -16,10 +16,11 @@ const line = (P, re) => P.lines.find((l) => re.test(l.description));
 const near = (a, b) => Math.abs(a - b) < 0.01;
 
 // ---- the county list is the whole state, taken from the Census table the portal already ships ----
-for (const st of ['MD', 'VA', 'FL', 'DC']) {
+for (const st of ['MD', 'VA', 'FL', 'DC', 'PA', 'WV', 'MI']) {
   const census = COUNTIES.filter((x) => x.startsWith(st + '|')).map((x) => x.slice(3).replace(/ County$/, '').replace(/ city$/, ' City').replace(/^(James City|Charles City)$/, '$1 County')).sort((a, b) => a.localeCompare(b));
   ok(JSON.stringify(census) === JSON.stringify(STATE_COUNTIES[st]), `${st}: the county list is the Census list (${census.length} names)`);
 }
+ok(knownCounties(R, 'PA').length === 67 && knownCounties(R, 'WV').length === 55 && knownCounties(R, 'MI').length === 83, 'PA, WV and MI offer every county once (67, 55, 83)');
 ok(knownCounties(R, 'MD').length === 24 && knownCounties(R, 'VA').length === 133 && knownCounties(R, 'FL').length === 67, 'Place Order offers 24 Maryland, 133 Virginia and 67 Florida counties and cities, each once');
 ok(countyChoice('FL', '').names.includes('Hillsborough') && countyChoice('VA', '').names.includes('Virginia Beach City') && countyChoice('VA', '').names.includes('Fairfax') && countyChoice('VA', '').names.includes('Fairfax City'), 'the county dropdown lists Hillsborough, Virginia Beach City, Fairfax and Fairfax City');
 
