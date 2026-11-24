@@ -3616,7 +3616,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** A new notification shows up on its own in the number on the bell and in the list under the bell. Staff do not have to refresh the page.
 
-**Status: In progress.** Tracker item FF-115, row 468. Francis Santos, from the Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a. She confirmed "Both" (bell/badge and inbox/activity list) on Nov 24 2026 at 6:18 PM ET. Database file `supabase/migrations/20261131030000_notifications_realtime.sql` (rollback in `supabase/rollbacks/`). Not applied on TEST yet. Not Live until this is merged, that file is applied, and someone checks it on TEST.
+**Status: In progress.** Tracker item FF-115, row 468. Pull request: [PR 442](https://github.com/Johncoester/cla-portal-demo/pull/442). Francis Santos, from the Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a. She confirmed "Both" (bell/badge and inbox/activity list) on Nov 24 2026 at 6:18 PM ET. Database file `supabase/migrations/20261131030000_notifications_realtime.sql` (rollback in `supabase/rollbacks/`). Not applied on TEST yet. Not Live until this is merged, that file is applied, and someone checks it on TEST.
 
 **What's built**
 
