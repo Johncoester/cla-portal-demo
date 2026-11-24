@@ -2,6 +2,7 @@
 import { html, $, guard, toast } from '../ui.js?v=202611161500';
 import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611302000';
 import { STATUS_LABEL, markAgentOnboard } from '../data/agent-profile.js?v=202611302000';
+import { enhancePasswordFields } from '../data/password-toggle.js?v=202611310300';
 const shell = (inner) => html`<div class="login-page ap-signup-page"><div class="login-card ap-signup-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo">${inner}</div></div>`;
 const signInPath = (email) => { const e = String(email || '').trim(); return '/login' + (e ? '?email=' + encodeURIComponent(e) : ''); };
 export async function render({ api, params, go }) {
@@ -32,6 +33,7 @@ export async function render({ api, params, go }) {
       slot.innerHTML = '<label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password" data-invite-password></label><label>Confirm password<input type="password" name="password2" required minlength="8" autocomplete="new-password" data-invite-password-2></label><p class="field-hint">At least 8 characters. This becomes your portal password. Nothing is emailed.</p>';
       btn.parentElement.before(slot);
     }
+    enhancePasswordFields(root);
     ctl.form.addEventListener('submit', guard(async (e) => { e.preventDefault(); ctl.showErr('');
       let v; try { v = ctl.values(); v.email = inv.email;
         if (supa) { const password = ($('[data-invite-password]', ctl.form) || {}).value || ''; const again = ($('[data-invite-password-2]', ctl.form) || {}).value || '';
@@ -54,6 +56,7 @@ function clientSignup({ api, params, go, inv, supa }) {
       <div class="span2"><button class="m-btn" type="submit" data-client-submit>Create my login</button></div></form>
     <p class="muted small">${supa ? 'Nothing is emailed. This link works once' : 'FAKE DATA DEMO. In the demo nothing is emailed; this link works once'} and expires on ${new Date(inv.expiresAt).toLocaleDateString('en-US')}.</p>`;
   return { title: 'Set up your login', body: shell(inner), mount(root) {
+    enhancePasswordFields(root);
     const f = $('[data-client-signup]', root); const err = $('[data-form-err]', f);
     const show = (m) => { err.textContent = m || ''; err.hidden = !m; };
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); show('');

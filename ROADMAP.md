@@ -3611,3 +3611,30 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change. The faster search is only the page asking for the modules together and skipping reads this page does not show.
 - Rule 9 waived by John on Nov 21 for CRM items.
+
+---
+
+## Password show/hide eye (FF-110)
+
+**How it should work.** On the login screen and on the invite / set-password screens (agent invite, client invite, and HR employee invite, including the "choose a new password" reset form), every password field has an eye icon that shows or hides what was typed. The button is labeled for a screen reader, works from the keyboard, and is large enough to tap on a phone.
+
+**Status: In progress.** Tracker row 458, FF-110. Francis Santos, from Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a. She confirmed "Both" (login and invite / set-password) on Nov 24 2026, 6:18 PM ET via Francis Feedback. No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- A show/hide button is added to each password field on those screens, including Confirm password.
+- The field starts hidden. The button says "Show password" or "Hide password", can be reached with the keyboard, and has a 44-pixel tap target.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/ff-110-password-toggle.md](docs/specs/ff-110-password-toggle.md)
+
+**Decisions**
+
+- Francis, Nov 24 2026 6:18 PM ET: the eye appears on both the login screen and the invite / set-password screen.
+- The e2e Gmail setup fields (Google client ID and secret) are not portal password fields and are unchanged.
+
