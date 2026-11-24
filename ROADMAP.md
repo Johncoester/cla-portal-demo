@@ -1251,6 +1251,30 @@ This file lists the portal's major features: how each one should work, how far a
 
 - Spec: [docs/specs/recording-calculator-pa-wv.md](docs/specs/recording-calculator-pa-wv.md)
 - Source: John Coester, Nov 23 2026 (voice).
+
+## Recording calculator fills in fees by itself (REC-CALC-9)
+
+**How it should work.** Opening a file fills in its fees from CLA rates once the order has the basics. Staff don't press Calculate fees.
+
+**Status: Built, not merged (Nov 24 2026).** John Coester, Nov 24 2026 (voice), assigned to Claude. No database file.
+
+**What's built**
+
+- Fees fill in once the order has: state, county, purchase or refinance, and price or loan. In MD and DC it also needs primary residence and first-time buyer.
+- A purchase starts with one release, because payoffs aren't known yet.
+- Fees fill in again when the price, loan, county, type or answers change. Lines changed by hand are kept.
+- Closed or cancelled files and older files with hand-typed fees are left alone.
+- The Accounting card says what was filled in, or what the order still needs.
+- Uses the live rate sheet.
+
+**What's still missing**
+
+- Nothing.
+
+**Links**
+
+- Spec: [docs/specs/recording-calculator-auto-fill.md](docs/specs/recording-calculator-auto-fill.md)
+- Source: John Coester, Nov 24 2026 (voice).
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.

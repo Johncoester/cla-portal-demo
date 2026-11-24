@@ -42,6 +42,8 @@ export async function render({ api, deal: fileDeal, user }) {
   if (PAYOFF_VIEWS.includes(view) && !canReachPayoffs(user)) throw new Error('That section is not available for your account.');   // live28: same rule as the route guard
   const showRetired = q.get('retired') === '1'; const base = `#/deals/${deal.id}/accounting`;
   if (view === 'alta' || view === 'cd') deal = await withStatementParties(api, deal);   // the statements name the buyer, seller, lender and agents
+  // REC-CALC-9: fees fill in by themselves once the order has the basics; staff who can't edit the ledger just get null here
+  const auto = api.autoFillFees ? await api.autoFillFees(deal.id).catch(() => null) : null;
   const acc = await api.getAccounting(deal.id, { includeRetired: showRetired });
   const T = acc.totals; const B = acc.refi ? 'Borrower' : 'Buyer / borrower';
   const showFunding = !!((api.features || {}).funding && fwpCanRead(user) && modOn('funding'));
@@ -89,13 +91,13 @@ export async function render({ api, deal: fileDeal, user }) {
   else if (view === 'prorations') v = await prorationsView(api, deal, acc, base);
   else if (view === 'history') v = await historyView(api, deal);
   else if (view === 'receipts' || view === 'disbursements' || view === 'balances' || view === 'balancing') v = { body: booksHtml(view, acc, base) };
-  else v = await ledgerView(api, deal, acc, showRetired, base);
+  else v = await ledgerView(api, deal, acc, showRetired, base, auto);
   const pageName = bookName || 'Accounting';
   return { title: pageName, crumbs: [[pageName]], body: html`<section class="acct qc-shell-wrap" data-accounting data-acct-view="${view}">${head}${view === 'postclosing' ? html`<nav class="tt-tabs"><a href="${base}" class="active">Accounting</a><a href="${base}?v=postclosing" class="active">Post-Closing Scanbacks &amp; E-Recording</a></nav>` : ''}<div class="qc-shell qc-shell-open"><div class="qc-body">${bookTabs}${view === 'postclosing' ? '' : view === 'ledger' || view === 'prorations' ? balance : ''}${v.body}</div></div></section>`, mount: v.mount || (() => {}) };
 }
 
 // ---------------- ledger + add / edit form ----------------
-async function ledgerView(api, deal, acc, showRetired, base) {
+async function ledgerView(api, deal, acc, showRetired, base, auto = null) {
   // John, Nov 3 call: the state's underwriter split, shown on title premium lines (CLA portion vs underwriter portion)
   const uw = api.listUnderwriterSplits ? await api.listUnderwriterSplits().then((r) => splitFor(r.rows, deal.state), () => 'hidden') : null;   // TCs: no underwriter split (Caroline, Nov 4: TCs read-only)
   const presets = acc.canEdit ? await api.listAccountingPresets(deal.id) : [];
@@ -119,7 +121,7 @@ async function ledgerView(api, deal, acc, showRetired, base) {
   const form = acc.canEdit ? feeForm(acc, groups) : html`<p class="notice info" data-readonly-note>${READ_ONLY_NOTE}</p>`;
   const nCalc = acc.entries.filter((e) => e.calc && !e.retired); const nOver = nCalc.filter((e) => e.overridden).length;
   const calcCard = acc.canEdit ? html`<div class="card acct-calc acct-noprint" data-calc-card><div class="acct-card-head"><h3>CLA rates</h3><span class="muted small" data-calc-status>${nCalc.length ? `${nCalc.length} line${nCalc.length === 1 ? '' : 's'} from CLA rates${nOver ? ` · ${nOver} overridden` : ''}` : 'No fees from CLA rates yet'}</span></div>
-      <p class="small muted">Title premiums, endorsements, CLA settlement fees, recording fees and transfer / recordation taxes from the CLA quote calculator's rates for this order. You see a preview first; nothing changes until you apply. Lines you changed by hand are kept.</p>
+      ${autoNoticeHtml(auto)}<p class="small muted">Title premiums, endorsements, CLA settlement fees, recording fees and transfer / recordation taxes from the CLA quote calculator's rates for this order. They fill in by themselves when the file is opened and the order has the basics, and again when the price, loan, county or answers change. To change the options (endorsements, documents, policy type), use the button: you see a preview first. Lines you changed by hand are kept.</p>
       <button class="m-btn" type="button" data-calc-open>Calculate fees from CLA rates</button><div class="acct-calc-panel" data-calc-panel hidden></div></div>` : '';
   const body = html`<div class="acct-grid">${calcCard}${form}
     <div class="card acct-ledger-card"><div class="acct-card-head"><h3>Fee ledger</h3><a class="linkish acct-noprint" data-toggle-retired href="${base}?v=ledger${showRetired ? '' : '&retired=1'}">${showRetired ? 'Hide retired' : `Show retired (${acc.retiredCount})`}</a></div>${table}
@@ -263,6 +265,13 @@ function calcPreview(P, refi) {
     ${P.examples.length ? html`<label class="check small acct-calc-examples" data-calc-examples-wrap><input type="checkbox" data-calc-examples checked> Also retire ${P.examples.length} EXAMPLE fee${P.examples.length === 1 ? '' : 's'} these replace: ${P.examples.map((x) => `${x.description} (${m2z(x.amount)})`).join(', ')}</label>` : ''}
     <div class="acct-form-actions"><button class="m-btn" type="button" data-calc-apply>Apply changes</button><span class="muted small" data-calc-apply-note>New and changed lines are tagged ${CALC_TAG}; retired lines are kept in the history. Every change is logged.</span></div></div>`;
 }
+// REC-CALC-9: what the automatic fill did (or what the order still needs)
+export function autoNoticeHtml(auto) {
+  if (!auto) return '';
+  if (auto.applied && (auto.added || auto.updated || auto.retired)) return html`<p class="notice ok small" data-auto-fill="applied">Fees filled in by themselves from CLA rates just now: ${auto.added} added, ${auto.updated} updated${auto.retired ? `, ${auto.retired} retired` : ''}${auto.kept ? `, ${auto.kept} changed by hand kept` : ''}. A purchase starts with one release; fix the documents with the button below once title is in.</p>`;
+  if (!auto.ready && auto.reason) return html`<p class="notice info small" data-auto-fill="waiting">${auto.reason}</p>`;
+  return '';
+}
 function mountCalc(root, api, deal, acc, refresh) {
   const card = $('[data-calc-card]', root); if (!card) return; const panel = $('[data-calc-panel]', card); const go = () => (refresh ? refresh() : location.reload());
   const refi = acc.refi; let setup = null;
@@ -276,7 +285,7 @@ function mountCalc(root, api, deal, acc, refresh) {
     if (!setup.covered) { panel.innerHTML = toText(html`${rateNoteHtml(setup)}<p class="notice warn" data-calc-not-ready>${setup.reason}</p>`); return; }
     panel.innerHTML = toText(calcOptionsForm(setup)); const f = $('[data-calc-form]', panel); const out = $('[data-calc-result]', panel);
     f.addEventListener('submit', guard(async (e) => { e.preventDefault(); const opts = read(f); const errEl = $('[data-docs-error]', f);
-      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611290310'); const problem = recordingDocsProblem(opts.docs);
+      const { recordingDocsProblem } = await import('../data/fee-engine.js?v=202611301700'); const problem = recordingDocsProblem(opts.docs);
       $$('[data-doc]', f).forEach((el) => el.removeAttribute('aria-invalid'));
       if (problem) { errEl.hidden = false; errEl.textContent = problem.message; const bad = $(`[data-doc="${problem.name}"][data-doc-part="${problem.part}"]`, f); if (bad) { bad.setAttribute('aria-invalid', 'true'); bad.focus(); } out.innerHTML = ''; return; }
       errEl.hidden = true; errEl.textContent = ''; const P = await api.previewCalculatedFees(deal.id, opts);
