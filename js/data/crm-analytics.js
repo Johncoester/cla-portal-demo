@@ -451,6 +451,13 @@ export function dashboardEditable(u, d, readOnly = false) {
   if (readOnly) return false; if (d.builtin) return !!u.isAdmin; if (d.ownerId === u.id) return true;
   return !d.locked && d.visibility !== 'me' && dashboardVisible(u, d);
 }
+// RPT-3a (John, Nov 22 2026): who may change a saved report. A read-only CRM role (Processor, Preprocessor) builds and
+// saves reports in their own folder only; everyone else keeps the rule they had (the maker, or an Admin).
+export function reportEditable(u, r, readOnly = false) {
+  if (!u || !r) return false;
+  if (readOnly) return !!r.personal && r.createdBy === u.id;
+  return !!u.isAdmin || r.createdBy === u.id;
+}
 export function reportVisible(u, r) {
   if (r.createdBy === u.id || u.isAdmin) return true; const s = r.share || { mode: 'all' }; if (s.mode !== 'custom') return true;
   return (s.users || []).includes(u.id) || (s.roles || []).includes(roleKeyOf(u));
