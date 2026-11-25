@@ -44,7 +44,7 @@ export function useRouteLoader(next) {
 }
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
-  login: () => loadRoute(() => import('./pages/entry.js?v=202611302000')),
+  login: () => loadRoute(() => import('./pages/entry.js?v=202611310300')),
   dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611302200')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611301500')),
@@ -66,11 +66,11 @@ const pages = {
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611247700')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611302000')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611302000')),     // the agent's one-time setup link (no sign-in)
+  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611310300')),     // the agent's one-time setup link (no sign-in)
   underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611247900')),
   'tax-rates': () => loadRoute(() => import('./pages/tax-rates.js?v=202611247700')),
   hr: () => loadRoute(() => import('./pages/hr.js?v=202611302000')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)
-  'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611161500')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
+  'hr-invite': () => loadRoute(() => import('./pages/hr-invite.js?v=202611310300')),   // the employee's one-time login setup link (no sign-in; nothing sent)   // John, Nov 3 call: per-state underwriter split (Admin / Super admin)
   offices: () => loadRoute(() => import('./pages/offices.js?v=202611247700')),   // John, Nov 4: Admin > Offices (the closing office picker reads them)
   'admin/email-templates': () => loadRoute(() => import('./pages/email-templates.js?v=202611302000')),   // John, Nov 9: Admin > Email Templates (file Email tab)
   'task-builder': () => loadRoute(() => import('./pages/task-builder.js?v=202611310000')),   // John, Nov 13: Admin > Task Builder (Admin / Super admin; TB-1 list of flows)
