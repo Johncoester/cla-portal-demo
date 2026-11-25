@@ -2,6 +2,7 @@ import { raw, html, $, guard, options, esc } from '../ui.js?v=202611161500';
 import { roleLabel, fileRolesLabel, isOutside, accountTypeLabel } from '../data/constants.js?v=202611302300';
 import { devPickerOn, PLAIN_URL_NOTICE } from '../data/locked-links.js?v=202611302000';
 import { clearSessionWs } from '../workspace.js?v=202611247700';
+import { enhancePasswordFields } from '../data/password-toggle.js?v=202611310300';
 
 export async function render({ api, go }) {
   // Supabase mode is a real login. No person picker, no ?as= identity, no sign-up.
@@ -26,6 +27,7 @@ export async function render({ api, go }) {
 }
 
 function wireLogin(root, api, go) {
+  enhancePasswordFields(root);
   const login = $('#login-form', root);
   if (login) login.addEventListener('submit', guard(async (e) => {
     e.preventDefault(); const f = new FormData(e.target); const err = $('[data-form-err]', root); err.textContent = '';
