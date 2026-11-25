@@ -7,6 +7,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { pendingMine } from '../data/task-actions.js?v=202611269900';
 import { unassignedOpen } from '../data/processor-assign.js?v=202611091600';
 import { workQueueFrom, DASHBOARD_PAGE } from '../data/dashboard-load.js?v=202611291400';
+import { emdHolderDisplay } from '../data/emd-holder.js?v=202611311200';
 
 const dealLink = (d, tab = '') => html`<a href="#/deals/${d.id}/${tab}">${d.fileNumber}</a>${d.fileTitle ? html` <span class="muted small" data-file-title>${d.fileTitle}</span>` : ''}`;
 // CARD THEME (default look): a tile that repeats one of the four dashboard cards (open orders = "in Pipeline" count, overdue tasks) is not drawn;
@@ -234,7 +235,7 @@ async function outside({ api, deals, all, today }) {
         ${emdRows.length ? html`<table class="tbl striped" data-emd-table><thead><tr><th>File No</th><th>Property</th><th>EMD amount</th><th>Due date</th><th>Holder</th><th></th></tr></thead><tbody>${emdRows.map(({ deal: d, overdue }) => html`<tr data-emd-file="${d.id}" data-emd-overdue="${overdue ? 'yes' : 'no'}"><td><a href="#/deals/${d.id}">${d.fileNumber}</a></td>
           <td>${d.street ? html`${d.street},<br>${d.city}, ${d.state}, ${d.zip}` : d.address || ''}</td><td class="nowrap">${d.emdAmount != null ? fmtMoney(d.emdAmount) : html`<span class="muted">—</span>`}</td>
           <td class="nowrap ${overdue ? 'bad-text' : ''}">${d.emdDueDate ? fmtDate(d.emdDueDate) : html`<span class="muted">—</span>`}${overdue ? html` ${pill('Overdue', 'bad')}` : ''}</td>
-          <td>${d.emdHolder ? d.emdHolder : html`<span class="muted">—</span>`}</td></tr>`)}</tbody></table>`
+          <td>${d.emdHolder ? emdHolderDisplay(d.emdHolder) : html`<span class="muted">—</span>`}</td></tr>`)}</tbody></table>`
           : html`<p class="muted" data-no-emd>No outstanding or overdue EMDs.</p>`}</div>
       <div class="card" data-alta-card><h3>ALTA review needed <span class="muted small">${altaRows.length} file(s)</span></h3>
         <p class="muted small">Open files closing today through the next 2 days. This is a closing-date reminder; it does not read an ALTA status.</p>

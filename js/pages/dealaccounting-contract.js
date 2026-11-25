@@ -2,6 +2,7 @@
 import { html, raw, $, $$, guard, formData, toast, options } from '../ui.js?v=202611161500';
 import { runsOrders, isRefi, moneyShow, moneyAmount } from '../data/constants.js?v=202611302300';
 import { earnestView, readEarnest } from '../data/earnest-commission.js?v=202611246500';
+import { emdHolderSelect, wireEmdHolderFields, applyNoEmdToForm } from '../data/emd-holder.js?v=202611311200';
 import { agentFeesSummaryHtml } from './agent-fees-box.js?v=202611247700';
 import { sourceChoices, referralContacts } from '../data/place-order.js?v=202611247700';
 import { disbursementFor } from '../data/disbursement.js?v=202611190600';
@@ -16,7 +17,7 @@ function earnestAccounting(deal, user) {
     <div class="form-grid">
       ${moneyBox('emdAmount', 'EMD amount', deal.emdAmount)}
       <label>EMD due date<input type="date" name="emdDueDate" value="${deal.emdDueDate || ''}"></label>
-      <label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label>
+      ${emdHolderSelect(html, raw, ev.held, { name: 'emdHeldBy', label: 'EMD held by', aria: 'EMD held by' })}
       ${moneyBox('emdToSeller', 'Deposit already paid to the seller', ev.toSeller)}
     </div>
     <p class="muted small" data-excess-deposit-help>Fill in "Deposit already paid to the seller" only when someone other than CLA holds the deposit and has given it to the seller. It shows as Excess Deposit on the seller's side (CD line N.01), comes off the seller's proceeds, and is not counted as money CLA receives. The buyer still gets credit for the whole deposit.</p>
@@ -28,9 +29,11 @@ function mountEarnest(root, api, deal, user, refresh) {
   const form = $('[data-earnest-accounting]', root);
   if (!form || isRefi(deal)) return;
   if (!runsOrders(user)) { $$('input, select, button', form).forEach((el) => { el.disabled = true; }); return; }
+  wireEmdHolderFields(form);
   form.addEventListener('submit', guard(async (e) => {
     e.preventDefault();
     const f = formData(form);
+    applyNoEmdToForm(f);
     const earnest = readEarnest(f, { emdAmount: moneyAmount(f.emdAmount) });
     await api.updateDeal(deal.id, { emdAmount: moneyAmount(f.emdAmount), emdDueDate: f.emdDueDate || '', ...earnest });
     toast('Earnest money saved');
