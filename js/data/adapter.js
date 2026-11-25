@@ -28,7 +28,7 @@
  *               Gmail read state is per person (deal_email_reads, migration 20261110030000). If that table is not there yet, the cursor stays in this browser and the page still opens.
  *               Buyers, sellers, and agents do not receive deal_emails; their count is portal threads only.
  *   closing:    listSettlements, createSettlementRequest, getSchedulingLink(token), respondSettlement(token, ...), confirmSettlement, reopenSettlement
- *   other:      listActivity(dealId|null, filters), listNotifications (each with fileNumber + address), notificationCount, markNotificationRead, markAllNotificationsRead
+ *   other:      listActivity(dealId|null, filters), listNotifications (each with fileNumber + address), notificationCount, markNotificationRead, markAllNotificationsRead, subscribeNotifications (FF-115: Realtime or null)
  *   Matt Nov 2: listAllTasks({fileStatus}) (every task you may see, across files, each with its file), getTaskGrid({fileStatus}) (Processor / Admin only).
  *   John Nov 4 (FILE-FIRST): listMyTasks({fileStatus = 'Open'}) = my own tasks on EVERY file I am on in one list, each with its file and myRoles / myRoleLabel (my role on that file). SQL: public.my_task_list (migration 45).
  *               listDeals rows also carry partyNames + overdueTasks. Filtering / sorting / grouping / the grid layout: task-board.js (shared, pure).
@@ -78,7 +78,7 @@ export function getAdapter() {
 }
 async function loadAdapter() {
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await importWithRetry(() => import('./supabase-adapter.js?v=202611310200')); return m.createSupabaseAdapter(cfg); }
+  if (cfg.mode === 'supabase') { const m = await importWithRetry(() => import('./supabase-adapter.js?v=202611310400')); return m.createSupabaseAdapter(cfg); }
   const m = await importWithRetry(() => import('./mock-adapter.js?v=202611310000'));
   return m.createMockAdapter();
 }

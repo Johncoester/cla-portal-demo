@@ -3612,6 +3612,33 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The faster search is only the page asking for the modules together and skipping reads this page does not show.
 - Rule 9 waived by John on Nov 21 for CRM items.
 
+## Notifications appear without a refresh (FF-115)
+
+**How it should work.** A new notification shows up on its own in the number on the bell and in the list under the bell. Staff do not have to refresh the page.
+
+**Status: In progress.** Tracker item FF-115, row 468. Pull request: [PR 442](https://github.com/Johncoester/cla-portal-demo/pull/442). Francis Santos, from the Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a. She confirmed "Both" (bell/badge and inbox/activity list) on Nov 24 2026 at 6:18 PM ET. Database file `supabase/migrations/20261131030000_notifications_realtime.sql` (rollback in `supabase/rollbacks/`). Not applied on TEST yet. Not Live until this is merged, that file is applied, and someone checks it on TEST.
+
+**What's built**
+
+- The first unread count is still the one the shell already loads. The live update does not add a second read when the page first draws.
+- On TEST, after the database file is applied, the page listens for this person's rows in the notifications table (Supabase Realtime). The badge updates when a row arrives or is marked read. If the list under the bell is open, that list updates too.
+- If the listen is not available (the mock demo, or a failed listen), the page checks again every 30 seconds and pauses that check while the tab is hidden.
+- The listen is closed on logout and when the signed-in person changes, including View as.
+
+**What's still missing**
+
+- The database file is not applied on TEST yet. Do not mark Live before that and a check on TEST.
+- The Activity Log page (`#/activity`) is a different list and is not part of this item.
+
+**Links**
+
+- Spec: [docs/specs/ff-115-notification-refresh.md](docs/specs/ff-115-notification-refresh.md)
+
+**Decisions**
+
+- Prefer Realtime because staff can already read their own `notifications` rows under RLS (`notifications_select`). The migration only adds that table to the realtime publication and sets replica identity full. Who can see which notifications does not change.
+- Francis confirmed both the bell badge and the notifications list (Nov 24 2026, 6:18 PM ET).
+
 ---
 
 ## Password show/hide eye (FF-110)
