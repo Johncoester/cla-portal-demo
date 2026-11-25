@@ -3612,8 +3612,6 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The faster search is only the page asking for the modules together and skipping reads this page does not show.
 - Rule 9 waived by John on Nov 21 for CRM items.
 
----
-
 ## Documents From column shows the real sender (FF-113)
 
 **How it should work.** On a file's Documents list, the From column shows the real sender: the email's From on a document that arrived as an email attachment, and the person who uploaded it when an agent or client added it in the portal. It must not show the file processor just because the attachment landed in their mailbox.
@@ -3641,3 +3639,87 @@ This file lists the portal's major features: how each one should work, how far a
 
 - No database change and no change to `uploaded_by`. Access and sharing still use the stored uploader. The Documents list only changes what From displays.
 - Francis confirmed both cases: emailed attachments and agent or client uploads.
+
+---
+
+## Notifications appear without a refresh (FF-115)
+
+**How it should work.** A new notification shows up on its own in the number on the bell and in the list under the bell. Staff do not have to refresh the page.
+
+**Status: In progress.** Tracker item FF-115, row 468. Pull request: [PR 442](https://github.com/Johncoester/cla-portal-demo/pull/442). Francis Santos, from the Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a. She confirmed "Both" (bell/badge and inbox/activity list) on Nov 24 2026 at 6:18 PM ET. Database file `supabase/migrations/20261131030000_notifications_realtime.sql` (rollback in `supabase/rollbacks/`). Not applied on TEST yet. Not Live until this is merged, that file is applied, and someone checks it on TEST.
+
+**What's built**
+
+- The first unread count is still the one the shell already loads. The live update does not add a second read when the page first draws.
+- On TEST, after the database file is applied, the page listens for this person's rows in the notifications table (Supabase Realtime). The badge updates when a row arrives or is marked read. If the list under the bell is open, that list updates too.
+- If the listen is not available (the mock demo, or a failed listen), the page checks again every 30 seconds and pauses that check while the tab is hidden.
+- The listen is closed on logout and when the signed-in person changes, including View as.
+
+**What's still missing**
+
+- The database file is not applied on TEST yet. Do not mark Live before that and a check on TEST.
+- The Activity Log page (`#/activity`) is a different list and is not part of this item.
+
+**Links**
+
+- Spec: [docs/specs/ff-115-notification-refresh.md](docs/specs/ff-115-notification-refresh.md)
+
+**Decisions**
+
+- Prefer Realtime because staff can already read their own `notifications` rows under RLS (`notifications_select`). The migration only adds that table to the realtime publication and sets replica identity full. Who can see which notifications does not change.
+- Francis confirmed both the bell badge and the notifications list (Nov 24 2026, 6:18 PM ET).
+
+---
+
+## Password show/hide eye (FF-110)
+
+**How it should work.** On the login screen and on the invite / set-password screens (agent invite, client invite, and HR employee invite, including the "choose a new password" reset form), every password field has an eye icon that shows or hides what was typed. The button is labeled for a screen reader, works from the keyboard, and is large enough to tap on a phone.
+
+**Status: In progress.** Tracker row 458, FF-110. Francis Santos, from Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a. She confirmed "Both" (login and invite / set-password) on Nov 24 2026, 6:18 PM ET via Francis Feedback. No database file. Not Live until this is merged and someone checks it on TEST.
+
+**What's built**
+
+- A show/hide button is added to each password field on those screens, including Confirm password.
+- The field starts hidden. The button says "Show password" or "Hide password", can be reached with the keyboard, and has a 44-pixel tap target.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/ff-110-password-toggle.md](docs/specs/ff-110-password-toggle.md)
+
+**Decisions**
+
+- Francis, Nov 24 2026 6:18 PM ET: the eye appears on both the login screen and the invite / set-password screen.
+- The e2e Gmail setup fields (Google client ID and secret) are not portal password fields and are unchanged.
+
+---
+
+## CRM Send Email templates and Cc (JN-CRM-CC-1)
+
+**How it should work.** On a Client, Lead, or Company, Send Email → Insert Template offers that module's templates. Send saves the email on the record as Drafted (not sent). A Cc added in that window is kept and shows in the record's email history. A Deal has no email templates. A report has no email templates. Nothing is actually sent.
+
+**Status: In progress.** Janine Santos, TEST portal, Nov 24 2026, 6:06 PM ET. Tracker JN-CRM-CC-1 (row 470). No database file. Not Live until this is merged and someone checks it on TEST. Pull request: #441.
+
+**What's built**
+
+- The hosted Send Email window keeps the module the record page already passed (`contact` for a Client, and the same for a Lead, Company, Opportunity, or Deal). Insert Template opens that module's templates instead of saying there are no report templates.
+- A Deal still has no templates. The message says Deal. A report still says there are no report templates.
+- Cc and Bcc typed in Send Email are stored on the draft. The email history on the record shows the Cc. Opening the email shows it again. Nothing is sent.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+- An Opportunity still cannot store its own Send Email draft. The saved-email table only allows a lead, client, company, or deal. The pipeline Email button is a different window and already uses Opportunity templates. Changing that would be a database change, and this item does not include one.
+
+**Links**
+
+- Spec: [docs/specs/crm-send-email-template.md](docs/specs/crm-send-email-template.md)
+
+**Decisions**
+
+- No database change. The module was dropped in the hosted compose context, and Cc was left off the saved row. Both are fixed in the CRM hosted code only.
+- No cache stamp change. The shell stays at 202611310200.
+- Rule 9 waived by John on Nov 21 for CRM items.

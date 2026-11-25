@@ -41,6 +41,7 @@ import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-over
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611302000';
 import { staffSupabase } from './supabase-staff.js?v=202611247700';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
+import { subscribeNotificationsChannel } from './notif-live.js?v=202611310400';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611247700';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611247700';
@@ -86,6 +87,7 @@ export async function createSupabaseAdapter(cfg) {
   if (typeof localStorage !== 'undefined') { try { localStorage.removeItem('cla-portal-new:data:v30'); } catch (e) { /* a browser that blocks storage still must not load fixtures */ } }
   const { createClient } = await import(SB);
   let signedOut = false;
+  let notifUnsub = null;
   const sb = createClient(cfg.url, cfg.anonKey, {
     global: {
       fetch(input, init) {
@@ -437,7 +439,7 @@ export async function createSupabaseAdapter(cfg) {
       return lastHeld && lastHeld.id === user.id ? lastHeld : null;
     },
     authGeneration() { return ident.generation(); },
-    async signOut() { signedOut = true; dropAuth(); await sb.auth.signOut(); },
+    async signOut() { signedOut = true; if (notifUnsub) { try { notifUnsub(); } catch (e) { /* ignore */ } notifUnsub = null; } dropAuth(); await sb.auth.signOut(); },
     async resetDemoData() {},
     async getMyProfile() { return me(); },
     // John, Nov 2 (migration 23): file titles from deal_file_titles(p_deal) = the buyers' / sellers' last names the caller may see, in the order added
@@ -920,6 +922,15 @@ export async function createSupabaseAdapter(cfg) {
     async notificationCount() { const r = await sb.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null); if (r.error) throw new Error(r.error.message); return r.count || 0; },
     async markNotificationRead(id) { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', id)); },
     async markAllNotificationsRead() { ok(await sb.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)); },
+    // FF-115: Realtime on this person's notification rows. Returns an unsubscribe function, or null if the listen is not available.
+    async subscribeNotifications(onEvent) {
+      const uid = (ident.current() && ident.current().id) || '';
+      if (!uid) return null;
+      if (notifUnsub) { try { notifUnsub(); } catch (e) { /* ignore */ } notifUnsub = null; }
+      const unsub = await subscribeNotificationsChannel({ sb, userId: uid, onEvent });
+      notifUnsub = typeof unsub === 'function' ? unsub : null;
+      return notifUnsub;
+    },
     // closing: tokens come back ONCE from create/reopen (only hashes are stored), unlike the mock which keeps them
     async createSettlementRequest(dealId, { slots, location, note, officeId }) { return camel(ok(await sb.rpc('create_settlement_request', { p_deal: dealId, p_slots: slots, p_location: location || '', p_note: note || '', p_office: officeId || null }))[0]); },
     async confirmSettlement(id, slotIndex) { ok(await sb.rpc('confirm_settlement', { p_settlement: id, p_slot: slotIndex + 1 })); },

@@ -270,6 +270,13 @@ ul.checklist li.warn-text::before { content: '!'; background: var(--warn-bg); co
 .login-left { max-width: 340px; } .login-left h1 { font-size: 32px; line-height: 1.2; margin-bottom: 14px; color: var(--navy-950); font-weight: 600; } .login-left p { color: var(--ink-3); }
 .login-card { width: 400px; max-width: 94vw; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 32px; box-shadow: var(--sh-3); text-align: center; }
 .login-logo { height: 52px; } .login-card h2 { margin-top: 10px; font-size: var(--fs-xl); } .stack { display: flex; flex-direction: column; gap: 12px; text-align: left; } .login-foot { font-size: var(--fs-sm); margin-bottom: 0; color: var(--ink-3); }
+/* FF-110: show/hide eye inside password fields on login and invite / set-password screens. */
+.password-field { position: relative; display: block; width: 100%; }
+.password-field input { min-height: 44px; padding-right: 44px; box-sizing: border-box; }
+.password-toggle { position: absolute; top: 0; right: 0; width: 44px; min-width: 44px; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; color: var(--ink-3); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r); }
+.password-toggle:hover, .password-toggle:focus-visible { color: var(--navy-600); }
+.password-toggle:focus-visible { outline: 2px solid var(--navy-600); outline-offset: -2px; }
+.password-toggle svg { width: 20px; height: 20px; display: block; pointer-events: none; }
 /* ---------- notifications ---------- */
 button.bell { background: none; border: 0; padding: 0; cursor: pointer; }
 .notif-wrap { position: relative; display: inline-block; }

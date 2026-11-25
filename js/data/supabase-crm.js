@@ -401,11 +401,13 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async saveCrmEmail(input = {}) {
       on(); const u = await me(); const entity = String(input.entity || '');
       if (!['lead', 'contact', 'account', 'deal'].includes(entity)) throw new Error('Email drafts are stored for a lead, client, company, or deal. An opportunity draft is stored on its client.');
-      const to = [...new Set((Array.isArray(input.to) ? input.to : String(input.to || '').split(/[,;\s]+/)).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+      const addresses = (v) => [...new Set((Array.isArray(v) ? v : String(v || '').split(/[,;\s]+/)).map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+      const to = addresses(input.to);
       if (!to.length) throw new Error('Add at least one To address.');
+      const cc = addresses(input.cc); const bcc = addresses(input.bcc);
       const subject = String(input.subject || '').replace(/[\r\n]/g, ' ').trim();
       if (!subject) throw new Error('Subject is required.');
-      const row = ok(await sb.from('crm_emails').insert({ entity, entity_id: input.entityId, from_email: String(u.email || '').toLowerCase(), to_emails: to, cc_emails: [], bcc_emails: [], subject: subject.slice(0, 250), body_html: String(input.html || '').slice(0, 200000), status: 'drafted', scheduled_at: null, created_by: u.id }).select('id, status').single());
+      const row = ok(await sb.from('crm_emails').insert({ entity, entity_id: input.entityId, from_email: String(u.email || '').toLowerCase(), to_emails: to, cc_emails: cc, bcc_emails: bcc, subject: subject.slice(0, 250), body_html: String(input.html || '').slice(0, 200000), status: 'drafted', scheduled_at: null, created_by: u.id }).select('id, status').single());
       return { id: row.id, status: 'drafted', emailed: false };
     },
     // Janine, Nov 10: Manage columns follows the login (public.user_ui_prefs). One row per person per list.
