@@ -3808,3 +3808,28 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-070.
 
 - The ID task is shared, so the passport "one image" rule applies to sellers as well as buyers.
 - The back field uses a `when` list (license, state ID, military ID) rather than a new `whenNot` keyword, so existing single-value `when` fields stay the same.
+
+## ID images labeled with the person's name (MF-071)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-071.
+
+**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- New ID front/back uploads are stored as "{name} ID Front.{ext}" / "{name} ID Back.{ext}".
+- The name is the person on that task (two buyers each get their own name).
+- Sellers use the same pattern. Existing documents are not renamed.
+
+**What's still missing**
+
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-071-id-image-names.md](docs/specs/mf-071-id-image-names.md)
+
+**Decisions**
+
+- The file type (extension) is kept so the document still opens.
+- The same naming is used for sellers, even though Matt only named buyers, so Documents stays consistent.

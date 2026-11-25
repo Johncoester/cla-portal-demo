@@ -2,6 +2,7 @@
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
 import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
+import { idUploadStoredName } from './id-upload-name.js?v=202611311000';
 import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -218,9 +219,21 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     },
     async moveDocument(id, folderId) { ok(await sb.from('documents').update({ folder_id: folderId || null }).eq('id', id)); return true; },
     async uploadForTask(taskId, file) {
-      const t = camel(ok(await sb.from('tasks').select('id, deal_id, title, assigned_role').eq('id', taskId).single()));
+      const t = camel(ok(await sb.from('tasks').select('id, deal_id, title, assigned_role, template_code, participant_id').eq('id', taskId).single()));
       const folders = camel(ok(await sb.from('folders').select('id, name').eq('deal_id', t.dealId).eq('name', 'IDs & personal'))) || [];
-      const doc = await uploadDoc({ dealId: t.dealId, folderId: folders[0] ? folders[0].id : null, file, visibility: taskUploadVisibility(t.assignedRole) });
+      let upload = file;
+      if (t.templateCode === 'id_upload' && file && (file.field === 'id_front' || file.field === 'id_back')) {
+        let personName = '';
+        if (t.participantId) {
+          const part = camel(ok(await sb.from('deal_participants').select('id, contact_id').eq('id', t.participantId).single()));
+          if (part && part.contactId) {
+            const c = camel(ok(await sb.from('contacts').select('first_name, last_name').eq('id', part.contactId).single()));
+            personName = c ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : '';
+          }
+        }
+        upload = { ...file, name: idUploadStoredName({ field: file.field, personName, originalName: file.name, mimeType: file.mimeType }) };
+      }
+      const doc = await uploadDoc({ dealId: t.dealId, folderId: folders[0] ? folders[0].id : null, file: upload, visibility: taskUploadVisibility(t.assignedRole) });
       return { id: doc.id, name: doc.name };
     },
     async listSettlements(dealId) {
