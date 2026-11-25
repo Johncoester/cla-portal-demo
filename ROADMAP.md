@@ -3683,6 +3683,7 @@ This file lists the portal's major features: how each one should work, how far a
 - On TEST, after the database file is applied, the page listens for this person's rows in the notifications table (Supabase Realtime). The badge updates when a row arrives or is marked read. If the list under the bell is open, that list updates too.
 - If the listen is not available (the mock demo, or a failed listen), the page checks again every 30 seconds and pauses that check while the tab is hidden.
 - The listen is closed on logout and when the signed-in person changes, including View as.
+- Fix (E2E-GREEN-1, Nov 25 2026): closing the listen no longer loops. Removing the channel made Supabase report it closed, and the old code removed it again on that report, which repeated until the browser threw "Maximum call stack size exceeded". The walkthrough (e2e-roles) caught it on the agent fees and task due date pages. The channel is now removed once.
 
 **What's still missing**
 

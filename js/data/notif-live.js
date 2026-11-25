@@ -39,6 +39,15 @@ export function subscribeNotificationsChannel({
       resolve(unsub);
     };
     let ch;
+    // E2E-GREEN-1: remove the channel at most once. In realtime-js, removeChannel() closes the
+    // channel, which calls this subscribe callback again with CLOSED. Removing it again from
+    // there looped until the browser threw "Maximum call stack size exceeded".
+    let removed = false;
+    const removeOnce = () => {
+      if (removed || !ch) return;
+      removed = true;
+      try { sb.removeChannel(ch); } catch (e) { /* ignore */ }
+    };
     try {
       ch = sb.channel('notif-live-' + userId)
         .on('postgres_changes', {
@@ -49,9 +58,9 @@ export function subscribeNotificationsChannel({
         }, () => { if (typeof onEvent === 'function') onEvent(); })
         .subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            finish(() => { try { sb.removeChannel(ch); } catch (e) { /* ignore */ } });
+            finish(removeOnce);
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            try { sb.removeChannel(ch); } catch (e) { /* ignore */ }
+            if (!settled) removeOnce();
             finish(null);
           }
         });
@@ -60,7 +69,7 @@ export function subscribeNotificationsChannel({
       return;
     }
     timer = setTimeoutFn(() => {
-      try { sb.removeChannel(ch); } catch (e) { /* ignore */ }
+      if (!settled) removeOnce();
       finish(null);
     }, timeoutMs);
   });

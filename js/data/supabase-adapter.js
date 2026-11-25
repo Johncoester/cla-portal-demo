@@ -41,7 +41,7 @@ import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-over
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611310600';
 import { staffSupabase } from './supabase-staff.js?v=202611247700';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611080400';
-import { subscribeNotificationsChannel } from './notif-live.js?v=202611310400';
+import { subscribeNotificationsChannel } from './notif-live.js?v=202611310700';
 import { withoutHiddenProfiles, PROCESSOR_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
 import { CLOSER_STAFF_ROLES } from './closer.js?v=202611247700';
 import { coordinatorRoster, duplicateOrders } from './order-duplicates.js?v=202611247700';
