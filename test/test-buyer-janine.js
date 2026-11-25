@@ -37,10 +37,11 @@ ok(saved.status === 'done', 'the lender task is done after the buyer saves the l
 
 ok(uploadFileName('image', 'image/jpeg') === 'image.jpg', 'a camera photo with no extension is stored as a jpeg');
 ok(uploadFileName('id.pdf', 'application/pdf') === 'id.pdf', 'a pdf keeps its name');
-const uploaded = await api.uploadForTask(idTask.id, { name: uploadFileName('image', 'image/jpeg'), mimeType: 'image/jpeg', size: 8, dataUrl: 'data:image/jpeg;base64,AA==', field: 'id_document' });
-ok(!!uploaded.id, 'the buyer can upload an ID');
-const idDone = await api.saveTaskForm(idTask.id, { id_type: "Driver's license", id_expires: '2030-01-01', id_document: uploaded.id }, { complete: true });
-ok(idDone.status === 'done', 'the ID task is done after the upload');
+const uploaded = await api.uploadForTask(idTask.id, { name: uploadFileName('image', 'image/jpeg'), mimeType: 'image/jpeg', size: 8, dataUrl: 'data:image/jpeg;base64,AA==', field: 'id_front' });
+ok(!!uploaded.id, 'the buyer can upload an ID front');
+const uploadedBack = await api.uploadForTask(idTask.id, { name: uploadFileName('image-back', 'image/jpeg'), mimeType: 'image/jpeg', size: 8, dataUrl: 'data:image/jpeg;base64,BB==', field: 'id_back' });
+const idDone = await api.saveTaskForm(idTask.id, { id_type: "Driver's license", id_expires: '2030-01-01', id_front: uploaded.id, id_back: uploadedBack.id }, { complete: true });
+ok(idDone.status === 'done', 'the ID task is done after the front and back are uploaded');
 
 const personalData = { full_name: 'Ben Buyer', email: 'ben.buyer@example.test', cell_phone: '301-555-0107', current_address: '1 Sample Road', marital_status: 'Single', attending_closing: 'Yes' };
 await api.saveBuyerSsn(personal.id, '900-12-3456');

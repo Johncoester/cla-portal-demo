@@ -1,11 +1,11 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from '../data/templates.js?v=202611310800';
+import { fieldActive, fieldsForRole, fieldsForFile, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from '../data/templates.js?v=202611310900';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611247700';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG, isRefi } from '../data/constants.js?v=202611302300';
-import { CLS, LABEL } from './dealtasks.js?v=202611310800';
+import { CLS, LABEL } from './dealtasks.js?v=202611310900';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { AGENT_ROLE_SIDE } from '../data/agent-fees.js?v=202611246500';
 import { nameTasks, taskRoleLabel } from '../data/task-party-names.js?v=202611300600';

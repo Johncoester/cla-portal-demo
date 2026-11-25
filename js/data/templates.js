@@ -113,6 +113,16 @@ const ID_V2 = [
   F('id_front', 'Identification, front', 'doc', true, { roles: SELLER }),
   F('id_back', 'Identification, back', 'doc', true, { roles: SELLER }),
 ];
+/* MF-070 (Matt, Nov 25 2026): buyers (and sellers, same task) must upload front and back.
+ * A passport needs one image only, so the back field is shown only for the other ID types.
+ * `when` may be a single value or a list of values (fieldActive and private.validate_form). */
+const ID_NEEDS_BACK = ["Driver's license", 'State ID', 'Military ID'];
+const ID_V3 = [
+  F('id_type', 'ID type', 'select', true, { opts: ["Driver's license", 'Passport', 'State ID', 'Military ID'] }),
+  F('id_expires', 'Expiration date', 'date', true),
+  F('id_front', 'Identification, front', 'doc', true),
+  F('id_back', 'Identification, back', 'doc', true, { when: ['id_type', ID_NEEDS_BACK] }),
+];
 const HOA_V2 = [
   none('No HOA or condo association'),
   F('association_name', 'Association name', 'text', true),
@@ -180,6 +190,9 @@ export const TEMPLATE_DEFS = [
   { code: 'id_upload', version: 2, title: 'Upload identification', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 121,
     description: 'A clear photo or scan of a government ID. Sellers upload the front and the back.',
     fields: ID_V2 },
+  { code: 'id_upload', version: 3, title: 'Upload identification', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 127,
+    description: 'A clear photo or scan of a government ID. A driver\'s license, state ID or military ID needs the front and the back. A passport needs one image only.',
+    fields: ID_V3 },
   { code: 'personal_info', version: 1, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'Contact details and closing preferences.', fields: PERSONAL_V1 },
   { code: 'personal_info', version: 2, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], description: 'Contact details and closing preferences (v2 adds settlement type and power of attorney).',
     fields: [...PERSONAL_V1, F('settlement_type', 'In-person or online settlement?', 'select', true, { opts: ['In person', 'Online'] }),
@@ -280,7 +293,12 @@ const CHECK = {
   money: (v) => isFinite(Number(String(v).replace(/[$,]/g, ''))) && Number(String(v).replace(/[$,]/g, '')) >= 0, digits4: (v) => /^\d{4}$/.test(v),
 };
 const MSG = { email: 'must be a valid email', phone: PHONE_MSG, routing: 'must be a valid 9-digit routing number', account: 'must be 4 to 17 digits', state: 'must be a 2-letter code (e.g. MD)', zip: 'must be a 5-digit ZIP', date: 'must be a date', money: 'must be a positive amount', digits4: 'must be exactly 4 digits' };
-export const fieldActive = (f, data) => !(f.k !== 'none' && data.none) && (!f.when || data[f.when[0]] === f.when[1]);
+export const fieldActive = (f, data) => {
+  if (f.k !== 'none' && data.none) return false;
+  if (!f.when) return true;
+  const [k, want] = f.when;
+  return Array.isArray(want) ? want.includes(data[k]) : data[k] === want;
+};
 /* A field with states is only on files in those states. The deal is already loaded with the page. */
 export function fieldsForFile(fields, deal) {
   const state = String((deal && deal.state) || '').trim().toUpperCase();
@@ -473,6 +491,30 @@ export function applyPersonalV9(d, { at = new Date().toISOString(), by = null } 
     const version = top ? Math.max(top.version + 1, def.version) : def.version;
     nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
     if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-mf074`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
+/* MF-070 (migration 127, mirrored in SQL 20261131090000): id_upload v3. Front and back are required for
+ * both buyers and sellers. The back field is only active when the ID type is not Passport.
+ * Same move rule as personal_info: only untouched to-do copies with no answers move. Idempotent.
+ * Recognised by id_front with no role filter and no id_document field. */
+const isIdUploadV3 = (t) => t.code === 'id_upload'
+  && (t.fields || []).some((f) => f.k === 'id_front' && !f.roles)
+  && !(t.fields || []).some((f) => f.k === 'id_document');
+export function applyIdUploadV3(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 127); const added = []; let moved = 0;
+  if (!def || !Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isIdUploadV3);
+  if (!nt) {
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0];
+    if (!top && !vs.length) return { added, moved };
+    const version = top ? Math.max(top.version + 1, def.version) : def.version;
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-mf070`;
     vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
   }
   if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
