@@ -3,6 +3,7 @@
 // Supabase: the page asks for a password and calls the accept-invite function. Public sign-up stays off. Nothing is emailed.
 // Refused inside a locked test-link session (locked-links.js routeAllowed).
 import { html, $, guard, toast, fmtDateTime } from '../ui.js?v=202611161500';
+import { enhancePasswordFields } from '../data/password-toggle.js?v=202611310300';
 const signInPath = (email) => { const e = String(email || '').trim(); return '/login' + (e ? '?email=' + encodeURIComponent(e) : ''); };
 export async function render({ api, params, go }) {
   const inv = await api.getHrInvite(params.token);
@@ -20,6 +21,7 @@ export async function render({ api, params, go }) {
   return { title: 'Set up your login', body: shell(html`<p>Welcome, <strong data-hr-invite-name>${inv.firstName} ${inv.lastName}</strong>. HR invited you to the CLA Title portal with <strong>${inv.email}</strong>.</p>
     <p class="muted small">This link works once, until ${fmtDateTime(inv.expiresAt)}. You will see your own employee profile and can update your phone, address and emergency contact.</p>
     ${action}`), mount(root) {
+    enhancePasswordFields(root);
     if (!supa) { $('[data-hr-accept]', root).addEventListener('click', guard(async () => { await api.acceptHrInvite(params.token); toast('Your login is ready'); go('/hr/me'); })); return; }
     $('[data-hr-accept-form]', root).addEventListener('submit', guard(async (e) => { e.preventDefault(); const err = $('[data-hr-err]', root); const password = $('[data-hr-password]', root).value; const again = $('[data-hr-password-2]', root).value;
       const show = (m) => { err.textContent = m || ''; err.hidden = !m; }; show('');
