@@ -3753,3 +3753,32 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The module was dropped in the hosted compose context, and Cc was left off the saved row. Both are fixed in the CRM hosted code only.
 - No cache stamp change. The shell stays at 202611310200.
 - Rule 9 waived by John on Nov 21 for CRM items.
+
+---
+
+## Remove Forwarding Address from Buyer Intake (MF-074)
+
+**How it should work.** A buyer's Personal information form does not ask for a forwarding address. A seller's Personal information form still does, and sellers still have the separate Forwarding address task. A buyer copy that already has a saved forwarding address keeps it.
+
+**Status: Building.** Tracker item MF-074. Matt Landsberg, Portal Feedback Nov 25 2026, 2:47 PM ET, confirmed the same day. Database file `supabase/migrations/20261131080000_personal_info_v9.sql`, not applied on TEST yet. Not Live until this is merged, that file is applied, and Matt checks it on TEST.
+
+**What's built**
+
+- personal_info v9 is the same as v8, except Forwarding address is seller-only.
+- New buyer copies, and untouched to-do copies with no answers, use v9.
+- Copies with saved answers stay on their current version.
+
+**What's still missing**
+
+- The database file must be applied once on TEST after merge.
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-074-buyer-forwarding.md](docs/specs/mf-074-buyer-forwarding.md)
+
+**Decisions**
+
+- v6–v8 are left historically correct. The change is a new version, not a rewrite of `SHARED_WITH_SELLER`.
+- The standalone seller Forwarding address task is not changed.
+

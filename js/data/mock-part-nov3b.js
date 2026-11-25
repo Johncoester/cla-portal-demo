@@ -6,7 +6,7 @@
  * Mirrored in SQL by public.source_of_business_options() (migration 31). */
 import { ensureSettings, activeOptions, optionsOf } from './crm-config.js?v=202611247700';
 import { parseReferral } from './place-order.js?v=202611247700';
-import { ENTITY_TYPES, entityPrefill } from './templates.js?v=202611247700';
+import { ENTITY_TYPES, entityPrefill } from './templates.js?v=202611310800';
 
 export const sourceOptionsOf = (d) => activeOptions(ensureSettings(JSON.parse(JSON.stringify(d.crmSettings || null))), 'leadSource').map((o) => ({ value: o.value, label: o.label }));
 // a source value is OK when blank, unchanged, or an ACTIVE Lead Source option; returns the stored value
