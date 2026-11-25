@@ -3612,6 +3612,35 @@ This file lists the portal's major features: how each one should work, how far a
 - No database change. The faster search is only the page asking for the modules together and skipping reads this page does not show.
 - Rule 9 waived by John on Nov 21 for CRM items.
 
+## Admins edit an agent's profile (JC-AGENT-EDIT-1)
+
+**How it should work.** An Admin or Super admin can edit a real estate agent's profile for them: the profile picture (upload, replace or remove), name, brokerage, cell and office phone. It is what the agent's buyers and sellers see. Email stays locked. Only the agent edits their birthday, license and address.
+
+**Status: Building.** Tracker item JC-AGENT-EDIT-1 (Requests row 471). John Coester, chat Nov 25 2026, 1:57 PM ET, "yes" to build. Pull request pending. Database file `20261131060000_admin_edit_agent_profile.sql`, not applied on TEST yet. Needs a rule 27 review (who can change what).
+
+**What's built**
+
+- **Edit agent profile** button on User List > Edit User for an agent, and on an order's Contacts tab for a Buyer Agent or Listing Agent row with a portal login (Admins only).
+- The page reuses the agent's own form (`agent-profile-form.js`, staff mode): picture, first and last name, cell, brokerage, office phone. Same picture checks as the agent's upload.
+- The database (`admin_update_agent_profile`, SECURITY DEFINER) refuses anyone who is not an Admin (`private.is_admin()`, the User List check), writes only those fields, and only for an active agent login. Storage lets an Admin write only `<agent id>/avatar.jpg` in `agent-photos`.
+
+**What's still missing**
+
+- Not on TEST yet. Cache stamp 202611310600.
+- The edit is not written to a file's activity log (it is not tied to one file).
+
+**Links**
+
+- Spec: [docs/specs/jc-agent-edit-1-admin-edit-agent-profile.md](docs/specs/jc-agent-edit-1-admin-edit-agent-profile.md)
+- Related: agent invites and My Agent Profile (John, Nov 4).
+
+**Decisions**
+
+- "Admin" means the portal's existing Admin check (role Admin or Super admin, or the Admin access tick), not a new list.
+- Email is locked; the sign-in provider changes it.
+
+---
+
 ## Documents From column shows the real sender (FF-113)
 
 **How it should work.** On a file's Documents list, the From column shows the real sender: the email's From on a document that arrived as an email attachment, and the person who uploaded it when an agent or client added it in the portal. It must not show the file processor just because the attachment landed in their mailbox.

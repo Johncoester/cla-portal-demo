@@ -1,6 +1,6 @@
 // Agent account setup from a one-time invite link (#/agent-invite/<token>), John Nov 4. Works without signing in. FAKE DATA ONLY, nothing sent.
 import { html, $, guard, toast } from '../ui.js?v=202611161500';
-import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611302000';
+import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611310600';
 import { STATUS_LABEL, markAgentOnboard } from '../data/agent-profile.js?v=202611302000';
 import { enhancePasswordFields } from '../data/password-toggle.js?v=202611310300';
 const shell = (inner) => html`<div class="login-page ap-signup-page"><div class="login-card ap-signup-card"><img src="assets/img/login-logo-new.png" alt="C.L.A. Title &amp; Escrow" class="sched-logo">${inner}</div></div>`;

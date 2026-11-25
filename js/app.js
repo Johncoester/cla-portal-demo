@@ -1,9 +1,9 @@
 // app.js : hash router + role-aware layout (topbar, sidebar, welcome title, footer).
 import { openNotification } from './data/bell-open.js?v=202611162100';
-import { getAdapter } from './data/adapter.js?v=202611310500';
+import { getAdapter } from './data/adapter.js?v=202611310600';
 import { createNotificationLive, paintNotificationBadge } from './data/notif-live.js?v=202611310400';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611302300';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611310600';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611300430';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611302300';
@@ -17,7 +17,7 @@ import { scheduleNavLines } from './data/scheduling-details.js?v=202611247700';
 import { applyTheme, themeOn } from './theme.js?v=202611070139';   // CARD THEME MOCKUP (opt-in, ?theme=cards); off = unchanged
 import { icon } from './pages/theme-cards.js?v=202611247700';
 import { canInviteAgents } from './data/agent-profile.js?v=202611302000';
-import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611302000';
+import { yourAgentHtml, withContactPhone } from './pages/your-agent.js?v=202611310600';
 import { fwpCanRead } from './data/funding-wire-policy.js?v=202611070139';
 import { titleCanRead } from './data/title.js?v=202611247700';
 import { LOCK_KEY, lockForToken, readLock, safeLanding, sectionHash, routeAllowed, canViewAs, effectiveLockUser, canReachPayoffs, canOpenTaskSetup, legacyTemplatesHash } from './data/locked-links.js?v=202611302000';   // John, Nov 4: one locked login link per fake user
@@ -46,12 +46,12 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611310300')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611302200')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611310600')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611301500')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611301900')),
-  users: () => loadRoute(() => import('./pages/users.js?v=202611289960')),
-  profile: () => loadRoute(() => import('./pages/profile.js?v=202611302000')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611310600')),
+  users: () => loadRoute(() => import('./pages/users.js?v=202611310600')),
+  profile: () => loadRoute(() => import('./pages/profile.js?v=202611310600')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
   templates: () => loadRoute(() => import('./pages/templates.js?v=202611247700')),
@@ -59,7 +59,7 @@ const pages = {
   library: () => loadRoute(() => import('./pages/library.js?v=202611247700')),
   activity: () => loadRoute(() => import('./pages/activity.js?v=202611161500')),
   outbox: () => loadRoute(() => import('./pages/outbox.js?v=202611310100')),
-  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611302200')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
+  tasks: () => loadRoute(() => import('./pages/tasks.js?v=202611310600')),            // Matt, Nov 2: all tasks across files (filters, sort, Buyer / Seller / Agent groups)
   'task-grid': () => loadRoute(() => import('./pages/taskgrid.js?v=202611247700')),   // Matt, Nov 2: files down the side. MF-053: File No, Property, Closing Date, then the four party columns.
   schedule: () => loadRoute(() => import('./pages/schedule.js?v=202611247700')),   // public closing-time link (no sign-in needed)
   'schedule-party': () => loadRoute(() => import('./pages/schedule-party.js?v=202611247700')),   // MF-056 buyer / seller scheduling link (no sign-in)
@@ -67,7 +67,7 @@ const pages = {
   modules: () => loadRoute(() => import('./pages/modules.js?v=202611247700')),
   'role-access': () => loadRoute(() => import('./pages/role-access.js?v=202611161500')),   // John, Nov 9: Admin / Settings > Role access (Super admin only)
   'agent-invites': () => loadRoute(() => import('./pages/agent-invites.js?v=202611302000')),   // John, Nov 4: invite agents; Create and Resend email from the inviter's Gmail
-  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611310300')),     // the agent's one-time setup link (no sign-in)
+  'agent-invite': () => loadRoute(() => import('./pages/agent-signup.js?v=202611310600')),     // the agent's one-time setup link (no sign-in)
   underwriters: () => loadRoute(() => import('./pages/underwriters.js?v=202611247900')),
   'tax-rates': () => loadRoute(() => import('./pages/tax-rates.js?v=202611247700')),
   hr: () => loadRoute(() => import('./pages/hr.js?v=202611302000')),                   // HR workspace (John + Francis, Nov 4; Zoho People style)

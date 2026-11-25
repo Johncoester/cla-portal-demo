@@ -3,6 +3,7 @@
  * shows the link. Photos go to the private 'agent-photos' bucket at <uid>/avatar.jpg and are shown through short-lived signed URLs. */
 import { cleanAgentProfile, canInviteAgents, cardOf } from './agent-profile.js?v=202611302000';
 import { acceptInviteRemote } from './accept-invite-client.js?v=202611070139';
+import { canEditAgentProfiles, cleanAdminAgentPatch, AGENT_EDIT_DENIED, AGENT_EDIT_NOT_FOUND } from './agent-profile-admin.js?v=202611310600';
 const inv = (r) => ({ id: r.id, contactId: r.contact_id, dealId: r.deal_id, firstName: r.first_name, lastName: r.last_name, email: r.email, status: r.status === 'pending' && r.expires_at < new Date().toISOString() ? 'expired' : r.status,
   createdAt: r.created_at, expiresAt: r.expires_at, acceptedAt: r.accepted_at, revokedAt: r.revoked_at, resentCount: r.resent_count || 0, inviteKind: r.invite_kind || 'agent', sentAt: r.sent_at || null, sentTo: r.sent_to || '', sendCount: r.send_count || 0, sendError: r.send_error || '', createdByName: '' });
 export function agentInviteSupabase({ sb, ok, me }) {
@@ -44,6 +45,16 @@ export function agentInviteSupabase({ sb, ok, me }) {
     async updateMyAgentProfile(patch = {}) { const u = await me(); const p = { ...patch }; delete p.email; const v = cleanAgentProfile(p, { partial: true });
       const keep = typeof v.photo === 'string' && !/^data:image\/jpeg/.test(v.photo); const path = v.photo === null ? '' : keep ? undefined : await upload(u.id, v.photo);
       ok(await sb.rpc('update_my_agent_profile', { p: toJson(v, path) })); return this.getMyAgentProfile(); },
+    // JC-AGENT-EDIT-1 (John, Nov 25 2026): an Admin or Super admin edits an agent's name, brokerage, phones and picture
+    // (migration 20261131060000: public.admin_get_agent_profile / admin_update_agent_profile; the database makes the same checks).
+    // The picture goes where the agent's own upload goes (<agent id>/avatar.jpg in 'agent-photos'), cropped to a JPEG by the same form.
+    async adminGetAgentProfile(userId) { const u = await me(); if (!canEditAgentProfiles(u)) throw new Error(AGENT_EDIT_DENIED);
+      const a = ok(await sb.rpc('admin_get_agent_profile', { p_profile: userId })); const r = Array.isArray(a) ? a[0] : a; if (!r) throw new Error(AGENT_EDIT_NOT_FOUND);
+      return { profileId: r.profile_id || userId, firstName: r.first_name || '', lastName: r.last_name || '', email: r.email || '', cellPhone: r.cell_phone || '', officePhone: r.office_phone || '',
+        brokerage: r.brokerage || '', photo: (await signed(r.photo_path)) || null, photoShape: r.photo_shape || 'circle', hasAgentProfile: !!r.has_agent_profile }; },
+    async adminUpdateAgentProfile(userId, patch = {}) { const u = await me(); if (!canEditAgentProfiles(u)) throw new Error(AGENT_EDIT_DENIED); const v = cleanAdminAgentPatch(patch);
+      const keep = typeof v.photo === 'string' && !/^data:image\/jpeg/.test(v.photo); const path = v.photo === null ? '' : keep ? undefined : await upload(userId, v.photo);
+      ok(await sb.rpc('admin_update_agent_profile', { p_profile: userId, p: toJson(v, path) })); return this.adminGetAgentProfile(userId); },
     async listMyAgents({ dealId = null } = {}) { const rows = ok(await sb.rpc('my_agents', { p_deal: dealId })) || [];
       return Promise.all(rows.map(async (r) => cardOf({ agentId: r.agent_contact, firstName: r.first_name, lastName: r.last_name, brokerage: r.brokerage, cellPhone: r.cell_phone, email: r.email, officePhone: r.office_phone, photo: await signed(r.photo_path), photoShape: r.photo_shape, side: r.side, dealIds: r.deal_ids || [] }))); },
   };

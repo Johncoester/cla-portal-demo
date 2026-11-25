@@ -6,6 +6,7 @@
 // NOTHING IS SENT. createAgentInvite / resendAgentInvite return the one-time link path; the page shows it for staff to copy.
 import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611302000';
 import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611302300';
+import { canEditAgentProfiles, cleanAdminAgentPatch, AGENT_EDIT_DENIED, AGENT_EDIT_NOT_FOUND, AGENT_FILE_ROLES } from './agent-profile-admin.js?v=202611310600';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const fromNow = (n) => new Date(Date.now() + n * 864e5).toISOString();
@@ -38,6 +39,12 @@ export function agentInvitePart(x) {
   const mdOf = (pid) => { const d = db(); const v = d.agentBirthMD[pid]; if (v) { const [m, dd] = v.split('-').map(Number); return { birthMonth: m, birthDay: dd }; } return monthDayFromBirthdate((d.agentBirthdates || {})[pid]); };
   const fullProfile = (pid) => { const d = db(); const p = prof(pid); const a = d.agentProfiles[pid]; if (!p || !a) return null;
     return { profileId: pid, firstName: p.firstName, lastName: p.lastName, email: p.email, ...clone(a), ...mdOf(pid) }; };
+  // JC-AGENT-EDIT-1: who an Admin may edit (mirrors private.admin_agent_target): an active outside login who is a real estate agent
+  const agentEditTarget = (userId) => { const u = needUser(); if (!canEditAgentProfiles(u)) fail(AGENT_EDIT_DENIED); const d = db(); const p = prof(String(userId || ''));
+    if (!p || p.status !== 'active' || !isOutside(p.role)) fail(AGENT_EDIT_NOT_FOUND);
+    const c = contactOf(p.id); const onFile = !!c && d.participants.some((q) => q.contactId === c.id && AGENT_FILE_ROLES.includes(q.role));
+    if (!(d.agentProfiles[p.id] || (c && c.contactType === 'realtor') || onFile)) fail(AGENT_EDIT_NOT_FOUND);
+    return p.id; };
   function writeProfile(pid, v) {
     const d = db(); const p = prof(pid); const a = d.agentProfiles[pid] || (d.agentProfiles[pid] = { cellPhone: '', officePhone: '', brokerage: '', licenseNumber: '', street: '', city: '', state: '', zip: '', otherContact: '', photo: null, photoShape: 'circle' });
     if (v.firstName != null) p.firstName = v.firstName; if (v.lastName != null) p.lastName = v.lastName; if (v.cellPhone != null) p.phone = v.cellPhone;
@@ -146,6 +153,15 @@ export function agentInvitePart(x) {
     async updateMyAgentProfile(patch = {}) { const u = needUser(); if (!isOutside(u.role)) fail('Only agents have an agent profile.');
       const p = { ...patch }; delete p.email;   // the login email is changed by CLA Title (auth provider), not here
       const v = cleanAgentProfile(p, { partial: true }); writeProfile(u.id, v); save(); return fullProfile(u.id); },
+    // JC-AGENT-EDIT-1 (John, Nov 25 2026): an Admin or Super admin edits an agent's name, brokerage, phones and picture.
+    // Mirrors public.admin_get_agent_profile / public.admin_update_agent_profile (migration 20261131060000).
+    async adminGetAgentProfile(userId) { const pid = agentEditTarget(userId); const d = db(); const p = prof(pid); const c = contactOf(pid) || {};
+      const full = fullProfile(pid);
+      if (full) return { profileId: pid, firstName: p.firstName, lastName: p.lastName, email: p.email, cellPhone: full.cellPhone || p.phone || '', officePhone: full.officePhone || '',
+        brokerage: full.brokerage || c.company || '', photo: full.photo || null, photoShape: full.photoShape || 'circle', hasAgentProfile: true };
+      return { profileId: pid, firstName: p.firstName, lastName: p.lastName, email: p.email, cellPhone: p.phone || '', officePhone: '', brokerage: c.company || '', photo: null, photoShape: 'circle', hasAgentProfile: !!d.agentProfiles[pid] }; },
+    async adminUpdateAgentProfile(userId, patch = {}) { const pid = agentEditTarget(userId); const v = cleanAdminAgentPatch(patch);
+      writeProfile(pid, v); save(); return this.adminGetAgentProfile(pid); },
     // ---------- the client: "Your agent" card ----------
     // A Client-Buyer gets the Buyer Agent(s) on their file, a Client-Seller the Listing Agent(s). Only the card fields (agent-profile.js CARD_FIELDS).
     async listMyAgents({ dealId = null } = {}) { const u = needUser(); if (!isOutside(u.role)) return []; const d = db(); const me = contactOf(u.id); if (!me) return [];
