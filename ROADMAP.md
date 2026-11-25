@@ -3782,3 +3782,29 @@ This file lists the portal's major features: how each one should work, how far a
 - v6–v8 are left historically correct. The change is a new version, not a rewrite of `SHARED_WITH_SELLER`.
 - The standalone seller Forwarding address task is not changed.
 
+## Require ID front and back (MF-070)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-070.
+
+**Status: Building.** Database file `supabase/migrations/20261131090000_id_upload_v3.sql` is not applied on TEST yet. Not Live until this is merged, that file is applied, and Matt checks it on TEST. This PR changes `private.validate_form` (the hosted save completeness guard), so it waits on a Rule 27 review before merge.
+
+**What's built**
+
+- id_upload v3 requires Identification, front and Identification, back for buyers and sellers.
+- When the ID type is Passport, only the front (one image) is shown and required.
+- New copies, and untouched to-do copies with no answers, use v3. Copies with saved answers stay on their current version.
+- `fieldActive` and `private.validate_form` treat a `when` value that is a list as "any of these".
+
+**What's still missing**
+
+- Rule 27 review of the `private.validate_form` change, then merge and apply on TEST.
+- Image labels "[Buyer name] ID Front/Back" are MF-071, not this item.
+
+**Links**
+
+- Spec: [docs/specs/mf-070-id-front-back.md](docs/specs/mf-070-id-front-back.md)
+
+**Decisions**
+
+- The ID task is shared, so the passport "one image" rule applies to sellers as well as buyers.
+- The back field uses a `when` list (license, state ID, military ID) rather than a new `whenNot` keyword, so existing single-value `when` fields stay the same.
