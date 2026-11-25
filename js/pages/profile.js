@@ -2,7 +2,7 @@
 import { outsideTypeLabel } from '../data/constants.js?v=202611302300';
 import { html, $, guard, formData, toast } from '../ui.js?v=202611161500';
 import { cleanBirthdate, BIRTHDATE_NOTE } from '../data/agent-info.js?v=202611247700';
-import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611302000';
+import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611310600';
 import { consumeAgentOnboard, photoFileChosen, photoFileAllowed, PHOTO_TYPE_MSG } from '../data/agent-profile.js?v=202611302000';
 export function firstProfileSave(hash) {
   const here = String(hash == null && typeof location !== 'undefined' ? location.hash : hash || '');

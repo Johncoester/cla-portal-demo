@@ -9,7 +9,9 @@ export function avatarHtml(p, cls = '') {
   return p.photo ? html`<img class="ap-avatar ${shape} ${cls}" src="${p.photo}" alt="Photo of ${p.firstName} ${p.lastName}" data-avatar-img>`
     : html`<span class="ap-avatar initials ${shape} ${cls}" aria-hidden="true" data-avatar-initials>${initialsOf(p.firstName, p.lastName)}</span>`;
 }
-export function agentFormHtml(p = {}, { emailLocked = false, submitLabel = 'Save' } = {}) {
+// staff: true (JC-AGENT-EDIT-1, John, Nov 25 2026): an Admin or Super admin editing an agent's profile for them. Only the picture, name, cell,
+// brokerage and office phone (what the agent's buyers and sellers see); email stays locked; birthday, license and address stay the agent's own.
+export function agentFormHtml(p = {}, { emailLocked = false, submitLabel = 'Save', staff = false } = {}) {
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
   return html`<form class="card ap-form" data-agent-form novalidate>
     <div class="apf-grid">
@@ -27,23 +29,23 @@ export function agentFormHtml(p = {}, { emailLocked = false, submitLabel = 'Save
         <input type="hidden" name="photo" value="${p.photo || ''}" data-photo-value>
       </fieldset>
       <div class="form-grid ap-fields">
-        <h4 class="span2">Your details <span class="muted small">(* required)</span></h4>
+        <h4 class="span2">${staff ? 'Agent details' : 'Your details'} <span class="muted small">(* required)</span></h4>
         <label>First name *<input name="firstName" required maxlength="80" autocomplete="given-name" value="${p.firstName || ''}"></label>
         <label>Last name *<input name="lastName" required maxlength="80" autocomplete="family-name" value="${p.lastName || ''}"></label>
-        <label>Email *<input name="email" type="email" required maxlength="160" autocomplete="email" value="${p.email || ''}"${emailLocked ? raw(' disabled') : ''}>${emailLocked ? html`<span class="field-hint">Your sign-in email. CLA Title can change it for you.</span>` : ''}</label>
+        <label>Email *<input name="email" type="email" required maxlength="160" autocomplete="email" value="${p.email || ''}"${emailLocked ? raw(' disabled') : ''}>${emailLocked ? html`<span class="field-hint">${staff ? 'Their sign-in email. It is changed by the sign-in provider only.' : 'Your sign-in email. CLA Title can change it for you.'}</span>` : ''}</label>
         <label>Cell phone *<input name="cellPhone" type="tel" required inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone autocomplete="tel" value="${p.cellPhone || ''}"></label>
-        <div class="ap-dob span2" data-dob><span class="ap-dob-label">Date of birth <span class="muted small">(optional: month and day only, no year)</span></span>
+        ${staff ? '' : html`<div class="ap-dob span2" data-dob><span class="ap-dob-label">Date of birth <span class="muted small">(optional: month and day only, no year)</span></span>
           <select name="birthMonth" aria-label="Birth month"><option value="">Month</option>${MONTHS.map((m, i) => html`<option value="${i + 1}"${sel(p.birthMonth, i + 1)}>${m}</option>`)}</select>
           <select name="birthDay" aria-label="Birth day"><option value="">Day</option>${days.map((d) => html`<option value="${d}"${sel(p.birthDay, d)}>${d}</option>`)}</select>
-          <span class="field-hint">Seen only by you and CLA Title staff.</span></div>
+          <span class="field-hint">Seen only by you and CLA Title staff.</span></div>`}
         <h4 class="span2">Brokerage and office <span class="muted small">(optional)</span></h4>
         <label>Brokerage name<input name="brokerage" maxlength="120" value="${p.brokerage || ''}"></label>
-        <label>License number<input name="licenseNumber" maxlength="40" value="${p.licenseNumber || ''}"></label>
+        ${staff ? '' : html`<label>License number<input name="licenseNumber" maxlength="40" value="${p.licenseNumber || ''}"></label>`}
         <label>Office phone<input name="officePhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${p.officePhone || ''}"></label>
-        <label>Other contact info<input name="otherContact" maxlength="200" placeholder="Website, fax, assistant..." value="${p.otherContact || ''}"></label>
+        ${staff ? '' : html`<label>Other contact info<input name="otherContact" maxlength="200" placeholder="Website, fax, assistant..." value="${p.otherContact || ''}"></label>
         <label class="span2">Office street address<input name="street" maxlength="120" autocomplete="street-address" value="${p.street || ''}"></label>
         <label>City<input name="city" maxlength="60" value="${p.city || ''}"></label>
-        <div class="ap-row2"><label>State<input name="state" maxlength="2" value="${p.state || ''}"></label><label>ZIP<input name="zip" maxlength="10" inputmode="numeric" value="${p.zip || ''}"></label></div>
+        <div class="ap-row2"><label>State<input name="state" maxlength="2" value="${p.state || ''}"></label><label>ZIP<input name="zip" maxlength="10" inputmode="numeric" value="${p.zip || ''}"></label></div>`}
         <p class="err-text span2" data-form-err role="alert" hidden></p>
         <div class="span2"><button class="m-btn" type="submit" data-agent-submit>${submitLabel}</button></div>
       </div>

@@ -12,6 +12,8 @@ import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/use
 import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611248300';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
 import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611289960';
+import { renderAgentProfileAdmin } from './agent-profile-admin.js?v=202611310600';
+import { canEditAgentProfiles, agentProfileHref, AGENT_FILE_ROLES } from '../data/agent-profile-admin.js?v=202611310600';
 const acct = (r) => (r === OUTSIDE ? 'Realtor / Client (role set per order)' : r);   // display only (live40): the stored value stays 'Outside user'
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it
@@ -36,6 +38,7 @@ const crmOwnerBox = (actor, u) => {
 
 export async function render({ api, user, params, refresh, go }) {
   if (!user.isAdmin) throw new Error('User management is for Admins only.');
+  if (params.mode === 'agent-profile') return renderAgentProfileAdmin({ api, user, params, refresh });   // JC-AGENT-EDIT-1: Edit agent profile
   const users = await api.adminListUsers();
   const sales = users.filter((u) => isSalesRole(u.role) && u.status === 'active').sort((a, b) => a.lastName.localeCompare(b.lastName));
   if (params.mode === 'new') {
@@ -66,6 +69,8 @@ export async function render({ api, user, params, refresh, go }) {
       const people = await api.listContacts().catch(() => []);
       tcContact = (people || []).find((c) => c.profileId === u.id) || null;
     }
+    // JC-AGENT-EDIT-1 (John, Nov 25 2026): a real estate agent (realtor contact type, or a Buyer / Listing Agent on a file) gets Edit agent profile
+    const agentEdit = !gone && u.status === 'active' && u.role === OUTSIDE && canEditAgentProfiles(user) && (u.contactType === 'realtor' || !!agentContact || (u.files || []).some((f) => AGENT_FILE_ROLES.includes(f.role)));
     const body = html`<div class="box-title"><h2><span class="h-ico"></span>Edit User</h2></div>
       <form id="euf" class="card form-grid" data-user="${u.id}">
         <label>First name *<input name="firstName" required maxlength="80" value="${u.firstName}" ${gone ? raw('disabled') : ''}></label><label>Last name<input name="lastName" maxlength="80" value="${u.lastName}" ${gone ? raw('disabled') : ''}></label>
@@ -82,7 +87,7 @@ export async function render({ api, user, params, refresh, go }) {
         ${u.role === OUTSIDE ? html`<fieldset class="span2" data-sales-picker><legend>Salespeople linked to this client</legend>${salesPicker(sales.concat((u.salesReps || []).filter((s) => !sales.some((z) => z.id === s.id)).map((s) => ({ id: s.id, firstName: s.name, lastName: '', role: s.role }))), chosen)}
           <p class="muted small">A client can have any number of salespeople, and a salesperson any number of clients. Untick to remove a link. Linking does not change who can see a file.</p></fieldset>`
         : isSalesRole(u.role) ? html`<div class="span2" data-clients><strong>Linked clients:</strong> ${(u.clients || []).length ? u.clients.map((c) => c.name).join(', ') : html`<span class="muted">none</span>`} <span class="muted small">(edit links from the client's page)</span></div>` : ''}
-        <div class="span2">${gone ? '' : html`<button class="m-btn" type="submit">Save</button> `}<a class="ghost" href="#/users">Back to User List</a></div></form>
+        <div class="span2">${gone ? '' : html`<button class="m-btn" type="submit">Save</button> `}${agentEdit ? html`<a class="ghost" href="${agentProfileHref(u.id)}?back=${encodeURIComponent('#/users/edit/' + u.id)}" data-edit-agent-profile="${u.id}">Edit agent profile</a> ` : ''}<a class="ghost" href="#/users">Back to User List</a></div></form>
       ${agentContact ? agentTcSectionHtml({ canEdit: !gone }) : ''}${tcContact ? tcAgentsSectionHtml({ canEdit: !gone }) : ''}`;
     return { title: 'Edit User', crumbs: [['User List', '#/users'], [fullName(u)]], body, mount(root) {
       if (agentContact) mountAgentTcSection(root, { api, agentContactId: agentContact.id, canEdit: !gone });

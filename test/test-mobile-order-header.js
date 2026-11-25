@@ -20,7 +20,7 @@ ok(/\.order-header(?:,[^\{]+)?\s*\{[^}]*position:\s*static/.test(mobileCss), 'on
 ok(mobileCss.includes('.order-header, body.theme-cards .order-header { position: static; top: auto; z-index: auto; }') || /\.order-header,\s*body\.theme-cards \.order-header\s*\{[^}]*position:\s*static/.test(mobileCss), 'the card theme uses the same un-pinned header on a phone');
 ok(/JC-MOBILE-2/.test(css), 'the phone header rule is the JC-MOBILE-2 change');
 
-ok(html.includes('css/portal.css?v=202611310300') && html.includes('js/app.js?v=202611310500'), 'the published page loads the updated layout styles and keeps the current shell');
+ok(html.includes('css/portal.css?v=202611310300') && html.includes('js/app.js?v=202611310600'), 'the published page loads the updated layout styles and keeps the current shell');
 ok(html.includes('testportal.clatitle.com') === false && readFileSync(new URL('../CNAME', import.meta.url), 'utf8').trim() === 'testportal.clatitle.com', 'the custom domain file is unchanged');
 
 console.log(fail ? fail + ' failed' : 'mobile order header passed');
