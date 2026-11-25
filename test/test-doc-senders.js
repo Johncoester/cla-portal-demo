@@ -1,7 +1,7 @@
 /* MF-045 (Matt, "Processor User-Documents" notes; confirmed Nov 11 2:33 PM ET): the Documents From column shows the name and role
  * of whoever shared each document. On the hosted site the rows only had the sender's id, so From was blank. No network. */
 import { readFileSync } from 'node:fs';
-import { nameDocSenders, sendersToLookUp, CLA_SENDER, CLA_SHARED } from '../js/data/doc-senders.js';
+import { nameDocSenders, sendersToLookUp, applyEmailSenders, emailFromLabel, CLA_SENDER, CLA_SHARED, EMAIL_SENDER_ROLE } from '../js/data/doc-senders.js';
 import { docMatches, sortDocs } from '../js/data/doc-list.js';
 
 let fail = 0;
@@ -56,10 +56,37 @@ ok(nameDocSenders(null).length === 0 && nameDocSenders([{ id: 'x', uploadedBy: '
 ok(a.filter((d) => docMatches(d, 'pat')).map((d) => d.id).join(',') === 'd2' && a.filter((d) => docMatches(d, "buyer's agent")).length === 1, 'the search box finds a document by who shared it or their role');
 ok(sortDocs(a, 'from', 'asc').slice(0, 2).map((d) => d.id).join(',') === 'd8,d3', 'the From header sorts by the sender name');
 
+
+// FF-113: emailed attachments show the email's sender, not the processor mailbox stored in uploadedBy
+const mailDocs = [
+  { id: 'e1', name: 'W9.pdf', uploadedBy: 'p-proc', emailAttachmentKey: 'msg-in:att1' },
+  { id: 'e2', name: 'ID.png', uploadedBy: 'p-buyer' },
+  { id: 'e3', name: 'Old.pdf', uploadedBy: 'p-proc', emailAttachmentKey: 'msg-gone:att1' },
+  { id: 'e4', name: 'Out.pdf', uploadedBy: 'p-proc', emailAttachmentKey: 'msg-out:att1' },
+];
+const emails = [
+  { id: 'm-in', direction: 'in', fromName: 'Pat Agent', fromEmail: 'pat@broker.test', sentAt: '2026-11-20T15:00:00Z', attachmentDocumentIds: ['e1'] },
+  { id: 'm-out', direction: 'out', fromName: 'Proc One', fromEmail: 'proc@clatitle.com', sentAt: '2026-11-21T15:00:00Z', attachmentDocumentIds: ['e4'] },
+  { id: 'm-later', direction: 'out', fromName: 'Should Not Win', fromEmail: 'other@clatitle.com', sentAt: '2026-11-22T15:00:00Z', attachmentDocumentIds: ['e1'] },
+];
+const partsWithEmail = parts.map((p) => p.role === 'Buyer Agent' ? { ...p, contact: { ...p.contact, email: 'pat@broker.test' } } : p);
+const labeled = applyEmailSenders(mailDocs, emails, { participants: partsWithEmail });
+ok(by(labeled, 'e1').uploadedByName === 'Pat Agent' && by(labeled, 'e1').uploadedByRole === "Buyer's agent", 'an inbound email attachment shows the sender who is on the file, not the processor mailbox');
+ok(applyEmailSenders([{ id: 'e5', uploadedBy: 'p-proc', emailAttachmentKey: 'msg-x:1' }], [{ direction: 'in', fromName: 'Kim Lender', fromEmail: 'kim@bank.test', attachmentDocumentIds: ['e5'] }])[0].uploadedByName === 'Kim Lender' && applyEmailSenders([{ id: 'e5', uploadedBy: 'p-proc', emailAttachmentKey: 'msg-x:1' }], [{ direction: 'in', fromName: 'Kim Lender', fromEmail: 'kim@bank.test', attachmentDocumentIds: ['e5'] }])[0].uploadedByRole === 'kim@bank.test', 'an emailed attachment from someone not on the file shows their From name and address');
+ok(by(labeled, 'e2').uploadedByName === undefined && by(labeled, 'e2').uploadedBy === 'p-buyer', 'an agent or client upload is left for nameDocSenders (the uploader)');
+const after = nameDocSenders(labeled, { user: proc, participants: parts, profiles: staff });
+ok(by(after, 'e2').uploadedByName === 'Bea Buyer' && by(after, 'e2').uploadedByRole === 'Buyer', 'after the email labels, a client upload still shows the uploader');
+ok(by(after, 'e1').uploadedByName === 'Pat Agent' && by(after, 'e1').uploadedByRole === "Buyer's agent", 'nameDocSenders leaves an email-labeled row alone');
+ok(by(labeled, 'e3').uploadedByName === undefined, 'a keyed attachment with no matching email is left alone so the From column can still use the stored uploader');
+ok(by(labeled, 'e4').uploadedByName === 'Proc One' && by(labeled, 'e4').uploadedByRole === 'proc@clatitle.com', 'an outbound Gmail attachment shows the email From name and address');
+ok(emailFromLabel({ fromName: '', fromEmail: 'pat@broker.test' }).name === 'pat@broker.test' && emailFromLabel({ fromName: '', fromEmail: '' }) === null, 'a missing display name falls back to the address; a blank From stays unlabeled');
+ok(applyEmailSenders(null, null).length === 0 && applyEmailSenders(mailDocs, []).every((d, i) => d === mailDocs[i]), 'missing emails do not throw and do not rewrite rows');
+
 // wiring
 const ad = read('js/data/supabase-adapter.js');
-ok(ad.includes('async listDocuments(dealId, { folderId, senders = false } = {})') && ad.includes('if (!senders || !listed.some('), 'only a caller that asks for senders pays for it; every other caller gets the rows as before');
-ok(ad.includes("sb.from('profiles').select('id, first_name, last_name, role').in('id', ids)") && ad.includes('a.readDeal(dealId)') && ad.includes('nameDocSenders(listed, { user, participants, profiles })'), 'one profiles read for senders not on the file; the parties come from the file read the page already made');
+ok(ad.includes('async listDocuments(dealId, { folderId, senders = false } = {})') && ad.includes('if (!senders) return listed'), 'only a caller that asks for senders pays for it; every other caller gets the rows as before');
+ok(ad.includes("sb.from('deal_emails').select('from_email, from_name, direction, sent_at, attachment_document_ids')") && ad.includes('applyEmailSenders(listed, emails, { participants })'), 'email attachments get the email From from deal_emails; uploaded_by is left as the mailbox for access rules');
+ok(ad.includes("sb.from('profiles').select('id, first_name, last_name, role').in('id', ids)") && ad.includes('a.readDeal(dealId)') && ad.includes('nameDocSenders(withEmail, { user, participants, profiles })'), 'uploads still get a profiles read for senders not on the file; the parties come from the file read the page already made');
 const page = read('js/pages/dealdocs.js');
 ok(page.includes('{ senders: true }') && page.includes('folderId: folder, senders: true'), 'the Documents tab asks for senders, with or without a folder picked');
 ok(page.includes('data-doc-from') && page.includes('Not recorded') && page.includes('data-doc-from-role'), 'the From column shows the name with the role under it, or "Not recorded"');

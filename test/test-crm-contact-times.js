@@ -72,7 +72,7 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const want = new Map([['js/pages/crm.js', '202611302100'], ['js/app.js', '202611310400']]);
+const want = new Map([['js/pages/crm.js', '202611302100'], ['js/app.js', '202611310500']]);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -89,7 +89,7 @@ ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + d
 ok(missing.length === 0, 'recursive import check missing ' + missing.length + (missing.length ? ': ' + missing.join('; ') : ''));
 ok(at1800.length === 0, 'the previous crm.js stamp 202611121800 is unused' + (at1800.length ? ': ' + at1800.join(',') : ''));
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611310400', 'index.html loads app.js at 202611290610');
+ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611310500', 'index.html loads app.js at 202611290610');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
 ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611302100', 'app.js loads the CRM page at 202611290610');
 console.log('cache-stamp issues', issues.length);
@@ -105,7 +105,9 @@ const stampOnly = (file) => {
   return diff.length > 0 && diff.every((l) => /\?v=202611\d+/.test(l));
 };
 const anyrole = new Set(['js/data/offices.js', 'js/data/cla-offices.js', 'js/data/mock-part-offices.js', 'js/data/mock-part-matt.js', 'js/data/mock-part-schedule.js', 'js/data/supabase-offices.js', 'js/pages/offices.js', 'js/pages/schedule.js', 'js/pages/schedule-party.js', 'js/pages/dealclosing.js', 'js/pages/scheduling-panel.js', 'js/data/scheduling-details.js', 'js/data/scheduling-agent.js', 'js/data/agent-portal.js', 'js/pages/client-overview.js', 'js/data/agent-tc-links.js', 'js/data/mock-part-agent-tc.js', 'js/data/mock-part-agent.js', 'js/pages/agent-tc-panel.js', 'js/pages/profile.js', 'js/data/accounting.js', 'js/data/adapter.js', 'js/data/agent-fees.js', 'js/data/contract-terms.js', 'js/data/county-field.js', 'js/data/crm-analytics.js', 'js/data/crm-owner.js', 'js/data/crm-views.js', 'js/data/dashboard-load.js', 'js/data/fee-engine.js', 'js/data/fee-place.js', 'js/data/file-party.js', 'js/data/mock-adapter.js', 'js/data/mock-part-accounting.js', 'js/data/mock-part-admin.js', 'js/data/mock-part-agent-fees.js', 'js/data/mock-part-crm-janine.js', 'js/data/mock-part-crm-nov3b.js', 'js/data/mock-part-crm-settings.js', 'js/data/mock-part-crm.js', 'js/data/mock-part-deals.js', 'js/data/mock-part-docs.js', 'js/data/mock-part-feedback-nov4.js', 'js/data/mock-part-fwp.js', 'js/data/mock-part-nov3b.js', 'js/data/mock-part-nov5.js', 'js/data/mock-part-payoffs.js', 'js/data/mock-part-recording.js', 'js/data/mock-part-task-switches.js', 'js/data/mock-part-tasks.js', 'js/data/mock-part-tax-rates.js', 'js/data/mock-part-title.js', 'js/data/mock-part-underwriter.js', 'js/data/order-draft.js', 'js/data/order-duplicates.js', 'js/data/place-order.js', 'js/data/processor-party.js', 'js/data/qualia-charges.js', 'js/data/seed.js', 'js/data/supabase-accounting.js', 'js/data/supabase-adapter.js', 'js/data/supabase-agent-fees.js', 'js/data/supabase-callitems.js', 'js/data/supabase-crm-janine.js', 'js/data/supabase-crm-surface.js', 'js/data/supabase-crm.js', 'js/data/supabase-feedback-nov4.js', 'js/data/supabase-funding.js', 'js/data/supabase-payoffs.js', 'js/data/supabase-staff.js', 'js/data/supabase-task-switches.js', 'js/data/supabase-tax-rates.js', 'js/data/task-actions.js', 'js/data/task-switches.js', 'js/data/taxes-fees.js', 'js/data/templates.js', 'js/data/underwriter.js', 'js/pages/agent-fees-box.js', 'js/pages/agent-signup.js', 'js/pages/county-field.js', 'js/pages/crm-calls.js', 'js/pages/crm-criteria.js', 'js/pages/crm-custom.js', 'js/pages/crm-dashboards.js', 'js/pages/crm-deals.js', 'js/pages/crm-forms.js', 'js/pages/crm-home.js', 'js/pages/crm-janine.js', 'js/pages/crm-more.js', 'js/pages/crm-reports.js', 'js/pages/crm-search.js', 'js/pages/crm-views.js', 'js/pages/dashboard.js', 'js/pages/deal-buyer-legacy.js', 'js/pages/deal-tab.js', 'js/pages/deal.js', 'js/pages/dealaccounting-cd.js', 'js/pages/dealaccounting-charges.js', 'js/pages/dealaccounting-contract.js', 'js/pages/dealaccounting.js', 'js/pages/dealagenttask.js', 'js/pages/dealcontacts.js', 'js/pages/dealintake.js', 'js/pages/dealpayoffs.js', 'js/pages/dealtaskform.js', 'js/pages/dealtasks.js', 'js/pages/entry.js', 'js/pages/file-dates.js', 'js/pages/occ-fields.js', 'js/pages/ordernew.js', 'js/pages/person-picker.js', 'js/pages/sales-multi.js', 'js/pages/task-builder.js', 'js/pages/taskboard.js', 'js/pages/tasks.js', 'js/pages/tax-rates.js', 'js/pages/tc-overview.js', 'js/pages/templates.js', 'js/pages/underwriters.js', 'js/pages/users.js', 'js/data/agent-tc.js']);
-const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !stampOnly(f));
+// FF-113 changes doc-senders.js so the Documents From column can use the email's sender.
+const ff113 = new Set(['js/data/doc-senders.js']);
+const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !ff113.has(f) && !stampOnly(f));
 ok(unstamped.length === 0, 'no other served module changed except a cache stamp' + (unstamped.length ? ': ' + unstamped.join(', ') : ''));
 
 console.log(fail ? fail + ' failed' : 'crm contact times passed');

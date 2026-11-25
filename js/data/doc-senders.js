@@ -49,3 +49,79 @@ export function sendersToLookUp(rows, { user = null, participants = [] } = {}) {
   const onFile = new Set((participants || []).map((p) => p && ((p.contact && p.contact.profileId) || p.profileId)).filter(Boolean));
   return [...new Set((rows || []).filter((d) => d && d.uploadedBy && !d.uploadedByName).map((d) => d.uploadedBy))].filter((id) => id !== me && !onFile.has(id));
 }
+
+
+/* FF-113 (Francis, Nov 23 meeting notes; confirmed "Both" Nov 24 6:18 PM ET):
+ * Gmail-copied attachments are stored with uploaded_by = the file processor's mailbox, so the From
+ * column used to show the processor. The email's From is already on deal_emails. These helpers
+ * label only rows that have emailAttachmentKey (the Gmail copy). Ordinary uploads are left alone
+ * so nameDocSenders can show the uploader. uploaded_by is not changed (sharing and access still
+ * use it). No database file: existing attachment rows pick up the sender from the email record. */
+export const EMAIL_SENDER_ROLE = 'Email sender';
+
+export function emailFromLabel(email) {
+  const name = String((email && (email.fromName || email.from_name)) || '').trim();
+  const addr = String((email && (email.fromEmail || email.from_email)) || '').trim();
+  if (name && addr && name.toLowerCase() !== addr.toLowerCase()) return { name, role: addr };
+  if (name) return { name, role: EMAIL_SENDER_ROLE };
+  if (addr) return { name: addr, role: EMAIL_SENDER_ROLE };
+  return null;
+}
+
+function emailDocIds(email) {
+  return (email && (email.attachmentDocumentIds || email.attachment_document_ids)) || [];
+}
+
+function sentAt(email) {
+  const t = Date.parse((email && (email.sentAt || email.sent_at)) || '');
+  return Number.isNaN(t) ? 0 : t;
+}
+
+// One email per document id. Prefer an inbound message (the person who sent it in), then the earliest.
+export function emailSendersByDoc(emails) {
+  const map = new Map();
+  for (const e of emails || []) {
+    if (!e) continue;
+    for (const id of emailDocIds(e)) {
+      if (!id) continue;
+      const prev = map.get(id);
+      if (!prev) { map.set(id, e); continue; }
+      const betterIn = (e.direction === 'in' ? 1 : 0) - (prev.direction === 'in' ? 1 : 0);
+      if (betterIn > 0) { map.set(id, e); continue; }
+      if (betterIn < 0) continue;
+      const at = sentAt(e); const pt = sentAt(prev);
+      if (at && (!pt || at < pt)) map.set(id, e);
+    }
+  }
+  return map;
+}
+
+function partyEmail(p) {
+  return String((p && ((p.contact && (p.contact.email || p.contact.Email)) || p.email)) || '').trim().toLowerCase();
+}
+
+export function applyEmailSenders(rows, emails, { participants = [] } = {}) {
+  const byDoc = emailSendersByDoc(emails);
+  if (!byDoc.size) return rows || [];
+  const byEmail = new Map();
+  for (const p of participants || []) {
+    const em = partyEmail(p);
+    if (em && !byEmail.has(em)) byEmail.set(em, p);
+  }
+  return (rows || []).map((d) => {
+    if (!d || !(d.emailAttachmentKey || d.email_attachment_key)) return d;
+    const e = byDoc.get(d.id);
+    if (!e) return d;
+    const party = byEmail.get(String(e.fromEmail || e.from_email || '').trim().toLowerCase());
+    if (party) {
+      const id = (party.contact && party.contact.profileId) || party.profileId;
+      const roles = id ? fileRoles(participants, id) : [party.role].filter(Boolean);
+      const label = emailFromLabel(e);
+      const name = full((party.contact || {}).firstName || party.firstName, (party.contact || {}).lastName || party.lastName) || (label && label.name) || 'Unnamed contact';
+      return { ...d, uploadedByName: name, uploadedByRole: roles.length ? roles.map(roleText).join(', ') : ((label && label.role) || EMAIL_SENDER_ROLE) };
+    }
+    const label = emailFromLabel(e);
+    if (!label) return d;
+    return { ...d, uploadedByName: label.name, uploadedByRole: label.role };
+  });
+}
