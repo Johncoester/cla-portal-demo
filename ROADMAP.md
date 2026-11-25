@@ -3808,3 +3808,27 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-070.
 
 - The ID task is shared, so the passport "one image" rule applies to sellers as well as buyers.
 - The back field uses a `when` list (license, state ID, military ID) rather than a new `whenNot` keyword, so existing single-value `when` fields stay the same.
+
+## Introduction Email To is a list of file parties (MF-066)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
+
+**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- To on the file Email compose box is a multi-select of people on the file, shown as "Name (Role) — email".
+- Introduction Email still starts with buyers, sellers, both agents, and a TC who has an email.
+- An address that is not on the file can still be typed in.
+
+**What's still missing**
+
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-066-intro-to.md](docs/specs/mf-066-intro-to.md)
+
+**Decisions**
+
+- This is a multi-select, not a single-select, so the current intro default of several people is kept.
