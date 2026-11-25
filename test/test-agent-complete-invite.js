@@ -70,7 +70,7 @@ dest = '';
 const revokedView = await signup.render({ api: { getAgentInvite: async () => ({ status: 'revoked', email: 'old@example.test' }) }, params: { token: 'revoked' }, go(p) { dest = p; } });
 ok(!dest && !revokedView.redirect && /no longer active/i.test(toText(revokedView.body)), 'a revoked invite still says it is no longer active');
 const appSrc = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
-ok(/if \(view && view\.redirect\)/.test(appSrc) && appSrc.includes("import('./pages/agent-signup.js?v=202611310300')"), 'the router leaves for Sign in before drawing a used invite');
+ok(/if \(view && view\.redirect\)/.test(appSrc) && appSrc.includes("import('./pages/agent-signup.js?v=202611310600')"), 'the router leaves for Sign in before drawing a used invite');
 
 console.log(fail ? fail + ' failed' : 'agent complete and invite sign-in passed');
 if (fail) process.exit(1);
