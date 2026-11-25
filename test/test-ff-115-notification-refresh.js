@@ -223,6 +223,43 @@ function fakeDom(count = 2) {
   ok((await subscribeNotificationsChannel({ sb: null, userId: 'u1' })) === null, 'no client means no subscribe');
 }
 
+/* --- E2E-GREEN-1: realtime-js calls the status callback with CLOSED from inside removeChannel --- */
+{
+  // A fake that behaves like realtime-js: removing a channel closes it, and closing it calls
+  // the subscribe callback again (synchronously) with CLOSED. Before the fix this recursed
+  // until "Maximum call stack size exceeded" on every page of the portal.
+  const realtimeLike = () => {
+    const state = { removes: 0, statusFn: null };
+    state.sb = {
+      channel() { return { on() { return this; }, subscribe(fn) { state.statusFn = fn; return this; } }; },
+      removeChannel() {
+        state.removes += 1;
+        if (state.removes > 50) throw new RangeError('Maximum call stack size exceeded');
+        if (state.statusFn) state.statusFn('CLOSED');
+      },
+    };
+    return state;
+  };
+  const a = realtimeLike();
+  const pa = subscribeNotificationsChannel({ sb: a.sb, userId: 'ua', onEvent: () => {}, timeoutMs: 1000, setTimeoutFn: () => 1, clearTimeoutFn() {} });
+  a.statusFn('SUBSCRIBED');
+  const unsubA = await pa;
+  unsubA();
+  unsubA();
+  ok(a.removes === 1, 'logging out removes the live channel once, even though removing it reports CLOSED');
+
+  const b = realtimeLike();
+  const pb = subscribeNotificationsChannel({ sb: b.sb, userId: 'ub', onEvent: () => {}, timeoutMs: 1000, setTimeoutFn: () => 1, clearTimeoutFn() {} });
+  b.statusFn('CHANNEL_ERROR');
+  ok((await pb) === null && b.removes === 1, 'a channel error removes the channel once and falls back to polling');
+
+  const c = realtimeLike();
+  let toC = null;
+  const pc = subscribeNotificationsChannel({ sb: c.sb, userId: 'uc', onEvent: () => {}, timeoutMs: 5, setTimeoutFn: (fn) => { toC = fn; return 3; }, clearTimeoutFn() {} });
+  toC();
+  ok((await pc) === null && c.removes === 1, 'a hung subscribe that times out removes the channel once');
+}
+
 /* --- SQL files: add to the realtime publication, and a rollback --- */
 {
   const mig = read('supabase/migrations/20261131030000_notifications_realtime.sql');
@@ -244,7 +281,7 @@ function fakeDom(count = 2) {
   const app = read('js/app.js');
   const hosted = read('js/data/supabase-adapter.js');
   const adapter = read('js/data/adapter.js');
-  ok(app.includes("from './data/notif-live.js?v=202611310400'") && app.includes('startNotificationLive') && app.includes('stopNotificationLive'),
+  ok(app.includes("from './data/notif-live.js?v=202611310700'") && app.includes('startNotificationLive') && app.includes('stopNotificationLive'),
     'the shell starts and stops the live notification helper');
   ok(app.includes('startNotificationLive(u)') && app.includes('wireChrome'),
     'the helper starts from the chrome after the page is painted, not before');
@@ -252,9 +289,9 @@ function fakeDom(count = 2) {
     'the helper stops on logout and is restarted when the signed-in person changes');
   ok(hosted.includes('subscribeNotifications') && hosted.includes('subscribeNotificationsChannel'),
     'the hosted adapter opens a Realtime channel for this person\'s notifications');
-  ok(adapter.includes("supabase-adapter.js?v=202611310600") && app.includes('adapter.js?v=202611310600')
-    && read('index.html').includes('js/app.js?v=202611310600'),
-    'the restamped shell and hosted adapter load at 202611310500');
+  ok(adapter.includes("supabase-adapter.js?v=202611310700") && app.includes('adapter.js?v=202611310700')
+    && read('index.html').includes('js/app.js?v=202611310700'),
+    'the restamped shell and hosted adapter load at 202611310700');
   ok(!app.includes('api.notificationCount(); startNotificationLive') && !app.includes('await startNotificationLive'),
     'starting the helper is not awaited on the first paint and does not add a second initial count read');
 }

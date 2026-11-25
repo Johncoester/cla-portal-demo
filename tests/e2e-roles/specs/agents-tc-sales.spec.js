@@ -57,7 +57,14 @@ test('transaction coordinator file tabs, tasks, contacts, documents, email, and 
   await gotoHash(page, `#/deals/${id}/contacts`);
   await expect(page.locator('table')).toBeVisible();
   await expect(page.locator('[data-edit]')).toHaveCount(0);
-  await expect(page.locator('[data-invite-portal]')).toHaveCount(0);
+  // STAFF-INVITE-1 (John, Nov 23 2026, 5:07 PM ET, PR 431): a CLA staff Transaction Coordinator may now
+  // click Invite to portal. The old "no invite button for a TC" check was the Nov 4 rule that PR 431 lifted.
+  // What still holds: the button only appears on rows that can be invited (buyer, seller, the agents and their TCs).
+  const inviteRoles = await page.locator('[data-invite-portal]').evaluateAll((els) => els.map((el) => el.getAttribute('data-invite-role')));
+  expect(inviteRoles, 'the seeded Buyer Agent with no login can be invited by the TC').toContain('Buyer Agent');
+  for (const role of inviteRoles) {
+    expect(['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent', 'Buyer Agent TC', 'Listing Agent TC']).toContain(role);
+  }
   await gotoHash(page, `#/deals/${id}/documents`);
   const docs = await uploadOfferedVisibilities(page, runId(), person);
   expect(docs.saved).toEqual(expect.arrayContaining(['Everyone on the file']));
