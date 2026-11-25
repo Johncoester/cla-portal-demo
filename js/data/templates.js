@@ -100,6 +100,10 @@ const PERSONAL_V8 = PERSONAL_V7.filter((f) => f.k !== 'water_meter_where').flatM
   if (f.k === 'entity_state') return [f, F('entity_tax_id', 'EIN/Tax ID', 'text', true, { when: ENT })];
   return [f];
 });
+/* MF-074 (Matt, Nov 25 2026): Buyer Intake no longer asks for a forwarding address. Sellers keep the field.
+ * personal_info v9 is v8 with forwarding_address limited to Client-Seller. Do not edit SHARED_WITH_SELLER:
+ * that list is how v6–v8 were built, and those versions must keep the buyer field. */
+const PERSONAL_V9 = PERSONAL_V8.map((f) => (f.k === 'forwarding_address' ? { ...f, roles: SELLER } : f));
 export const PROCEEDS_WIRE_NOTE = 'Proceeds of $5,000.00 or more must be sent by wire transfer.';
 export const PROCEEDS_STATEMENT = 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.';
 const ID_V2 = [
@@ -258,6 +262,10 @@ export const TEMPLATE_DEFS = [
   { code: 'personal_info', version: 8, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 123,
     description: 'Buyer and seller personal details. Sellers also answer property and utility questions. Spouse information is a section on this form.',
     fields: PERSONAL_V8 },
+  // ---- Matt, Nov 25 MF-074 (migration 126 = SQL 20261131080000): forwarding address is seller-only. Buyers no longer see it on intake.
+  { code: 'personal_info', version: 9, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 126,
+    description: 'Buyer and seller personal details. Sellers also answer property and utility questions, including a forwarding address. Spouse information is a section on this form.',
+    fields: PERSONAL_V9 },
 ];
 
 // Personal items stay client-only whatever the setting says: ID / identity, signatures, banking / wire / payment-account details, SSN.
@@ -435,7 +443,8 @@ export function applyProceedsMove(d, { at = new Date().toISOString(), by = null 
 }
 /* FF-068 (migration 123): personal_info v8. Same move rule as above: only untouched to-do copies with no answers move. Idempotent.
  * Mirrored in SQL 20261117150000. */
-const isPersonalV8 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'entity_tax_id');
+const forwardingRolesOf = (t) => ((t.fields || []).find((f) => f.k === 'forwarding_address') || {}).roles || [];
+const isPersonalV8 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'entity_tax_id') && forwardingRolesOf(t).includes('Client-Buyer');
 export function applyPersonalV8(d, { at = new Date().toISOString(), by = null } = {}) {
   const def = TEMPLATE_DEFS.find((t) => t.migration === 123); const added = []; let moved = 0;
   const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isPersonalV8);
@@ -443,6 +452,27 @@ export function applyPersonalV8(d, { at = new Date().toISOString(), by = null } 
     const top = vs.slice().sort((a, b) => b.version - a.version)[0]; const version = top ? Math.max(top.version + 1, def.version) : def.version;
     nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
     if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-ein`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
+/* MF-074 (migration 126, mirrored in SQL 20261131080000): personal_info v9. Forwarding address is seller-only.
+ * Same move rule as v8: only untouched to-do copies with no answers move. Idempotent. Recognised by a seller-only forwarding_address. */
+const isPersonalV9 = (t) => t.code === 'personal_info' && (t.fields || []).some((f) => f.k === 'entity_tax_id')
+  && forwardingRolesOf(t).includes('Client-Seller') && !forwardingRolesOf(t).includes('Client-Buyer');
+export function applyPersonalV9(d, { at = new Date().toISOString(), by = null } = {}) {
+  const def = TEMPLATE_DEFS.find((t) => t.migration === 126); const added = []; let moved = 0;
+  if (!def || !Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isPersonalV9);
+  if (!nt) {
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0];
+    if (!top && !vs.length) return { added, moved };
+    const version = top ? Math.max(top.version + 1, def.version) : def.version;
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-mf074`;
     vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
   }
   if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length

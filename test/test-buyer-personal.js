@@ -26,18 +26,19 @@ const mine = async (dealId, who) => {
 };
 const buyerTask = await mine(md.id, 'u-buyer');
 const opened = await api.getTask(buyerTask.id);
-for (const key of ['citizenship', 'gender', 'date_of_birth', 'forwarding_address', 'leaving_town', 'divorce', 'primary_residence', 'survey', 'md_first_time', 'current_address', 'attending_closing']) {
+for (const key of ['citizenship', 'gender', 'date_of_birth', 'leaving_town', 'divorce', 'primary_residence', 'survey', 'md_first_time', 'current_address', 'attending_closing']) {
   ok(opened.fields.some((f) => f.k === key), `the buyer form includes ${key}`);
 }
+ok(!opened.fields.some((f) => f.k === 'forwarding_address'), 'MF-074: the buyer form no longer includes forwarding address');
 ok(!opened.fields.some((f) => /ssn|spouse/i.test(`${f.k} ${f.label}`)), 'SSN and spouse match are not on the form');
 
 const saved = await api.saveTaskForm(buyerTask.id, {
-  citizenship: 'U.S. Citizen', gender: 'Female', date_of_birth: '1990-04-02', forwarding_address: '9 Next Street, Rockville, MD 20850',
+  citizenship: 'U.S. Citizen', gender: 'Female', date_of_birth: '1990-04-02',
   leaving_town: 'No', divorce: 'No', primary_residence: 'Yes', survey: 'Yes', md_first_time: 'Yes',
 });
 ok(saved.formData.citizenship === 'U.S. Citizen' && saved.formData.md_first_time === 'Yes', 'saving keeps the new answers');
 const again = await api.getTask(buyerTask.id);
-ok(again.formData.date_of_birth === '1990-04-02' && again.formData.survey === 'Yes' && again.formData.forwarding_address.includes('9 Next Street'), 'opening the task again shows the saved answers');
+ok(again.formData.date_of_birth === '1990-04-02' && again.formData.survey === 'Yes', 'opening the task again shows the saved answers');
 
 const html = toText(intakeFormHtml({ ...again, fields: again.fields }, { page: true, state: 'MD' }));
 ok(html.includes('Are you a first-time homebuyer in Maryland?') && html.includes('value="1990-04-02"'), 'the Maryland form shows the saved date of birth and the Maryland question');
@@ -52,7 +53,7 @@ ok(!vaOpen.fields.some((f) => f.k === 'md_first_time') && vaOpen.fields.some((f)
 await api.signInDev('u-seller');
 const seller = (await api.listTasks(md.id)).find((t) => t.templateCode === 'personal_info' && t.assignedRole === 'Client-Seller');
 const sellerOpen = await api.getTask(seller.id);
-ok(sellerOpen.fields.some((f) => f.k === 'citizenship') && !sellerOpen.fields.some((f) => f.k === 'md_first_time' || f.k === 'survey'), 'the seller copy gets citizenship and not the buyer-only Maryland or survey questions');
+ok(sellerOpen.fields.some((f) => f.k === 'citizenship') && sellerOpen.fields.some((f) => f.k === 'forwarding_address') && !sellerOpen.fields.some((f) => f.k === 'md_first_time' || f.k === 'survey'), 'the seller copy keeps citizenship and forwarding address, and not the buyer-only Maryland or survey questions');
 
 // FF-101a: agents no longer read other parties' tasks at all (was formHidden with empty answers).
 await api.signInDev('u-bagent');
