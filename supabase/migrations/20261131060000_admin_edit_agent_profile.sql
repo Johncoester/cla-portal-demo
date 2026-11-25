@@ -122,12 +122,20 @@ grant execute on function private.rpc_admin_update_agent_profile(uuid, jsonb) to
 grant execute on function public.admin_get_agent_profile(uuid) to authenticated;
 grant execute on function public.admin_update_agent_profile(uuid, jsonb) to authenticated;
 
-drop policy if exists agent_photos_admin_insert on storage.objects;
-create policy agent_photos_admin_insert on storage.objects for insert to authenticated
-  with check (bucket_id = 'agent-photos' and private.admin_agent_photo_ok(name));
-drop policy if exists agent_photos_admin_update on storage.objects;
-create policy agent_photos_admin_update on storage.objects for update to authenticated
-  using (bucket_id = 'agent-photos' and private.admin_agent_photo_ok(name))
-  with check (bucket_id = 'agent-photos' and private.admin_agent_photo_ok(name));
+-- Supabase always has storage.objects. A scratch database without the storage schema (test-migrations-apply-clean) skips this part.
+do $pol$
+begin
+  if to_regclass('storage.objects') is null then
+    raise notice 'storage.objects is not here: agent picture policies skipped';
+    return;
+  end if;
+  drop policy if exists agent_photos_admin_insert on storage.objects;
+  create policy agent_photos_admin_insert on storage.objects for insert to authenticated
+    with check (bucket_id = 'agent-photos' and private.admin_agent_photo_ok(name));
+  drop policy if exists agent_photos_admin_update on storage.objects;
+  create policy agent_photos_admin_update on storage.objects for update to authenticated
+    using (bucket_id = 'agent-photos' and private.admin_agent_photo_ok(name))
+    with check (bucket_id = 'agent-photos' and private.admin_agent_photo_ok(name));
+end $pol$;
 
 commit;
