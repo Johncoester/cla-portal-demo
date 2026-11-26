@@ -289,7 +289,7 @@ function fakeDom(count = 2) {
     'the helper stops on logout and is restarted when the signed-in person changes');
   ok(hosted.includes('subscribeNotifications') && hosted.includes('subscribeNotificationsChannel'),
     'the hosted adapter opens a Realtime channel for this person\'s notifications');
-  ok(adapter.includes("supabase-adapter.js?v=202611310700") && app.includes('adapter.js?v=202611310700')
+  ok(adapter.includes("supabase-adapter.js?v=202611311000") && app.includes('adapter.js?v=202611311000')
     && read('index.html').includes('js/app.js?v=202611311100'),
     'the restamped shell and hosted adapter load at 202611310700');
   ok(!app.includes('api.notificationCount(); startNotificationLive') && !app.includes('await startNotificationLive'),

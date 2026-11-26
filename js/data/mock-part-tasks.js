@@ -1,6 +1,7 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
 import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from './templates.js?v=202611310900';
+import { idUploadStoredName } from './id-upload-name.js?v=202611311000';
 import { ssnDigits, ssnGrouped, ssnMask, ssnStaff, withoutSsn } from './buyer-ssn.js?v=202611120200';
 import { senderFor } from './email-senders.js?v=202611247700';
 import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611247700';   // Task switch OFF: no new copy (existing copies kept)
@@ -233,7 +234,16 @@ export function tasksAndForms(x) {
     // Upload a file for a form field (e.g. photo ID). Filed under "IDs & personal", visible to the owner's side only.
     async uploadForTask(id, file) {
       let u = needUser(); const t = taskOr404(u, id); u = onDeal(u, t.dealId); if (!canFill(u, t)) fail('You cannot fill in this task.');
-      const side = C.sideOf(t.assignedRole); const doc = x.newDoc(u, { ...file, visibility: side || 'staff' }); doc.dealId = t.dealId; if (t.templateCode === 'id_upload') doc.docType = 'Photo ID';
+      const side = C.sideOf(t.assignedRole);
+      let upload = file;
+      if (t.templateCode === 'id_upload' && file && (file.field === 'id_front' || file.field === 'id_back')) {
+        const d0 = load();
+        const part = t.participantId ? d0.participants.find((z) => z.id === t.participantId) : null;
+        const c = part && d0.contacts.find((z) => z.id === part.contactId);
+        const personName = c ? `${c.firstName || ''} ${c.lastName || ''}`.trim() : (ownerOf(t) ? nameOf(ownerOf(t)) : '');
+        upload = { ...file, name: idUploadStoredName({ field: file.field, personName, originalName: file.name, mimeType: file.mimeType }) };
+      }
+      const doc = x.newDoc(u, { ...upload, visibility: side || 'staff' }); doc.dealId = t.dealId; if (t.templateCode === 'id_upload') doc.docType = 'Photo ID';
       const ff = file && file.field ? fieldsOf(t).find((z) => z.k === file.field && z.type === 'doc') : null; if (ff && ff.docType) doc.docType = ff.docType;   // Matt, Nov 3: entity documents get their type
       const f = load().folders.find((z) => z.dealId === t.dealId && z.name === 'IDs & personal'); doc.folderId = f ? f.id : null;
       await x.keepFile(doc); load().documents.push(doc); log(t.dealId, u.id, 'document.uploaded', 'document', doc.id, `Uploaded ${doc.name} for ${t.title}`); save(); return { id: doc.id, name: doc.name };
