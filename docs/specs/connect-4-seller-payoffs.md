@@ -4,6 +4,8 @@ Asked by John Coester, Nov 25 2026, 7:49 PM ET (t2081u), from the Connect Live T
 lender and loan payoff info was "Not in the Payoff section, but under the seller's tasks, marked as done so the processor can see it." It must
 create or fill in the order's Payoffs section, ready for the processor to order the payoff.
 
+Pull request: [PR 452](https://github.com/Johncoester/cla-portal-demo/pull/452). No database file.
+
 ## How it works
 
 - Accounting > Payoffs shows a card, **From the seller's Outstanding Mortgage task**, when a seller has saved that task: lender, phone, loan

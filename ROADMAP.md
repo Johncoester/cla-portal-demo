@@ -41,7 +41,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The lender and loan the seller enters on Outstanding Mortgage Information show on the order's Accounting > Payoffs page. The processor adds each one as a payoff tab with one click (or all at once), so the lender, phone and loan number are filled in and the payoff is ready to order. Amounts stay blank until the payoff statement comes in.
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 7.2. No database file. Pull request: CONNECT-4 (link added when opened).
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 7.2. No database file. Pull request: [PR 452](https://github.com/Johncoester/cla-portal-demo/pull/452).
 
 **What's built**
 
