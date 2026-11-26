@@ -41,7 +41,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** The buyer's Personal Information task asks the six Yes/No questions Francis listed (attending the closing, leaving town, currently getting divorced, primary residence, wants a survey, first-time home buyer in MD). The seller's Personal Information task uses the four Yes/No wordings she listed (subject to ground rent, subject to front foot benefit, property is homestead, tenants at/after closing). The Seller Proceeds task asks "Proceeds Instructions: Overnight Check or Wire?" and shows that proceeds must go to the SELLER OF RECORD (or the Entity/Trust). A buyer signed in to an order sees every active buyer-side task from the template.
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 2.1 and 2.2. Database file 20261131240000_connect_5_questions_wording.sql (apply once on TEST). Pull request: CONNECT-5 (link added when opened).
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 2.1 and 2.2. Database file 20261131240000_connect_5_questions_wording.sql (apply once on TEST). Pull request: [PR 456](https://github.com/Johncoester/cla-portal-demo/pull/456).
 
 **What's built**
 

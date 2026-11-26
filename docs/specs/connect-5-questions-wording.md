@@ -2,7 +2,7 @@
 
 Asked by John Coester, Nov 25 2026, 7:49 PM ET (t2081u), from the Connect Live Test Checklist, rows 2.1 and 2.2 (Francis, Nov 25 2026). Francis reported that some buyer tasks were missing, that Personal Information needed the listed Yes/No questions, and that Seller Proceeds wording should be updated.
 
-Pull request: CONNECT-5 (link added when opened). Database file: `supabase/migrations/20261131240000_connect_5_questions_wording.sql`.
+Pull request: [PR 456](https://github.com/Johncoester/cla-portal-demo/pull/456). Database file: `supabase/migrations/20261131240000_connect_5_questions_wording.sql`.
 
 ## How it works
 
