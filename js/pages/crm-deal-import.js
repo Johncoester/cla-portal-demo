@@ -6,7 +6,7 @@
 import { html, raw, $, guard, toast, pill, toText } from '../ui.js?v=202611161500';
 import { parseCsv, toCsvText, guessMapping, applyMapping } from '../data/crm-janine.js?v=202611247700';
 import { importFileKind, importFileRejectReason, importReadErrorMessage } from '../data/crm-import-file.js?v=202611312900';
-import { DEAL_IMPORT_FIELDS, DEAL_IMPORT_MAX_ROWS } from '../data/crm-imported-deals.js?v=202611313000';
+import { DEAL_IMPORT_FIELDS, DEAL_IMPORT_MAX_ROWS } from '../data/crm-imported-deals.js?v=202611313200';
 
 const MATCH_LABEL = { linked: ['Linked to order', 'ok'], unmatched: ['New CRM deal', 'ok'], ambiguous: ['Needs review', 'warn'] };
 export function dealImportResultCell(x) {

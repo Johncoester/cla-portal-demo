@@ -14,6 +14,7 @@ import { composeModal } from './compose.js?v=202611312900';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611247700';
 import { processorPickLabel, processorPickError } from '../data/processor-pick.js?v=202611222000';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611247700';
+import { preprocessorChoices, paintPreprocessorSelect, NO_PREPROCESSOR_HOWTO } from '../data/preprocessor-pick.js?v=202611313100';
 import { canManageClosingLocations } from '../data/closing-location.js?v=202611247700';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611247700';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611247700';
@@ -21,7 +22,7 @@ import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611312900';
 import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611312900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611312900';
+import { prefetchDealTab } from './deal-tab.js?v=202611313100';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -303,6 +304,7 @@ async function editModal(api, d, refresh, meId) {
   const v = (k) => d[k] == null ? '' : d[k]; const refi = isRefi(d); const ev = earnestView(d);
   // Matt, Nov 3 (b): source of business (CRM Settings Lead Source list; a retired / renamed value already on the order stays selectable) + money with commas
   const preprocs = await api.listPreprocessors(); const procs = api.listProcessors ? await api.listProcessors() : [];
+  const preproc = preprocessorChoices(preprocs, d.preprocessorUserId || '', d.preprocessorName || '');
   let closerStaff = []; try { closerStaff = api.listActiveStaff ? await api.listActiveStaff() : []; } catch (e) { closerStaff = []; }
   const closers = closerChoices(closerStaff);
   // John, Nov 9: the file's Transaction Coordinator (informational; every TC sees every file). A TC no longer on the list stays selectable.
@@ -321,7 +323,7 @@ async function editModal(api, d, refresh, meId) {
     ${claRepresentationWritesEnabled(api) ? html`<h4 class="span2">Who CLA represents</h4><label class="span2">CLA's side of this file<select name="claRepresentation" aria-label="Who CLA represents"><option value="" ${d.claRepresentation ? '' : raw('selected')}>Not recorded</option>${CLA_REPRESENTATION.map((row) => html`<option value="${row.code}" ${row.code === d.claRepresentation ? raw('selected') : ''}>${row.label}</option>`)}</select><span class="field-hint">Not a portal role, not the buyer or listing agent, not the source of business, and not who can see the file. Not recorded stays blank until you choose.</span></label>` : ''}
     <h4 class="span2">CLA Title team</h4><label class="span2">Processor <button type="button" class="ghost" data-refresh-processors>Refresh list</button><select name="processorId" data-processor-select></select><span class="field-hint">Unassigned is allowed. Refreshing the list does not change the address or the other fields.</span></label>
     <label class="span2">Transaction Coordinator<select name="tcUserId" data-tc-select><option value="">(none)</option>${options(tcOpts, d.tcUserId || '', (t) => t.name, (t) => t.id)}</select><span class="field-hint">Filled in automatically from the agent's team when blank. Change or clear it any time.</span></label>
-    <label class="span2">Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, d.preprocessorUserId || '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select></label>
+    <label class="span2">Preprocessor <button type="button" class="ghost" data-refresh-preprocessors>Refresh list</button><select name="preprocessorUserId" data-preprocessor-select>${options(preproc.options, preproc.value, (o) => o.label, (o) => o.value)}</select><span class="field-hint" data-no-preproc ${preproc.empty ? '' : raw('hidden')}>No preprocessor is available for this login. ${NO_PREPROCESSOR_HOWTO}</span></label>
     <label class="span2">Closer<input name="closerName" list="closer-staff" maxlength="120" autocomplete="off" value="${closerInputValue(d, closers)}" aria-label="Closer" data-closer-input><datalist id="closer-staff">${closers.map((c) => html`<option value="${c.label}"></option>`)}</datalist><span class="field-hint">Pick an active CLA staff member, or type a name.</span></label>
     <h4 class="span2">Lender</h4><label>Company<input name="lenderName" value="${v('lenderName')}"></label><label>Contact<input name="lenderContact" value="${v('lenderContact')}"></label>
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
@@ -340,6 +342,10 @@ async function editModal(api, d, refresh, meId) {
   bindAddressFill($('#edf', m));
   $('[data-refresh-processors]', m).addEventListener('click', guard(async () => { const street = $('[name=street]', m).value; const keep = $('[name=processorId]', m).value; paintProcessors(await api.listProcessors(), keep);
     if ($('[name=street]', m).value !== street) throw new Error('Refreshing the Processor list must not clear the form.'); toast('Processor list updated. The other fields were kept.'); }));
+  $('[data-refresh-preprocessors]', m).addEventListener('click', guard(async () => { const street = $('[name=street]', m).value; const sel = $('[name=preprocessorUserId]', m);
+    const painted = paintPreprocessorSelect(sel, preprocessorChoices(await api.listPreprocessors(), sel.value, d.preprocessorName || ''), $('[data-no-preproc]', m));
+    if ($('[name=street]', m).value !== street) throw new Error('Refreshing the Preprocessor list must not clear the form.');
+    toast(painted.dropped ? 'Preprocessor list updated. That person is no longer an active Preprocessor, so this is set to (none). The other fields were kept.' : 'Preprocessor list updated. The other fields were kept.'); }));
   wireEmdHolderFields($('#edf', m));
     $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyAmount(f[k]); });
     const closer = resolveCloser(f.closerName, closers, { closerName: d.closerName || '', closerProfileId: d.closerProfileId || null }); f.closerName = closer.closerName; f.closerProfileId = closer.closerProfileId;
@@ -347,6 +353,7 @@ async function editModal(api, d, refresh, meId) {
     else applyNoEmdToForm(f);
     if (refi || String(f.state || '').toUpperCase() !== 'MD') { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
     const parcels = parcelsFromForm(e.target); f.parcelId = parcels.parcelId; f.parcelIds = parcels.parcelIds;
+    if ((f.preprocessorUserId || '') === (d.preprocessorUserId || '')) delete f.preprocessorUserId;   // MF-065: unchanged = not re-sent, so a person who is no longer a Preprocessor is not rejected or cleared
     await api.updateDeal(d.id, f); closeModal(); toast('Order saved'); refresh(); }));
 }
 
