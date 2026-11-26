@@ -106,6 +106,25 @@ const PERSONAL_V8 = PERSONAL_V7.filter((f) => f.k !== 'water_meter_where').flatM
  * personal_info v9 is v8 with forwarding_address limited to Client-Seller. Do not edit SHARED_WITH_SELLER:
  * that list is how v6–v8 were built, and those versions must keep the buyer field. */
 const PERSONAL_V9 = PERSONAL_V8.map((f) => (f.k === 'forwarding_address' ? { ...f, roles: SELLER } : f));
+/* CONNECT-5 (John, Nov 25 2026, Connect Live Test Checklist rows 2.1 and 2.2): wording only.
+ * personal_info v10 is v9 with the Yes/No question labels Francis asked for. Keys, types, roles,
+ * required flags, states and seller roleLabels are unchanged, so MF-074 (seller-only forwarding
+ * address) and citizenship (typed line, MF-073 later) are not touched. */
+export const CONNECT5_PI_LABELS = {
+  attending_closing: 'Attending the closing?',
+  leaving_town: 'Leaving town before closing?',
+  divorce: 'Currently getting divorced?',
+  primary_residence: 'Property will be primary residence?',
+  survey: 'Wants survey?',
+  md_first_time: 'First-time home buyer in MD?',
+  ground_rent: 'Subject to ground rent?',
+  front_foot: 'Subject to front foot benefit?',
+  homestead: 'Property is homestead?',
+  tenants_after: 'Property has tenants at/after closing?',
+};
+const PERSONAL_V10 = PERSONAL_V9.map((f) => (CONNECT5_PI_LABELS[f.k] ? { ...f, label: CONNECT5_PI_LABELS[f.k] } : f));
+export const PROCEEDS_METHOD_V3 = 'Proceeds Instructions: Overnight Check or Wire?';
+export const PROCEEDS_STATEMENT_V3 = 'Any seller proceeds are required to be disbursed to the SELLER OF RECORD. If the seller is an Entity/Trust, the proceeds will be disbursed to the Entity/Trust only.';
 export const PROCEEDS_WIRE_NOTE = 'Proceeds of $5,000.00 or more must be sent by wire transfer.';
 export const PROCEEDS_STATEMENT = 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.';
 const ID_V2 = [
@@ -160,6 +179,13 @@ const PROCEEDS_V1 = [F('method', 'How do you want to receive your proceeds?', 's
 const PROCEEDS_V2 = [...PROCEEDS_V1, F('proceeds_wire_note', 'Wire transfers', 'info', false, { text: PROCEEDS_WIRE_NOTE }),
   F('proceeds_statement', 'Seller proceeds acknowledgment', 'info', false, { text: PROCEEDS_STATEMENT }),
   F('proceeds_ack', 'I acknowledge and understand the above statement.', 'checkbox', true), F('notes', 'Anything else we should know?', 'textarea')];
+/* CONNECT-5: seller_proceeds v3 keeps the same fields and options; only the method label and the
+ * acknowledgment text change. "Check at settlement" stays as a third option. */
+const PROCEEDS_V3 = PROCEEDS_V2.map((f) => {
+  if (f.k === 'method') return { ...f, label: PROCEEDS_METHOD_V3 };
+  if (f.k === 'proceeds_statement') return { ...f, text: PROCEEDS_STATEMENT_V3 };
+  return f;
+});
 export const AGENT_FEES_NOTE = 'Your commission, admin fee and any other fees are entered in the Agent fees box under your agent task section on Tasks. That is the one place CLA Title keeps them, so they match Accounting, the Closing Disclosure and the ALTA statement.';
 /* FF-101b (Francis Nov 18 11 AM notes; John confirmed 2:13 PM ET): broker fee + total on Commission information, and how the commission is paid.
  * Commission $ still comes from Agent fees (amount already includes any additional amount on that side). Total = that commission + broker fee.
@@ -271,6 +297,9 @@ export const TEMPLATE_DEFS = [
   { code: 'seller_proceeds', version: 2, title: 'How you want your proceeds', roles: ['Client-Seller'], dueDays: 10, clientOnly: true, agentRoles: [], migration: 122,
     description: 'How you want to receive the money from your sale, and the seller proceeds acknowledgment. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
     fields: PROCEEDS_V2 },
+  { code: 'seller_proceeds', version: 3, title: 'How you want your proceeds', roles: ['Client-Seller'], dueDays: 10, clientOnly: true, agentRoles: [], migration: 128,
+    description: 'How you want to receive the money from your sale, and the seller proceeds acknowledgment. Bank details are seen only by you and the CLA processor (others see the last 4 digits).',
+    fields: PROCEEDS_V3 },
   { code: 'personal_info', version: 7, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 122,
     description: 'Buyer and seller personal details. Sellers also answer property and utility questions. Spouse information is a section on this form.',
     fields: PERSONAL_V7 },
@@ -281,6 +310,10 @@ export const TEMPLATE_DEFS = [
   { code: 'personal_info', version: 9, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 126,
     description: 'Buyer and seller personal details. Sellers also answer property and utility questions, including a forwarding address. Spouse information is a section on this form.',
     fields: PERSONAL_V9 },
+  // ---- CONNECT-5 (migration 128 = SQL 20261131240000): Yes/No wording on Personal information; Seller Proceeds instructions. v9 fields otherwise unchanged.
+  { code: 'personal_info', version: 10, title: 'Personal information', roles: ['Client-Buyer', 'Client-Seller'], dueDays: 7, clientOnly: true, agentRoles: [], migration: 128,
+    description: 'Buyer and seller personal details. Sellers also answer property and utility questions, including a forwarding address. Spouse information is a section on this form.',
+    fields: PERSONAL_V10 },
 ];
 
 // Personal items stay client-only whatever the setting says: ID / identity, signatures, banking / wire / payment-account details, SSN.
@@ -524,6 +557,36 @@ export function applyIdUploadV3(d, { at = new Date().toISOString(), by = null } 
     .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
   return { added, moved };
 }
+/* CONNECT-5 (migration 128, mirrored in SQL 20261131240000): personal_info v10 and seller_proceeds v3.
+ * Wording only. Same move rule as v9: only untouched to-do copies with no answers move. Idempotent.
+ * personal_info v10 is recognised by the new attending_closing label; seller_proceeds v3 by the new method label. */
+const isPersonalV10 = (t) => t.code === 'personal_info'
+  && (t.fields || []).some((f) => f.k === 'attending_closing' && f.label === CONNECT5_PI_LABELS.attending_closing);
+const isProceedsV3 = (t) => t.code === 'seller_proceeds'
+  && (t.fields || []).some((f) => f.k === 'method' && f.label === PROCEEDS_METHOD_V3);
+function publishConnect5(d, def, isThis, { at, by }) {
+  const added = []; let moved = 0;
+  if (!def || !Array.isArray(d.taskTemplates) || !Array.isArray(d.tasks)) return { added, moved };
+  const vs = d.taskTemplates.filter((t) => t.code === def.code); let nt = vs.find(isThis);
+  if (!nt) {
+    const top = vs.slice().sort((a, b) => b.version - a.version)[0];
+    if (!top && !vs.length) return { added, moved };
+    const version = top ? Math.max(top.version + 1, def.version) : def.version;
+    nt = { ...JSON.parse(JSON.stringify(def)), id: `tt-${def.code}-v${version}`, version, agentRoles: top ? [...(top.agentRoles || [])] : [...def.agentRoles], active: true, publishedBy: by, publishedAt: at };
+    if (d.taskTemplates.some((t) => t.id === nt.id)) nt.id = `tt-${def.code}-v${version}-connect5`;
+    vs.forEach((t) => { t.active = false; }); d.taskTemplates.push(nt); added.push(nt.id);
+  }
+  if (nt.active) d.tasks.filter((t) => t.templateCode === def.code && t.templateId !== nt.id && t.kind === 'form' && t.status === 'todo' && !t.savedAt && !Object.keys(t.formData || {}).length
+      && (d.taskTemplates.find((z) => z.id === t.templateId) || { version: 0 }).version < nt.version)
+    .forEach((t) => { t.templateId = nt.id; t.templateVersion = nt.version; t.title = nt.title; t.description = nt.description; moved++; });
+  return { added, moved };
+}
+export function applyConnect5Questions(d, { at = new Date().toISOString(), by = null } = {}) {
+  const pi = publishConnect5(d, TEMPLATE_DEFS.find((t) => t.code === 'personal_info' && t.version === 10), isPersonalV10, { at, by });
+  const sp = publishConnect5(d, TEMPLATE_DEFS.find((t) => t.code === 'seller_proceeds' && t.version === 3), isProceedsV3, { at, by });
+  return { added: [...pi.added, ...sp.added], moved: pi.moved + sp.moved };
+}
+
 // Place Order entity (participant.entity) -> answers pre-filled on that person's Personal information copy (only when the copy has no answers yet)
 export const ENTITY_TYPES_SET = new Set(ENTITY_TYPES);
 export function entityPrefill(entity, fields) {
