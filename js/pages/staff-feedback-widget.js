@@ -1,7 +1,7 @@
 /* Portal conversation. One composer, one explicit Send, and replies only after they are saved.
  * A phone app can use the same thread later. This panel does not read order files or attachment bytes. */
-import { conversationTitle, newId } from '../data/staff-feedback.js?v=202611080400';
-import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611080400';
+import { conversationTitle, newId } from '../data/staff-feedback.js?v=202611312900';
+import { launcherAllowed, loadDraft, nextWidgetState, saveDraft } from '../data/staff-feedback-widget-state.js?v=202611312900';
 
 const HOST_ID = 'claStaffFeedbackRoot';
 let state = { userId: null, open: false, reportId: '' };

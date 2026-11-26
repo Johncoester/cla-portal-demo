@@ -1,6 +1,6 @@
 /* Mock adapter for staff portal feedback. Fake people only. Nothing is sent to the assistant.
  * The test simulation is labeled and is not a real reply. */
-import { addAttachment, addFollowUp, attachmentContent, canReportStaffFeedback, createReport, emptyBag, getReport, listReports, noteLocalDemoDispatch, publishDraft, recordLocalDemoReply, replyToReport, reviewStaffReply, setReportStatus, simulateReport } from './staff-feedback.js?v=202611080400';
+import { addAttachment, addFollowUp, attachmentContent, canReportStaffFeedback, createReport, emptyBag, getReport, listReports, noteLocalDemoDispatch, publishDraft, recordLocalDemoReply, replyToReport, reviewStaffReply, setReportStatus, simulateReport } from './staff-feedback.js?v=202611312900';
 
 export function staffFeedbackPart(x) {
   const bag = () => { const d = x.load(); d.staffFeedback ||= emptyBag(); return d.staffFeedback; };

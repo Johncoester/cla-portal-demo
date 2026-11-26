@@ -1,6 +1,7 @@
 /* Several documents in one pick. Each file is checked and stored on its own.
  * A file that fails stays unstored. A file that saved is not uploaded again. */
 import { ALLOWED_UPLOAD_EXT, MAX_UPLOAD_BYTES } from './constants.js?v=202611302300';
+import { uploadTooLargeMessage, isOverUploadLimit, mapUploadError } from './upload-limit.js?v=202611312900';
 
 const extOf = (name) => { const n = String(name || ''); const i = n.lastIndexOf('.'); return i > 0 ? n.slice(i + 1).toLowerCase() : ''; };
 
@@ -13,7 +14,7 @@ export function planDocumentBatch(files, { existingNames = [], maxBytes = MAX_UP
     const ext = extOf(name);
     if (!name) { rejected.push({ name: 'file', reason: 'Choose a file to upload.' }); continue; }
     if (!allowed.includes(ext)) { rejected.push({ name, reason: `Use one of these types: ${allowed.join(', ')}.` }); continue; }
-    if (!(Number(file.size) >= 0) || file.size > maxBytes) { rejected.push({ name, reason: 'File is too large for this demo.' }); continue; }
+    if (isOverUploadLimit(file.size, maxBytes)) { rejected.push({ name, reason: uploadTooLargeMessage(maxBytes) }); continue; }
     if (seen.has(key)) { rejected.push({ name, reason: 'That file name is already on this file or already in this selection.' }); continue; }
     seen.add(key); accepted.push(file);
   }
@@ -25,7 +26,7 @@ export async function uploadDocumentBatch(files, addOne, existingNames = []) {
   const saved = []; const failed = [...plan.rejected];
   for (const file of plan.accepted) {
     try { saved.push(await addOne(file)); }
-    catch (e) { failed.push({ name: file.name, reason: e && e.message ? e.message : 'The upload failed.' }); }
+    catch (e) { failed.push({ name: file.name, reason: mapUploadError(e, MAX_UPLOAD_BYTES) }); }
   }
   return { saved, failed };
 }

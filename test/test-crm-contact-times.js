@@ -72,7 +72,7 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const want = new Map([['js/pages/crm.js', '202611302100'], ['js/app.js', '202611312800']]);
+const want = new Map([['js/pages/crm.js', '202611312900'], ['js/app.js', '202611312900']]);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -89,9 +89,9 @@ ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + d
 ok(missing.length === 0, 'recursive import check missing ' + missing.length + (missing.length ? ': ' + missing.join('; ') : ''));
 ok(at1800.length === 0, 'the previous crm.js stamp 202611121800 is unused' + (at1800.length ? ': ' + at1800.join(',') : ''));
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611312800', 'index.html loads app.js at 202611290610');
+ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611312900', 'index.html loads app.js at 202611290610');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611302100', 'app.js loads the CRM page at 202611290610');
+ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611312900', 'app.js loads the CRM page at 202611290610');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log('recursive-import missing', missing.length);
@@ -112,7 +112,9 @@ const e2eGreen1 = new Set(['js/data/notif-live.js']);
 // CONNECT-6: Gmail already on the file also lists on Messages / Inbox (checklist 9.3).
 const connect6 = new Set(['js/data/file-email-unread.js', 'js/data/gmail-in-messages.js', 'js/data/supabase-gmail.js', 'js/data/supabase-order-overview.js', 'js/pages/dealmsgs.js']);
 const connect7 = new Set(['js/data/message-recipients.js', 'js/data/mock-adapter.js']);
-const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !ff113.has(f) && !e2eGreen1.has(f) && !connect6.has(f) && !connect7.has(f) && !stampOnly(f));
+// CONNECT-8: over-limit upload message (checklist 5.2). Content changes, not stamp-only.
+const connect8 = new Set(['js/data/upload-limit.js', 'js/data/agent-profile.js', 'js/data/crm-import-file.js', 'js/data/document-batch.js', 'js/data/mock-part-crm-calls.js', 'js/data/mock-part-crm-janine.js', 'js/data/mock-part-crm-nov3b.js', 'js/data/mock-part-crm-templates.js', 'js/data/mock-part-crm.js', 'js/data/mock-part-docs.js', 'js/data/mock-part-hr-feedback.js', 'js/data/staff-feedback.js', 'js/data/supabase-agent-invite.js', 'js/data/supabase-crm-janine.js', 'js/data/supabase-crm.js', 'js/data/supabase-hr-feedback.js', 'js/data/supabase-nov5.js', 'js/data/supabase-staff-feedback.js', 'js/data/supabase-staff.js', 'js/pages/agent-profile-form.js', 'js/pages/compose.js', 'js/pages/dealdocs.js', 'js/pages/dealemail.js', 'js/pages/dealtaskform.js', 'js/pages/hr-feedback.js', 'js/pages/library.js', 'js/pages/ordernew.js', 'js/pages/tc-overview.js']);
+const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !ff113.has(f) && !e2eGreen1.has(f) && !connect6.has(f) && !connect7.has(f) && !connect8.has(f) && !stampOnly(f));
 ok(unstamped.length === 0, 'no other served module changed except a cache stamp' + (unstamped.length ? ': ' + unstamped.join(', ') : ''));
 
 console.log(fail ? fail + ' failed' : 'crm contact times passed');

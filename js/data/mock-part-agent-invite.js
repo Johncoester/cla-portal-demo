@@ -4,9 +4,9 @@
 //  d.agentProfiles {profileId: {cellPhone, officePhone, brokerage, licenseNumber, street, city, state, zip, otherContact, photo (data URL), photoShape, updatedAt}}
 //  d.agentBirthMD  {profileId: 'MM-DD'}  (month / day only; kept apart like d.agentBirthdates, the existing optional birthdate it reuses)
 // NOTHING IS SENT. createAgentInvite / resendAgentInvite return the one-time link path; the page shows it for staff to copy.
-import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611302000';
+import { canInviteAgents, PORTAL_INVITE_ROLES, inviteKindForRole, inviteStatus, INVITE_DAYS, cleanAgentProfile, monthDayFromBirthdate, initialsAvatar, cardOf } from './agent-profile.js?v=202611312900';
 import { isClient, isAgent, isOutside, sideOf } from './constants.js?v=202611302300';
-import { canEditAgentProfiles, cleanAdminAgentPatch, AGENT_EDIT_DENIED, AGENT_EDIT_NOT_FOUND, AGENT_FILE_ROLES } from './agent-profile-admin.js?v=202611310600';
+import { canEditAgentProfiles, cleanAdminAgentPatch, AGENT_EDIT_DENIED, AGENT_EDIT_NOT_FOUND, AGENT_FILE_ROLES } from './agent-profile-admin.js?v=202611312900';
 const rnd = () => { const a = new Uint8Array(16); (globalThis.crypto || { getRandomValues: (x) => x.map(() => Math.floor(Math.random() * 256)) }).getRandomValues(a); return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const plusDays = (iso, n) => new Date(Date.parse(iso) + n * 864e5).toISOString();
 const fromNow = (n) => new Date(Date.now() + n * 864e5).toISOString();

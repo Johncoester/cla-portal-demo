@@ -3,9 +3,10 @@
 // Files: Upload File / + Add File / drag-and-drop; Send stays disabled while files are still being read ("wait for the upload to finish").
 import { html, raw, $, $$, guard, modal, closeModal, toast, fmtSize } from '../ui.js?v=202611161500';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isWireDocName, WIRE_BUYER_ONLY } from '../data/constants.js?v=202611302300';
+import { formatUploadMax, uploadTooLargeMessage, isOverUploadLimit } from '../data/upload-limit.js?v=202611312900';
 import { explainRecipients, recipientLabel } from '../data/message-recipients.js?v=202611312800';
 import { NO_LOGIN_TAG, NO_INVITE_TAG, canShareInvite, noLoginContactId, noLoginNote, shareInviteToast } from '../data/share-invite.js?v=202611249900';
-import { autoSendInvite } from '../data/invite-send.js?v=202611302000';
+import { autoSendInvite } from '../data/invite-send.js?v=202611312900';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 const TOOLS = [['bold', 'B', 'Bold'], ['italic', 'I', 'Italic'], ['underline', 'U', 'Underline'], ['insertUnorderedList', '\u2022 List', 'Bulleted list'], ['insertOrderedList', '1. List', 'Numbered list'], ['link', 'Link', 'Insert link'], ['removeFormat', 'Clear', 'Clear formatting']];
 export const editorHtml = (id = 'rte') => html`<div class="rte-bar" role="toolbar" aria-label="Formatting">${TOOLS.map(([c, l, t]) => html`<button type="button" class="ghost" data-cmd="${c}" title="${t}" aria-label="${t}">${l}</button>`)}</div>
@@ -21,12 +22,12 @@ export function mountEditor(root) {
 }
 // file picker + drop zone. Returns { files (read), busy, mount(root) }
 export function filesHtml() { return html`<div class="dropzone" data-drop tabindex="0">Drag and drop files here, or <button type="button" class="ghost" data-add-file>+ Add File</button>
-  <input type="file" data-file-input multiple hidden><span class="muted small"> (${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each)</span></div><ul class="plain" data-file-list></ul>`; }
+  <input type="file" data-file-input multiple hidden><span class="muted small"> (${ALLOWED_UPLOAD_EXT.join(', ')}; max ${formatUploadMax(MAX_UPLOAD_BYTES)} each)</span></div><ul class="plain" data-file-list></ul>`; }
 export function mountFiles(root, onBusy = () => {}) {
   const list = []; let busy = 0; const ul = $('[data-file-list]', root); const input = $('[data-file-input]', root);
   const draw = () => { onBusy(busy); ul.innerHTML = list.map((f, i) => `<li data-file-row="${i}">${f.ready ? '\u2705' : '\u23f3 uploading\u2026'} ${f.name.replace(/[<>&"]/g, '')} <span class="muted small">${fmtSize(f.size)}</span> <button type="button" class="ghost" data-unpick="${i}" aria-label="Remove ${f.name.replace(/[<>&"]/g, '')} from this message">&times;</button></li>`).join('');
     $$('[data-unpick]', ul).forEach((b) => b.addEventListener('click', () => { list.splice(Number(b.dataset.unpick), 1); draw(); })); };
-  const add = async (fl) => { for (const f of [...fl]) { if (f.size > MAX_UPLOAD_BYTES) { toast(`${f.name} is too large for this demo.`, 'err'); continue; }
+  const add = async (fl) => { for (const f of [...fl]) { if (isOverUploadLimit(f.size, MAX_UPLOAD_BYTES)) { toast(`${f.name}: ${uploadTooLargeMessage(MAX_UPLOAD_BYTES)}`, 'err'); continue; }
     const item = { name: f.name, size: f.size, mimeType: f.type, ready: false, dataUrl: null }; list.push(item); busy++; onBusy(busy); draw();
     try { item.dataUrl = await readFile(f); item.ready = true; } catch (e) { toast(e.message, 'err'); list.splice(list.indexOf(item), 1); } busy--; onBusy(busy); draw(); } };
   $('[data-add-file]', root).addEventListener('click', () => input.click()); input.addEventListener('change', () => { add(input.files); input.value = ''; });

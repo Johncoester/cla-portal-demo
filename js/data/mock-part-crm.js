@@ -6,20 +6,21 @@
  * NOTHING is deleted: leads, contacts, accounts and opportunities are archived; tasks are closed; attachments and notes stay.
  * Access (mirrored by private.crm_* in migration 22): see crm.js. */
 import { roleAllowed } from './role-access.js?v=202611100100';
+import { uploadTooLargeMessage, isOverUploadLimit } from './upload-limit.js?v=202611312900';
 import { CRM_OFF } from './features.js?v=202611070139';
 import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { RELATIONSHIP_STATUSES, CONVERTED_STATUS, LEAD_SOURCES, ROLES_IN_COMPANY, OPP_STAGES, ACCOUNT_KIND_CODES, CRM_ENTITIES, accountKindForType, entityLabel,
   TASK_STATUSES, TASK_CLOSED, TASK_PRIORITIES, MEETING_TYPES, LINK_KEYS, LINK_FIELDS, cleanUrl, nextDue, addDaysTo, taskOpen, meetingOpen, localStamp,
   canUseCrm, crmReadOnly, CRM_OWNER_ROLES, normTags, orderTotals, REPEAT_CODES, LEAD_STATUS_DEFAULT, companyKey } from './crm.js?v=202611247700';
 import { crmOwnerOption } from './crm-owner.js?v=202611289960';
-import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611289960';
+import { crmJaninePart, janineLazyUpgrade } from './mock-part-crm-janine.js?v=202611312900';
 import { ensureSettings, findOption, defaultOption, optionsOf, optLabel, activeFields, cleanCustomValue, isBlankValue, builtinRequired, gatherCustom } from './crm-config.js?v=202611247700';
 import { crmSettingsPart } from './mock-part-crm-settings.js?v=202611302100';
 import { fieldCan, COMPUTED_TYPES, FILE_TYPES, IMAGE_EXT, dupKey, autoNumberText, parseFormula, evalFormula, FORMULA_BUILTINS } from './crm-fields.js?v=202611070139';
-import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611302100';
+import { crmNov3bPart } from './mock-part-crm-nov3b.js?v=202611312900';
 import { feedbackNov4Part } from './mock-part-feedback-nov4.js?v=202611302100';
-import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611247700';
-import { crmCallsPart } from './mock-part-crm-calls.js?v=202611247700';
+import { crmTemplatesPart } from './mock-part-crm-templates.js?v=202611312900';
+import { crmCallsPart } from './mock-part-crm-calls.js?v=202611312900';
 import { callOpen, callSeconds, durationText, callStatusOf } from './crm-calls.js?v=202611247700';
 
 // FF-030 company_lookup. The CRM user said everyone sees every company, so
@@ -556,7 +557,7 @@ export function crmPart(x, flags) {
       if (!u.isAdmin && a.createdBy !== u.id) fail('Only the person who wrote this note, or an admin, can change it.');
       const full = str(name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
       if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`${ext ? '.' + ext + ' files are' : 'Files without an extension are'} not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
-      if (!(Number(size) >= 0) || Number(size) > C.MAX_UPLOAD_BYTES) fail(`File is too large (limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB). Choose a smaller file.`);
+      if (isOverUploadLimit(size, C.MAX_UPLOAD_BYTES)) fail(uploadTooLargeMessage(C.MAX_UPLOAD_BYTES));
       const id = nid('cfile'); const safe = full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full;
       const f = { id, entity: a.entity, entityId: a.entityId, noteId: a.id, name: safe, mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0, dataUrl: dataUrl || null, uploadedBy: u.id, createdAt: now(), storagePath: `notes/${a.entity}/${a.entityId}/${a.id}/${id}/${safe}` };
       await x.keepFile(f); db().crmAttachments.push(f); save(); return noteFilesOf([[a.entity, a.entityId]]).find((z) => z.id === f.id);
@@ -637,7 +638,7 @@ export function crmPart(x, flags) {
       const u = crmEditor(); const parent = entityOf(u, str(entity, 20), str(entityId, 60)); if (entity === 'opportunity') fail('Attach files to the lead, client or company.');
       const full = str(name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
       if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`${ext ? '.' + ext + ' files are' : 'Files without an extension are'} not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
-      if (!(Number(size) >= 0) || Number(size) > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
+      if (isOverUploadLimit(size, C.MAX_UPLOAD_BYTES)) fail(uploadTooLargeMessage(C.MAX_UPLOAD_BYTES));
       const f = { id: nid('cfile'), entity, entityId: parent.id, name: full.length > 200 ? full.slice(0, 199 - ext.length) + '.' + ext : full, mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0,
         dataUrl: dataUrl || null, uploadedBy: u.id, createdAt: now() };
       await x.keepFile(f); db().crmAttachments.push(f); save(); return attachmentsOf([[entity, parent.id]]).find((z) => z.id === f.id);
@@ -695,7 +696,7 @@ export function crmPart(x, flags) {
     const full = str(name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
     if (f.type === 'image' && !IMAGE_EXT.includes(ext)) fail(`${f.label} takes an image (${IMAGE_EXT.join(', ')}).`);
     if (f.type === 'file' && !C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`.${ext || '?'} files are not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
-    if (!(Number(size) >= 0) || Number(size) > C.MAX_UPLOAD_BYTES) fail('File is too large.');
+    if (isOverUploadLimit(size, C.MAX_UPLOAD_BYTES)) fail(uploadTooLargeMessage(C.MAX_UPLOAD_BYTES));
     const file = { id: nid('cfile'), entity: e, entityId: rec.id, name: full.slice(0, 200), mimeType: str(mimeType, 100) || 'application/octet-stream', size: Number(size) || 0, dataUrl: dataUrl || null, uploadedBy: u.id, createdAt: now(), fieldId: f.id };
     await x.keepFile(file); db().crmAttachments.push(file); rec.custom = { ...(rec.custom || {}), [f.id]: [file.id] }; touch(rec, u); save(); return { id: file.id, name: file.name };
   };

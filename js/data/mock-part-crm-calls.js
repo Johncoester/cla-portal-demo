@@ -7,6 +7,8 @@
 import { CALL_TYPE_CHOICES, CALL_SCHEDULED, CALL_COMPLETED, CALL_REMINDER_MINUTES, CALL_TO_CODES, RELATED_TO_CODES, CALL_TIME_MSG, CALL_ZERO_MSG, VOICE_EXT,
   durationSeconds, minusMinutes, defaultCallSubject, callOpen } from './crm-calls.js?v=202611247700';
 import { cleanUrl, localStamp, toCsv } from './crm.js?v=202611247700';
+import { uploadTooLargeMessage, isOverUploadLimit } from './upload-limit.js?v=202611312900';
+
 
 export function crmCallsPart(x, h) {
   const { save, nid, fail, str, now, localDate, clone, dealsFor, C } = x;
@@ -23,7 +25,7 @@ export function crmCallsPart(x, h) {
     if (v.kind !== 'file') fail('Voice Recording must be a file or a link.');
     const name = str(v.name, 200).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = name.lastIndexOf('.'); const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
     if (!VOICE_EXT.includes(ext)) fail(`Voice Recording takes an audio file (${VOICE_EXT.join(', ')}).`);
-    if (!(Number(v.size) >= 0) || Number(v.size) > C.MAX_UPLOAD_BYTES) fail('File is too large.');
+    if (isOverUploadLimit(v.size, C.MAX_UPLOAD_BYTES)) fail(uploadTooLargeMessage(C.MAX_UPLOAD_BYTES));
     const f = { id: nid('cvoice'), name, mimeType: str(v.mimeType, 100) || 'audio/mpeg', size: Number(v.size) || 0, dataUrl: v.dataUrl || null };
     await x.keepFile(f); return { kind: 'file', fileId: f.id, name: f.name, mimeType: f.mimeType, size: f.size, hasFile: !!f.hasFile, dataUrl: f.dataUrl || null, uploadedBy: u.id, uploadedAt: now() };
   }

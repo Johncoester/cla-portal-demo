@@ -2,11 +2,17 @@
  * (best effort; the mock adapter is the tested one, migration 59 has its own DB test 128). Files go to the private 'hr-documents' bucket.
  * Nothing is ever sent: no e-sign provider is connected, signature status is recorded by hand. */
 import { HR_COMPANY_DOC_CATEGORIES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, sessionTotals, labelOf } from './hr.js?v=202611247700';
+import { assertUploadSize, mapUploadError } from './upload-limit.js?v=202611312900';
+import { MAX_UPLOAD_BYTES } from './constants.js?v=202611302300';
 const uid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const safeName = (n) => String(n || 'file').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 120);
 const dataUrlBlob = async (u) => (await fetch(u)).blob();
 export function hrFeedbackSupabase({ sb, ok }) {
-  const put = async (path, file) => { ok(await sb.storage.from('hr-documents').upload(path, await dataUrlBlob(file.dataUrl), { contentType: file.mimeType || 'application/octet-stream', upsert: false })); return path; };
+  const put = async (path, file) => {
+    assertUploadSize(Number(file && file.size) || 0, MAX_UPLOAD_BYTES);
+    const up = await sb.storage.from('hr-documents').upload(path, await dataUrlBlob(file.dataUrl), { contentType: file.mimeType || 'application/octet-stream', upsert: false });
+    if (up && up.error) throw new Error(mapUploadError(up.error, MAX_UPLOAD_BYTES));
+    ok(up); return path; };
   const get = async (path, name, mimeType) => { const { data, error } = await sb.storage.from('hr-documents').createSignedUrl(path, 120); if (error) throw new Error(error.message); return { name, mimeType, dataUrl: data.signedUrl }; };
   const cdoc = (r) => ({ id: r.id, title: r.title, category: r.category, categoryLabel: labelOf(HR_COMPANY_DOC_CATEGORIES, r.category), description: r.description, shareScope: r.share_scope, shareLabel: r.share_scope === 'all' ? 'All employees' : '',
     fileName: r.file_name, mimeType: r.mime_type, size: Number(r.size_bytes), storagePath: r.storage_path, createdAt: r.created_at, createdByName: '', archivedAt: r.archived_at });

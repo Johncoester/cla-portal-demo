@@ -5,15 +5,15 @@ import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { viewOnly, isViewOnly, runsOrders, WIRE_FRAUD_NOTE, isClient } from '../data/constants.js?v=202611302300';
 import { raw } from '../ui.js?v=202611161500';
 import { sanitizeMessageHtml } from '../data/agent-portal.js?v=202611247700';
-import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611312800';
+import { editorHtml, mountEditor, filesHtml, mountFiles, composeModal } from './compose.js?v=202611312900';
 import { presentThread } from '../data/portal-threads.js?v=202611162200';
 import { noLoginContactId, canShareInvite, shareInviteToast } from '../data/share-invite.js?v=202611249900';
-import { autoSendInvite } from '../data/invite-send.js?v=202611302000';
+import { autoSendInvite } from '../data/invite-send.js?v=202611312900';
 import { TYPED_ROLES, cleanTypedRecipient, personByEmail, heldContactId, plainMessageHtml, addTypedRecipient } from '../data/typed-recipient.js?v=202611249900';
 import { canUseGmail } from '../data/gmail-email.js?v=202611191000';
 import { isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
 import { shapeGmailThreads, mergeConversationLists, parseGmailThreadParam, isGmailThread } from '../data/gmail-in-messages.js?v=202611312700';
-import { composeEmailModal } from './dealemail.js?v=202611312800';
+import { composeEmailModal } from './dealemail.js?v=202611312900';
 
 const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim() : `Re: ${String(s || '').trim()}`);
 const tabTitle = (deal) => (deal && isClient(deal.myRole) ? 'Messages' : 'Inbox');

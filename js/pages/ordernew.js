@@ -12,6 +12,7 @@
 import { html, raw, $, $$, guard, formData, options, toast, fmtSize, toText, fmtDate, fmtMoney } from '../ui.js?v=202611161500';
 import { occSelects, yesNo } from './occ-fields.js?v=202611242860';
 import { fmtPhone, TX_TYPES, runsOrders, US_STATE_NAMES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, visibilityChoices, visibilityLabel, CONTACT_TYPES, contactTypeForRole, isRefi, REFI_BLOCKED_ROLES, moneyAmount, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611302300';
+import { formatUploadMax, uploadTooLargeMessage, isOverUploadLimit, mapUploadError } from '../data/upload-limit.js?v=202611312900';
 import { officeDate } from '../data/office-date.js?v=202611102100';
 import { pickerHtml, mountPicker, personLabel, splitPersonName } from './person-picker.js?v=202611247700';
 import { salesMultiHtml, mountSalesMulti } from './sales-multi.js?v=202611243801';
@@ -33,7 +34,7 @@ import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, partyProblemLine, placeOrderTcChoices, roleForPartyField, selfTcOnOrderProblem, tcRolesFromLinks, tcRolesToSave, tcSideProblem, uniqueProblems } from '../data/agent-tc.js?v=202611301500';
 import { lenderFieldsHtml, lenderContactRowHtml, mountLossPayee, mountCplSame } from './lender-section.js?v=202611247700';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611312900';
 // John, Nov 2 (a real contract had two buyers and two sellers): Buyer and Seller take one or more people. Each row is the same type-to-search picker;
 // "+ Add another buyer / seller" adds a row, rows can be removed before the order is created. Row 1 keeps the field name p:<role>, row n is p:<role>:<n>.
 // Each person becomes their own deal_participants row, so each buyer / seller gets their own copy of the client intake tasks (existing per-person behaviour).
@@ -149,7 +150,7 @@ export async function render({ api, user, go }) {
         </fieldset>` : ''}
         <label>Open date *<input name="openDate" type="date" required value="${today}" max="${today}" title="The day the order came in. Can be backdated; not in the future."><span class="field-hint">The day the order came in. Can be backdated, never in the future.</span></label>
         <fieldset class="span2" id="tx-docs"><legend data-tx-doc-label>Upload sales contract</legend>
-          <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each)</span><input type="file" id="tx-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
+          <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; max ${formatUploadMax(MAX_UPLOAD_BYTES)} each)</span><input type="file" id="tx-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
           <div id="tx-filelist"></div>
           <p class="notice info" data-vis-prompt="tx-vis" hidden>Who can see these files? Choose before you continue.</p>
           <label>Who can see them<select id="tx-vis" data-vis>${options(visOpts, visOpts[0], (v) => visibilityLabel(v, user.role))}</select></label>
@@ -206,7 +207,7 @@ export async function render({ api, user, go }) {
         <fieldset class="span2" data-sales-picker><legend>Salespeople on this order</legend>${salesMultiHtml(staff)}<span class="field-hint">Search and add every salesperson on this order. You can pick more than one. Remove a name to take that person off.</span></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
         <fieldset class="span2" id="nof-docs"><legend>Documents (e.g. the sales contract)</legend>
-          <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
+          <label class="dropzone-label">Files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; max ${formatUploadMax(MAX_UPLOAD_BYTES)} each; choose several at once)</span><input type="file" id="nof-files" multiple accept="${ALLOWED_UPLOAD_EXT.map((e) => '.' + e).join(',')}"></label>
           <div id="nof-filelist"></div>
           <p class="notice info" data-vis-prompt="nof-vis" hidden>Who can see these files? Choose before you continue.</p>
           <label>Who can see them<select id="nof-vis" data-vis>${options(visOpts, visOpts[0], (v) => visibilityLabel(v, user.role))}</select></label>
@@ -547,7 +548,7 @@ export async function render({ api, user, go }) {
         for (const [key, l] of [['purchasePrice', 'Purchase price'], ['loanAmount', 'Loan amount']]) { if (key === 'purchasePrice' && refi()) continue;
           if (refused(f[key])) errs.push({ el: $(`[name=${key}]`, p), msg: `${l} must be a number of 0 or more.` }); }
       }
-      const fileErr = (input) => { for (const file of [...(input.files || [])]) { if (file.size > MAX_UPLOAD_BYTES) errs.push({ el: input, msg: `${file.name} is too large for this demo.` });
+      const fileErr = (input) => { for (const file of [...(input.files || [])]) { if (isOverUploadLimit(file.size, MAX_UPLOAD_BYTES)) errs.push({ el: input, msg: `${file.name}: ${uploadTooLargeMessage(MAX_UPLOAD_BYTES)}` });
         if (!ALLOWED_UPLOAD_EXT.includes((file.name.split('.').pop() || '').toLowerCase())) errs.push({ el: input, msg: `${file.name}: that file type is not allowed.` }); } };
       if (k === 'transaction') fileErr(txIn);
       if (k === 'team') fileErr(fileIn);
@@ -907,7 +908,7 @@ export async function render({ api, user, go }) {
       if (referral) { try { await api.updateDeal(deal.id, { sourceOfBusiness: referral }); } catch (err) { problems.push(`Source of business was not saved: ${err.message}`); } }
       let saved = 0;
       const uploadIds = new WeakMap();
-      const uploadOne = async (file, visibility, docType, wire) => { try { let slot = uploadIds.get(file); if (!slot) uploadIds.set(file, slot = {}); const id = sameUploadId(slot, file); await api.addDocument(deal.id, { id, name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${err.message}`); } };
+      const uploadOne = async (file, visibility, docType, wire) => { try { let slot = uploadIds.get(file); if (!slot) uploadIds.set(file, slot = {}); const id = sameUploadId(slot, file); await api.addDocument(deal.id, { id, name: file.name, description: '', mimeType: file.type, size: file.size, dataUrl: await readFile(file), visibility, folderId: null, docType, wireInstructions: wire }); saved++; } catch (err) { problems.push(`${file.name}: ${mapUploadError(err, MAX_UPLOAD_BYTES)}`); } };
       for (const file of txFiles) await uploadOne(file, $('#tx-vis', root).value, refi() ? 'Lender documents' : 'Contract / addendum', false);
       for (let i = 0; i < files.length; i++) { const sel = $(`[data-doctype="${i}"]`, root); await uploadOne(files[i], $('#nof-vis', root).value, sel ? sel.value : '', $('#nof-wire', root).checked); }
       const shown = uniqueProblems(problems);

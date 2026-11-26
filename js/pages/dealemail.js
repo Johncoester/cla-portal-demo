@@ -3,7 +3,9 @@
 // mail sent from Gmail, and files added from the computer while composing are saved to Documents for CLA staff only, once. A file picked
 // from Documents is not saved again. The server never emails wire details. Any address can be emailed (John, Nov 13: no test-address list on TEST).
 import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611161500';
-import { editorHtml, mountEditor } from './compose.js?v=202611312800';
+import { editorHtml, mountEditor } from './compose.js?v=202611312900';
+import { MAX_UPLOAD_BYTES } from '../data/constants.js?v=202611302300';
+import { assertUploadSize, mapUploadError } from '../data/upload-limit.js?v=202611312900';
 import { canUseGmail, introRecipients, introTemplate, hasSignature, fileTag } from '../data/gmail-email.js?v=202611191000';
 import { partyRecipientLabel, fileEmailParties } from '../data/mail-to-parties.js?v=202611311100';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611291500';
@@ -244,8 +246,13 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
       for (const file of files) { if (isWire({ name: file.name })) throw new Error('Wire instructions cannot be attached to an email from the portal.'); }
       const uploadIds = [];
       for (const file of files) {
-        const saved = await api.addDocument(deal.id, { name: file.name, description: 'Email attachment from the portal', mimeType: file.type || 'application/octet-stream', size: file.size, dataUrl: await readAsDataUrl(file), visibility: 'staff' });
-        uploadIds.push(saved.id);
+        assertUploadSize(file.size, MAX_UPLOAD_BYTES);
+        try {
+          const saved = await api.addDocument(deal.id, { name: file.name, description: 'Email attachment from the portal', mimeType: file.type || 'application/octet-stream', size: file.size, dataUrl: await readAsDataUrl(file), visibility: 'staff' });
+          uploadIds.push(saved.id);
+        } catch (err) {
+          throw new Error(`${file.name}: ${mapUploadError(err, MAX_UPLOAD_BYTES)}`);
+        }
       }
       const payload = { ...input(false), uploadIds };
       const r = await api.sendDealEmail(payload);
