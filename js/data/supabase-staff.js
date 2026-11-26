@@ -4,7 +4,7 @@
 import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
 import { idUploadStoredName } from './id-upload-name.js?v=202611311000';
 import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
-import { parseMilestones, toggleMilestone, derivedStage } from './milestones.js?v=202611312100';
+import { parseMilestones, toggleMilestone, derivedStage } from './milestones.js?v=202611312200';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => tidyPersonName(p).name;
