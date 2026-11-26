@@ -109,8 +109,10 @@ const anyrole = new Set(['js/data/offices.js', 'js/data/cla-offices.js', 'js/dat
 const ff113 = new Set(['js/data/doc-senders.js']);
 // E2E-GREEN-1 fixes the Realtime channel removal loop in notif-live.js ("Maximum call stack size exceeded").
 const e2eGreen1 = new Set(['js/data/notif-live.js']);
+// CONNECT-6: Gmail already on the file also lists on Messages / Inbox (checklist 9.3).
+const connect6 = new Set(['js/data/file-email-unread.js', 'js/data/gmail-in-messages.js', 'js/data/supabase-gmail.js', 'js/data/supabase-order-overview.js', 'js/pages/dealmsgs.js']);
 const connect7 = new Set(['js/data/message-recipients.js', 'js/data/mock-adapter.js']);
-const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !ff113.has(f) && !e2eGreen1.has(f) && !connect7.has(f) && !stampOnly(f));
+const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !ff113.has(f) && !e2eGreen1.has(f) && !connect6.has(f) && !connect7.has(f) && !stampOnly(f));
 ok(unstamped.length === 0, 'no other served module changed except a cache stamp' + (unstamped.length ? ': ' + unstamped.join(', ') : ''));
 
 console.log(fail ? fail + ' failed' : 'crm contact times passed');
