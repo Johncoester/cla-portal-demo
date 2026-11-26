@@ -1407,7 +1407,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Opening a file fills in its fees from CLA rates once the order has the basics. Staff don't press Calculate fees.
 
-**Status: Built, not merged (Nov 24 2026).** John Coester, Nov 24 2026 (voice), assigned to Claude. No database file.
+**Status: Built. FEES-AUTOFILL-RACE follow-up not merged yet.** John Coester, Nov 24 2026 (voice), assigned to Claude (REC-CALC-9). Follow-up FEES-AUTOFILL-RACE, Owner Grok, from e2e-roles-test runs 360, 363 and 364 on Nov 25–26 2026. No database file. Cache stamp 202611313600.
 
 **What's built**
 
@@ -1417,15 +1417,21 @@ This file lists the portal's major features: how each one should work, how far a
 - Closed or cancelled files and older files with hand-typed fees are left alone.
 - The Accounting card says what was filled in, or what the order still needs.
 - Uses the live rate sheet.
+- Opening the same file twice at once (for example Overview, then Tasks) shares one fill, so the fee ledger is not written twice.
+- If two fills still overlap, a fee that is already on the ledger is kept instead of failing with a conflict.
 
 **What's still missing**
 
-- Nothing.
+- FEES-AUTOFILL-RACE is not merged yet. The automatic role test's email check, and a Place Order test that changes the state to Florida without updating the county, are tracked separately.
 
 **Links**
 
 - Spec: [docs/specs/recording-calculator-auto-fill.md](docs/specs/recording-calculator-auto-fill.md)
-- Source: John Coester, Nov 24 2026 (voice).
+- Source: John Coester, Nov 24 2026 (voice). FEES-AUTOFILL-RACE: e2e-roles-test runs 360, 363 and 364.
+
+**Decisions**
+
+- No database change. The unique index on an active calculated fee (deal and fee key) stays as it is. A second fill treats a conflict as "already present" and reads the existing row.
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.
