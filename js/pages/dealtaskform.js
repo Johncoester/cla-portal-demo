@@ -1,11 +1,11 @@
 // One intake task (form). Save partial work, validate, mark complete. ID-type fields upload a file into the order's "IDs & personal" folder.
 import { html, raw, $, $$, toast, fmtDate, fmtDateTime, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
-import { fieldActive, fieldsForRole, fieldsForFile, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from '../data/templates.js?v=202611310900';
+import { fieldActive, fieldsForRole, fieldsForFile, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero, CITIZENSHIP_OPTS } from '../data/templates.js?v=202611312500';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
-import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611247700';
+import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611312500';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG, isRefi } from '../data/constants.js?v=202611302300';
-import { CLS, LABEL } from './dealtasks.js?v=202611312200';
+import { CLS, LABEL } from './dealtasks.js?v=202611312500';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { AGENT_ROLE_SIDE } from '../data/agent-fees.js?v=202611246500';
 import { nameTasks, taskRoleLabel } from '../data/task-party-names.js?v=202611300600';
@@ -29,7 +29,8 @@ export function intakeFormHtml(t, { page = false, state = '', doneReadOnly = fal
     const help = f.help ? html` <button type="button" class="ghost" data-help="${f.k}" aria-expanded="false">${f.help.button}</button>
       <div class="note-box" data-help-panel="${f.k}" hidden><strong>${f.help.title}</strong><dl class="answers">${f.help.items.map(([o, txt]) => html`<dt>${o}</dt><dd>${txt}</dd>`)}</dl><p class="small" data-help-note><em>${f.help.note}</em></p></div>` : '';
     const choices = (field, current) => {
-      const opts = Array.isArray(field.opts) ? [...field.opts] : [];
+      // MF-073: Citizenship always offers Matt's four options, plus a leftover typed answer if one is already saved.
+      const opts = field.k === 'citizenship' ? [...CITIZENSHIP_OPTS] : (Array.isArray(field.opts) ? [...field.opts] : []);
       if (current && !opts.includes(current)) opts.push(current);
       return opts;
     };
@@ -237,4 +238,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611312200'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611312500'); return m.render(c); }

@@ -1,10 +1,10 @@
 /* mock adapter: tasks. Templates (versioned definitions) are separate from each participant's task COPY; a copy records templateId + templateVersion.
  * Intake forms: save partial work, validate, mark complete. Reminders are QUEUED in an outbox only and never sent. Tasks are cancelled, never deleted. */
-import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from './templates.js?v=202611310900';
+import { validateForm, fieldActive, delegationLocked, AGENT_ROLES, maskedFields, fieldsForRole, fieldsForFile, ENTITY_DOCS, entityPrefill, totalCommissionAmount, formatCommissionMoney, moneyAmountOrZero } from './templates.js?v=202611312500';
 import { idUploadStoredName } from './id-upload-name.js?v=202611311000';
 import { ssnDigits, ssnGrouped, ssnMask, ssnStaff, withoutSsn } from './buyer-ssn.js?v=202611120200';
 import { senderFor } from './email-senders.js?v=202611247700';
-import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611247700';   // Task switch OFF: no new copy (existing copies kept)
+import { taskEnabled, taskSwitchedOff } from './task-switches.js?v=202611312500';   // Task switch OFF: no new copy (existing copies kept)
 import { templateGenerates, audienceAllowsRole, TASK_AUDIENCES } from './nov5-rules.js?v=202611247700';
 import { maskAccount } from './constants.js?v=202611302300';
 import { taskDueDate } from './due-date.js?v=202611110300';

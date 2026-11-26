@@ -51,10 +51,12 @@ const PERSONAL_V4 = [...PERSONAL_V1, F('settlement_type', 'In-person or online s
 // Not included, waiting on John: full SSN, confirmed spouse match.
 const BUYER_ONLY = ['Client-Buyer'];
 const buyerYn = (k, label, extra = {}) => F(k, label, 'select', false, { opts: yn, roles: BUYER_ONLY, ...extra });
-// JN-CITIZEN-1 (Janine, Nov 17 2026, via Francis Feedback): Citizenship is one line the person types.
-// An answer already saved, including "US Citizen", stays on the file and shows in that line.
+// MF-073 (Matt, Nov 25 2026): Citizenship is a dropdown. JN-CITIZEN-1 had made it a typed line.
+// Leftover typed answers stay visible and can be saved again until someone picks a new option.
+export const CITIZENSHIP_OPTS = ['U.S. Citizen', 'U.S. National', 'Lawful Permanent Resident', 'Non-Citizen Authorized to Work'];
+export const CITIZENSHIP_KEEP = ['US Citizen', 'US citizen', 'US', 'Permanent Resident', 'Non-Resident Alien', 'Other'];
 export const BUYER_PERSONAL_FIELDS = [
-  F('citizenship', 'Citizenship', 'text', false, { roles: BUYER_ONLY }),
+  F('citizenship', 'Citizenship', 'select', false, { opts: CITIZENSHIP_OPTS, keep: CITIZENSHIP_KEEP, roles: BUYER_ONLY }),
   F('gender', 'Gender', 'select', false, { opts: ['Female', 'Male', 'Nonbinary', 'Prefer not to say'], roles: BUYER_ONLY }),
   F('date_of_birth', 'Date of birth', 'date', false, { roles: BUYER_ONLY }),
   F('forwarding_address', 'Forwarding address', 'text', false, { roles: BUYER_ONLY }),
@@ -604,6 +606,43 @@ export function applyCitizenshipFreeText(d) {
     }
   }
   if (changed) d.citizenshipTextNow = true;
+  return { changed };
+}
+
+/* MF-073: after the free-text helper, restore Matt's dropdown on every Citizenship question.
+ * Official options are the four labels Matt confirmed. Leftover typed answers are kept on the
+ * field (and shown until someone picks a new option) so a save of the same answer still works.
+ * Running it again changes nothing once the official options and keep list are in place. */
+function sameCitizenshipDropdown(f) {
+  const opts = f.opts || [];
+  const keep = f.keep || [];
+  return f.type === 'select'
+    && opts.length === CITIZENSHIP_OPTS.length && CITIZENSHIP_OPTS.every((o, i) => opts[i] === o)
+    && CITIZENSHIP_KEEP.every((k) => keep.includes(k));
+}
+export function applyCitizenshipDropdown(d) {
+  let changed = 0;
+  const leftover = new Set(CITIZENSHIP_KEEP);
+  for (const task of (d && d.tasks) || []) {
+    const v = String((task.formData && task.formData.citizenship) || '').trim();
+    if (v && !CITIZENSHIP_OPTS.includes(v)) leftover.add(v);
+  }
+  for (const row of (d && d.spouseInfo) || []) {
+    const v = String(row.citizenship || '').trim();
+    if (v && !CITIZENSHIP_OPTS.includes(v)) leftover.add(v);
+  }
+  const keep = [...leftover];
+  for (const t of (d && d.taskTemplates) || []) {
+    for (const f of t.fields || []) {
+      if (f.k !== 'citizenship') continue;
+      if (sameCitizenshipDropdown(f) && keep.every((k) => (f.keep || []).includes(k))) continue;
+      f.type = 'select';
+      f.opts = CITIZENSHIP_OPTS.slice();
+      f.keep = keep.slice();
+      changed++;
+    }
+  }
+  if (changed) d.citizenshipDropdownNow = true;
   return { changed };
 }
 
