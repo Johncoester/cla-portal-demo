@@ -6,7 +6,7 @@ import { directoryModel, directoryChoice, directoryGroups } from '../data/file-p
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611302000';
 import { canEditAgentProfiles, agentProfileHref, AGENT_FILE_ROLES } from '../data/agent-profile-admin.js?v=202611310600';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611302000';
-import { copyPlainText } from './deal.js?v=202611310900';
+import { copyPlainText } from './deal.js?v=202611311300';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
@@ -14,6 +14,7 @@ import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
 import { TC_ONLY_LABEL, canReadTcOnly, canSetTcOnly, isTcOnlyRole, tcOnlyBox, tcOnlyMap } from '../data/tc-only.js?v=202611301500';
 import { agentTcChoiceLabel, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, linkedAgentIdsFor, rolesForNewContact, selfTcOnOrderProblem, sideAgentName, tcRolesFromLinks } from '../data/agent-tc.js?v=202611301500';
+import { CLIENT_ROLES, personalInfoTaskFor, answerDetails, spouseDetails, contactProposal, proposalPatch } from '../data/personal-info-contact.js?v=202611311300';
 import { ASSIGNED_TO_LABEL, TC_ASSIGN_CHOICES, knownTcAssignedRole, moveAssignedTcOnFile, tcAssignedProblem, tcAssignedRole } from '../data/tc-assigned.js?v=202611302200';
 
 /* Success is reported only when the text actually landed. A denied clipboard and a failed fallback stay a failure. */
@@ -69,6 +70,10 @@ export async function render({ api, user, deal, refresh }) {
     if (!b) return '';
     return html`<div class="small tc-only-box" data-tc-only-row="${p.id}"><label class="check small" title="${b.title}"><input type="checkbox" data-tc-only="${p.id}" ${b.checked ? raw('checked') : ''} ${b.disabled ? raw('disabled') : ''}> ${TC_ONLY_LABEL}</label><div class="muted small" data-tc-only-hint>${b.hint}</div></div>`;
   };
+  // CONNECT-3 (John, Nov 25 2026, rows 7.3 / 7.7): each buyer's and seller's saved Personal Information answers, and their spouse, show here.
+  // Staff copy name or phone onto the contact with Review answers; a client's save never overwrites the contact (row 7.7).
+  const piParties = staffView && edit ? list.filter((p) => CLIENT_ROLES.includes(p.role) && !p.removed && p.contact && p.contact.id) : [];
+  const pi = await loadPersonalInfo(api, deal.id, piParties);
   const party = new Set((deal.agentParties || []).map((p) => p.contactId));
   const separate = (p) => list.some((q) => q.id !== p.id && q.contactId !== p.contactId && sameParty([q], p.contact, p.role));
   const rows = list.map((p) => {
@@ -87,7 +92,7 @@ export async function render({ api, user, deal, refresh }) {
   const body = html`${staffView ? lenderSectionHtml(deal, { canEdit: edit }) : ''}<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
     <ul class="nav-tabs">${GROUPS.map(([k]) => html`<li><a class="${k === g ? 'active' : ''}" href="#/deals/${deal.id}/contacts?g=${k}">${k}</a></li>`)}</ul>
     <form class="filter-bar" id="ctfilter"><label>Contact type<select name="ctype" aria-label="Filter by contact type"><option value="">Any</option>${CONTACT_TYPES.map(([v, l]) => html`<option value="${v}">${l}</option>`)}<option value="none">Not set</option></select></label></form>
-    <table class="tbl striped" data-contacts-table><thead><tr><th>Name</th><th>Role</th><th>Contact type</th><th>Company</th><th>Phone</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    <table class="tbl striped" data-contacts-table><thead><tr><th>Name</th><th>Role</th><th>Contact type</th><th>Company</th><th>Phone</th><th>Email</th><th></th></tr></thead><tbody>${rows}</tbody></table>${personalInfoHtml(piParties, pi)}`;
   return { title: 'Contacts', crumbs: [['Contacts']], body, mount(root) {
     $$('[data-copy-field]', root).forEach((b) => b.addEventListener('click', guard(async () => {
       const outcome = await contactCopyOutcome(b.dataset.copyField, b.dataset.copyKind);
@@ -109,10 +114,30 @@ export async function render({ api, user, deal, refresh }) {
         toast(`${(e && e.message) || 'That did not save.'} Nothing was changed.`, 'err');
       }
     }));
+    $$('[data-pi-review]', root).forEach((b) => b.addEventListener('click', () => reviewAnswers(b.dataset.piReview)));
     $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole)));
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
     if (staffView) mountLenderSection(root, { api, deal, refresh: repaint });
   } };
+
+  // CONNECT-3: tick what to copy from the Personal Information answers onto the contact. Blank contact fields start ticked.
+  function reviewAnswers(participantId) {
+    const p = piParties.find((x) => x.id === participantId); const got = pi.get(participantId);
+    if (!p || !got) { toast('Those answers are no longer available. Reload the page.', 'err'); return; }
+    const prop = contactProposal(p.contact, got.answers);
+    const m = modal('Review Personal Information answers', html`<form id="pirf" class="form-grid"><p class="span2 muted small">${partyDisplayName(p)} (${p.role}) saved these answers. Tick what should replace the contact. Nothing changes until you save.</p>
+      ${prop.fields.length ? html`<table class="tbl span2" data-pi-fields><thead><tr><th></th><th>Field</th><th>On the contact now</th><th>From the form</th></tr></thead><tbody>${prop.fields.map((f) => html`<tr><td><input type="checkbox" name="pi" value="${f.key}" aria-label="${'Use the form ' + f.label.toLowerCase()}" ${f.blank ? raw('checked') : ''}></td><td>${f.label}</td><td>${f.current || html`<span class="muted">(blank)</span>`}</td><td>${f.answered}</td></tr>`)}</tbody></table>` : html`<p class="span2" data-pi-same>The contact's name and phone already match the form.</p>`}
+      ${prop.emailNote ? html`<p class="notice warn small span2" data-pi-email>${prop.emailNote}</p>` : ''}
+      <div class="span2">${prop.fields.length ? html`<button class="m-btn" type="submit">Save to contact</button> ` : ''}<button type="button" class="ghost" data-close>${prop.fields.length ? 'Cancel' : 'Close'}</button></div></form>`);
+    $('#pirf', m).addEventListener('submit', guard(async (e) => {
+      e.preventDefault();
+      const patch = proposalPatch(prop, $$('[name=pi]:checked', m).map((x) => x.value));
+      if (!patch) throw new Error('Tick at least one field to copy, or choose Cancel.');
+      const saved = await api.updateContact(p.contact.id, patch);
+      assertContactSaved(patch, saved);
+      closeModal(); toast('Contact updated from the Personal Information answers'); repaint();
+    }));
+  }
 
   // John, Nov 2: type-to-search picker (name / email / phone / brokerage).
   // TC-5: one role, Transaction coordinator. FF-108b: a required Assigned to dropdown picks the side
@@ -351,4 +376,40 @@ export async function render({ api, user, deal, refresh }) {
       closeModal(); toast(note); repaint();
     }));
   }
+}
+
+/* CONNECT-3: one task list read and one spouse read for the file, then one answers read per saved Personal Information copy.
+ * A read that fails leaves that party out; the rest of the tab still works. Map(participantId -> { task, answers, spouse }) */
+export async function loadPersonalInfo(api, dealId, parties) {
+  const out = new Map();
+  if (!parties.length || !api || !api.listTasks || !api.getTask) return out;
+  let tasks = []; let spouses = [];
+  try { [tasks, spouses] = await Promise.all([api.listTasks(dealId), api.getSpouse ? api.getSpouse(dealId).catch(() => []) : []]); } catch (e) { return out; }
+  await Promise.all(parties.map(async (p) => {
+    const t = personalInfoTaskFor(tasks, p.id);
+    if (!t) return;
+    try {
+      const full = await api.getTask(t.id);
+      if (!full || full.formHidden || full.formError) return;
+      out.set(p.id, { task: t, answers: full.formData || {}, spouse: spouseDetails((spouses || []).find((r) => r.participantId === p.id)) });
+    } catch (e) { /* left out */ }
+  }));
+  return out;
+}
+
+export function personalInfoHtml(parties, pi) {
+  const shown = parties.filter((p) => pi.has(p.id));
+  if (!shown.length) return '';
+  const card = (p) => {
+    const got = pi.get(p.id);
+    const det = answerDetails(got.answers);
+    const prop = contactProposal(p.contact, got.answers);
+    const todo = prop.fields.length || prop.emailNote;
+    const sp = got.spouse;
+    return html`<div class="card pi-card" data-pi-party="${p.id}"><h4>${partyDisplayName(p)} <span class="muted small">${p.role === 'Client-Buyer' ? 'Buyer' : 'Seller'}${got.task.status === 'done' ? '' : ' · form not finished yet'}</span></h4>
+      <dl class="kv small">${det.map((d) => html`<dt>${d.label}</dt><dd>${d.value}</dd>`)}${sp ? html`<dt>Spouse</dt><dd data-pi-spouse>${[sp.fullName, sp.maritalStatus, sp.citizenship ? 'Citizenship: ' + sp.citizenship : '', fmtPhone(sp.phone), sp.email].filter(Boolean).join(' · ')}</dd>` : ''}</dl>
+      ${!det.length && !sp ? html`<p class="muted small">No address, marital status or spouse answers yet.</p>` : ''}
+      <p class="small">${todo ? html`<span class="pill warn" data-pi-todo>Answers differ from the contact</span> ` : html`<span class="pill ok">Contact matches the form</span> `}<button type="button" class="ghost small" data-pi-review="${p.id}">Review answers</button> <a class="small" href="#/deals/${got.task.dealId}/tasks/${got.task.id}">Open the task</a></p></div>`;
+  };
+  return html`<section data-personal-info><div class="box-title"><h2><span class="h-ico"></span>From Personal Information</h2></div><p class="muted small">What each buyer and seller entered on their Personal Information task, including their spouse. A client's answers do not change the contact on their own; use Review answers to copy a name or phone.</p><div>${shown.map(card)}</div></section>`;
 }
