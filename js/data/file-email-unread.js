@@ -3,8 +3,8 @@
  * Gmail mail on a file (deal_emails) has no read column. A cursor per person per file lives in
  * deal_email_reads when that table exists (migration 20261110030000). Until then the same cursor
  * is kept in this browser, keyed by the signed-in user, and the page still opens.
- * Buyers, sellers, and agents never receive deal_emails (existing staff-only policy). Their icon
- * is portal threads they already participate in. Nothing here widens that. */
+ * The deal_emails table stays staff-only. Messages uses list_deal_emails so a party can see mail
+ * they are on (CONNECT-6). Open Orders still counts Gmail through table RLS (staff only) until a later change. */
 
 export const EMAIL_READ_PREFIX = 'cla-portal-new:email-read:';
 

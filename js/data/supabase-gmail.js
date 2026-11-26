@@ -1,5 +1,5 @@
 /* [SUPABASE] Gmail phase 1 (John, Nov 9; migration 20261109200000). The edge functions do all Google work; the page never holds a token.
- *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), deal_emails (RLS).
+ *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), list_deal_emails (CONNECT-6; table RLS on deal_emails stays staff-only).
  * File email templates (migration 20261109220000): Admin > Email Templates + "Use template" on a file Email tab. Not CRM templates. */
 import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611291500';
 import { browserStorage, countUnreadEmails, countsFromOpenOrderMail, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, relationMissing, writeLocalCursor } from './file-email-unread.js?v=202611140900';
@@ -116,7 +116,19 @@ export function gmailSupabase({ sb, ok, camel }) {
     async disconnectGmail() { return call('gmail-oauth-start', { action: 'disconnect' }); },
     async refreshGmailSignature() { return call('gmail-oauth-start', { action: 'refresh_signature' }); },
     async saveGmailSignature(htmlText) { ok(await sb.rpc('gmail_set_signature', { p_html: String(htmlText || '') })); return true; },
-    async listDealEmails(dealId) { return camel(ok(await sb.from('deal_emails').select('*').eq('deal_id', dealId).order('sent_at', { ascending: false }).limit(300))) || []; },
+    async listDealEmails(dealId) {
+      // CONNECT-6: Messages (and the Email tab) read through list_deal_emails so a party can see
+      // mail they are on, without opening the staff-only deal_emails table (bcc stays hidden).
+      // If the database file is not applied yet, staff still fall back to the table.
+      if (typeof sb.rpc === 'function') {
+        try {
+          const res = await sb.rpc('list_deal_emails', { p_deal: dealId });
+          if (!res.error) return camel(res.data) || [];
+          if (!relationMissing(res.error)) return [];
+        } catch (e) { if (!relationMissing(e)) return []; }
+      }
+      return camel(ok(await sb.from('deal_emails').select('*').eq('deal_id', dealId).order('sent_at', { ascending: false }).limit(300))) || [];
+    },
     async sendDealEmail(input = {}) {
       return call('gmail-send', { dealId: input.dealId, to: input.to || [], cc: input.cc || [], bcc: input.bcc || [], subject: input.subject || '', html: input.html || '',
         documentIds: input.documentIds || [], uploadIds: input.uploadIds || [], pendingUploads: input.pendingUploads || [], templateKey: input.templateKey || null, replyToEmailId: input.replyToEmailId || null, dryRun: input.dryRun === true });

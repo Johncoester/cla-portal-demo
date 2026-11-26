@@ -37,6 +37,35 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Gmail emails on Messages (CONNECT-6)
+
+**How it should work.** When staff send email from their own Gmail through the portal, that email shows on the order's Messages (Inbox) tab, not only on the Email tab. A reply in the same Gmail thread also shows there, on the order.
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 9.3 (Francis Santos, Fail, Nov 25 2026). Database file `supabase/migrations/20261131270000_connect_6_gmail_messages.sql`. Not applied on TEST yet. Pull request: [PR 458](https://github.com/Johncoester/cla-portal-demo/pull/458).
+
+**What's built**
+
+- Messages / Inbox lists Gmail threads already stored on the file (`deal_emails`) next to in-portal conversations, with an Email badge, including replies in the same Gmail thread.
+- Staff with connected Gmail can reply from that conversation and can check for replies. Parties who can open the file see only mail they are on, never other people's bcc addresses, and are told to reply from the email they received.
+- The staff Email tab is unchanged.
+
+**What's still missing**
+
+- The database file has to be applied on TEST after merge. This pull request adds a SECURITY DEFINER function, so it waits for a rule 27 review before merge.
+- Open Orders icons still count Gmail unread for staff only (existing table row security).
+
+**Links**
+
+- Spec: [docs/specs/connect-6-gmail-messages.md](docs/specs/connect-6-gmail-messages.md)
+
+**Decisions**
+
+- Table RLS on `deal_emails` stays staff-only. Messages reads through `list_deal_emails`.
+- `list_deal_emails` also requires the file's `is_demo` flag to match the viewer's, so a demo staff login cannot read a real file's emails even though `can_access_deal` would allow it. Non-staff results return null for `sent_by`, `mailbox_profile_id`, and `template_key`.
+- No new Gmail secrets or scopes. TEST mailboxes already have `gmail.send` and `gmail.readonly`, and sync is already running.
+
+---
+
 ## Personal information questions and Seller Proceeds wording (CONNECT-5)
 
 **How it should work.** The buyer's Personal Information task asks the six Yes/No questions Francis listed (attending the closing, leaving town, currently getting divorced, primary residence, wants a survey, first-time home buyer in MD). The seller's Personal Information task uses the four Yes/No wordings she listed (subject to ground rent, subject to front foot benefit, property is homestead, tenants at/after closing). The Seller Proceeds task asks "Proceeds Instructions: Overnight Check or Wire?" and shows that proceeds must go to the SELLER OF RECORD (or the Entity/Trust). A buyer signed in to an order sees every active buyer-side task from the template.

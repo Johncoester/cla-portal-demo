@@ -72,7 +72,7 @@ for (const file of files) {
     hits.get(target).push({ from: rel, stamp: m[3] });
   }
 }
-const want = new Map([['js/pages/crm.js', '202611302100'], ['js/app.js', '202611312500']]);
+const want = new Map([['js/pages/crm.js', '202611302100'], ['js/app.js', '202611312700']]);
 const issues = [];
 const dual = [];
 const missing = [];
@@ -89,7 +89,7 @@ ok(dual.length === 0, 'dual-stamp scan ' + dual.length + (dual.length ? ': ' + d
 ok(missing.length === 0, 'recursive import check missing ' + missing.length + (missing.length ? ': ' + missing.join('; ') : ''));
 ok(at1800.length === 0, 'the previous crm.js stamp 202611121800 is unused' + (at1800.length ? ': ' + at1800.join(',') : ''));
 const appImporters = (hits.get('js/app.js') || []).map((h) => h.from + '@' + h.stamp);
-ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611312500', 'index.html loads app.js at 202611290610');
+ok(appImporters.length === 1 && appImporters[0] === 'index.html@202611312700', 'index.html loads app.js at 202611290610');
 const crmImporters = (hits.get('js/pages/crm.js') || []).map((h) => h.from + '@' + h.stamp);
 ok(crmImporters.length === 1 && crmImporters[0] === 'js/app.js@202611302100', 'app.js loads the CRM page at 202611290610');
 console.log('cache-stamp issues', issues.length);
@@ -109,7 +109,9 @@ const anyrole = new Set(['js/data/offices.js', 'js/data/cla-offices.js', 'js/dat
 const ff113 = new Set(['js/data/doc-senders.js']);
 // E2E-GREEN-1 fixes the Realtime channel removal loop in notif-live.js ("Maximum call stack size exceeded").
 const e2eGreen1 = new Set(['js/data/notif-live.js']);
-const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !ff113.has(f) && !e2eGreen1.has(f) && !stampOnly(f));
+// CONNECT-6: Gmail already on the file also lists on Messages / Inbox (checklist 9.3).
+const connect6 = new Set(['js/data/file-email-unread.js', 'js/data/gmail-in-messages.js', 'js/data/supabase-gmail.js', 'js/data/supabase-order-overview.js', 'js/pages/dealmsgs.js']);
+const unstamped = servedDirty.filter((f) => f.endsWith('.js') && f !== 'js/pages/crm.js' && f !== 'js/app.js' && !anyrole.has(f) && !tc4.has(f) && !ff113.has(f) && !e2eGreen1.has(f) && !connect6.has(f) && !stampOnly(f));
 ok(unstamped.length === 0, 'no other served module changed except a cache stamp' + (unstamped.length ? ': ' + unstamped.join(', ') : ''));
 
 console.log(fail ? fail + ' failed' : 'crm contact times passed');

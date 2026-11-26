@@ -4,6 +4,7 @@
 // A failed read is thrown. An empty list is only what the database returned.
 import { buildOrderOverview } from './order-overview.js?v=202611247700';
 import { canUseGmail } from './gmail-email.js?v=202611191000';
+import { shapeGmailThreads, mergeConversationLists } from './gmail-in-messages.js?v=202611312700';
 
 const CONTACT_MS = 2000;
 /* A name lookup made with no user session sends the publishable key as Bearer and PostgREST answers 401.
@@ -50,8 +51,7 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
       ]);
       const user = await userP;
       if (!user || !user.id) throw new Error('Please sign in.');
-      // Staff only. Buyers, sellers, and agents are not asked for deal_emails (RLS would return nothing).
-      // A missing read-cursor table resolves to 0 inside fileEmailUnreadCount; it must not reject the file.
+      // Email-tab badge stays staff-only (table RLS). Messages loads mail through listDealEmails / list_deal_emails.
       const emailP = (canUseGmail(user) && api.fileEmailUnreadCount) ? api.fileEmailUnreadCount(dealId).catch(() => 0) : Promise.resolve(0);
       const deal = await dealP;
       if (!deal || !deal.id) throw new Error('Order not found.');
@@ -59,6 +59,12 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
       if (!Array.isArray(tasks) || !Array.isArray(documents) || !Array.isArray(threads)) {
         throw new Error('Order overview could not be loaded.');
       }
+      // CONNECT-6: Gmail on this file also belongs on Messages / the overview conversation list.
+      const emails = api.listDealEmails ? await api.listDealEmails(dealId).catch(() => []) : [];
+      const mailCursor = (api.emailReadCursor && emails.length)
+        ? await api.emailReadCursor(dealId).catch(() => ({ readAt: '' }))
+        : { readAt: '' };
+      const gmailThreads = shapeGmailThreads(Array.isArray(emails) ? emails : [], { userId: user.id, readAt: mailCursor && mailCursor.readAt || '' });
       // Francis, Nov 9: processorNames fills processorName first, so the old "!processorName" gate
       // skipped email/phone. Load them whenever someone is assigned, but a failed or stuck read
       // leaves the address blank instead of rejecting the whole file page.
@@ -82,7 +88,8 @@ export function orderOverviewSupabase({ sb, ok, camel, me, api }) {
         if (last && !last.authorName) last.authorName = actors.get(last.authorId) || '';
       }
       const emailUnread = await emailP;
-      return buildOrderOverview({ deal, me: user, tasks, documents, threads, activity: null, salesPeople: deal.salesPeople || [], emailUnread });
+      const conversations = mergeConversationLists(threads, gmailThreads);
+      return buildOrderOverview({ deal, me: user, tasks, documents, threads: conversations, activity: null, salesPeople: deal.salesPeople || [], emailUnread });
     },
     async requestUpdate(dealId, { topic, note } = {}) {
       const user = await me();
