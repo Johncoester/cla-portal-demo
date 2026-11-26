@@ -3890,17 +3890,13 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-071.
 
 Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
 
-**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+**Status: Live on TEST.** No database file. Waiting on Matt to check it.
 
 **What's built**
 
 - To on the file Email compose box is a multi-select of people on the file, shown as "Name (Role) — email".
 - Introduction Email still starts with buyers, sellers, both agents, and a TC who has an email.
 - An address that is not on the file can still be typed in.
-
-**What's still missing**
-
-- Not checked on TEST yet.
 
 **Links**
 
@@ -3909,3 +3905,28 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
 **Decisions**
 
 - This is a multi-select, not a single-select, so the current intro default of several people is kept.
+
+## Earnest money holder dropdown (MF-063)
+
+Matt Landsberg, Portal Feedback Nov 25 2026, including the 4:35 PM ET answers. Tracker item MF-063.
+
+**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- EMD held by is a dropdown: CLA Title, Listing Agent, Buyer's Agent, No EMD, Other Title Company or Attorney.
+- No EMD sets the amount to $0 and the due date to N/A.
+- Older typed-in holders stay until someone edits the file.
+
+**What's still missing**
+
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-063-emd-holder.md](docs/specs/mf-063-emd-holder.md)
+
+**Decisions**
+
+- No extra text box for "other company name" (Matt did not ask for one).
+- Obvious older wording is mapped on the screen only; the saved text is not rewritten until someone picks a list option.

@@ -25,7 +25,7 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611311500')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611312000')).render(ctx);
   const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611310600');
   // MF-061 (Matt, Nov 22): name the buyer / seller on each task. The tab opens on the file shell, so the parties are read on their own.
   const partiesP = (deal.participants && deal.participants.length) || !api.listTaskParties ? Promise.resolve(deal.participants || []) : api.listTaskParties(deal.id).catch(() => []);

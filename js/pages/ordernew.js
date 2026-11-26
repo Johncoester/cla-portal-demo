@@ -27,6 +27,7 @@ import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect, paintCountyOptions } from './county-field.js?v=202611247900';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611247700';
 import { readEarnest } from '../data/earnest-commission.js?v=202611246500';
+import { emdHolderSelect, wireEmdHolderFields, applyNoEmdToForm, isNoEmd, emdDueDisplay } from '../data/emd-holder.js?v=202611312000';
 import { placeOrderFeesHtml, mountPlaceOrderFees, readPlaceOrderFees } from './agent-fees-box.js?v=202611247700';
 import { SIDE_LABEL as AF_SIDE_LABEL, PAYER_LABEL } from '../data/agent-fees.js?v=202611246500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
@@ -177,7 +178,7 @@ export async function render({ api, user, go }) {
         <label>Disbursement date<input name="disbursementDate" type="date" data-disbursement-input><span class="field-hint">Leave blank for the automatic date: the closing date for a purchase, the 4th business day after closing for a refinance.</span></label></div>
         <h4 class="wiz-sub" data-refi-hide="earnestCommission">Earnest money &amp; agent fees <span class="muted small">(optional)</span></h4>
         <div class="form-grid" data-refi-hide="earnestCommission" data-earnest-commission>
-          <label>EMD held by<input name="emdHeldBy" maxlength="200" aria-label="EMD held by" placeholder="CLA Title, listing brokerage, or another holder"></label>
+          ${emdHolderSelect(html, raw, '', { name: 'emdHeldBy', label: 'EMD held by', aria: 'EMD held by' })}
           ${placeOrderFeesHtml()}
         </div>
         <h4 class="wiz-sub">Lender <span class="muted small">(optional)</span></h4>
@@ -538,7 +539,7 @@ export async function render({ api, user, go }) {
         // A blank or incomplete extra lender row is ignored when the order is saved. It does not block the company.
         const refused = (v) => { try { moneyAmount(v); return false; } catch (err) { return true; } };
         if (!refi() && refused(f.emdAmount)) errs.push({ el: $('[name=emdAmount]', p), msg: 'EMD amount must be a number of 0 or more.' });
-        if (!refi()) { try { readEarnest(f); } catch (err) { errs.push({ el: $('[name=emdHeldBy]', p), msg: err.message }); } }
+        if (!refi()) { applyNoEmdToForm(f); try { readEarnest(f); } catch (err) { errs.push({ el: $('[name=emdHeldBy]', p), msg: err.message }); } }
         if (!refi()) { try { readPlaceOrderFees(form, refused(f.purchasePrice) ? null : moneyAmount(f.purchasePrice)); } catch (err) { errs.push({ el: $('[name="af.listing.percent"]', p), msg: err.message }); } }
         if (counts('Lender')) { const entry = manualPartyEntry(pickers.Lender.read()); if (!entry.ok) errs.push({ el: $('[data-lender-person]', p) || $('[name=lenderEmail]', p), msg: entry.error }); }
         const brokerErr = brokerageContactError({ mortgageBrokerName: f.mortgageBrokerName, mortgageBrokerContact: f.mortgageBrokerContact, mortgageBrokerPhone: f.mortgageBrokerPhone, mortgageBrokerEmail: f.mortgageBrokerEmail, mortgageBrokerAddress: f.mortgageBrokerAddress });
@@ -583,6 +584,7 @@ export async function render({ api, user, go }) {
     const validate = (k) => { const errs = check(k); mark(k, errs); paint(); return errs; };
     // after an error, fix-as-you-go: re-check the current step when a field changes (only once it has been flagged)
     form.addEventListener('change', () => { if (bad.has(cur)) validate(cur); });
+    wireEmdHolderFields(form);
     const next = async () => { if (cur === 'agents') await refreshTcSide(); const list = active(); const errs = validate(cur);
       if (errs.length) { toast(errs.map((e) => e.msg).join(' | '), 'err'); const first = errs.find((e) => e.el); if (first) first.el.focus(); return; }
       show(list[list.indexOf(cur) + 1]); };
@@ -628,7 +630,7 @@ export async function render({ api, user, go }) {
         ${section('property', 'Property', [['Address', f.street ? html`${f.street}<br>${[f.city, f.state].filter(Boolean).join(', ')} ${f.zip || ''}` : dash], ['County', val(f.county)], ['Parcel ID', val(f.parcelId)], ...(mdOn ? [['Primary residence', yesNo(f.primaryResidence)], ['First-time buyer', yesNo(f.firstTimeBuyer)]] : [])])}
         ${section('parties', r ? 'Borrowers' : 'Buyers & Sellers', [[r ? 'Borrowers' : 'Buyers', partyList('Client-Buyer')], ...(r ? [] : [['Sellers', partyList('Client-Seller')]])])}
         ${section('loan', 'Lender & Loan', [...(r ? [] : [['Purchase price', val(fmtMoney(moneyAmount(f.purchasePrice)))]]), ['Loan amount', val(fmtMoney(moneyAmount(f.loanAmount)))],
-          ...(r ? [] : [['EMD amount', val(fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(fmtDate(f.emdDueDate))], ['EMD held by', val(f.emdHeldBy)], ['Agent fees', (() => { try { const fees = readPlaceOrderFees(form, moneyAmount(f.purchasePrice)); const paid = (c) => (c.payer === 'split' ? `split buyer ${fmtMoney(c.splitBuyer)} / seller ${fmtMoney(c.splitSeller)}` : `paid by ${PAYER_LABEL[c.payer] || c.payer}`); const parts = Object.entries(fees).filter(([, v]) => v).map(([k, v]) => `${AF_SIDE_LABEL[k]}: ${[v.commission ? `${Number(v.commission.percent.toFixed(4))}% / ${fmtMoney(v.commission.amount)} (${paid(v.commission)})` : '', v.admin ? `admin fee ${fmtMoney(v.admin.amount)}` : ''].filter(Boolean).join(', ')}`); return parts.length ? html`<span data-review-agent-fees>${parts.join(' · ')}</span>` : dash; } catch (err) { return err.message; } })()]]), ['Closing date', val(fmtDate(f.closingDate))], ['Disbursement date', f.disbursementDate ? val(fmtDate(f.disbursementDate)) : html`<span class="muted" data-review-disbursement-auto>Automatic</span>`],
+          ...(r ? [] : [['EMD amount', val(isNoEmd(f.emdHeldBy) ? fmtMoney(0) : fmtMoney(moneyAmount(f.emdAmount)))], ['EMD due date', val(emdDueDisplay(f.emdDueDate, f.emdHeldBy, fmtDate) || fmtDate(f.emdDueDate))], ['EMD held by', val(f.emdHeldBy)], ['Agent fees', (() => { try { const fees = readPlaceOrderFees(form, moneyAmount(f.purchasePrice)); const paid = (c) => (c.payer === 'split' ? `split buyer ${fmtMoney(c.splitBuyer)} / seller ${fmtMoney(c.splitSeller)}` : `paid by ${PAYER_LABEL[c.payer] || c.payer}`); const parts = Object.entries(fees).filter(([, v]) => v).map(([k, v]) => `${AF_SIDE_LABEL[k]}: ${[v.commission ? `${Number(v.commission.percent.toFixed(4))}% / ${fmtMoney(v.commission.amount)} (${paid(v.commission)})` : '', v.admin ? `admin fee ${fmtMoney(v.admin.amount)}` : ''].filter(Boolean).join(', ')}`); return parts.length ? html`<span data-review-agent-fees>${parts.join(' · ')}</span>` : dash; } catch (err) { return err.message; } })()]]), ['Closing date', val(fmtDate(f.closingDate))], ['Disbursement date', f.disbursementDate ? val(fmtDate(f.disbursementDate)) : html`<span class="muted" data-review-disbursement-auto>Automatic</span>`],
                     ['Lender', (pickers.Lender.value || f.lenderName || ($('[data-lender-person]', root) && $('[data-lender-person]', root).value)) ? html`${f.lenderName ? html`<strong>${f.lenderName}</strong>` : ''}${pickers.Lender.value ? html`${f.lenderName ? ' · ' : ''}${nameOf(pickers.Lender.value)}` : (($('[data-lender-person]', root) && $('[data-lender-person]', root).value.trim()) ? html`${f.lenderName ? ' · ' : ''}${$('[data-lender-person]', root).value.trim()} <span class="muted small">(typed on this file)</span>` : '')}${f.lenderPhone || f.lenderEmail || f.lossPayeeName || f.mortgageBrokerName || f.cplAddress ? html`<br><span class="muted small">${[f.lenderPhone, f.lenderEmail, f.mortgageBrokerName && ('Brokerage: ' + f.mortgageBrokerName), f.mortgageBrokerContact && ('Broker contact: ' + f.mortgageBrokerContact), f.mortgageBrokerPhone, f.mortgageBrokerEmail, f.mortgageBrokerAddress, f.lossPayeeName && ('Loss payee: ' + f.lossPayeeName), f.cplAddress && ('CPL: ' + f.cplAddress)].filter(Boolean).join(' · ')}</span>` : ''}` : dash],
           ['Lender contacts', readLenderContactRows(form).length ? readLenderContactRows(form).map((row) => html`<div>${[row.firstName, row.lastName].filter(Boolean).join(' ')} <span class="muted small">${row.lenderRole === 'lender_tc' ? 'Lender TC' : row.lenderRole === 'loan_officer' ? 'Loan Officer' : ''}</span></div>`) : dash]])}
         ${section('parties', 'Source of business', [['Source of business', val((() => { const picked = $$('[name=referralSource]', root).find((el) => el.checked && el.value); return picked ? (picked.getAttribute('aria-label') || '').replace(/^Source of business:\s*/, '') : ''; })())]])}
@@ -826,7 +828,8 @@ export async function render({ api, user, go }) {
         const made = await api.createContact(builtEnt.contact); if (!people.some((p) => p.id === made.id)) people.push(made); r.pk.set(made); } }
       if (refi()) { REFI_HIDE.forEach((k) => { delete f[k]; }); Object.keys(f).filter((k) => k === 'emdHeldBy' || k.startsWith('af.')).forEach((k) => { delete f[k]; }); }
       // Matt, Nov 3 (b): amounts are shown with commas (485,000) and sent clean (485000)
-      const amt = refi() ? '' : moneyAmount(f.emdAmount);
+      if (!refi()) applyNoEmdToForm(f);
+      const amt = refi() ? '' : (isNoEmd(f.emdHeldBy) ? 0 : moneyAmount(f.emdAmount));
       const entities = {};   // hidden input name (p:<role> / p:<role>:<n>) -> entity
       for (const role of Object.keys(MULTI).filter(counts)) rows[role].forEach((r) => { const ent = entityOf(r); if (ent) entities[$('input[type=hidden]', r.pk.el).name] = ent; });
       const lenderPk = pickers.Lender; const lender = lenderPk && lenderPk.value ? people.find((p) => p.id === lenderPk.value) : null;

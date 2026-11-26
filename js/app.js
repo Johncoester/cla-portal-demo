@@ -3,7 +3,7 @@ import { openNotification } from './data/bell-open.js?v=202611162100';
 import { getAdapter } from './data/adapter.js?v=202611311500';
 import { createNotificationLive, paintNotificationBadge } from './data/notif-live.js?v=202611310700';
 import { importWithRetry } from './data/import-retry.js?v=202611242200';
-import { prefetchDealTab } from './pages/deal-tab.js?v=202611311500';
+import { prefetchDealTab } from './pages/deal-tab.js?v=202611312000';
 import { html, raw, toText, esc, $, $$, toast, closeModal, fmtDate, fmtMoney } from './ui.js?v=202611161500';
 import { fileDatesHtml, fileDateCanEdit, mountFileDates } from './pages/file-dates.js?v=202611300430';
 import { runsOrders, isProcessor, isStaff, isClient, isAgent, isOutside, roleLabel, fileRolesLabel, accountTypeLabel, isClientOnlyUser, phoneTyping, formatMoneyInput, localDate } from './data/constants.js?v=202611302300';
@@ -46,10 +46,10 @@ export function useRouteLoader(next) {
 const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611310300')),
-  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611311500')),
+  dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611312000')),
   orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
-  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611301500')),
-  deal: () => loadRoute(() => import('./pages/deal.js?v=202611311500')),
+  'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611312000')),
+  deal: () => loadRoute(() => import('./pages/deal.js?v=202611312000')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611310600')),
   profile: () => loadRoute(() => import('./pages/profile.js?v=202611310600')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
