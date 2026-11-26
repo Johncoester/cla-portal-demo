@@ -3,6 +3,7 @@
  * in the same demo world. Status changes only through setStatus by an admin. Message text never
  * grants a role, a send, or "fixed". The webhook is not called from here. */
 import { dispatchEvent } from './staff-feedback-dispatch.js?v=202611071800';
+import { uploadTooLargeMessage } from './upload-limit.js?v=202611312900';
 
 export const FEEDBACK_ROLES = Object.freeze(['Processor', 'Preprocessor', 'Sales Person', 'Sales Team', 'Transaction Coordinator', 'Admin', 'Super admin']);
 export const FEEDBACK_STATUSES = Object.freeze(['open', 'needs_info', 'in_review', 'draft_pending', 'in_progress', 'fixed', 'wont_fix', 'reopened']);
@@ -96,7 +97,7 @@ export function screenshotMeta(file) {
   if (file && file.webkitRelativePath) throw new Error('Choose one screenshot. Folder upload is not available.');
   if (!SCREENSHOT_EXT[ext] || (mime && mime !== SCREENSHOT_EXT[ext])) throw new Error('Screenshots must be PNG, JPEG, WEBP, or GIF.');
   const size = Number(file && file.size);
-  if (!Number.isFinite(size) || size <= 0 || size > MAX_SCREENSHOT_BYTES) throw new Error('Screenshots must be 5 MB or smaller.');
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_SCREENSHOT_BYTES) throw new Error(uploadTooLargeMessage(MAX_SCREENSHOT_BYTES));
   const data = String(file && file.dataUrl || '');
   if (/^data:image\/svg/i.test(data) || /<svg/i.test(data.slice(0, 300))) throw new Error('SVG files are not accepted.');
   return { ext, mime: SCREENSHOT_EXT[ext], size, name: name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 120) };

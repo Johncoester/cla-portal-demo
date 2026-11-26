@@ -19,6 +19,8 @@ import { dealDisplayName } from './nov5-rules.js?v=202611247700';
 import { roleAllowed } from './role-access.js?v=202611100100';
 import { referralLabel, REFERRALS } from './place-order.js?v=202611247700';
 import { cleanHomeTitle } from './crm-home-charts.js?v=202611247000';
+import { uploadTooLargeMessage, isOverUploadLimit } from './upload-limit.js?v=202611312900';
+
 
 export const SEND_NOTE = 'Not sent: Gmail is not connected yet. The email was saved on this record only.';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -344,7 +346,7 @@ export function crmNov3bPart(x, h) {
       const stored = [];
       for (const f of files) { const full = str(f.name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
         if (!C.ALLOWED_UPLOAD_EXT.includes(ext)) fail(`${ext ? '.' + ext + ' files are' : 'Files without an extension are'} not allowed. Allowed: ${C.ALLOWED_UPLOAD_EXT.join(', ')}.`);
-        if (!(Number(f.size) >= 0) || Number(f.size) > C.MAX_UPLOAD_BYTES) fail(`File is too large (demo limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
+        if (isOverUploadLimit(f.size, C.MAX_UPLOAD_BYTES)) fail(uploadTooLargeMessage(C.MAX_UPLOAD_BYTES));
         stored.push({ id: nid('cfile'), entity: 'email', entityId: m.id, name: full.slice(0, 200), mimeType: str(f.mimeType, 100) || 'application/octet-stream', size: Number(f.size) || 0, dataUrl: f.dataUrl || null, uploadedBy: u.id, createdAt: now() }); }
       if (input.attachReport) { if (r.entity !== 'report') fail('Only a report can be attached as CSV.'); if (!u.isAdmin) fail('Only an Admin or Super admin can export a report (CSV), so only they can attach it.');
         const def = reportOf(u, r.id); const out = execReport(u, def, cfgFor(u)); const csv = reportCsv(out, out.groupFields);

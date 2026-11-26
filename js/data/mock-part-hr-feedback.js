@@ -8,6 +8,7 @@
  *   d.hrPortalSessions     [{id, employeeId, profileId, startedAt, lastActivityAt, endedAt, endReason: logout|idle|closed|null, heartbeatCount}]
  * No e-sign provider is connected: signature status is recorded by hand. Nothing is ever deleted (archive instead). */
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611302300';
+import { uploadTooLargeMessage, isOverUploadLimit } from './upload-limit.js?v=202611312900';
 import { HR_COMPANY_DOC_CATEGORIES, HR_SHARE_SCOPES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, HR_IDLE_MS, sessionSeconds, sessionTotals, fullNameOf, labelOf } from './hr.js?v=202611247700';
 const SEED_AT = '2026-11-04T14:00:00Z';
 const ago = (iso, min) => new Date(Date.parse(iso) - min * 60000).toISOString();
@@ -51,7 +52,7 @@ export function hrFeedbackPart(x, h) {
   function cleanFile(f) {
     if (!f || !f.name || !f.dataUrl) fail('Pick a file to upload.');
     const ext = String(f.name).split('.').pop().toLowerCase(); if (!ALLOWED_UPLOAD_EXT.includes(ext)) fail(`That file type is not allowed. Allowed: ${ALLOWED_UPLOAD_EXT.join(', ')}.`);
-    if (!(Number(f.size) >= 0) || Number(f.size) > MAX_UPLOAD_BYTES) fail('Files can be up to 25 MB.');
+    if (isOverUploadLimit(f.size, MAX_UPLOAD_BYTES)) fail(uploadTooLargeMessage(MAX_UPLOAD_BYTES));
     if (!/^data:/.test(String(f.dataUrl))) fail('That file could not be read.');
     return { fileName: s(f.name, 200), mimeType: s(f.mimeType || f.type, 120), size: Number(f.size) || 0, dataUrl: String(f.dataUrl), hasFile: false };
   }

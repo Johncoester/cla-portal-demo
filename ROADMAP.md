@@ -37,11 +37,116 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Over-limit upload message (CONNECT-8)
+
+**How it should work.** When someone picks a file that is over the size limit, the portal shows a clear error: "File is too large (max X MB)", where X is the real limit for that upload. The same message appears if the server refuses the file as too large (HTTP 413 / "Payload too large").
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 5.2 (Francis Santos). No database file. Cache stamp 202611312900. Row 6.4 (agreement templates) is not part of this and still waits on files from John.
+
+**What's built**
+
+- A shared helper formats the real byte limit and the standard message, and maps a server 413 / "Payload too large" to that message.
+- Every upload path checks the size before sending bytes and uses that message: order documents, Place Order, Messages attachments, task and library uploads, the Email tab's computer-file attachments, CRM note files, CRM imports (2 MB), HR documents, staff-feedback screenshots (5 MB), and profile pictures (5 MB picked, 400 KB after cropping).
+- Hint text no longer says "demo limit".
+- Storage bucket limits were not changed. The deal-documents and hr-documents buckets still allow 25 MiB (26,214,400 bytes); the client check stays at 25,000,000 bytes (25 MB). The crm bucket is 25,000,000 bytes. staff-feedback is 5,000,000 bytes. agent-photos is 409,600 bytes (400 KB).
+
+**What's still missing**
+
+- The `ai-title-review` bucket on TEST (50 MiB, PDF only) has no portal upload path in this repo, so it was left alone.
+- Agreement templates (checklist row 6.4) wait on files from John.
+
+---
+
+## Gmail emails on Messages (CONNECT-6)
+
+**How it should work.** When staff send email from their own Gmail through the portal, that email shows on the order's Messages (Inbox) tab, not only on the Email tab. A reply in the same Gmail thread also shows there, on the order.
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 9.3 (Francis Santos, Fail, Nov 25 2026). Database file `supabase/migrations/20261131270000_connect_6_gmail_messages.sql`. Not applied on TEST yet. Pull request: [PR 458](https://github.com/Johncoester/cla-portal-demo/pull/458).
+
+**What's built**
+
+- Messages / Inbox lists Gmail threads already stored on the file (`deal_emails`) next to in-portal conversations, with an Email badge, including replies in the same Gmail thread.
+- Staff with connected Gmail can reply from that conversation and can check for replies. Parties who can open the file see only mail they are on, never other people's bcc addresses, and are told to reply from the email they received.
+- The staff Email tab is unchanged.
+
+**What's still missing**
+
+- The database file has to be applied on TEST after merge. This pull request adds a SECURITY DEFINER function, so it waits for a rule 27 review before merge.
+- Open Orders icons still count Gmail unread for staff only (existing table row security).
+
+**Links**
+
+- Spec: [docs/specs/connect-6-gmail-messages.md](docs/specs/connect-6-gmail-messages.md)
+
+**Decisions**
+
+- Table RLS on `deal_emails` stays staff-only. Messages reads through `list_deal_emails`.
+- `list_deal_emails` also requires the file's `is_demo` flag to match the viewer's, so a demo staff login cannot read a real file's emails even though `can_access_deal` would allow it. Non-staff results return null for `sent_by`, `mailbox_profile_id`, and `template_key`.
+- No new Gmail secrets or scopes. TEST mailboxes already have `gmail.send` and `gmail.readonly`, and sync is already running.
+
+## Transaction coordinator conversations on their side (CONNECT-7)
+
+**How it should work.** When a buyer's or listing agent's transaction coordinator starts a conversation, they can add the parties on their side of the order (buyer-side: the buyer, the buyer agent, and the buyer's lender; seller-side: the seller and the listing agent), plus CLA Title staff on the file. They cannot add the other side.
+
+**Status: Done (on TEST, waiting on the team's retest of row 4.3).** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 4.3. Database file 20261131280000_connect_7_tc_recipients.sql applied once on TEST (version 20261126072408). Pull request: [PR 459](https://github.com/Johncoester/cla-portal-demo/pull/459), merged Nov 26 2026, 2:23:26 AM ET (347bd915).
+
+**What's built**
+
+- Start conversation already listed whoever the recipient query returned. The query now uses the same side logic as the rest of the portal (`outside_roles` / `linked_agent_roles`), so a coordinator is on their agent's side and sees those parties, including the lender on the buyer side.
+- Creating the conversation already refused the other side. The lender is now buyer-side there too, so a buyer-side coordinator can include them.
+
+**What's still missing**
+
+- A coordinator still cannot invite someone who has no portal login.
+
+
+**Links**
+
+- Spec: [docs/specs/connect-7-tc-conversation-parties.md](docs/specs/connect-7-tc-conversation-parties.md)
+
+---
+
+## Personal information questions and Seller Proceeds wording (CONNECT-5)
+
+**How it should work.** The buyer's Personal Information task asks the six Yes/No questions Francis listed (attending the closing, leaving town, currently getting divorced, primary residence, wants a survey, first-time home buyer in MD). The seller's Personal Information task uses the four Yes/No wordings she listed (subject to ground rent, subject to front foot benefit, property is homestead, tenants at/after closing). The Seller Proceeds task asks "Proceeds Instructions: Overnight Check or Wire?" and shows that proceeds must go to the SELLER OF RECORD (or the Entity/Trust). A buyer signed in to an order sees every active buyer-side task from the template.
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 2.1 and 2.2. Database file 20261131240000_connect_5_questions_wording.sql (apply once on TEST). Pull request: [PR 456](https://github.com/Johncoester/cla-portal-demo/pull/456).
+
+**What's built**
+
+- personal_info v10 and seller_proceeds v3 are wording-only versions of v9 and v2. Keys, types, roles, required flags, states and options are unchanged. MF-074 (seller-only forwarding address) and citizenship as a typed line are untouched.
+- Untouched to-do copies with no answers move to the new versions. Copies with saved answers stay on their current version.
+- A buyer's visible task list is checked against the active Client-Buyer templates (Upload identification, Personal information, Title vesting, Lender information, Home warranty). On TEST, recent buyer files already had a copy of each.
+
+---
+
+## Seller mortgages on Payoffs (CONNECT-4)
+
+**How it should work.** The lender and loan the seller enters on Outstanding Mortgage Information show on the order's Accounting > Payoffs page. The processor adds each one as a payoff tab with one click (or all at once), so the lender, phone and loan number are filled in and the payoff is ready to order. Amounts stay blank until the payoff statement comes in.
+
+**Status: Done (on TEST, waiting on the team's retest of row 7.2).** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 7.2. No database file. Pull request: [PR 452](https://github.com/Johncoester/cla-portal-demo/pull/452), merged Nov 25 2026, 9:56 PM ET (7a76526c).
+
+**What's built**
+
+- Payoffs > "From the seller's Outstanding Mortgage task": lender, phone, loan #, type; "On First Payoff" when it is already a payoff (matched by loan number, else by lender name); "Add as Second Payoff" for the next free tab; "Add all" when several are waiting.
+- The add uses the existing payoff save, so the same rules, read-only roles and change log apply. A note on the payoff says it came from the seller's task.
+
+**What's still missing**
+
+- Nothing is added without the processor's click. Automatic creation when the seller finishes the task would need a database change and a rule 27 review.
+- At most four payoffs per file, as today.
+
+**Links**
+
+- Spec: [docs/specs/connect-4-seller-payoffs.md](docs/specs/connect-4-seller-payoffs.md)
+
+---
+
 ## Personal Information answers on Contacts (CONNECT-3)
 
 **How it should work.** When a buyer or seller saves their Personal Information task, the processor sees their answers and their spouse's on the order's Contacts tab, and can copy a new name or phone onto the contact with one approval click. A client's save never changes the contact by itself (checklist row 7.7).
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 7.3 and 7.7. No database file. Pull request: [PR 451](https://github.com/Johncoester/cla-portal-demo/pull/451).
+**Status: Done (on TEST, waiting on the team's retest of rows 7.3 and 7.7).** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 7.3 and 7.7. No database file. Pull request: [PR 451](https://github.com/Johncoester/cla-portal-demo/pull/451), merged Nov 25 2026, 8:48 PM ET (fdcfef42).
 
 **What's built**
 
@@ -51,7 +156,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Address, marital status, citizenship and spouse have no contact field; they are shown, not copied. Vesting and deed wording is still typed by the title team.
-- No automatic copy without a staff click.
+- No automatic copy without a staff click. Whether answers should copy into the contact automatically is with John (asked Nov 25 2026); nothing changes until he answers.
 
 **Links**
 
@@ -515,7 +620,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - On hold: #1, #2, #4, #5, #10, #13, #15, #16, spouse marital status, entity documents required, phone and email icons with no app.
-- Citizenship is no longer on hold. Janine asked on Nov 17 2026 to type it on one line. See Citizenship on one line (JN-CITIZEN-1).
+- Citizenship is a dropdown again (MF-073), after Janine agreed on Nov 25 2026 to Matt's four options. JN-CITIZEN-1 (typed line, PR 334) is superseded and stays merged. See Citizenship dropdown (MF-073).
 
 **Links**
 
@@ -528,11 +633,19 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Citizenship dropdown (MF-073)
+
+**How it should work.** On Personal information, for a buyer and for a seller, Citizenship is a dropdown: U.S. Citizen, U.S. National, Lawful Permanent Resident, and Non-Citizen Authorized to Work. The spouse section uses the same list. An answer already typed still shows and can be saved again until someone picks a new option or clears the field. Blank is allowed.
+
+**Status: In progress.** Not Live until `supabase/migrations/20261131250000_citizenship_dropdown.sql` is applied on TEST. This pull request does not apply it. This supersedes JN-CITIZEN-1; PR 334 stays merged and its file is not edited.
+
+- Spec: [docs/specs/mf-073-citizenship-dropdown.md](docs/specs/mf-073-citizenship-dropdown.md)
+
 ## Citizenship on one line (JN-CITIZEN-1)
 
 **How it should work.** On Personal information, for a buyer and for a seller, Citizenship is one line the person types. The same line is used for a spouse. An answer already saved, including "US Citizen" and "U.S. Citizen", still shows and can be saved again. A person can also type something that was not in the old list, such as "Born in Canada". Leaving it blank is allowed.
 
-**Status: In progress.** The pull request is open. Not Live until `supabase/migrations/20261125180000_citizenship_free_text.sql` is applied on TEST. This pull request does not apply it.
+**Status: Superseded by MF-073.** The free-text change (PR 334) is already merged and stays merged. Citizenship is a dropdown again; leftover typed answers stay until edited.
 
 **What's built**
 
@@ -3884,17 +3997,13 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
 
 Matt Landsberg, Portal Feedback Nov 25 2026, including the 4:35 PM ET answers. Tracker item MF-063.
 
-**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+**Status: Live on TEST.** No database file. Waiting on Matt to check it.
 
 **What's built**
 
 - EMD held by is a dropdown: CLA Title, Listing Agent, Buyer's Agent, No EMD, Other Title Company or Attorney.
 - No EMD sets the amount to $0 and the due date to N/A.
 - Older typed-in holders stay until someone edits the file.
-
-**What's still missing**
-
-- Not checked on TEST yet.
 
 **Links**
 
@@ -3904,6 +4013,34 @@ Matt Landsberg, Portal Feedback Nov 25 2026, including the 4:35 PM ET answers. T
 
 - No extra text box for "other company name" (Matt did not ask for one).
 - Obvious older wording is mapped on the screen only; the saved text is not rewritten until someone picks a list option.
+
+## Order Status milestones complete independently (MF-068)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
+
+**Status: Building.** Has a database file. Not merged, and not Live, until a Rule 27 review (it replaces `public.rpc_tc_file_summaries` and adds `deals.milestones_done`).
+
+**What's built**
+
+- Each milestone can be checked or unchecked on its own.
+- `deals.stage` stays as the highest completed index (or 0 if none).
+- Checking Disbursed Funds closes an open order. Unchecking it does not reopen the file.
+- Existing files keep a NULL set and are shown from their current stage (a Closed file with no saved set is all ten done), so the migration does not rewrite every file.
+
+**What's still missing**
+
+- Rule 27 review and merge. Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-068-independent-milestones.md](docs/specs/mf-068-independent-milestones.md)
+- Migration: `supabase/migrations/20261131210000_independent_milestones.sql`
+- Rollback: `supabase/rollbacks/20261131210000_independent_milestones.sql`
+
+**Decisions**
+
+- Unchecking Disbursed Funds leaves a Closed file Closed (Matt was asked; this is the plan default).
+- The TC dashboard file list uses the stored set when one exists. A file with no saved set is shown from its stage, and a Closed file with no saved set is all ten done (same as today).
 
 ## Portal orders feed the CRM; Zoho deals link instead of duplicating (CRM-FEED-1)
 

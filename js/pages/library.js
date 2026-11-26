@@ -3,6 +3,7 @@
 import { html, $, $$, guard, formData, modal, closeModal, options, toast, fmtDate, fmtSize, pill } from '../ui.js?v=202611161500';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { runsOrders, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isProcessor } from '../data/constants.js?v=202611302300';
+import { assertUploadSize } from '../data/upload-limit.js?v=202611312900';
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
 
 export async function render({ api, user, refresh }) {
@@ -22,7 +23,7 @@ export async function render({ api, user, refresh }) {
       <label class="span2">File * <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')})</span><input type="file" name="file" required></label><label class="span2">Description<input name="description" maxlength="500"></label>
       <div class="span2"><button class="m-btn" type="submit">Add</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       $('#lf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const file = f.file; if (!file || !file.name) throw new Error('Choose a file.');
-        if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
+        assertUploadSize(file.size, MAX_UPLOAD_BYTES);
         await api.addLibraryDocument(f.folderId, { name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl: await readFile(file) }); closeModal(); toast('Added'); refresh(); })); });
   } };
 }

@@ -8,28 +8,28 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
   phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611302300';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
-import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611249300';
+import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611312500';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyPersonalV9, applyIdUploadV3, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611310900';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611300900';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyPersonalV9, applyIdUploadV3, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText, applyConnect5Questions, applyCitizenshipDropdown } from './templates.js?v=202611312500';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611312500';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611301500';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611311000';
-import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611312900';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611312500';
+import { messagesActivity } from './mock-part-msgs.js?v=202611312800';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
 import { closingSchedule } from './mock-part-schedule.js?v=202611247700';
 import { notificationsPart } from './mock-part-notify.js?v=202611070139';
 import { mattP2 } from './mock-part-matt.js?v=202611247700';
 import { mattNov2 } from './mock-part-nov2.js?v=202611247700';
-import { crmPart } from './mock-part-crm.js?v=202611302100';
+import { crmPart } from './mock-part-crm.js?v=202611312900';
 import { featureFlags } from './features.js?v=202611070139';
 import { crmZohoUpgrade } from './crm.js?v=202611247700';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611247700';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
 import { ensureAgentPortal } from './agent-portal.js?v=202611247700';
 import { agentPortal } from './mock-part-agent.js?v=202611247700';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611247700';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611312500';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611247700';
 import { referralLabel } from './place-order.js?v=202611247700';
 import { upgradeCalls } from './crm-calls.js?v=202611247700';
@@ -38,29 +38,29 @@ import { taxRatesPart } from './mock-part-tax-rates.js?v=202611247700';
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611247900';
 import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611247700';
 import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
-import { taskShownTo } from './task-switches.js?v=202611247700';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611247700';
+import { taskShownTo } from './task-switches.js?v=202611312500';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611312500';
 import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611247700';
 import { underwriterPart } from './mock-part-underwriter.js?v=202611247900';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611247700';
-import { agentInvitePart } from './mock-part-agent-invite.js?v=202611310600';
+import { agentInvitePart } from './mock-part-agent-invite.js?v=202611312900';
 import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611289960';
 import { tcOnlyPart } from './mock-part-tc-only.js?v=202611300700';
 import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
-import { gmailMock } from './supabase-gmail.js?v=202611291500';
-import { hrPart, ensureHr } from './mock-part-hr.js?v=202611247700';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611247700';
+import { gmailMock } from './supabase-gmail.js?v=202611312700';
+import { hrPart, ensureHr } from './mock-part-hr.js?v=202611312900';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611312500';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611247700';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611247700';
-import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611310000';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
+import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611312500';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611247700';
-import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611247700';
+import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611312500';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
 import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611247700';
-import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611247700';
-import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611080400';
+import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611312500';
+import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611312900';
 import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611247900';
 import { seedFwp as FSEED } from './fwp-seed.js?v=202611247700';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
 import { claRepresentationLabel } from './cla-representation.js?v=202611090950';
@@ -142,7 +142,7 @@ export function ensurePreprocessorSeed(d) {
 export function upgradeToV30(d, from = 'v29') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v29') upgradeToV29(d, from); ensurePreprocessorSeed(d); d.upgradedFrom = from; return d; }
 export function ensureMattNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 export function ensureBuyerPersonal(d) { applyBuyerPersonal(d); return d; }
-export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); applyPersonalV9(d); applyIdUploadV3(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCommissionTaskV3(d); applyCitizenshipFreeText(d); return d; }   // AF-8: commission task -> Agent fees, then v2. FF-101b: v3 broker fee + payout. JN-CITIZEN-1: Citizenship is a typed line; saved answers stay.
+export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); applyPersonalV9(d); applyIdUploadV3(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCommissionTaskV3(d); applyCitizenshipFreeText(d); applyConnect5Questions(d); applyCitizenshipDropdown(d); return d; }   // CONNECT-5 wording, then MF-073 dropdown; leftover typed answers stay until edited.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
@@ -177,9 +177,9 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
     let d = fresh ? ensureTitle(ensureTc(ensureHr(ensurePayoffs(ensureModules(ensureAccounting(upgradeCalls(ensureMattNov3b(ensureCrmNov3b(ensureWireFlags(ensureAgentPortal(data)))))))))), { seed: !!flags.title }) : ensureTitle(ensureTc(data), { seed: !!flags.title });
     d = ensurePreprocessorSeed(d); d = ensureEmailSenders(d); d = ensureRealtorName(d); d = ensureRecording(d, { seed: !!flags.accounting }); d = ensureFwp(d, { seed: !!flags.policy || !!flags.funding || !!flags.wires }); d = ensureBuyerPersonal(d); d = ensureSellerTasks(d); return ensureNov5(d);
   };
-  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow || db.citizenshipTextNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; if (seeded || renamed) save(); return db; }
+  function load() { if (db) return db; const raw = store.getItem(KEY); if (raw) { db = JSON.parse(raw); const renamed = (db.profiles || []).some((p) => p.id === 'u-multi' && p.lastName === 'Multi-Role'); db = ensureAll(db); const seeded = db.titleSeedAddedNow || db.fwpSampleAddedNow || db.citizenshipTextNow || db.citizenshipDropdownNow; delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; delete db.citizenshipDropdownNow; if (seeded || renamed) save(); return db; }
     const prev = loadPrevious();
-    if (prev) { const [pk, data] = prev; db = ensureAll(data); delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; const old = store.getItem(pk);
+    if (prev) { const [pk, data] = prev; db = ensureAll(data); delete db.titleSeedAddedNow; delete db.fwpSampleAddedNow; delete db.citizenshipTextNow; delete db.citizenshipDropdownNow; const old = store.getItem(pk);
       try { save(); } catch (e) { if (!isQuota(e)) throw e; store.removeItem(pk); try { save(); } catch (e2) { store.setItem(pk, old); throw e2; } }
       store.removeItem(pk); return db; }
     db = ensureAll(buildSeed(), { fresh: true }); if (typeof store.key === 'function') dropStale(); save(); return db; }
@@ -410,14 +410,19 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // CLA staff (any staff login, incl. TC and Admin) vs an outside user acting on this order (agent / client / plain outside user)
   const isStaffView = (u) => !!u && (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && !isOutside(u.accountRole || u.role);
   // Which side a person is on, ON THIS ORDER: 'staff' (CLA staff login), 'buyer' / 'seller' (their agent/client role here), or null (outside user with no side here).
-  // Mirrored by private.person_side(pid, deal) in SQL (migration 13).
+  // Mirrored by private.person_side(pid, deal) in SQL. CONNECT-7 does not change this: a Lender has no side.
   const personSide = (profileId, dealId) => { const p = prof(profileId); if (!p) return null; if (!isOutside(p.role)) return 'staff';
     const sides = [...new Set(fileRoles(profileId, dealId).map(sideOf).filter(Boolean))]; return sides.length === 1 ? sides[0] : null; };
+  const isFileLender = (profileId, dealId) => { const c = contactOf(profileId); return !!(c && dealId && load().participants.some((z) => z.dealId === dealId && z.contactId === c.id && z.role === 'Lender')); };
   // NO CROSS-SIDE MESSAGING (Matt, Oct 31): an outside user may message CLA staff and people on their OWN side of the order only.
+  // CONNECT-7: a buyer-side viewer may add a Lender on this file. That does not give the lender a side.
   const canMessage = (u, targetId, dealId) => { if (isStaffView(u)) return true; const t = personSide(targetId, dealId); if (t === 'staff') return true;
-    const mine = sidesOfUser(u); return mine.length > 0 && mine.includes(t); };
+    const mine = sidesOfUser(u); if (mine.length > 0 && mine.includes(t)) return true; return mine.includes('buyer') && isFileLender(targetId, dealId); };
   // A conversation never mixes the two sides: its outside users are all on one side (a side-less outside user only talks to staff).
-  const mixedSides = (ids, dealId) => { const outside = ids.filter((id) => !String(id).startsWith('contact:')).map((id) => personSide(id, dealId)).filter((sd) => sd !== 'staff');
+  // CONNECT-7: a Lender on this file counts as buyer for membership only when the viewer (the first id) is staff or buyer-side (same as rpc_create_thread). personSide stays unchanged.
+  const mixedSides = (ids, dealId) => { const profiles = ids.filter((id) => !String(id).startsWith('contact:'));
+    const vs = profiles[0] ? personSide(profiles[0], dealId) : null; const allowLender = vs === 'staff' || vs === 'buyer';
+    const outside = profiles.map((id) => { const s = personSide(id, dealId); return s == null && allowLender && isFileLender(id, dealId) ? 'buyer' : s; }).filter((sd) => sd !== 'staff');
     return outside.includes(null) ? outside.length > 1 : new Set(outside).size > 1; };
   // NO OPPOSING CONTACT INFO (Matt, Oct 31): outside users do not get the phone / email of the OTHER side's agent or client (names stay, for context).
   // Staff see everything. A client also does not see the other side's client at all (unchanged). Mirrored by public.deal_contacts() in SQL (migration 13).

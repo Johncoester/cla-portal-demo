@@ -3,8 +3,8 @@
 // office phone. Email stays locked. Opened from User List > Edit User and from an order's Contacts tab (Buyer Agent / Listing Agent rows).
 // Route: #/users/agent-profile/<profile id>?back=<#/... to return to>. The adapter and the database refuse anyone who is not an Admin.
 import { html, guard, toast } from '../ui.js?v=202611161500';
-import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611310600';
-import { canEditAgentProfiles, AGENT_EDIT_DENIED } from '../data/agent-profile-admin.js?v=202611310600';
+import { agentFormHtml, mountAgentForm } from './agent-profile-form.js?v=202611312900';
+import { canEditAgentProfiles, AGENT_EDIT_DENIED } from '../data/agent-profile-admin.js?v=202611312900';
 // only a page inside the portal (User List or an order); anything else goes back to the person's Edit User page
 export function agentEditBackHref(id, hash) {
   const q = new URLSearchParams(String(hash == null && typeof location !== 'undefined' ? location.hash : hash || '').split('?')[1] || '');

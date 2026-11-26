@@ -4,9 +4,9 @@
 // app.js draws this page in the light "client shell" (white top bar, no sidebar) because the view sets clientPage.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
 import { STAGES, fmtPhone, isRefi } from '../data/constants.js?v=202611302300';
-import { composeModal } from './compose.js?v=202611302000';
+import { composeModal } from './compose.js?v=202611312900';
 import { slotText } from './dealclosing.js?v=202611247700';
-import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611310600';
+import { yourAgentHtml, withContactPhone } from './your-agent.js?v=202611312900';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { UPDATE_TOPICS } from '../data/agent-portal.js?v=202611247700';
 

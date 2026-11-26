@@ -3,6 +3,7 @@
  * (features.js, CLA_PORTAL_CONFIG.features.crm, OFF in supabase mode) and the database switch (private.features 'crm', migration 22).
  * With the browser flag off every method refuses before calling the database. Meetings never send invitations; nothing is emailed. */
 import { CRM_OFF } from './features.js?v=202611070139';
+import { assertUploadSize, mapUploadError } from './upload-limit.js?v=202611312900';
 import { canUseCrm, crmReadOnly, orderTotals, normTags, crmStageLabel, LINK_KEYS, taskOpen, meetingOpen, localStamp, entityLabel, TASK_CLOSED, companyKey } from './crm.js?v=202611247700';
 import { localDate, runsOrders as runsOrdersCI, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT } from './constants.js?v=202611302300';
 import { uploadBytes, uploadFileName } from './upload-bytes.js?v=202611141400';
@@ -12,7 +13,7 @@ import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611247700';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { mergeImportedDeals, runDealImportChunks } from './crm-imported-deals.js?v=202611312100';
 import { dealStageOf } from './crm-analytics.js?v=202611302100';
-import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611247700';
+import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611312900';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611310200';
 import { contactTypeSaveError } from './contact-insert.js?v=202611247700';
 import { propertyAddressOf } from './nov5-rules.js?v=202611247700';
@@ -329,13 +330,13 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
       if (!u.isAdmin && note.created_by !== u.id) throw new Error('Only the person who wrote this note, or an admin, can change it.');
       const name = uploadFileName(file.name, file.mimeType); const dot = name.lastIndexOf('.'); const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
       if (!ALLOWED_UPLOAD_EXT.includes(ext)) throw new Error(`${ext ? '.' + ext + ' files are' : 'Files without an extension are'} not allowed. Allowed: ${ALLOWED_UPLOAD_EXT.join(', ')}.`);
-      const size = Number(file.size) || 0; if (!(size >= 0) || size > MAX_UPLOAD_BYTES) throw new Error(`File is too large (limit ${Math.round(MAX_UPLOAD_BYTES / 1e5) / 10} MB). Choose a smaller file.`);
+      const size = Number(file.size) || 0; assertUploadSize(size, MAX_UPLOAD_BYTES);
       const id = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : ''; if (!id) throw new Error('This browser cannot attach a file. Try another browser.');
       if (!sb.storage || typeof sb.storage.from !== 'function') throw new Error(NOTE_FILE_OFF);
       let blob; try { blob = await uploadBytes(file); } catch (e) { throw new Error(e && e.message ? e.message : 'The selected file could not be read. Choose it again.'); }
       const path = `notes/${note.entity}/${note.entity_id}/${note.id}/${id}/${name}`;
       const up = await sb.storage.from('crm').upload(path, blob, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
-      if (up && up.error) { const msg = String(up.error.message || ''); if (/bucket not found|schema cache|note_id/i.test(msg)) throw new Error(NOTE_FILE_OFF); throw new Error('That file was not attached. Try again.'); }
+      if (up && up.error) { const msg = String(up.error.message || ''); if (/bucket not found|schema cache|note_id/i.test(msg)) throw new Error(NOTE_FILE_OFF); throw new Error(mapUploadError(up.error, MAX_UPLOAD_BYTES)); }
       const row = { id, entity: note.entity, entity_id: note.entity_id, note_id: note.id, name, mime_type: file.mimeType || 'application/octet-stream', size, storage_path: path, uploaded_by: u.id };
       const ins = await sb.from('crm_attachments').insert(row);
       if (ins && ins.error) { const msg = String(ins.error.message || ''); if (missingNoteColumn(ins.error) || /note_id|schema cache/i.test(msg)) throw new Error(NOTE_FILE_OFF); if (/Only the person who wrote|cannot be changed|has to be attached|not stored with the note|not allowed/i.test(msg)) throw new Error(msg); throw new Error('That file was not attached. Try again.'); }

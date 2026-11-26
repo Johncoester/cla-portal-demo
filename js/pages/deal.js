@@ -10,7 +10,7 @@ import { slotText } from './dealclosing.js?v=202611247700';
 import { pickerHtml, mountPicker } from './person-picker.js?v=202611247700';
 import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
 import { cleanFileNumber } from '../data/file-number.js?v=202611222500';
-import { composeModal } from './compose.js?v=202611302000';
+import { composeModal } from './compose.js?v=202611312900';
 import { sourceChoices, processorChoices, fileReferralState, referralContacts, referralPartyByCode, encodeReferral, applyReferralChange } from '../data/place-order.js?v=202611247700';
 import { processorPickLabel, processorPickError } from '../data/processor-pick.js?v=202611222000';
 import { closerChoices, closerInputValue, resolveCloser } from '../data/closer.js?v=202611247700';
@@ -18,10 +18,10 @@ import { canManageClosingLocations } from '../data/closing-location.js?v=2026112
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611247700';
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611247700';
 import { themeOn } from '../theme.js?v=202611070139';
-import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611310600';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611312000';
+import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611312900';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611312900';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611312000';
+import { prefetchDealTab } from './deal-tab.js?v=202611312900';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -36,6 +36,7 @@ import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
 import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611301500';
+import { parseMilestones, milestonesDoneCount } from '../data/milestones.js?v=202611312200';
 // The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
 export const autoFillToast = (r) => `Fees filled in from CLA rates: ${r.added} added, ${r.updated} updated${r.retired ? `, ${r.retired} retired` : ''}${r.kept ? `, ${r.kept} changed by hand kept` : ''}.`;
 const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
@@ -219,8 +220,10 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
   const refi = isRefi(d); const B = refi ? 'Borrower' : 'Buyer';
   const showSellers = !refi || all('Client-Seller').length; const showAgents = (r) => !refi || all(r).length; const showPrice = !refi || d.purchasePrice != null; const showEmd = !refi || d.emdAmount != null || d.emdDueDate;
   const stageWord = (i) => (staffView ? staffTrackerLabel(i) : STAGES[i]);
-  const tracker = STAGES.map((s, i) => html`<li class="${i < d.stage ? 'done' : i === d.stage ? 'current' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? 'Set stage' : s}"></button><span>${stageWord(i)}</span></li>`);
+  const milestoneDone = parseMilestones(d.milestonesDone, d.stage, d.status);
+  const tracker = STAGES.map((s, i) => html`<li class="${milestoneDone[i] ? 'done' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? (milestoneDone[i] ? 'Uncheck this milestone' : 'Check this milestone') : s}" aria-pressed="${milestoneDone[i] ? 'true' : 'false'}"></button><span>${stageWord(i)}</span></li>`);
   const stage = Math.max(0, Math.min(STAGES.length - 1, Number(d.stage) || 0)); const today = localDate();
+  const completeN = milestonesDoneCount(milestoneDone);
   const toGo = d.closingDate ? Math.round((Date.parse(d.closingDate + 'T12:00:00') - Date.parse(today + 'T12:00:00')) / 864e5) : null;
   const openN = ov ? (staffView ? ov.counts.tasks : ov.outstanding) : d.openTasks;
   const portalN = Number(d.unread) || (ov && ov.counts && Number(ov.counts.inbox)) || 0;
@@ -239,9 +242,9 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
     ${openN != null ? html`<span data-open-tasks><a href="#/deals/${d.id}/tasks"><b>${openN}</b> open task${openN === 1 ? '' : 's'}</a></span>` : ''}
     ${emailN ? html`<span data-email-unread><a href="#/deals/${d.id}/email"><b>${emailN}</b> unread email${emailN === 1 ? '' : 's'}</a></span>` : ''}</div>`;
   const head = html`<section class="op-status" data-status-bar aria-label="Order status">
-      <div class="op-status-top"><span class="op-status-label">ORDER STATUS &middot; <b data-status-step>Step ${stage + 1} of ${STAGES.length} &mdash; ${stageWord(stage)}</b>${ov && !staffView ? html` &middot; <span class="muted">your closing progress: <strong data-progress-step>${ov.progress.phaseName}</strong></span>` : ''}</span>
+      <div class="op-status-top"><span class="op-status-label">ORDER STATUS &middot; <b data-status-step>${completeN} of ${STAGES.length} complete</b>${ov && !staffView ? html` &middot; <span class="muted">your closing progress: <strong data-progress-step>${ov.progress.phaseName}</strong></span>` : ''}</span>
         <span class="op-status-right">${edit ? html`<select id="statussel" aria-label="Order status">${options(DEAL_STATUSES, d.status)}</select>${staffView ? html` <button class="icon-edit" id="editdeal" title="Edit order details" aria-label="Edit order details">&#9998;</button>` : ''}` : pill(d.status, d.status === 'Open' ? 'ok' : '')}</span></div>
-      <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a step to set the stage. The last step closes the order.</p>` : ''}
+      <ol class="tracker op-steps" data-milestones>${tracker}</ol>${edit ? html`<p class="muted small op-hint">Click a milestone to check or uncheck it, in any order. Checking Disbursed Funds closes an open order. Unchecking it does not reopen the file.</p>` : ''}
       ${staffView ? staffStatus : glance}</section>
     ${staffView ? '' : html`<div class="op-title deal-head"><h1 class="op-address" data-op-address>${d.street}, ${d.city}, ${d.state} ${d.zip}</h1><span class="op-order-no order-no" data-op-order-no>Order # ${d.fileNumber}</span>${d.fileTitle ? html` <span class="file-title" data-file-title>${d.fileTitle}</span>` : ''}${d.agentParties && d.agentParties.length ? html` <span class="pill warn agent-party">Agent is a party</span>` : ''}</div>`}
     ${staffView ? (edit && !d.processorId ? html`<div class="notice warn" data-unassigned-processor>This file has no processor yet. Click the Processor row to assign one.</div>` : '') : html`<p class="op-sub muted" data-op-sub>${d.transactionType || 'Purchase'}${d.county ? html` &middot; <span data-county-head>${d.county} County</span>` : ''}${d.parcelId ? html` &middot; Parcel <span data-parcel-id>${d.parcelId}</span>` : ''}<span data-county hidden>${d.county || '\u2014'}</span> &middot; Opened ${fmtDate(d.openDate)} &middot; Processor ${d.processorId ? html`<span data-processor-name>${d.processorName || 'assigned'}</span>` : staffView ? html`<span class="pill warn" data-unassigned-processor title="Click the Processor row to assign one">Unassigned</span>` : 'not set'}${d.preprocessorName ? html` &middot; Preprocessor ${d.preprocessorName}` : ''}${staffView ? html` &middot; Closer <span data-closer>${d.closerName || 'not set'}</span>` : ''}${d.tcUserId ? html` &middot; TC <span data-tc-name>${d.tcName || 'assigned'}</span>` : staffView ? html` &middot; TC <span class="muted" data-tc-none>not assigned</span>` : ''}${staffView && (claRepresentationWritesEnabled(api) || d.claRepresentation) ? html` &middot; <span data-cla-representation>CLA represents: ${d.claRepresentationLabel || 'Not recorded'}</span>` : ''}${staffView ? html` &middot; <span data-source-of-business>Source of business: ${d.sourceOfBusinessLabel || 'Not set'}</span>` : ''}${ov && ov.orderDetails.agencyLicenseId ? html` &middot; Agency License ID <span data-license>${ov.orderDetails.agencyLicenseId}</span>` : ''}</p>`}

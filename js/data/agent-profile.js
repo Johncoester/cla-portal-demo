@@ -1,6 +1,7 @@
 // AGENT INVITE + ACCOUNT SETUP and the "Your agent" card (John, Nov 4). Pure rules shared by the mock adapter, the Supabase adapter and the pages.
 // FAKE DATA ONLY. Nothing here sends anything: the portal sends no email; staff copy the one-time link by hand.
 import { phoneOk, fmtPhone, PHONE_MSG, STAFF_ACCOUNT_ROLES } from './constants.js?v=202611302300';
+import { uploadTooLargeMessage } from './upload-limit.js?v=202611312900';
 export const INVITE_DAYS = 14;                       // a pending invite link works for 14 days, then it shows as expired (Resend makes a new link)
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;      // the picked file (before crop)
 export const PHOTO_STORED_MAX = 400 * 1024;          // the cropped picture kept (data URL in the mock; Storage object in Supabase)
@@ -75,7 +76,7 @@ export function cleanPhoto(dataUrl) {
   const t = /^data:(image\/(?:png|jpeg|webp|gif));base64,[A-Za-z0-9+/=]+$/.exec(v) || /^data:(image\/svg\+xml);base64,[A-Za-z0-9+/=]+$/.exec(v);
   if (!t) throw new Error(PHOTO_TYPE_MSG);
   if (t[1] === 'image/svg+xml' && !/^data:image\/svg\+xml;base64,/.test(v)) throw new Error('Profile picture must be an image.');
-  if (Math.floor((v.length - v.indexOf(',') - 1) * 3 / 4) > PHOTO_STORED_MAX) throw new Error('Profile picture is too large after cropping (max 400 KB).');
+  if (Math.floor((v.length - v.indexOf(',') - 1) * 3 / 4) > PHOTO_STORED_MAX) throw new Error(uploadTooLargeMessage(PHOTO_STORED_MAX));
   return v;
 }
 // what the agent fills in. Required: first name, last name, email, cell phone. Everything else optional.

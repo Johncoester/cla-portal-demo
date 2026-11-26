@@ -7,6 +7,8 @@
 import { MODULE_CODES, moduleLabel, TEMPLATE_STATUSES, ATTACH_EXT, NAME_MAX, SUBJECT_MAX, BODY_MAX, SIGNATURE_MAX, GMAIL_NOTE, mergeFieldsFor, renderTemplate, sanitizeHtml, cleanBlocks, cssColor,
   personalFolderId, isPersonalFolder, cleanFolderName, ensureEmailTemplates, htmlToText } from './crm-templates.js?v=202611247700';
 import { crmReadOnly } from './crm.js?v=202611247700';
+import { uploadTooLargeMessage, isOverUploadLimit } from './upload-limit.js?v=202611312900';
+
 
 export function crmTemplatesPart(x, h) {
   const { save, now, fail, str, clone, nameOf, nid, prof, localDate, C } = x;
@@ -85,7 +87,7 @@ export function crmTemplatesPart(x, h) {
     async addCrmTemplateAttachment(id, { name, mimeType, size, dataUrl } = {}) { const u = crmUser(); const t = editable(u, id);
       const full = str(name, 400).replace(/[\\/]/g, '_') || fail('A file name is required.'); const dot = full.lastIndexOf('.'); const ext = dot > 0 ? full.slice(dot + 1).toLowerCase() : '';
       if (!ATTACH_EXT.includes(ext)) fail(`Template attachments can be PDF, PNG or JPG files${ext ? ` (not .${ext})` : ''}.`);
-      if (!(Number(size) >= 0) || Number(size) > C.MAX_UPLOAD_BYTES) fail(`File is too large (limit ${Math.round(C.MAX_UPLOAD_BYTES / 1e5) / 10} MB).`);
+      if (isOverUploadLimit(size, C.MAX_UPLOAD_BYTES)) fail(uploadTooLargeMessage(C.MAX_UPLOAD_BYTES));
       if ((t.attachments || []).filter((a) => !a.detachedAt).length >= 10) fail('At most 10 attachments per template.');
       const f = { id: nid('cfile'), entity: 'template', entityId: t.id, name: full.slice(0, 200), mimeType: str(mimeType, 100) || (ext === 'pdf' ? 'application/pdf' : 'image/' + (ext === 'jpg' ? 'jpeg' : ext)), size: Number(size) || 0, dataUrl: dataUrl || null, uploadedBy: u.id, createdAt: now() };
       await x.keepFile(f); db().crmAttachments.push(f); (t.attachments ||= []).push({ fileId: f.id, attachedBy: u.id, attachedAt: now(), detachedAt: null, detachedBy: null });

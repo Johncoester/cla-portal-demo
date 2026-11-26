@@ -9,7 +9,7 @@ import { addressOnFile } from '../data/fee-place.js?v=202611247700';
 import { CONTRACT_FIELDS, OTHER_CHARGE_DETAIL_KEYS } from '../data/contract-terms.js?v=202611247900';
 import { splitFor } from '../data/underwriter.js?v=202611247900';
 import { cdDescription } from '../data/accounting.js?v=202611247900';
-import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611243300';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
+import { hoaGrPanel, mountHoaGr } from './dealpayoffs.js?v=202611311400';   // John, Nov 4: H "HOA / Condo / Ground Rent / Payoffs"
 import * as Q from '../data/qualia-charges.js?v=202611243300';
 import { modOn } from '../data/modules.js?v=202611247700';   // live40: Payoffs / HOA switch
 

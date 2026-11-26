@@ -1,11 +1,12 @@
 // Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast, plainError } from '../ui.js?v=202611161500';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
-import { composeModal } from './compose.js?v=202611302000';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611312900';
+import { composeModal } from './compose.js?v=202611312900';
 import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611302300';
+import { formatUploadMax } from '../data/upload-limit.js?v=202611312900';
 import { MISC_DOC_TYPE, orderedDocTypes, docTypeLabel, resolveDocType, docTypeEditorState } from '../data/document-type.js?v=202611100945';
 import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, checkedForVisibility, visibilityFromChecked, audienceSync } from '../data/document-audience.js?v=202611100945';
-import { uploadDocumentBatch } from '../data/document-batch.js?v=202611247700';
+import { uploadDocumentBatch } from '../data/document-batch.js?v=202611312900';
 import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161800';
@@ -200,7 +201,7 @@ export async function render({ api, user, deal, refresh }) {
   function upload() {
     let queue = [];
     const m = modal('Upload documents', html`<form id="uf" class="form-grid" novalidate>
-      <label class="span2">Add files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB each. Choosing more files adds them. Each file keeps the type, folder, and who can see it below.)</span><input type="file" name="file" multiple data-upload-files></label>
+      <label class="span2">Add files <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; max ${formatUploadMax(MAX_UPLOAD_BYTES)} each. Choosing more files adds them. Each file keeps the type, folder, and who can see it below.)</span><input type="file" name="file" multiple data-upload-files></label>
       <ul class="plain" data-upload-queue></ul>
       <p class="span2"><button type="button" class="ghost" data-upload-clear>Clear selected files</button></p>
       ${typeFields('')}
