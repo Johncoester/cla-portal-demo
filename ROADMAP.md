@@ -641,8 +641,18 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing (reported, not built here)**
 
-- Matt also said any CLA Processor or Preprocessor can open any file, assigned or not, because people call out sick. Processors can already. A Preprocessor can still only open files where they are the file's Preprocessor (`private.can_access_deal`, `private.can_run_deal`, and the `deals_select` policy).
+- Any CLA Processor or Preprocessor can open any file: moved to **MF-075** below.
 - Matt also said every action by any party must be logged and cannot be erased. `activity_log` records most actions, and the signed-in roles can only read it, but it has no database rule that blocks changes or deletes (other logs do), and the service role can still change or delete rows. `wire_audit_log` can be updated by staff.
+
+## Preprocessor on any file (MF-075)
+
+**How it should work.** Matt, Nov 26: any active Processor or Preprocessor can open and work on any file, assigned or not, because people call out sick. Answer A: a Preprocessor can place an order without naming themselves as the file's Preprocessor.
+
+**What changed.** Migration `20261131300000_mf075_preprocessor_any_file.sql` swaps the "assigned to me" check in the Preprocessor branch of `private.can_access_deal`, `private.can_run_deal`, `private.reader_can_deal`, `private.document_readable` and `private.readable_document_ids` for the demo gate (`deals.is_demo is not distinct from` the viewer's `is_demo`), and drops the "must name yourself" part of the `deals_insert` policy. It does this by an exact text replace on the live function body, and stops if the body is not what it expects. Demo mode (`mock-adapter.js`) lets a Preprocessor see every file. Rollback: `supabase/rollbacks/20261131300000_mf075_preprocessor_any_file.sql`.
+
+**Not changed.** Sales Person, Sales Team, TC, agents and clients keep the same access. A demo Preprocessor still only reaches demo files and a real one only real files. Limits that never depended on assignment stay as they are: a Preprocessor still cannot add or edit Contacts or add order notes (those were Processor-only before MF-075 too).
+
+**Status: In review** (CRM Bot rule 27 review, then TEST apply).
 
 ## Citizenship dropdown (MF-073)
 
