@@ -113,7 +113,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
       };
     } catch (e) { /* keep the shell deal; warnings will explain missing parties */ }
   }
-  const parties = fileEmailParties(mergeDeal, partyDisplayName);
+  const parties = fileEmailParties(mergeDeal, (p) => partyDisplayName(p));
   // TC-ONLY-2: which agents on this file have "Only communicate with TC" on (staff only; the database still decides when it sends)
   let tcRows = new Map();
   // TC-ONLY-2b: only for roles the server allows (no refused call for sales), and agents are matched by contact email or portal-login email
