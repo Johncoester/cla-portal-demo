@@ -194,7 +194,9 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   const C_SALES = ['Sales Person', 'Sales Team'];
   const salesOf = (dealId) => (load().dealSalesPeople || []).filter((s) => s.dealId === dealId);
   const contactOf = (profileId) => load().contacts.find((c) => c.profileId === profileId);
-  const seesAll = (u) => u.isAdmin || (runsOrders(u) && u.role !== 'Preprocessor') || u.role === 'Sales Team';
+  // MF-075 (Matt, Nov 26): any active Processor or Preprocessor opens and works on every file, assigned or not.
+  // (The runsOrders comment in constants.js still says "assigned only"; it is left as is to avoid restamping every importer.)
+  const seesAll = (u) => u.isAdmin || runsOrders(u) || u.role === 'Sales Team';
   // TC access = TEAMS. Agents on any team where this TC is a coordinator. Removing either person from the team removes access immediately.
   function teamAgentIds(u) {
     const d = load(); const teamIds = new Set(d.teamMembers.filter((m) => m.profileId === u.id && m.memberRole === 'coordinator').map((m) => m.teamId));
@@ -203,11 +205,6 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   function dealsFor(u) {
     const d = load();
     if (seesAll(u)) return d.deals;
-    if (u.role === 'Preprocessor') {
-      const c = contactOf(u.id);
-      const mine = new Set(c ? d.participants.filter((p) => p.contactId === c.id).map((p) => p.dealId) : []);
-      return d.deals.filter((q) => q.preprocessorUserId === u.id || mine.has(q.id));
-    }
     // John / Francis, Nov 9 (option B): a Transaction Coordinator sees every file, like a Processor (migration 20261109190000)
     if (u.role === 'Transaction Coordinator') return d.deals;
     const c = contactOf(u.id);
