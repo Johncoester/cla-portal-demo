@@ -654,6 +654,18 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Status: In review** (CRM Bot rule 27 review, then TEST apply).
 
+## Buyer landing page on a phone (MF-069)
+
+**How it should work.** Matt, Nov 25 (confirmed): after first login the buyer's landing page is mobile friendly, it is easy to pick the file, and it is clear which tasks are required.
+
+**What changed.** A buyer or seller whose login only has client files lands on Open Orders as before. That page now starts with one big card per file: address and file number (the tap target that opens the file), their role, the stage and the closing date, then "Needed from you (n)" listing each open task of theirs by title with its due date (overdue ones are marked) and a direct link to its form. Files that need something from them come first. On a phone (860 px and narrower) the eight-column table is hidden and the cards are one per row with 44 px tap targets; on a computer the table stays below the cards. Staff, agents and coordinators see the same Open Orders table as before. No database change: it uses the tasks the page already loads (`my_task_list`).
+
+**Judgment call.** There is no "required" flag on a task. Every open task assigned to the client is shown as needed from them. A done task, or a task that is not theirs, is not listed.
+
+**Not built.** A phone version for agents or staff; the table's search and filters on a phone.
+
+**Status: In review.** Needs Matt's look at a phone-sized window on TEST.
+
 ## Citizenship dropdown (MF-073)
 
 **How it should work.** On Personal information, for a buyer and for a seller, Citizenship is a dropdown: U.S. Citizen, U.S. National, Lawful Permanent Resident, and Non-Citizen Authorized to Work. The spouse section uses the same list. An answer already typed still shows and can be saved again until someone picks a new option or clears the field. Blank is allowed.

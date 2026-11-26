@@ -47,7 +47,7 @@ const loadRoute = (load) => importWithRetry(() => fetchRoute(load));
 const pages = {
   login: () => loadRoute(() => import('./pages/entry.js?v=202611312900')),
   dashboard: () => loadRoute(() => import('./pages/dashboard.js?v=202611313100')),
-  orders: () => loadRoute(() => import('./pages/orders.js?v=202611290600')),
+  orders: () => loadRoute(() => import('./pages/orders.js?v=202611313700')),
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611313100')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611313100')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611312900')),
