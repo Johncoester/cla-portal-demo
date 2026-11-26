@@ -37,6 +37,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Remind emails the client (CONNECT-REMIND)
+
+**How it should work.** When a processor or coordinator clicks Remind on an open task, the person the task is for gets a real reminder email, sent from the file's processor's connected Gmail through the outbox, like every other portal email.
+
+**Status: In review.** John Coester, Nov 25 2026, 9:02 PM ET (voice call), Connect Live Test Checklist row 6.3 (team live test). No database file: it uses queue_task_reminder, which is already on TEST. Pull request: [PR 454](https://github.com/Johncoester/cla-portal-demo/pull/454).
+
+**What's built**
+
+- Order > Tasks > Remind calls queue_task_reminder: one outbox email per person per task per day, plus a bell notice. Outbox shows Sent, or Failed with the reason.
+- The email goes from the file's processor's Gmail. If that Gmail is not connected, the row fails with "Not sent: <name>'s Gmail is not connected to the portal". portal@clatitle.com is never used to send.
+
+**What's still missing**
+
+- Dashboard "Remind overdue" (all overdue tasks at once) still says the portal does not send email. It would email every overdue task's person in one click, so it waits for John's OK.
+- The email has no link to the portal; it says "Please sign in to the portal to finish it."
+
+**Links**
+
+- Spec: [docs/specs/connect-remind-email.md](docs/specs/connect-remind-email.md)
+
+**Decisions**
+
+- John, Nov 25 2026, 9:02 PM ET: use the existing Gmail-connected sender; do not build or wait on a portal@ fallback.
+
+---
+
 ## Personal information questions and Seller Proceeds wording (CONNECT-5)
 
 **How it should work.** The buyer's Personal Information task asks the six Yes/No questions Francis listed (attending the closing, leaving town, currently getting divorced, primary residence, wants a survey, first-time home buyer in MD). The seller's Personal Information task uses the four Yes/No wordings she listed (subject to ground rent, subject to front foot benefit, property is homestead, tenants at/after closing). The Seller Proceeds task asks "Proceeds Instructions: Overnight Check or Wire?" and shows that proceeds must go to the SELLER OF RECORD (or the Entity/Trust). A buyer signed in to an order sees every active buyer-side task from the template.
