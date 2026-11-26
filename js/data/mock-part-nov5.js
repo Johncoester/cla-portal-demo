@@ -3,7 +3,7 @@
 import { DEMO_ALERT_GROUPS, DEMO_ENTITY_ATTORNEYS, TASK_LANES, OPEN_TASK, OPEN_TASK_HANDLING, cleanAudiences, templateGenerates, resolveCplPrice, cleanCplAmount, postclosingAlertPlan, attorneyAuthorized, ordinaryCoverageDoc, propertyAddressOf, COVERAGE_NOTE, configuredEmail } from './nov5-rules.js?v=202611247700';
 import { looksLikeWireDetails } from './constants.js?v=202611302300';
 import { cleanDueRule } from './due-date.js?v=202611110300';
-import { taskEnabled } from './task-switches.js?v=202611312400';
+import { taskEnabled } from './task-switches.js?v=202611312500';
 
 const cloneGroups = () => JSON.parse(JSON.stringify(DEMO_ALERT_GROUPS));
 const cloneAttorneys = () => JSON.parse(JSON.stringify(DEMO_ENTITY_ATTORNEYS));

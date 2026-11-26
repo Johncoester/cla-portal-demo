@@ -8,7 +8,7 @@ import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202
 import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
 import { nameTasks, taskRoleLabel } from '../data/task-party-names.js?v=202611300600';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611247700';
-import { taskOpenHref } from '../data/task-actions.js?v=202611312400';
+import { taskOpenHref } from '../data/task-actions.js?v=202611312500';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=202611247700';
 
@@ -117,7 +117,7 @@ export async function render(ctx) {
     const showIntake = async (ids) => {
       if (!ids.length) return;
       const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611312700');
-      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611247700');
+      const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611312500');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
       await Promise.all(ids.map(async (id) => {
