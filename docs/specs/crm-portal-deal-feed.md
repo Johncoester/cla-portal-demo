@@ -33,7 +33,7 @@ So no trigger is needed to "copy" an order into the CRM, and there is nothing to
 3. **Idempotent**: a row already imported (same Zoho record id, else same file number, else same address + client with no file number) is a Duplicate and skipped, so running the same file twice adds nothing. Relinking every order again changes nothing.
 4. **CRM Deals list**: one more call (`crm_imported_deals_list`) at the same time as the orders call. Linked Zoho deals add a tag to the order row; unlinked ones are their own rows (not openable, not bulk-selectable). Unlinked rows are hidden when a Deal Owner, Client or Source filter is set, because they have no portal owner, client link or source. A Sales Person sees only Zoho deals linked to orders they are on. Until the migration is applied, that call fails quietly and the list is the orders alone.
 
-## Database (migration `20261131100000_crm_portal_deal_feed.sql`, rollback in `supabase/rollbacks/`)
+## Database (migration `20261131290000_crm_portal_deal_feed.sql`, rollback in `supabase/rollbacks/`)
 
 - New: `public.crm_imported_deals` (RLS on, no policy, no table grant), three pure key functions (`private.crm_file_key`, `private.crm_addr_key`, `private.crm_name_key`), `private.crm_imported_deal_link(uuid)`, two trigger functions, `public.crm_import_deals(...)` and `public.crm_imported_deals_list()` (SECURITY DEFINER, access checked once per call, `search_path` pinned, revoked from public / anon).
 - New triggers: `zz_crm_imported_deal_link` (after insert on deals), `zz_crm_imported_deal_relink` (after update of file_number / street / city / state, only when one changed), `zz_crm_imported_deal_party` (after insert of a Client-Buyer / Client-Seller party).

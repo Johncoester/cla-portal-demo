@@ -1,7 +1,7 @@
 /* crm-imported-deals.js : CRM-FEED-1 (John chat 9:09 PM Nov 25). Portal orders ARE the CRM deals. Deals Janine imports from a
  * Zoho export land in public.crm_imported_deals; one that matches a portal order (file number, else property address + client)
  * is linked to it and is not shown twice. Pure helpers only: column mapping for the Deals import and the merge into the
- * CRM Deals list. The matching itself runs in the database (migration 20261131100000). */
+ * CRM Deals list. The matching itself runs in the database (migration 20261131290000). */
 
 // [key, label, other header names]. Zoho's Deals export headers are in the aliases.
 export const DEAL_IMPORT_FIELDS = [

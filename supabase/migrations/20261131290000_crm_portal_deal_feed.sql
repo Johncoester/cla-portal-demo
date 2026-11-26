@@ -136,7 +136,7 @@ create table public.crm_imported_deals (
   client_key text generated always as (private.crm_name_key(client_name)) stored);
 -- No check tying match_status to deal_id: deleting an order sets deal_id to null and must not be blocked. The list treats a
 -- row with no deal_id as unlinked whatever its status says.
-comment on table public.crm_imported_deals is 'CRM-FEED-1 20261131100000: deals imported from Zoho. A linked row (deal_id) is shown as the portal order.';
+comment on table public.crm_imported_deals is 'CRM-FEED-1 20261131290000: deals imported from Zoho. A linked row (deal_id) is shown as the portal order.';
 
 create unique index crm_imported_deals_deal_uq on public.crm_imported_deals (deal_id) where deal_id is not null;
 create index crm_imported_deals_file_open_idx on public.crm_imported_deals (file_key) where deal_id is null and file_key <> '';

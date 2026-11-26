@@ -4057,7 +4057,7 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 **How it should work.** Every order opened in the portal is a CRM deal, and its buyers, sellers and agents are CRM clients. Janine can import Zoho deals on CRM Deals → Import Zoho deals. A Zoho deal that matches an order (file number, else property address + client) is linked to it, so the order stays one deal. No match: the Zoho deal is its own CRM deal. More than one match: nothing is linked and the row says Needs review.
 
-**Status: Building.** Requester John, source "John chat 9:09 PM Nov 25". Tracker CRM-FEED-1 (row for the lead to add). Database file 20261131100000_crm_portal_deal_feed.sql, not applied. Not Live until the lead applies it, this is merged, and someone checks it on TEST.
+**Status: Building.** Requester John, source "John chat 9:09 PM Nov 25". Tracker CRM-FEED-1 (row for the lead to add). Database file 20261131290000_crm_portal_deal_feed.sql, not applied. Not Live until the lead applies it, this is merged, and someone checks it on TEST.
 
 **What's built**
 

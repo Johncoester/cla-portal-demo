@@ -1,4 +1,4 @@
--- Rollback for 20261131100000_crm_portal_deal_feed.sql (CRM-FEED-1). Not applied by this commit.
+-- Rollback for 20261131290000_crm_portal_deal_feed.sql (CRM-FEED-1). Not applied by this commit.
 -- Drops exactly what the migration created. Imported Zoho deal rows are dropped with their table; portal orders,
 -- parties and contacts are not touched (the migration never wrote to them).
 begin;
@@ -8,8 +8,8 @@ set local search_path = pg_catalog, public, extensions;
 do $pre$
 begin
   if to_regclass('public.crm_imported_deals') is not null
-     and coalesce(obj_description('public.crm_imported_deals'::regclass, 'pg_class'), '') not like 'CRM-FEED-1 20261131100000:%' then
-    raise exception 'drift: public.crm_imported_deals was not created by 20261131100000';
+     and coalesce(obj_description('public.crm_imported_deals'::regclass, 'pg_class'), '') not like 'CRM-FEED-1 20261131290000:%' then
+    raise exception 'drift: public.crm_imported_deals was not created by 20261131290000';
   end if;
 end $pre$;
 

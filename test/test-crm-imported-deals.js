@@ -136,8 +136,8 @@ if (tr) tr.dispatchEvent(new window.Event('click', { bubbles: true }));
 check(hash === '#/crm/deals', 'clicking an imported row does not open a missing order');
 
 // ---------- migration text ----------
-const mig = readFileSync(new URL('../supabase/migrations/20261131100000_crm_portal_deal_feed.sql', import.meta.url), 'utf8');
-const rb = readFileSync(new URL('../supabase/rollbacks/20261131100000_crm_portal_deal_feed.sql', import.meta.url), 'utf8');
+const mig = readFileSync(new URL('../supabase/migrations/20261131290000_crm_portal_deal_feed.sql', import.meta.url), 'utf8');
+const rb = readFileSync(new URL('../supabase/rollbacks/20261131290000_crm_portal_deal_feed.sql', import.meta.url), 'utf8');
 check(/set local lock_timeout = '3s'/.test(mig) && /set local lock_timeout = '3s'/.test(rb), 'migration and rollback set lock_timeout 3s');
 check(!/create or replace/i.test(mig) && !/create policy|alter policy|drop policy/i.test(mig), 'the migration replaces nothing and adds no RLS policy');
 const fns = [...mig.matchAll(/create function ([a-z_.]+)\(/g)].map((m) => m[1]);
