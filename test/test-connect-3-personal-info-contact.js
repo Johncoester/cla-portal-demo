@@ -59,6 +59,9 @@ ok(out.includes('From Personal Information') && out.includes('Married') && out.i
 ok(out.includes('Michael Stack') && !out.includes('123-45-6789'), 'the spouse shows on Contacts without the SSN');
 ok(out.includes('Answers differ from the contact') && out.includes('data-pi-review="pB"') && out.includes('#/deals/d1/tasks/t1'), 'differences are flagged with Review answers and a task link');
 ok(personalInfoHtml(parties, new Map()) === '', 'no saved answers: no section');
+const same = new Map([['pB', { task: tasks[0], answers: { full_name: 'Deborah Jean Stack', cell_phone: '301-284-0250', email: contact.email }, spouse: null }]]);
+const sameOut = toText(personalInfoHtml(parties, same));
+ok(sameOut.includes('Contact matches the form') && !sameOut.includes('data-pi-review'), 'no Review answers button when there is nothing to review (rule 13)');
 const broken = await loadPersonalInfo({ ...api, getTask: async () => { throw new Error('nope'); } }, 'd1', parties);
 ok(broken.size === 0, 'an answers read that fails leaves the party out');
 const hidden = await loadPersonalInfo({ ...api, getTask: async () => ({ formHidden: true, formData: {} }) }, 'd1', parties);
