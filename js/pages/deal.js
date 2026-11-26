@@ -20,9 +20,9 @@ import { settlementSectionHtml, mountSettlement } from './settlement-section.js?
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611247700';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611312900';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611313500';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611313800';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611313500';
+import { prefetchDealTab } from './deal-tab.js?v=202611313800';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
