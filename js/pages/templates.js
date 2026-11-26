@@ -1,7 +1,7 @@
 // Task templates (definitions with versions). Each participant gets a COPY that records the version it was made from.
 // Admin and Super admin only (route guard). Each tab is the same page: Templates, Task switches, Task admin.
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, pill, modal, closeModal, formData } from '../ui.js?v=202611161500';
-import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611247700';
+import { canManageTaskSwitches, REASON_MSG } from '../data/task-switches.js?v=202611312400';
 import { taskAdminView } from './task-admin.js?v=202611247700';
 import { runsOrders, isProcessor } from '../data/constants.js?v=202611302300';
 const DELEG = [['', 'No - client only'], ['Buyer Agent', 'Buyer Agent (for the buyer)'], ['Listing Agent', 'Listing Agent (for the seller)'], ['Buyer Agent,Listing Agent', 'Each side\'s agent for their own client']];

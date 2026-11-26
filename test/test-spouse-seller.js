@@ -44,7 +44,7 @@ ok(!opened.fields.some((f) => /ssn|social.?security|spouse/i.test(`${f.k} ${f.la
 ok(!opened.fields.some((f) => f.k === 'proceeds_statement' || f.k === 'proceeds_ack'), 'Personal information no longer asks for the proceeds acknowledgment');
 const proceedsTask = await api.getTask((await taskOf('u-seller', 'seller_proceeds', 'Client-Seller')).id);
 const statement = proceedsTask.fields.find((f) => f.k === 'proceeds_statement');
-ok(statement && statement.text === 'I understand that all seller proceeds must be disbursed to the seller(s) of record. If the seller is an entity or trust, the proceeds must be disbursed directly to that entity or trust.', 'the proceeds statement is the required wording');
+ok(statement && statement.text === 'Any seller proceeds are required to be disbursed to the SELLER OF RECORD. If the seller is an Entity/Trust, the proceeds will be disbursed to the Entity/Trust only.', 'the proceeds statement is the required wording (CONNECT-5)');
 ok(proceedsTask.fields.find((f) => f.k === 'proceeds_ack').req === true, 'the acknowledgment is required');
 
 const answers = {

@@ -41,9 +41,9 @@ const again = await api.getTask(buyerTask.id);
 ok(again.formData.date_of_birth === '1990-04-02' && again.formData.survey === 'Yes', 'opening the task again shows the saved answers');
 
 const html = toText(intakeFormHtml({ ...again, fields: again.fields }, { page: true, state: 'MD' }));
-ok(html.includes('Are you a first-time homebuyer in Maryland?') && html.includes('value="1990-04-02"'), 'the Maryland form shows the saved date of birth and the Maryland question');
+ok(html.includes('First-time home buyer in MD?') && html.includes('value="1990-04-02"'), 'the Maryland form shows the saved date of birth and the Maryland question');
 const vaHtml = toText(intakeFormHtml({ fields: opened.fields, assignedRole: 'Client-Buyer', formData: {}, canFill: true }, { page: true, state: 'VA' }));
-ok(!vaHtml.includes('first-time homebuyer') && vaHtml.includes('Would you like to obtain a survey?'), 'a Virginia file hides the Maryland question and still shows the survey question');
+ok(!vaHtml.includes('First-time home buyer in MD?') && vaHtml.includes('Wants survey?'), 'a Virginia file hides the Maryland question and still shows the survey question');
 
 await api.signInDev('u-buyer');
 const vaTask = (await api.listTasks(va.id)).find((t) => t.templateCode === 'personal_info' && t.assignedRole === 'Client-Buyer');

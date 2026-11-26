@@ -37,11 +37,25 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Personal information questions and Seller Proceeds wording (CONNECT-5)
+
+**How it should work.** The buyer's Personal Information task asks the six Yes/No questions Francis listed (attending the closing, leaving town, currently getting divorced, primary residence, wants a survey, first-time home buyer in MD). The seller's Personal Information task uses the four Yes/No wordings she listed (subject to ground rent, subject to front foot benefit, property is homestead, tenants at/after closing). The Seller Proceeds task asks "Proceeds Instructions: Overnight Check or Wire?" and shows that proceeds must go to the SELLER OF RECORD (or the Entity/Trust). A buyer signed in to an order sees every active buyer-side task from the template.
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 2.1 and 2.2. Database file 20261131240000_connect_5_questions_wording.sql (apply once on TEST). Pull request: CONNECT-5 (link added when opened).
+
+**What's built**
+
+- personal_info v10 and seller_proceeds v3 are wording-only versions of v9 and v2. Keys, types, roles, required flags, states and options are unchanged. MF-074 (seller-only forwarding address) and citizenship as a typed line are untouched.
+- Untouched to-do copies with no answers move to the new versions. Copies with saved answers stay on their current version.
+- A buyer's visible task list is checked against the active Client-Buyer templates (Upload identification, Personal information, Title vesting, Lender information, Home warranty). On TEST, recent buyer files already had a copy of each.
+
+---
+
 ## Seller mortgages on Payoffs (CONNECT-4)
 
 **How it should work.** The lender and loan the seller enters on Outstanding Mortgage Information show on the order's Accounting > Payoffs page. The processor adds each one as a payoff tab with one click (or all at once), so the lender, phone and loan number are filled in and the payoff is ready to order. Amounts stay blank until the payoff statement comes in.
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 7.2. No database file. Pull request: [PR 452](https://github.com/Johncoester/cla-portal-demo/pull/452).
+**Status: Done (on TEST, waiting on the team's retest of row 7.2).** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 7.2. No database file. Pull request: [PR 452](https://github.com/Johncoester/cla-portal-demo/pull/452), merged Nov 25 2026, 9:56 PM ET (7a76526c).
 
 **What's built**
 
