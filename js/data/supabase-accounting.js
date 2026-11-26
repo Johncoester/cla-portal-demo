@@ -14,6 +14,20 @@ const taxes = () => import('./taxes-fees.js?v=202611301300');
 const remoteRates = () => import('./supabase-tax-rates.js?v=202611247700');
 const calcRow = (f) => (f.calc ? { calc_source: CALC_SOURCE_ID, calc_key: f.calc.key, calc_fields: f.calc.fields, rate_source: f.calc.rateSource, calculation: f.calc.calculation, calc_inputs: f.calc.inputs, calc_version: f.calc.version, calc_at: f.calc.at } : {});
 
+/* FEES-AUTOFILL-RACE: unique index accounting_fees_calc_active_key (deal_id, calc_key) where not retired.
+ * Two overlapping fills can both try to INSERT the same calc_key; PostgREST returns 23505 / HTTP 409. */
+const isCalcActiveKeyConflict = (err) => {
+  if (!err) return false;
+  const code = String(err.code || '');
+  const blob = [err.message, err.details, err.hint, err.constraint].filter(Boolean).join(' ');
+  if (code === '23505') return true;
+  if (/accounting_fees_calc_active_key/.test(blob)) return true;
+  if ((code === '409' || Number(err.status) === 409) && /duplicate|unique|calc_active_key/i.test(blob)) return true;
+  return false;
+};
+const autoFillInFlight = new Map();
+
+
 const toRow = (f) => ({ kind: f.kind, description: f.description, alta_section: f.altaSection, cd_section: f.cdSection, cd_line: f.cdLine, payee: f.payee, amount: f.amount, note: f.note, preset_key: f.presetKey,
   paid_by: f.paidBy, split_buyer: f.split ? f.split.buyer : 0, split_seller: f.split ? f.split.seller : 0, split_lender: f.split ? f.split.lender : 0, split_other: f.split ? f.split.other : 0,
   timing: f.timing, poc: f.poc, title_prefix: f.titlePrefix, credit_from: f.from, credit_to: f.to,
@@ -40,10 +54,29 @@ export function accountingSupabase({ sb, ok, flags }) {
   const fees = async (id) => (ok(await sb.from('accounting_fees').select('*').eq('deal_id', id).order('created_at')) || []).map(fromRow);
   const taxBundle = async () => { try { return await (await remoteRates()).readTaxBundle(sb); } catch (e) { return null; } };
   const editor = async (id) => { const a = await access(id); if (a !== 'edit') throw new Error(ACCOUNTING_READ_ONLY); return a; };
-  const insertCalc = async (E, d, all, line, P, overrides = {}, at = new Date().toISOString()) => {
-    if (all.some((f) => !f.retired && isCalculated(f) && f.calc.key === line.key)) throw new Error(`"${line.description}" is already on the ledger from CLA rates. Use "Calculate fees from CLA rates" to update it.`);
+  const existingCalc = (list, key) => (list || []).find((f) => !f.retired && isCalculated(f) && f.calc && f.calc.key === key);
+  const readActiveCalc = async (dealId, key) => {
+    const row = ok(await sb.from('accounting_fees').select('*').eq('deal_id', dealId).eq('calc_key', key).is('retired_at', null).maybeSingle());
+    return row ? withCalcFlags(fromRow(row)) : null;
+  };
+  const insertCalcResult = async (E, d, all, line, P, overrides = {}, at = new Date().toISOString(), { orExisting = false } = {}) => {
+    const had = existingCalc(all, line.key);
+    if (had) {
+      if (orExisting) return { fee: withCalcFlags(had), existed: true };
+      throw new Error(`"${line.description}" is already on the ledger from CLA rates. Use "Calculate fees from CLA rates" to update it.`);
+    }
     const clean = cleanFee({ ...E.feeInput(line), ...overrides, presetKey: 'cla:' + line.key }, d);
-    return withCalcFlags(fromRow(ok(await sb.from('accounting_fees').insert({ deal_id: d.id, ...toRow(clean), ...calcRow({ calc: E.calcBlock(line, P, at) }) }).select('*').single()))); };
+    const res = await sb.from('accounting_fees').insert({ deal_id: d.id, ...toRow(clean), ...calcRow({ calc: E.calcBlock(line, P, at) }) }).select('*').single();
+    if (res.error && isCalcActiveKeyConflict(res.error)) {
+      if (orExisting) {
+        const live = await readActiveCalc(d.id, line.key);
+        if (live) return { fee: live, existed: true };
+      }
+      throw new Error(`"${line.description}" is already on the ledger from CLA rates. Use "Calculate fees from CLA rates" to update it.`);
+    }
+    return { fee: withCalcFlags(fromRow(ok(res))), existed: false };
+  };
+  const insertCalc = async (E, d, all, line, P, overrides = {}, at = new Date().toISOString()) => (await insertCalcResult(E, d, all, line, P, overrides, at, { orExisting: false })).fee;
   const feeRow = async (id) => { const r = ok(await sb.from('accounting_fees').select('*').eq('id', id).maybeSingle()); if (!r) throw new Error('Fee not found.'); return fromRow(r); };
   return {
     async getAccounting(dealId, { includeRetired = false } = {}) { on(); const a = await access(dealId); const d = await deal(dealId); const all = await fees(dealId); const live = all.filter((f) => !f.retired);
@@ -72,16 +105,30 @@ export function accountingSupabase({ sb, ok, flags }) {
       const rates = await E.loadCalculatorRates(); const P = E.proposeFees(d, opts, rates.tables, rates.source); const D = E.diffProposal(P, all); if (token && token !== D.token) throw new Error('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = new Date().toISOString(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
-        if (row.status === 'new') { await insertCalc(E, d, all, row.proposed, P, {}, at); r.added++; }
+        if (row.status === 'new') {
+          const ins = await insertCalcResult(E, d, all, row.proposed, P, {}, at, { orExisting: true });
+          if (ins.existed) r.unchanged++; else { r.added++; all.push(ins.fee); }
+        }
         else if (row.status === 'changed') { const clean = cleanFee(E.feeInput(row.proposed), d, row.current); ok(await sb.from('accounting_fees').update({ ...toRow(clean), ...calcRow({ calc: E.calcBlock(row.proposed, P, at) }) }).eq('id', row.current.id).select('id').single()); r.updated++; }
         else if (row.status === 'retire') { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', row.current.id).select('id').single()); r.retired++; }
       }
       if (retireExamples) for (const x of D.examples) { ok(await sb.from('accounting_fees').update({ retired_at: at }).eq('id', x.id).select('id').single()); r.examplesRetired++; }
       return r; },
     // REC-CALC-9: fees fill in by themselves when a file is opened, once the order has the basics (fee-engine autoFillCheck). Same apply as Calculate fees.
-    async autoFillFees(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const rates = await E.loadCalculatorRates();
-      const chk = E.autoFillCheck(d, await fees(dealId), rates.tables); if (!chk.ready || !chk.due) return { applied: false, ready: chk.ready, due: chk.due || '', missing: chk.missing, reason: chk.reason };
-      const r = await this.applyCalculatedFees(dealId, chk.options, { retireExamples: true }); return { applied: true, ready: true, due: chk.due, missing: [], reason: '', ...r }; },
+    // FEES-AUTOFILL-RACE: one in-flight fill per deal, so a remount (overview then Tasks) does not start a second apply.
+    async autoFillFees(dealId) {
+      const key = String(dealId);
+      const running = autoFillInFlight.get(key);
+      if (running) return running;
+      let p;
+      p = (async () => {
+        on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const rates = await E.loadCalculatorRates();
+        const chk = E.autoFillCheck(d, await fees(dealId), rates.tables); if (!chk.ready || !chk.due) return { applied: false, ready: chk.ready, due: chk.due || '', missing: chk.missing, reason: chk.reason };
+        const r = await this.applyCalculatedFees(dealId, chk.options, { retireExamples: true }); return { applied: true, ready: true, due: chk.due, missing: [], reason: '', ...r };
+      })().finally(() => { if (autoFillInFlight.get(key) === p) autoFillInFlight.delete(key); });
+      autoFillInFlight.set(key, p);
+      return p;
+    },
     // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
     async getTaxesFeesSetup(dealId) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.taxesFeesSetup(d, await fees(dealId), rates.tables, rates, bundle); },
     async previewTaxesFees(dealId, worksheet) { on(); await editor(dealId); const d = await withPayoffs(await deal(dealId)); const E = await engine(); const T = await taxes(); const rates = await E.loadCalculatorRates(); const bundle = await taxBundle(); return T.previewTaxesFees(d, worksheet, await fees(dealId), rates.tables, rates.source, bundle); },

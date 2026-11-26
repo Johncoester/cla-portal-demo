@@ -1,6 +1,7 @@
 /* REC-CALC-9 (John, Nov 24 2026: "connect the calculator fees to the portal"): fees fill in by themselves when a file is opened, once the order has
  * the basics (state, county, purchase or refinance, price or loan, and principal residence / first-time buyer where the state asks). A purchase starts
- * with one release (payoffs aren't known yet). It runs again when one of those answers changes; lines changed by hand are kept. */
+ * with one release (payoffs aren't known yet). It runs again when one of those answers changes; lines changed by hand are kept.
+ * FEES-AUTOFILL-RACE: two fills at once share one run, and two applies at once do not add the same line twice. */
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { autoFillCheck, vendoredTables } from '../js/data/fee-engine.js';
 
@@ -41,8 +42,11 @@ await api.updateDeal('deal-1', { state: 'MD', county: 'Montgomery', transactionT
 const wait = await api.autoFillFees('deal-1');
 ok(!wait.applied && !wait.ready && wait.missing.includes('first-time buyer (yes / no)'), 'the file waits while the first-time buyer answer is blank');
 await api.updateDeal('deal-1', { firstTimeBuyer: 'no' });
-const first = await api.autoFillFees('deal-1');
+const [first, firstAgain] = await Promise.all([api.autoFillFees('deal-1'), api.autoFillFees('deal-1')]);
+ok(first === firstAgain, 'two fills at once share the same in-flight run');
 ok(first.applied && first.added > 5 && first.due === 'first', `opening the file fills in its fees (${first.added} lines)`);
+const firstKeys = (await api.getAccounting('deal-1')).entries.filter((e) => e.calc && !e.retired).map((e) => e.calc.key);
+ok(firstKeys.length === new Set(firstKeys).size && firstKeys.length === first.added, 'a concurrent fill does not add a line twice');
 const acc = await api.getAccounting('deal-1');
 const calc = acc.entries.filter((e) => e.calc && !e.retired);
 ok(calc.some((e) => /Owner's Title Policy/.test(e.description)) && calc.some((e) => /Recording fees – Deed$/.test(e.description)) && calc.some((e) => /Recording fees – Release/.test(e.description)) && calc.some((e) => /transfer tax/i.test(e.description)),
@@ -58,6 +62,18 @@ await api.updateDeal('deal-1', { loanAmount: 500000 });
 const kept = await api.autoFillFees('deal-1');
 const owner2 = (await api.getAccounting('deal-1')).entries.find((e) => e.id === owner.id);
 ok(kept.applied && owner2.amount === 1234.56, 'a line changed by hand is kept when the fees fill in again');
+
+// Two overlapping applies on an empty ledger (the unique-key skip, without single-flight).
+await api.updateDeal('deal-2', { state: 'MD', county: 'Montgomery', transactionType: 'Purchase', purchasePrice: 600000, loanAmount: 480000, primaryResidence: 'yes', firstTimeBuyer: 'no' });
+let applyErr = '';
+const raced = await Promise.all([api.applyCalculatedFees('deal-2'), api.applyCalculatedFees('deal-2')]).catch((e) => { applyErr = e.message || String(e); return null; });
+ok(!applyErr && raced, 'two applies at once do not fail' + (applyErr ? ': ' + applyErr : ''));
+if (raced) {
+  const [a, b] = raced;
+  const keys = (await api.getAccounting('deal-2')).entries.filter((e) => e.calc && !e.retired).map((e) => e.calc.key);
+  ok(keys.length > 5 && keys.length === new Set(keys).size, `two applies leave each calculated line once (${keys.length} lines)`);
+  ok((a.added + a.unchanged) >= keys.length && (b.added + b.unchanged) >= keys.length, `one apply adds the lines, the other treats them as already present (${a.added} added / ${a.unchanged} already there, and ${b.added} / ${b.unchanged})`);
+}
 
 console.log(fail ? fail + ' failed' : 'auto fill fees passed');
 process.exit(fail ? 1 : 0);
