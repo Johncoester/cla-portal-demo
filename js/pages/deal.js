@@ -19,9 +19,9 @@ import { settlementSectionHtml, mountSettlement } from './settlement-section.js?
 import { sampleFacts, SAMPLE } from './theme-cards.js?v=202611247700';
 import { themeOn } from '../theme.js?v=202611070139';
 import { renderClientOverview, clientSide, isPureClient, clientTabChrome } from './client-overview.js?v=202611310600';
-import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611302000';
+import { renderTcOverview, tcTabChrome } from './tc-overview.js?v=202611312100';
 import { gatherReads } from '../data/read-batch.js?v=202611111200';
-import { prefetchDealTab } from './deal-tab.js?v=202611310900';
+import { prefetchDealTab } from './deal-tab.js?v=202611312100';
 import { placeText } from '../data/cla-offices.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationWritesEnabled } from '../data/cla-representation.js?v=202611090950';
 import { lenderRoleLabel } from '../data/lender-file.js?v=202611247700';
@@ -29,13 +29,14 @@ import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { existingContactByEmail, reuseContactMessage } from '../data/contact-reuse.js?v=202611249950';
 import { myTasksHref } from '../data/task-board.js?v=202611247700';
 import { earnestView } from '../data/earnest-commission.js?v=202611246500';
+import { emdHolderSelect, wireEmdHolderFields, applyNoEmdToForm, emdDueDisplay, emdHolderDisplay } from '../data/emd-holder.js?v=202611312000';
 import { AGENT_TC_PICK, BUYER_AGENT_TC, LISTING_AGENT_TC, agentTcLabel, coordinatorContactType, fileAgents, isAgentTcPick, isAgentTcRole, isAlreadyTcMessage, linkedAgentIdsFor, selfTcOnOrderProblem, sideAgentName, tcAgentChoices, tcRolesFromLinks, tcRolesToSave, tcSideProblem } from '../data/agent-tc.js?v=202611301500';
 import { parcelFieldsHtml, mountParcelFields, parcelsFromForm } from './parcel-fields.js?v=202611247700';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { countyFieldHtml, mountCountySelect } from './county-field.js?v=202611247900';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
 import { tcOnlyMap, tcOnlyPreviewNote, canReadTcOnly } from '../data/tc-only.js?v=202611301500';
-import { parseMilestones, milestonesDoneCount } from '../data/milestones.js?v=202611312000';
+import { parseMilestones, milestonesDoneCount } from '../data/milestones.js?v=202611312100';
 // The Settlement card (with its agent dropdowns) is drawn only off the staff view, for someone who runs orders.
 export const autoFillToast = (r) => `Fees filled in from CLA rates: ${r.added} added, ${r.updated} updated${r.retired ? `, ${r.retired} retired` : ''}${r.kept ? `, ${r.kept} changed by hand kept` : ''}.`;
 const agentDropdownsShown = (user) => !!user && (!!user.accountRole || user.role === 'Outside user') && runsOrders(user);
@@ -229,7 +230,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
   const emailN = (ov && ov.counts && Number(ov.counts.email)) || 0;
   const glance = html`<div class="op-glance" data-glance><span class="muted">At a glance:</span>
     ${showPrice ? html`<span data-purchase-price>Purchase <b>${fmtMoney(d.purchasePrice) || '\u2014'}</b></span>` : ''}<span data-loan-amount>Loan <b>${fmtMoney(d.loanAmount) || '\u2014'}</b></span>
-    ${showEmd ? html`<span data-emd-amount>EMD <b>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</b></span><span data-emd-due>EMD due <b>${fmtDate(d.emdDueDate) || '\u2014'}</b></span>` : ''}
+    ${showEmd ? html`<span data-emd-amount>EMD <b>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</b></span><span data-emd-due>EMD due <b>${emdDueDisplay(d.emdDueDate, d.emdHolder, fmtDate) || '\u2014'}</b></span>` : ''}
     ${staffView ? '' : html`<span data-settlement>Settlement <b>${fmtDate(d.closingDate) || 'not set'}</b>${toGo != null && toGo >= 0 ? ` (${toGo === 0 ? 'today' : `${toGo} day${toGo === 1 ? '' : 's'}`})` : ''}</span>`}
     ${(() => { const db = disbursementFor(d); return html`<span data-disbursement="${db.source}">Disbursement <b>${fmtDate(db.date) || 'not set'}</b> <span class="muted small">(${db.note})</span></span>`; })()}
     ${openN != null ? html`<span data-open-tasks><a href="#/deals/${d.id}/tasks"><b>${openN}</b> ${staffView ? 'open task' : 'task'}${openN === 1 ? '' : 's'}${staffView ? '' : ' for you'}</a></span>` : ''}
@@ -326,7 +327,7 @@ async function editModal(api, d, refresh, meId) {
     <label>Email<input name="lenderEmail" value="${v('lenderEmail')}"></label><label>Phone<input name="lenderPhone" type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone value="${v('lenderPhone')}"></label>
     <label class="span2">Source of business<select name="sourceOfBusiness" aria-label="Source of business"><option value="">(not set)</option>${options(srcOpts, d.sourceOfBusiness || '', (o) => o.label, (o) => o.value)}</select></label>
     ${parcelFieldsHtml(d)}
-    ${refi ? '' : html`<h4 class="span2">Earnest money <span class="muted small">(optional)</span></h4><label>EMD held by<input name="emdHeldBy" maxlength="200" value="${ev.held}" aria-label="EMD held by"></label>${agentFeesPointer('modal')}`}
+    ${refi ? '' : html`<h4 class="span2">Earnest money <span class="muted small">(optional)</span></h4>${emdHolderSelect(html, raw, ev.held, { name: 'emdHeldBy', label: 'EMD held by', aria: 'EMD held by' })}${agentFeesPointer('modal')}`}
     <label class="span2">Notes<textarea name="notes" rows="3">${v('notes')}</textarea></label>
     <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
   const paintProcessors = (list, keep) => { const sel = $('[name=processorId]', m); const next = processorChoices(list, keep == null ? (sel.value || d.processorId || '') : keep, meId || '');
@@ -339,9 +340,11 @@ async function editModal(api, d, refresh, meId) {
   bindAddressFill($('#edf', m));
   $('[data-refresh-processors]', m).addEventListener('click', guard(async () => { const street = $('[name=street]', m).value; const keep = $('[name=processorId]', m).value; paintProcessors(await api.listProcessors(), keep);
     if ($('[name=street]', m).value !== street) throw new Error('Refreshing the Processor list must not clear the form.'); toast('Processor list updated. The other fields were kept.'); }));
-  $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyAmount(f[k]); });
+  wireEmdHolderFields($('#edf', m));
+    $('#edf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'loanAmount', 'emdAmount'].forEach((k) => { if (f[k] !== undefined) f[k] = moneyAmount(f[k]); });
     const closer = resolveCloser(f.closerName, closers, { closerName: d.closerName || '', closerProfileId: d.closerProfileId || null }); f.closerName = closer.closerName; f.closerProfileId = closer.closerProfileId;
     if (refi) { f.purchasePrice = ''; f.emdAmount = ''; f.emdDueDate = ''; f.emdHeldBy = ''; }   // a refinance saves no purchase price / EMD (clears what an older order had)
+    else applyNoEmdToForm(f);
     if (refi || String(f.state || '').toUpperCase() !== 'MD') { f.primaryResidence = ''; f.firstTimeBuyer = ''; }
     const parcels = parcelsFromForm(e.target); f.parcelId = parcels.parcelId; f.parcelIds = parcels.parcelIds;
     await api.updateDeal(d.id, f); closeModal(); toast('Order saved'); refresh(); }));
@@ -461,7 +464,7 @@ function moneyRow(d, { canWire, staffView, showEmd }) {
   const emdIn = Number(d.stage) >= 2 || d.status === 'Closed'; const s = canWire ? sampleFacts(d) : null;
   const emd = showEmd ? html`<section class="op-emd" data-emd-box aria-label="Earnest money deposit"><span class="op-box-label">EMD</span>
       <b data-emd-box-amount>${d.emdAmount == null || d.emdAmount === '' ? '\u2014' : fmtMoney(d.emdAmount)}</b>
-      <span class="muted small" data-emd-box-due>due ${fmtDate(d.emdDueDate) || '\u2014'}</span>${pill(emdIn ? 'received' : 'not received yet', emdIn ? 'ok' : 'warn')}</section>` : '';
+      <span class="muted small" data-emd-box-due>due ${emdDueDisplay(d.emdDueDate, d.emdHolder, fmtDate) || '\u2014'}</span>${pill(emdIn ? 'received' : 'not received yet', emdIn ? 'ok' : 'warn')}</section>` : '';
   const wire = canWire ? html`<section class="op-wire" data-wire-box aria-label="Wire instructions"><div class="op-wire-head"><span class="op-box-label">Wire instructions</span><button class="m-btn" id="wirebtn">Wire instructions</button></div>
       <div class="op-wire-facts"><span data-wire-cash>Cash to Close <b>${fmtMoney(s.cash)}</b> ${SAMPLE}</span><span data-wire-status>Wire status <b>${s.wire}</b> ${SAMPLE}</span>${staffView ? html`<span data-wire-payoffs>Payoffs <b>${s.payoffs}</b> ${SAMPLE}</span>` : ''}</div>
       <p class="muted small">Buyer funds only. Agents never see this box. Call CLA Title to confirm any wire (use a number you already have).</p></section>` : '';
@@ -472,7 +475,7 @@ function earnestBlock(d, showEmd) {
   const ev = earnestView(d);
   if (!showEmd || !ev.any) return '';
   return html`<section class="op-emd" data-earnest-commission aria-label="Earnest money"><span class="op-box-label">Earnest money</span>
-    <span data-emd-held-by>EMD held by <b>${ev.held}</b></span></section>`;
+    <span data-emd-held-by>EMD held by <b>${emdHolderDisplay(ev.held)}</b></span></section>`;
 }
 
 // ---------------- ORDER PAGE REDESIGN (John, Nov 4): ONE Parties list ----------------

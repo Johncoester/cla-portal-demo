@@ -15,7 +15,7 @@ import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_R
 import { cleanFee, feeChanges } from './accounting.js?v=202611247900';
 import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES, staffTaskCounts } from './party-task-completion.js?v=202611241000';
-import { parseMilestones, toggleMilestone, derivedStage, emptyMilestones, milestonesFromStage } from './milestones.js?v=202611312000';
+import { parseMilestones, toggleMilestone, derivedStage, emptyMilestones, milestonesFromStage } from './milestones.js?v=202611312100';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only

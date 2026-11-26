@@ -5,6 +5,7 @@
 import { html, raw, esc, toText, $, $$, guard, modal, closeModal, toast, fmtDateTime, fmtSize, pill } from '../ui.js?v=202611161500';
 import { editorHtml, mountEditor } from './compose.js?v=202611302000';
 import { canUseGmail, introRecipients, introTemplate, hasSignature, fileTag } from '../data/gmail-email.js?v=202611191000';
+import { partyRecipientLabel, fileEmailParties } from '../data/mail-to-parties.js?v=202611311100';
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611291500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { tcOnlyMap, tcOnlyNotes, isTcOnlyRole, canReadTcOnly } from '../data/tc-only.js?v=202611301500';
@@ -112,8 +113,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
       };
     } catch (e) { /* keep the shell deal; warnings will explain missing parties */ }
   }
-  const parties = introRecipients(mergeDeal).concat((mergeDeal.participants || []).filter((p) => !p.removed && p.contact && p.contact.email && !p.contact.contactHidden && !Object.keys(ROLE).includes(p.role))
-    .map((p) => ({ name: partyDisplayName(p), email: String(p.contact.email).toLowerCase(), role: p.role })));
+  const parties = fileEmailParties(mergeDeal, (p) => partyDisplayName(p));
   // TC-ONLY-2: which agents on this file have "Only communicate with TC" on (staff only; the database still decides when it sends)
   let tcRows = new Map();
   // TC-ONLY-2b: only for roles the server allows (no refused call for sales), and agents are matched by contact email or portal-login email
@@ -128,7 +128,11 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   let chosenTemplateKey = pre.templateKey || null;
   const m = modal(pre.replyToEmailId ? 'Reply' : pre.templateKey === 'intro' ? 'Introduction email' : 'New email', html`<form data-mail-compose onsubmit="return false" class="form-grid">
     <label class="span2">From<input value="${gmail.connected ? gmail.mailbox : 'Connect Gmail on Profile Setting first'}" disabled data-mail-compose-from></label>
-    <label class="span2">To<input name="to" value="${(pre.to || []).join(', ')}" placeholder="name@example.com, ..." autocomplete="off" data-mail-to></label>
+    <div class="span2" data-mail-to-picker><span class="small">To</span>
+      ${parties.length ? html`<div data-mail-to-parties>${parties.map((p) => html`<label class="check small"><input type="checkbox" data-mail-to-party value="${p.email}" ${(pre.to || []).some((a) => String(a).toLowerCase() === p.email) ? raw('checked') : ''}> ${partyRecipientLabel(p, ROLE[p.role] || p.role)}</label>`)}</div>` : html`<p class="muted small" data-mail-to-empty>No one on this file has an email yet.</p>`}
+      <label>Someone not on this file<input name="toExtra" value="${list(pre.to || []).filter((a) => !parties.some((p) => p.email === String(a).toLowerCase())).join(', ')}" placeholder="name@example.com, ..." autocomplete="off" data-mail-to-extra></label>
+      <input type="hidden" name="to" value="${(pre.to || []).join(', ')}" data-mail-to>
+    </div>
     <label>Cc<input name="cc" value="${(pre.cc || []).join(', ')}" autocomplete="off" data-mail-cc></label><label>Bcc<input name="bcc" autocomplete="off" data-mail-bcc></label>
     <div class="span2 small" data-mail-people></div>
     <div class="span2 notice info small" data-tc-only-note hidden></div>
@@ -158,8 +162,25 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     box.innerHTML = toText(html`<div data-mail-to-chips>To: ${to.length ? to.map((addr) => chip('to', addr)) : html`<span class="muted">none</span>`}</div>
       <div data-mail-cc-chips>Cc: ${cc.length ? cc.map((addr) => chip('cc', addr)) : html`<span class="muted">none</span>`}</div>
       ${parties.length ? html`<div>On this file: ${parties.map((p) => html`<span>${p.name || p.email} (${ROLE[p.role] || p.role}) <button type="button" class="ghost small" data-mail-put="to" data-mail-addr="${p.email}">Add to To</button> <button type="button" class="ghost small" data-mail-put="cc" data-mail-addr="${p.email}">Add to Cc</button></span> `)}</div>` : ''}`);
-    $$('[data-mail-drop]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailDrop, b.dataset.mailAddr, false); paintPeople(); paintTcOnly(); }));
-    $$('[data-mail-put]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailPut, b.dataset.mailAddr, true); paintPeople(); paintTcOnly(); }));
+    $$('[data-mail-drop]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailDrop, b.dataset.mailAddr, false); paintToPicker(); paintPeople(); paintTcOnly(); }));
+    $$('[data-mail-put]', box).forEach((b) => b.addEventListener('click', () => { putAddr(b.dataset.mailPut, b.dataset.mailAddr, true); paintToPicker(); paintPeople(); paintTcOnly(); }));
+  };
+  const paintToPicker = () => {
+    const to = list($('[data-mail-to]', m).value);
+    const lower = to.map((a) => a.toLowerCase());
+    $$('[data-mail-to-party]', m).forEach((c) => { c.checked = lower.includes(String(c.value).toLowerCase()); });
+    const extra = $('[data-mail-to-extra]', m);
+    if (extra) {
+      const onFile = new Set(parties.map((p) => p.email));
+      extra.value = to.filter((a) => !onFile.has(a.toLowerCase())).join(', ');
+    }
+  };
+  const syncToField = () => {
+    const input = $('[data-mail-to]', m);
+    const checked = $$('[data-mail-to-party]', m).filter((c) => c.checked).map((c) => c.value);
+    const extras = list((($('[data-mail-to-extra]', m) || {}).value) || '');
+    const seen = new Set(checked.map((a) => a.toLowerCase()));
+    input.value = checked.concat(extras.filter((a) => (seen.has(a.toLowerCase()) ? false : seen.add(a.toLowerCase())))).join(', ');
   };
   const paintTcOnly = () => {
     const box = $('[data-tc-only-note]', m); if (!box) return;
@@ -172,6 +193,9 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
   const paintAll = () => { paintPeople(); paintTcOnly(); };
   paintAll();
   ['[data-mail-to]', '[data-mail-cc]', '[data-mail-bcc]'].forEach((sel) => { const el = $(sel, m); if (el) { el.addEventListener('change', paintAll); el.addEventListener('input', paintTcOnly); } });
+  $$('[data-mail-to-party]', m).forEach((c) => c.addEventListener('change', () => { syncToField(); paintAll(); }));
+  const extraTo = $('[data-mail-to-extra]', m);
+  if (extraTo) { extraTo.addEventListener('change', () => { syncToField(); paintAll(); }); extraTo.addEventListener('input', () => { syncToField(); paintTcOnly(); paintPeople(); }); }
   const tplSel = $('[data-mail-template]', m);
   const warn = $('[data-mail-tpl-warn]', m);
   const showWarn = (msgs) => { if (!warn) return; const bits = (msgs || []).filter(Boolean); if (!bits.length) { warn.hidden = true; warn.textContent = ''; return; }
@@ -188,7 +212,7 @@ export async function composeEmailModal({ api, deal, user, gmail, done }, pre = 
     const keptCc = recipientsAfterTemplate(ccNow.join(', '), applied.suggestedCc, { fillIfEmpty: ccNow.length === 0 });
     $('[data-mail-to]', m).value = kept.join(', ');
     $('[data-mail-cc]', m).value = keptCc.join(', ');
-    paintPeople(); paintTcOnly();
+    paintToPicker(); paintPeople(); paintTcOnly();
     const to2 = kept;
     const applied2 = applyFileTemplate(t, mergeDeal, sender, { toEmails: to2, documents: docs, applyDefaultRecipients: false, processorEmail: mergeDeal.processorEmail });
     $('[data-mail-subject]', m).value = applied2.subject;

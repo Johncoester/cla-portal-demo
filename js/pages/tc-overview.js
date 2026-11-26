@@ -7,6 +7,7 @@ import { composeModal } from './compose.js?v=202611302000';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
+import { emdHolderSelect, wireEmdHolderFields, applyNoEmdToForm, emdHolderDisplay } from '../data/emd-holder.js?v=202611312000';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;
@@ -38,7 +39,7 @@ export async function renderTcOverview(ctx, d) {
     </div></section>
     <section class="co-card" data-co-property><div class="co-ch">${d.street}<span class="r"><button type="button" class="co-btn g" data-tc-action="contract">Edit contract info</button></span></div><div class="co-cb">
       <div class="co-city">${d.city}, ${d.state} ${d.zip} · Order # ${d.fileNumber}</div>
-      <div class="co-facts" data-co-facts><div class="co-fact"><div class="k">Contract date</div><div class="v">${long(ci.contractDate)}</div></div><div class="co-fact"><div class="k">Sale price</div><div class="v">${fmtMoney(ci.purchasePrice) || '—'}</div></div><div class="co-fact"><div class="k">Settlement date</div><div class="v">${long(ci.closingDate)}</div></div><div class="co-fact"><div class="k">EMD holder</div><div class="v">${ci.emdHolder || 'Not set'}</div></div></div>
+      <div class="co-facts" data-co-facts><div class="co-fact"><div class="k">Contract date</div><div class="v">${long(ci.contractDate)}</div></div><div class="co-fact"><div class="k">Sale price</div><div class="v">${fmtMoney(ci.purchasePrice) || '—'}</div></div><div class="co-fact"><div class="k">Settlement date</div><div class="v">${long(ci.closingDate)}</div></div><div class="co-fact"><div class="k">EMD holder</div><div class="v">${emdHolderDisplay(ci.emdHolder) || 'Not set'}</div></div></div>
       <div class="tc-chips" data-tc-emd-alta>${chips} <button type="button" class="co-btn g" data-tc-action="emd">Update EMD / ALTA</button></div>
     </div></section>
     <section class="co-next" data-co-next="${open[0] ? open[0].id : ''}" data-co-outstanding="${open.length}"><div class="co-ic" aria-hidden="true">&#10004;</div><div class="co-next-main"><div class="k">Outstanding tasks (${open.length})</div>
@@ -64,10 +65,11 @@ export async function renderTcOverview(ctx, d) {
         <label>Sale price<input name="purchasePrice" data-money inputmode="decimal" value="${moneyShow(ci.purchasePrice)}"></label><label>Contract date<input type="date" name="contractDate" value="${ci.contractDate || ''}"></label>
         ${agentFeesPointer('modal')}
         <label>Seller concessions<input name="sellerConcessions" data-money inputmode="decimal" value="${moneyShow(ci.sellerConcessions)}"></label><label>Settlement date<input type="date" name="closingDate" value="${ci.closingDate || ''}"></label>
-        <label>EMD amount<input name="emdAmount" data-money inputmode="decimal" value="${moneyShow(ci.emdAmount)}"></label><label>EMD holder<input name="emdHolder" value="${ci.emdHolder}"></label>
+        <label>EMD amount<input name="emdAmount" data-money inputmode="decimal" value="${moneyShow(ci.emdAmount)}"></label>${emdHolderSelect(html, raw, ci.emdHolder, { name: 'emdHolder', label: 'EMD holder', aria: 'EMD holder' })}
         <h4 class="span2">Clients</h4>${clients.map((c) => html`<fieldset class="span2" data-client="${c.participantId}"><legend>${c.role === 'Client-Buyer' ? 'Buyer' : 'Seller'}</legend><div class="form-grid"><label>First name<input name="firstName" required value="${c.firstName}"></label><label>Last name<input name="lastName" value="${c.lastName}"></label><label>Email<input type="email" name="email" value="${c.email}"></label><label>Phone<input name="phone" type="tel" value="${c.phone}"></label></div></fieldset>`)}
         <div class="span2"><button class="m-btn" type="submit">Save contract info</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
-      $('#tc-ci', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); ['purchasePrice', 'sellerConcessions', 'emdAmount'].forEach((k) => { f[k] = moneyAmount(f[k]); });
+      wireEmdHolderFields($('#tc-ci', m), { held: 'emdHolder' });
+      $('#tc-ci', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); applyNoEmdToForm(f, 'emdHolder'); ['purchasePrice', 'sellerConcessions', 'emdAmount'].forEach((k) => { f[k] = moneyAmount(f[k]); });
         await api.updateContractInfo(d.id, f); for (const c of clients) { const box = $(`[data-client="${c.participantId}"]`, e.target); await api.updateClientContact(d.id, c.participantId, { firstName: $('[name=firstName]', box).value, lastName: $('[name=lastName]', box).value, email: $('[name=email]', box).value, phone: $('[name=phone]', box).value }); }
         closeModal(); toast('Contract info and client details saved'); refresh(); }));
     }

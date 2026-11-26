@@ -1,7 +1,7 @@
 -- MF-068 (Matt Landsberg, Portal Feedback Nov 25 2026): Order Status milestones can be
 -- completed independently. deals.milestones_done is the stored set; deals.stage stays as
 -- the highest completed index (or 0 if none) so existing readers keep working.
--- Rollback: supabase/rollbacks/20261131200000_independent_milestones.sql
+-- Rollback: supabase/rollbacks/20261131210000_independent_milestones.sql
 
 begin;
 set local lock_timeout = '3s';
