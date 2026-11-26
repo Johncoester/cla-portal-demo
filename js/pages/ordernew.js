@@ -20,6 +20,7 @@ import { buyerSellerEntry, manualPartyEntry, directoryModel, directoryChoice, di
 import { ENTITY_TYPES } from '../data/templates.js?v=202611312500';
 import { showMdQuestions, processorChoices, referralPartyByRole, encodeReferral, referralFromForm } from '../data/place-order.js?v=202611247700';
 import { closerChoices, resolveCloser } from '../data/closer.js?v=202611247700';
+import { preprocessorChoices, paintPreprocessorSelect, NO_PREPROCESSOR_HOWTO } from '../data/preprocessor-pick.js?v=202611313100';
 import { duplicateNotice } from '../data/order-duplicates.js?v=202611247700';
 import { CLA_REPRESENTATION, claRepresentationLabel, claRepresentationWritesEnabled, draftKeepsUnrecordedRepresentation, representationPayload } from '../data/cla-representation.js?v=202611090950';
 import { orderDraftKey, readOrderDraft, writeOrderDraft, collectOrderFields, rememberedFiles, applyOrderDraft, claimOrderDraft, releaseOrderClaim, tombstoneOrderDraft } from '../data/order-draft.js?v=202611242810';
@@ -121,7 +122,7 @@ export async function render({ api, user, go }) {
   if (!runsOrders(user)) throw new Error('Only a Processor or Admin can place orders.');
   const contacts = await api.listContacts();
   const optional = async (fn) => { try { return (await fn()) || []; } catch (e) { return []; } };
-  const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors());
+  const staff = await optional(() => api.listSalesStaff()); const procs = await optional(() => api.listProcessors()); const preprocs = await optional(() => api.listPreprocessors()); const preproc = preprocessorChoices(preprocs, '', '');
   const closers = closerChoices(await optional(() => api.listActiveStaff()));
   // the file's Processor: Unassigned is the default. Any active staff login (including Super admin) can be picked.
   const today = officeDate();
@@ -202,7 +203,7 @@ export async function render({ api, user, go }) {
         <p class="muted small">The transaction coordinator is optional. Agents never see wire instructions.</p>`,
         'The realtors on each side, who referred the file, and the transaction coordinator.')}
       ${panel('team', html`<div class="form-grid">
-        <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor<select name="preprocessorUserId"><option value="">(none)</option>${options(preprocs, '', (p) => `${p.firstName} ${p.lastName}`, (p) => p.id)}</select>${preprocs.length ? '' : html`<span class="field-hint" data-no-preproc>No preprocessor is available for this login.</span>`}</label>
+        <label>Processor<select name="processorId" data-processor-select><option value="">Unassigned</option></select> <button type="button" class="ghost" data-refresh-processors>Refresh list</button><span class="field-hint">Leave Unassigned to save the file now. A Processor added after you opened this page appears when you refresh the list. Nothing else on the form is cleared.</span></label><label>Preprocessor <button type="button" class="ghost" data-refresh-preprocessors>Refresh list</button><select name="preprocessorUserId" data-preprocessor-select>${options(preproc.options, preproc.value, (o) => o.label, (o) => o.value)}</select><span class="field-hint" data-no-preproc ${preproc.empty ? '' : raw('hidden')}>No preprocessor is available for this login. ${NO_PREPROCESSOR_HOWTO}</span></label>
         <label class="span2">Closer<input name="closerName" list="place-closer-staff" maxlength="120" autocomplete="off" aria-label="Closer" data-closer-input><datalist id="place-closer-staff">${closers.map((c) => html`<option value="${c.label}"></option>`)}</datalist><span class="field-hint">Pick an active CLA staff member, or type a name. Same field as Edit order details.</span></label>
         <fieldset class="span2" data-sales-picker><legend>Salespeople on this order</legend>${salesMultiHtml(staff)}<span class="field-hint">Search and add every salesperson on this order. You can pick more than one. Remove a name to take that person off.</span></fieldset>
         <label class="span2">Notes<textarea name="notes" rows="3" maxlength="2000" placeholder="Anything the team should know about this order"></textarea></label>
@@ -254,6 +255,10 @@ export async function render({ api, user, go }) {
       const painted = paintProcessors(await api.listProcessors(), sel.value);
       if ($('[name=street]', form).value !== keepStreet || ($('[name="p:Client-Buyer"]', form) && $('[name="p:Client-Buyer"]', form).value) !== keepParty) throw new Error('Refreshing the Processor list must not clear the form.');
       toast(painted.dropped ? 'Processor list updated. That person is no longer eligible, so this stays Unassigned. Nothing else was cleared.' : 'Processor list updated. Nothing else on this form was changed.'); }));
+    $('[data-refresh-preprocessors]', root).addEventListener('click', guard(async () => { const sel = $('[name=preprocessorUserId]', form); const keepStreet = $('[name=street]', form).value; const keepParty = $('[name="p:Client-Buyer"]', form) && $('[name="p:Client-Buyer"]', form).value;
+      const painted = paintPreprocessorSelect(sel, preprocessorChoices(await api.listPreprocessors(), sel.value, ''), $('[data-no-preproc]', root));
+      if ($('[name=street]', form).value !== keepStreet || ($('[name="p:Client-Buyer"]', form) && $('[name="p:Client-Buyer"]', form).value) !== keepParty) throw new Error('Refreshing the Preprocessor list must not clear the form.');
+      toast(painted.dropped ? 'Preprocessor list updated. That person is no longer an active Preprocessor, so this is set to (none). Nothing else was cleared.' : 'Preprocessor list updated. Nothing else on this form was changed.'); }));
     const txSel = $('[name=transactionType]', root); const refi = () => isRefi(txSel.value);
     const labelOf = (role) => (role === 'Client-Buyer' && refi() ? 'Borrower' : SEARCH.find((x) => x[0] === role)[1]);
     // Matt, Nov 3 (b): picking a lender fills Lender phone / email (only boxes still empty; the processor can change them for this order)

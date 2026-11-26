@@ -81,7 +81,7 @@ export function dealsAndAuth(x) {
     async listProcessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       return clone(load().profiles.filter((p) => p.status === 'active' && PROCESSOR_PICK_ROLES.includes(p.role) && !!p.isDemo === !!u.isDemo).map((p) => { const n = tidyPersonName(p); return { id: p.id, firstName: n.firstName, lastName: n.lastName, role: p.role, isDemo: !!p.isDemo, name: n.name }; })); },
     async listPreprocessors() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
-      return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role }) => ({ id, firstName, lastName, role }))); },
+      return clone(load().profiles.filter((p) => p.status === 'active' && p.role === 'Preprocessor').map(({ id, firstName, lastName, role, email, status }) => ({ id, firstName, lastName, role, email, status }))); },
     // John, ANYROLE-1: any active staff login can be the file's Transaction Coordinator. The field uses the profile id.
     async listCoordinators() { const u = needUser(); if (!C.runsOrders(u)) fail('Only a Processor or Admin can do this.');
       const d = load(); const plan = coordinatorRoster(d.profiles, d.contacts, u);
