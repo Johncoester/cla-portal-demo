@@ -6,7 +6,7 @@ import { directoryModel, directoryChoice, directoryGroups } from '../data/file-p
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611312900';
 import { canEditAgentProfiles, agentProfileHref, AGENT_FILE_ROLES } from '../data/agent-profile-admin.js?v=202611312900';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611312900';
-import { copyPlainText } from './deal.js?v=202611313400';
+import { copyPlainText } from './deal.js?v=202611313500';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';

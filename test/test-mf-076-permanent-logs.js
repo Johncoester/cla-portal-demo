@@ -28,7 +28,7 @@ await f.api.getDocumentContent(DOC);
 ok(f.steps[0][0] === 'rpc' && f.steps[0][1] === 'log_document_view' && f.steps[0][2] === DOC && f.steps[1][0] === 'download', 'the open is logged (log_document_view) before the file is downloaded');
 f = fake({ data: null, error: { code: '42501', message: 'nope' } });
 let threw = ''; try { await f.api.getDocumentContent(DOC); } catch (e) { threw = e.message; }
-ok(threw === 'nope' && !f.steps.some((s) => s[0] === 'download'), 'if the open cannot be logged, the file is not downloaded');
+ok(/not opened because the open could not be recorded/.test(threw) && /nope/.test(threw) && !f.steps.some((s) => s[0] === 'download'), 'if the open cannot be logged, the file is not downloaded');
 f = fake({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } });
 await f.api.getDocumentContent(DOC);
 ok(f.steps.some((s) => s[0] === 'download'), 'a database without the function yet (PGRST202) still opens files, so the app can ship before the SQL');
@@ -54,6 +54,9 @@ ok(/drop policy if exists wire_update on public\.wire_audit_log;/.test(mig), 'th
 ok(/after insert on public\.messages\s+for each row execute function private\.trg_message_log\(\)/.test(mig) && /'message\.posted', 'thread'/.test(mig), 'a message send is logged as message.posted on its thread');
 ok(!/new\.body/.test(mig), 'the message body is not copied into the log');
 ok(/create or replace function public\.log_document_view\(p_document uuid\)[\s\S]*security definer[\s\S]*private\.document_readable\(p_document\)/.test(mig), 'document views are logged through a SECURITY DEFINER function that checks the caller can read the document');
+ok(/demo_visible_deal_ids\(\)/.test(mig) && /not private\.viewer_is_demo\(\)/.test(mig) && /raise exception 'Document not found\.' using errcode = 'P0002'/.test(mig) && !/Document not allowed/.test(mig),
+  'log_document_view mirrors the documents demo_scope policy and raises the same P0002 for not found and not allowed');
+ok(/or not exists \(select 1 from public\.documents z[\s\S]*demo_visible_deal_ids/.test(mig), 'the demo check sits in the same refusal as document_readable (one error for both)');
 ok(/interval '60 seconds'/.test(mig), 'the same person opening the same document within a minute is logged once (volume)');
 ok(/revoke all on function public\.log_document_view\(uuid\) from public, anon;\s*grant execute on function public\.log_document_view\(uuid\) to authenticated;/.test(mig), 'only signed-in users can call log_document_view');
 ok(!/create policy|alter policy/.test(mig), 'no read policy changes: parties only see the rows they already could');

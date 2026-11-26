@@ -109,7 +109,7 @@ export function nov5Supabase({ sb, ok, camel, me }) {
       if (!doc.storagePath) throw new Error('This document has no stored file.');
       // MF-076: every open/download is logged first (public.log_document_view). Only a database that does not have the function yet (PGRST202) is let through.
       const seen = await sb.rpc('log_document_view', { p_document: id });
-      if (seen && seen.error && seen.error.code !== 'PGRST202') throw new Error(seen.error.message || 'Could not record that this document was opened.');
+      if (seen && seen.error && seen.error.code !== 'PGRST202') throw new Error(`This document was not opened because the open could not be recorded in the activity log. ${seen.error.message || 'Please try again.'}`);
       const dl = await sb.storage.from('deal-documents').download(doc.storagePath);
       if (dl.error) throw new Error(dl.error.message || 'Could not read the stored file.');
       return { name: doc.name, mimeType: doc.mimeType, blob: dl.data };

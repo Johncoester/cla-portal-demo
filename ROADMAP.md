@@ -641,8 +641,20 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing (reported, not built here)**
 
-- Matt also said any CLA Processor or Preprocessor can open any file, assigned or not, because people call out sick. Processors can already. A Preprocessor can still only open files where they are the file's Preprocessor (`private.can_access_deal`, `private.can_run_deal`, and the `deals_select` policy).
+- Any CLA Processor or Preprocessor can open any file: moved to **MF-075** below.
 - Every action logged and the log cannot be erased: moved to **MF-076** below.
+
+## Preprocessor on any file (MF-075)
+
+**How it should work.** Matt, Nov 26: any active Processor or Preprocessor can open and work on any file, assigned or not, because people call out sick. Answer A: a Preprocessor can place an order without naming themselves as the file's Preprocessor.
+
+**What changed.** Migration `20261131300000_mf075_preprocessor_any_file.sql` swaps the "assigned to me" check in the Preprocessor branch of `private.can_access_deal`, `private.can_run_deal`, `private.reader_can_deal`, `private.document_readable` and `private.readable_document_ids` for the demo gate (`deals.is_demo is not distinct from` the viewer's `is_demo`), and drops the "must name yourself" part of the `deals_insert` policy. It does this by an exact text replace on the live function body, and stops if the body is not what it expects. Demo mode (`mock-adapter.js`) lets a Preprocessor see every file. Rollback: `supabase/rollbacks/20261131300000_mf075_preprocessor_any_file.sql`.
+
+**Not changed.** Sales Person, Sales Team, TC, agents and clients keep the same access. A demo Preprocessor still only reaches demo files and a real one only real files. Limits that never depended on assignment stay as they are: a Preprocessor still cannot add or edit Contacts or add order notes (those were Processor-only before MF-075 too).
+
+**Status: Live on TEST** (merged e495801f, applied as 20261126143715, Nov 26). Waiting on Matt's test.
+
+**Follow-up (non-blocking, CRM Bot review of PR 462).** `document_readable` and `readable_document_ids` now do a profile lookup per document row for the Preprocessor demo check. Fold `is_demo` into their `me` step instead. See also DEMO-DOC-READ under MF-076.
 
 ## Permanent action log (MF-076)
 
@@ -652,13 +664,15 @@ This file lists the portal's major features: how each one should work, how far a
 - `activity_log` and `wire_audit_log` get triggers that refuse every UPDATE, DELETE and TRUNCATE, for every role (signed-in users, the service key and the database owner). UPDATE, DELETE and TRUNCATE are also revoked from anon, authenticated and service_role.
 - The wire log's staff update rule (`wire_update`) is removed. The app only ever adds wire audit rows.
 - Each message sent is logged as `message.posted` on its conversation, without the message text.
-- Each document open or download is logged as `document.viewed` through `public.log_document_view`. It only logs documents the person can read, and a repeat open by the same person within 60 seconds is logged once. The hosted app calls it before the download, and the file does not open if the log write fails.
+- Each document open or download is logged as `document.viewed` through `public.log_document_view`. It only logs documents the person can read **and** that are in their demo scope (the same rule as the documents `demo_scope` policy), and "not found" and "not allowed" give the same error. A repeat open by the same person within 60 seconds is logged once. The hosted app calls it before the download, and the file does not open if the log write fails; the message says the open could not be recorded.
 - Who can read the log is unchanged. Staff see entries only for documents and conversations they can open, and parties never see who viewed what.
 Rollback: `supabase/rollbacks/20261131310000_mf076_permanent_logs.sql` (it deletes no log rows).
 
 **Limits.** Someone with owner access in the Supabase dashboard could still drop or switch off a trigger. No portal login or API key can. Opens done while a Super admin is in "View as" are not logged, because View as is read-only.
 
-**Status: In review** (CRM Bot rule 27 review, then TEST apply).
+**Follow-up DEMO-DOC-READ.** `private.document_readable` has no demo check for Processor, Sales Team, Transaction Coordinator or admin, so a demo Processor can read real documents (4602 of 4602 on TEST). MF-076 closes this only for `log_document_view`. Fix `document_readable` and `readable_document_ids` for staff in their own item (with the MF-075 `is_demo` fold-in).
+
+**Status: In review** (CRM Bot re-review, then TEST apply).
 
 ## Citizenship dropdown (MF-073)
 

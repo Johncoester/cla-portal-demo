@@ -11,7 +11,9 @@
 -- 3. Message sends: AFTER INSERT trigger on public.messages writes 'message.posted' (entity 'thread'),
 --    the same action the demo adapter already logs. The message body is not copied into the log.
 -- 4. Document views: public.log_document_view(uuid), SECURITY DEFINER, writes 'document.viewed'
---    (entity 'document') when the caller can read the document (private.document_readable). The app
+--    (entity 'document') when the caller can read the document (private.document_readable) AND the document is
+--    in the caller's demo scope (same rule as the documents demo_scope policy; CRM Bot rule 27 review of PR 464
+--    head c2f749d3). Not found and not allowed raise the same error. The app
 --    calls it every time a document is opened or downloaded (getDocumentContent). The same person
 --    opening the same document again within 60 seconds is not logged twice (volume).
 -- Reads: no RLS change. activity_select already shows a 'document' row only when
@@ -90,7 +92,15 @@ as $fn$
 declare me uuid := private.effective_uid(); doc record;
 begin
   if me is null then raise exception 'Please sign in.' using errcode = '28000'; end if;
-  if not coalesce(private.document_readable(p_document), false) then
+  -- Demo scope, mirroring the documents demo_scope policy: a demo login only reaches documents on demo files and a real
+  -- login only real ones. This function runs as owner, so without this a demo Processor could log into a real file
+  -- (document_readable has no demo check for staff). 'Not found' and 'not allowed' raise the same error, so a caller
+  -- cannot probe whether a document id exists.
+  if not coalesce(private.document_readable(p_document), false)
+     or not exists (select 1 from public.documents z
+                     where z.id = p_document
+                       and case when z.deal_id is null then not private.viewer_is_demo()
+                                else z.deal_id in (select private.demo_visible_deal_ids()) end) then
     raise exception 'Document not found.' using errcode = 'P0002';
   end if;
   -- View as is read-only (activity_log has a view-as guard); the open itself is still allowed.
