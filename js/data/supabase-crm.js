@@ -11,7 +11,7 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611247700';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611247700';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
-import { mergeImportedDeals, runDealImportChunks } from './crm-imported-deals.js?v=202611312100';
+import { mergeImportedDeals, runDealImportChunks } from './crm-imported-deals.js?v=202611313000';
 import { dealStageOf } from './crm-analytics.js?v=202611302100';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611312900';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611310200';
