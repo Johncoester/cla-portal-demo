@@ -4,6 +4,7 @@
 // details or SSNs are stored. Spec: /workspace/francis-videos/payoff-hoa-ffb-gr/PAYOFF-HOA-FFB-GR-SPEC.md, docs/PAYOFFS-HOA-FFB-GR.md.
 import { html, raw, $, $$, guard, toast, toText, fmtDate, fmtDateTime } from '../ui.js?v=202611161500';
 import * as PO from '../data/payoffs.js?v=202611070139';
+import { MORTGAGE_CODE, sellerMortgages, payoffRows, freePositions, payoffInputFor } from '../data/seller-payoffs.js?v=202611311400';
 import { QUALIA_TABS, PRORATION_CYCLES, computeProration } from '../data/prorations.js?v=202611070139';
 import { defaultProrationDraft, prorationBasis } from '../data/prorate-defaults.js?v=202611223100';
 const opt = (v, l, sel) => html`<option value="${v}" ${String(v) === String(sel ?? '') ? raw('selected') : ''}>${l}</option>`;
@@ -17,7 +18,7 @@ const inp = (name, value, attrs = '') => html`<input class="qc-input" name="${na
 
 // =====================================================================  MORTGAGE PAYOFFS  =====================================================================
 export async function payoffsView(api, deal, acc, q, base, user = {}) {
-  const [P, info, others, notes, folders, log] = await Promise.all([api.listPayoffs(deal.id), api.getPayoffOrderInfo(deal.id), api.listOtherContacts(deal.id), api.listPayoffNotes(deal.id), api.listPayoffFolders(deal.id), api.listPayoffLog(deal.id)]);
+  const [P, info, others, notes, folders, log, sellerM] = await Promise.all([api.listPayoffs(deal.id), api.getPayoffOrderInfo(deal.id), api.listOtherContacts(deal.id), api.listPayoffNotes(deal.id), api.listPayoffFolders(deal.id), api.listPayoffLog(deal.id), loadSellerMortgages(api, deal)]);
   const pos = Math.min(PO.MAX_PAYOFFS, Math.max(1, Number(q.get('p')) || 1)); const cur = P.payoffs.find((p) => p.position === pos) || null; const can = P.canEdit;
   const shown = Math.max(1, ...P.payoffs.map((p) => p.position), Number(q.get('tabs')) || 0, pos);
   const tabs = html`<div class="qc-paytabs po-tabs" data-po-tabs>${PO.PAYOFF_TABS.slice(0, shown).map((t, i) => html`<a class="qc-paytab ${i + 1 === pos ? 'on' : ''}" href="${base}?v=payoffs&p=${i + 1}${shown > 1 ? `&tabs=${shown}` : ''}" data-po-tab="${i + 1}">${t}</a>`)}
@@ -34,9 +35,54 @@ export async function payoffsView(api, deal, acc, q, base, user = {}) {
   const head = html`<p class="notice info small" data-payoff-not-contract>Payoffs are a separate worksheet. A certificate balance is not a payoff and not a disbursement. HOA, condo, and deferred charges that are paid at closing are entered under Other Charges. Taxes are on Taxes &amp; Prorations.</p><div class="qc-page-head"><span class="qc-chip big" aria-hidden="true">&#9638;</span><h3 data-qc-title>Mortgage Payoffs</h3><span class="spacer"></span>
     <span class="small muted" data-po-sum>${P.payoffs.length ? html`${P.payoffs.length} payoff${P.payoffs.length === 1 ? '' : 's'} &middot; total due <strong data-po-all-total>${usd(P.totalDue)}</strong> &middot; on the ${P.refi ? 'borrower' : 'seller'} side of the CD` : 'No payoffs yet'}</span></div>`;
   const body = html`<div class="qc-wrap po-wrap" data-qc-page="payoffs" data-po-page><div class="qc-main">${head}${can ? '' : html`<p class="notice info small" data-readonly-note>Read only for your role: only a Processor, Admin or Super admin changes payoffs.</p>`}
-      ${tabs}${empty}${form}</div>${helpCards('Payoff Total Due', PO.TOTAL_DUE_HELP + '. Precalculated using the value entered for ' + PO.TOTAL_DUE_FROM.join(', ') + '.')}</div>
+      ${sellerMortgagesCard(sellerM, P, can)}${tabs}${empty}${form}</div>${helpCards('Payoff Total Due', PO.TOTAL_DUE_HELP + '. Precalculated using the value entered for ' + PO.TOTAL_DUE_FROM.join(', ') + '.')}</div>
     ${orderInfoCard(info, can)}${teamCard(deal, P, notes, folders, can, log)}`;
-  return { body, mount: (root, c = {}) => mountPayoffs(root, api, deal, P, cur, lender, pos, base, c.refresh || (() => location.reload()), user) };
+  return { body, mount: (root, c = {}) => { mountSellerMortgages(root, api, deal, P, sellerM, base, c.refresh || (() => location.reload())); mountPayoffs(root, api, deal, P, cur, lender, pos, base, c.refresh || (() => location.reload()), user); } };
+}
+
+/* CONNECT-4 (John, Nov 25 2026; checklist row 7.2): the seller's Outstanding Mortgage answers on the Payoffs page. One task list read,
+ * then one answers read per saved copy. A read that fails leaves that copy out; the payoff worksheet still works. */
+export async function loadSellerMortgages(api, deal) {
+  if (!api || !api.listTasks || !api.getTask || !deal || !deal.id) return [];
+  let tasks = [];
+  try { tasks = await api.listTasks(deal.id); } catch (e) { return []; }
+  const mine = (tasks || []).filter((t) => t && t.templateCode === MORTGAGE_CODE && t.status !== 'cancelled' && (t.savedAt || t.status === 'done'));
+  const parts = deal.participants || [];
+  const got = await Promise.all(mine.map(async (t) => {
+    try {
+      const full = await api.getTask(t.id);
+      if (!full || full.formHidden || full.formError) return null;
+      const p = parts.find((x) => x.id === t.participantId); const c = (p && p.contact) || {};
+      return { task: t, answers: full.formData || {}, sellerName: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.company || '' };
+    } catch (e) { return null; }
+  }));
+  return sellerMortgages(got.filter(Boolean));
+}
+
+export function sellerMortgagesCard(list, P, can) {
+  if (!list || !list.length) return '';
+  const rows = payoffRows(list, P.payoffs);
+  const free = freePositions(P.payoffs);
+  const waiting = rows.filter((r) => !r.onTab);
+  return html`<div class="qc-card po-card" data-po-seller><div class="qc-card-head"><h4>From the seller's Outstanding Mortgage task</h4>${can && waiting.length > 1 && free.length >= waiting.length ? html`<div class="qc-card-btns"><button type="button" class="m-btn small" data-po-seller-all>Add all ${waiting.length} to Payoffs</button></div>` : ''}</div>
+    <table class="tbl striped small" data-po-seller-table><thead><tr><th>Lender</th><th>Phone</th><th>Loan #</th><th>Type</th><th>Payoffs</th></tr></thead><tbody>${rows.map((r) => html`<tr data-po-seller-row="${r.key}"><td>${r.lender}</td><td>${r.phone}</td><td>${r.loanNumber || html`<span class="muted">not given</span>`}</td><td>${r.loanType}</td>
+      <td>${r.onTab ? html`<a href="?v=payoffs&p=${r.position}" data-po-seller-on="${r.position}">On ${r.onTab}</a>` : can ? (free.length ? html`<button type="button" class="ghost small" data-po-seller-add="${r.key}">Add as ${PO.PAYOFF_TABS[free[0] - 1]}</button>` : html`<span class="muted small">All ${PO.MAX_PAYOFFS} payoff tabs are used</span>`) : html`<span class="muted small">Not on Payoffs yet</span>`}</td></tr>`)}</tbody></table>
+    <p class="small muted">Adding one fills a payoff tab with the lender, phone and loan number, ready to order the payoff. Amounts stay blank until the payoff statement comes in.</p></div>`;
+}
+
+function mountSellerMortgages(root, api, deal, P, list, base, refresh) {
+  const rows = payoffRows(list || [], P.payoffs);
+  $$('[data-po-seller-on]', root).forEach((a) => a.setAttribute('href', `${base}?v=payoffs&p=${a.dataset.poSellerOn}`));
+  const add = async (items) => {
+    const free = freePositions(P.payoffs); let last = null;
+    if (items.length > free.length) throw new Error(`Only ${free.length} payoff tab${free.length === 1 ? ' is' : 's are'} free. Retire a payoff first.`);
+    for (let i = 0; i < items.length; i++) last = await api.savePayoff(deal.id, payoffInputFor(items[i], free[i]));
+    toast(items.length === 1 ? `${items[0].lender} added as the ${PO.PAYOFF_TABS[free[0] - 1]}. Order the payoff when ready.` : `${items.length} seller mortgages added to Payoffs.`);
+    const to = `${base}?v=payoffs&p=${last ? last.position : 1}`;
+    if (location.hash === to) refresh(); else location.hash = to;
+  };
+  $$('[data-po-seller-add]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = rows.find((x) => x.key === b.dataset.poSellerAdd && !x.onTab); if (!r) { toast('That mortgage is already on Payoffs. Reload the page.', 'err'); return; } b.disabled = true; try { await add([r]); } finally { b.disabled = false; } })));
+  const all = $('[data-po-seller-all]', root); if (all) all.addEventListener('click', guard(async () => { all.disabled = true; try { await add(rows.filter((x) => !x.onTab)); } finally { all.disabled = false; } }));
 }
 
 function payoffForm(p, L, pos, P, can) {

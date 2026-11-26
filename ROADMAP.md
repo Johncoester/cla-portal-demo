@@ -37,29 +37,25 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
-## Remind emails the client (CONNECT-REMIND)
+## Seller mortgages on Payoffs (CONNECT-4)
 
-**How it should work.** When a processor or coordinator clicks Remind on an open task, the person the task is for gets a real reminder email, sent from the file's processor's connected Gmail through the outbox, like every other portal email.
+**How it should work.** The lender and loan the seller enters on Outstanding Mortgage Information show on the order's Accounting > Payoffs page. The processor adds each one as a payoff tab with one click (or all at once), so the lender, phone and loan number are filled in and the payoff is ready to order. Amounts stay blank until the payoff statement comes in.
 
-**Status: In review.** John Coester, Nov 25 2026, 9:02 PM ET (voice call), Connect Live Test Checklist row 6.3 (team live test). No database file: it uses queue_task_reminder, which is already on TEST. Pull request: [PR 454](https://github.com/Johncoester/cla-portal-demo/pull/454).
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 7.2. No database file. Pull request: [PR 452](https://github.com/Johncoester/cla-portal-demo/pull/452).
 
 **What's built**
 
-- Order > Tasks > Remind calls queue_task_reminder: one outbox email per person per task per day, plus a bell notice. Outbox shows Sent, or Failed with the reason.
-- The email goes from the file's processor's Gmail. If that Gmail is not connected, the row fails with "Not sent: <name>'s Gmail is not connected to the portal". portal@clatitle.com is never used to send.
+- Payoffs > "From the seller's Outstanding Mortgage task": lender, phone, loan #, type; "On First Payoff" when it is already a payoff (matched by loan number, else by lender name); "Add as Second Payoff" for the next free tab; "Add all" when several are waiting.
+- The add uses the existing payoff save, so the same rules, read-only roles and change log apply. A note on the payoff says it came from the seller's task.
 
 **What's still missing**
 
-- Dashboard "Remind overdue" (all overdue tasks at once) still says the portal does not send email. It would email every overdue task's person in one click, so it waits for John's OK.
-- The email has no link to the portal; it says "Please sign in to the portal to finish it."
+- Nothing is added without the processor's click. Automatic creation when the seller finishes the task would need a database change and a rule 27 review.
+- At most four payoffs per file, as today.
 
 **Links**
 
-- Spec: [docs/specs/connect-remind-email.md](docs/specs/connect-remind-email.md)
-
-**Decisions**
-
-- John, Nov 25 2026, 9:02 PM ET: use the existing Gmail-connected sender; do not build or wait on a portal@ fallback.
+- Spec: [docs/specs/connect-4-seller-payoffs.md](docs/specs/connect-4-seller-payoffs.md)
 
 ---
 
@@ -67,7 +63,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a buyer or seller saves their Personal Information task, the processor sees their answers and their spouse's on the order's Contacts tab, and can copy a new name or phone onto the contact with one approval click. A client's save never changes the contact by itself (checklist row 7.7).
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 7.3 and 7.7. No database file. Pull request: [PR 451](https://github.com/Johncoester/cla-portal-demo/pull/451).
+**Status: Done (on TEST, waiting on the team's retest of rows 7.3 and 7.7).** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 7.3 and 7.7. No database file. Pull request: [PR 451](https://github.com/Johncoester/cla-portal-demo/pull/451), merged Nov 25 2026, 8:48 PM ET (fdcfef42).
 
 **What's built**
 
@@ -77,7 +73,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - Address, marital status, citizenship and spouse have no contact field; they are shown, not copied. Vesting and deed wording is still typed by the title team.
-- No automatic copy without a staff click.
+- No automatic copy without a staff click. Whether answers should copy into the contact automatically is with John (asked Nov 25 2026); nothing changes until he answers.
 
 **Links**
 
