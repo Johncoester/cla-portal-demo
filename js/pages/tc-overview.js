@@ -7,7 +7,7 @@ import { composeModal } from './compose.js?v=202611302000';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
-import { emdHolderSelect, wireEmdHolderFields, applyNoEmdToForm, emdHolderDisplay } from '../data/emd-holder.js?v=202611311200';
+import { emdHolderSelect, wireEmdHolderFields, applyNoEmdToForm, emdHolderDisplay } from '../data/emd-holder.js?v=202611312000';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 const long = (d) => { if (!d) return '—'; const [y, m, dd] = String(d).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
 const href = (d, t = '') => `#/deals/${d.id}${t ? '/' + t : ''}`;

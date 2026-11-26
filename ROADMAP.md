@@ -37,6 +37,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Personal Information answers on Contacts (CONNECT-3)
+
+**How it should work.** When a buyer or seller saves their Personal Information task, the processor sees their answers and their spouse's on the order's Contacts tab, and can copy a new name or phone onto the contact with one approval click. A client's save never changes the contact by itself (checklist row 7.7).
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 7.3 and 7.7. No database file. Pull request: [PR 451](https://github.com/Johncoester/cla-portal-demo/pull/451).
+
+**What's built**
+
+- Contacts > From Personal Information: one card per buyer and seller with address, marital status, citizenship, entity, POA and spouse.
+- Review answers: side-by-side name and phone; blank contact fields start ticked, different values start unticked; Save to contact uses the existing contact save.
+
+**What's still missing**
+
+- Address, marital status, citizenship and spouse have no contact field; they are shown, not copied. Vesting and deed wording is still typed by the title team.
+- No automatic copy without a staff click.
+
+**Links**
+
+- Spec: [docs/specs/connect-3-personal-info-contacts.md](docs/specs/connect-3-personal-info-contacts.md)
+
+**Decisions**
+
+- Email is never copied from the form: it is the sign-in and portal email address. Staff change it with Edit.
+
+---
+
 ## Portal email sender (OUTBOX-SEND-1 / OUTBOX-SEND-2)
 
 **How it should work.** Automatic portal emails (fee notices, reminders, scheduling, title package, Task Builder emails) wait in the outbox. Every minute a job sends them from the file's processor's own Gmail (the same connection as Send on a file), and each email shows sent (with the time), not sent, skipped or held, with the reason, on the Reminder Outbox page. A switch decides Test mode (only clatestportal+ test addresses) or Live; it starts in Test mode and only the database owner can change it.
