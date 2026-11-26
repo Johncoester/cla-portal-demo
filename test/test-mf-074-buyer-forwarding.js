@@ -47,7 +47,7 @@ await api.addParticipant(deal.id, 'c-seller', 'Client-Seller');
 await api.signInDev('u-buyer');
 const buyerTask = (await api.listTasks(deal.id)).find((t) => t.templateCode === 'personal_info' && t.assignedRole === 'Client-Buyer' && t.mine);
 const buyerOpen = await api.getTask(buyerTask.id);
-ok(buyerOpen.templateVersion === 9 && !buyerOpen.fields.some((f) => f.k === 'forwarding_address'), 'a new buyer Personal information task is v9 and has no forwarding address');
+ok(buyerOpen.templateVersion === 10 && !buyerOpen.fields.some((f) => f.k === 'forwarding_address'), 'a new buyer Personal information task is the current version (v10, after CONNECT-5) and has no forwarding address');
 ok(buyerOpen.fields.some((f) => f.k === 'current_address'), 'the buyer current address question stays');
 await api.signInDev('u-seller');
 const sellerPi = (await api.listTasks(deal.id)).find((t) => t.templateCode === 'personal_info' && t.assignedRole === 'Client-Seller');

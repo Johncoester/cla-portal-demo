@@ -8,13 +8,13 @@ import { ROLES, STAGES, DEAL_STATUSES, TASK_STATUSES, TX_TYPES, DOC_VISIBILITY, 
   phoneOk, fmtPhone, PHONE_MSG, COUNTY_MAX, DOC_TYPES, docTypeChoices, CLOSING_LOCATIONS, US_STATES, CONTACT_TYPE_CODES, CONTACT_TYPE_ERROR, contactTypeLabel, isWireDocName, looksLikeWireDetails, WIRE_BUYER_ONLY } from './constants.js?v=202611302300';
 import { fileTitleOf, partyDisplayName } from './party-name.js?v=202611102000';
 import { staffTaskCounts } from './party-task-completion.js?v=202611241000';
-import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611249300';
+import { buildSeed, DEAL_FOLDERS, ORDER_DEFAULT_FOLDERS } from './seed.js?v=202611312400';
 import { indexedDbFileStore } from './file-store.js?v=202611070139';
-import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyPersonalV9, applyIdUploadV3, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText } from './templates.js?v=202611310900';
-import { dealsAndAuth } from './mock-part-deals.js?v=202611312200';
+import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPersonal, applySellerTasks, applyProceedsMove, applyPersonalV8, applyPersonalV9, applyIdUploadV3, applyCommissionTaskV2, applyCommissionTaskV3, applyCitizenshipFreeText, applyConnect5Questions } from './templates.js?v=202611312400';
+import { dealsAndAuth } from './mock-part-deals.js?v=202611312400';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
-import { contactsTasksDocs } from './mock-part-docs.js?v=202611301500';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611311000';
+import { contactsTasksDocs } from './mock-part-docs.js?v=202611312400';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611312400';
 import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
@@ -29,7 +29,7 @@ import { ensureEmailTemplates } from './crm-templates.js?v=202611247700';
 import { ensureNov3b as ensureCrmNov3b } from './crm-nov3b.js?v=202611070139';
 import { ensureAgentPortal } from './agent-portal.js?v=202611247700';
 import { agentPortal } from './mock-part-agent.js?v=202611247700';
-import { mattNov3b } from './mock-part-nov3b.js?v=202611247700';
+import { mattNov3b } from './mock-part-nov3b.js?v=202611312400';
 import { ensureSettings, optLabel } from './crm-config.js?v=202611247700';
 import { referralLabel } from './place-order.js?v=202611247700';
 import { upgradeCalls } from './crm-calls.js?v=202611247700';
@@ -38,8 +38,8 @@ import { taxRatesPart } from './mock-part-tax-rates.js?v=202611247700';
 import { payoffsPart, ensurePayoffs } from './mock-part-payoffs.js?v=202611247900';
 import { modulesPart, ensureModules } from './mock-part-modules.js?v=202611247700';
 import { roleAccessPart } from './mock-part-role-access.js?v=202611100100';   // John, Nov 9: Admin > Role access (Super admin)
-import { taskShownTo } from './task-switches.js?v=202611247700';
-import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611247700';
+import { taskShownTo } from './task-switches.js?v=202611312400';
+import { taskSwitchesPart } from './mock-part-task-switches.js?v=202611312400';
 import { MODULES, moduleAccess, moduleAvailable, betaRefusal } from './modules.js?v=202611247700';
 import { underwriterPart } from './mock-part-underwriter.js?v=202611247900';
 import { agentInfoPart } from './mock-part-agentinfo.js?v=202611247700';
@@ -50,16 +50,16 @@ import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.j
 import { automationPart } from './automation.js?v=202611247700';
 import { gmailMock } from './supabase-gmail.js?v=202611291500';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611247700';
-import { titlePart, ensureTitle } from './mock-part-title.js?v=202611247700';
+import { titlePart, ensureTitle } from './mock-part-title.js?v=202611312400';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';
 import { emailSendersPart, ensureEmailSenders } from './email-senders.js?v=202611247700';   // John, Nov 4: the Title review module (staff only; in place, no storage bump)
 import { officesPart, officeById } from './mock-part-offices.js?v=202611247700';
-import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611310000';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
+import { taskBuilderPart, watchTaskFlowEvents } from './mock-part-task-builder.js?v=202611312400';   // John, Nov 13: Admin > Task Builder (TB-1 flows, TB-2 engine)
 import { closingLocationPart } from './mock-part-closing-location.js?v=202611247700';
-import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611247700';
+import { recordingPart, ensureRecording } from './mock-part-recording.js?v=202611312400';
 import { fwpCanRead, FWP_STAFF_ONLY } from './funding-wire-policy.js?v=202611070139';
 import { buyerAgentDocDecision, taskReadable, propertyAddressOf } from './nov5-rules.js?v=202611247700';
-import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611247700';
+import { nov5Part, ensureNov5 } from './mock-part-nov5.js?v=202611312400';
 import { staffFeedbackPart } from './mock-part-staff-feedback.js?v=202611080400';
 import { fwpPart, ensureFwp } from './mock-part-fwp.js?v=202611247900';
 import { seedFwp as FSEED } from './fwp-seed.js?v=202611247700';   // John, Nov 4: where each buyer / seller will be at closing (migration 58)   // Admin > Offices (John, Nov 4; migration 57)
@@ -142,7 +142,7 @@ export function ensurePreprocessorSeed(d) {
 export function upgradeToV30(d, from = 'v29') { if (!d || !Array.isArray(d.deals)) throw new Error('not portal data'); if (from !== 'v29') upgradeToV29(d, from); ensurePreprocessorSeed(d); d.upgradedFrom = from; return d; }
 export function ensureMattNov3b(d) { applyNov3bTemplates(d); return d; }   // orders are not rewritten: a missing sourceOfBusiness reads as ''
 export function ensureBuyerPersonal(d) { applyBuyerPersonal(d); return d; }
-export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); applyPersonalV9(d); applyIdUploadV3(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCommissionTaskV3(d); applyCitizenshipFreeText(d); return d; }   // AF-8: commission task -> Agent fees, then v2. FF-101b: v3 broker fee + payout. JN-CITIZEN-1: Citizenship is a typed line; saved answers stay.
+export function ensureSellerTasks(d) { applySellerTasks(d); applyProceedsMove(d); applyPersonalV8(d); applyPersonalV9(d); applyIdUploadV3(d); backfillCommissionTasks(d); applyCommissionTaskV2(d); applyCommissionTaskV3(d); applyCitizenshipFreeText(d); applyConnect5Questions(d); return d; }   // AF-8: commission task -> Agent fees, then v2. FF-101b: v3 broker fee + payout. JN-CITIZEN-1: Citizenship is a typed line; saved answers stay. CONNECT-5: personal_info v10 and seller_proceeds v3 wording.
 const SESSION_KEY = 'cla-portal-new:session:v1';
 const clone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
 const now = () => new Date().toISOString();
