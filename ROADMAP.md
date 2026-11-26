@@ -37,6 +37,32 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Remind emails the client (CONNECT-REMIND)
+
+**How it should work.** When a processor or coordinator clicks Remind on an open task, the person the task is for gets a real reminder email, sent from the file's processor's connected Gmail through the outbox, like every other portal email.
+
+**Status: In review.** John Coester, Nov 25 2026, 9:02 PM ET (voice call), Connect Live Test Checklist row 6.3 (team live test). No database file: it uses queue_task_reminder, which is already on TEST. Pull request: [PR 454](https://github.com/Johncoester/cla-portal-demo/pull/454).
+
+**What's built**
+
+- Order > Tasks > Remind calls queue_task_reminder: one outbox email per person per task per day, plus a bell notice. Outbox shows Sent, or Failed with the reason.
+- The email goes from the file's processor's Gmail. If that Gmail is not connected, the row fails with "Not sent: <name>'s Gmail is not connected to the portal". portal@clatitle.com is never used to send.
+
+**What's still missing**
+
+- Dashboard "Remind overdue" (all overdue tasks at once) still says the portal does not send email. It would email every overdue task's person in one click, so it waits for John's OK.
+- The email has no link to the portal; it says "Please sign in to the portal to finish it."
+
+**Links**
+
+- Spec: [docs/specs/connect-remind-email.md](docs/specs/connect-remind-email.md)
+
+**Decisions**
+
+- John, Nov 25 2026, 9:02 PM ET: use the existing Gmail-connected sender; do not build or wait on a portal@ fallback.
+
+---
+
 ## Seller mortgages on Payoffs (CONNECT-4)
 
 **How it should work.** The lender and loan the seller enters on Outstanding Mortgage Information show on the order's Accounting > Payoffs page. The processor adds each one as a payoff tab with one click (or all at once), so the lender, phone and loan number are filled in and the payoff is ready to order. Amounts stay blank until the payoff statement comes in.
