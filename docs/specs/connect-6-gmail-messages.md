@@ -30,6 +30,6 @@ Use only `clatestportal+e2e-*@gmail.com` addresses for any test send. Do not ema
 
 ## Technical notes
 
-- `public.list_deal_emails(p_deal uuid)` is SECURITY DEFINER, `search_path` fixed, execute granted to `authenticated` only. It checks `private.can_access_deal`. Staff (`private.is_staffish`) see every email on the file, including bcc. Other people who can open the file see rows where their profile email is on From, To, Cc, or Bcc; `bcc_emails` is always `{}` in the result.
+- `public.list_deal_emails(p_deal uuid)` is SECURITY DEFINER, `search_path` fixed, execute granted to `authenticated` only. It checks `private.can_access_deal` and that the file's `is_demo` flag matches `private.viewer_is_demo()`, so a demo staff login cannot read a real file's emails. Staff (`private.is_staffish`) see every email on a matching file, including bcc. Other people who can open the file see rows where their profile email is on From, To, Cc, or Bcc; `bcc_emails` is always `{}`, and `sent_by`, `mailbox_profile_id`, and `template_key` are null.
 - Table RLS on `public.deal_emails` is not changed (staff select only). `private.validate_form`, send/sync functions, and deals RLS are not changed. Rule 27 applies because of the new security-definer function.
 - The page never holds a Gmail token. Sync already uses `gmail.send` and `gmail.readonly`, which are already granted on the connected TEST mailboxes. No new secrets.

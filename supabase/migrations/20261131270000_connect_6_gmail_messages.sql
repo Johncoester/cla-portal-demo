@@ -3,9 +3,10 @@
 -- public.deal_emails by gmail-send / gmail-sync) must also be readable for the file's Messages /
 -- Inbox tab. Table RLS on deal_emails stays staff-only, so a buyer cannot SELECT the table
 -- (and never sees bcc_emails of other people). This function is the one Messages read path.
---   Staff (is_staffish) who can open the file: every email on the file, including bcc.
---   Everyone else who can open the file: emails where their profile email is on From, To, Cc,
---   or Bcc; the returned bcc list is always empty.
+--   Staff (is_staffish) who can open a same-demo-scope file: every email on the file, including bcc.
+--   Everyone else who can open a same-demo-scope file: emails where their profile email is on From,
+--   To, Cc, or Bcc; the returned bcc list is always empty, and sent_by, mailbox_profile_id, and
+--   template_key are null.
 -- Does not change private.validate_form, deals RLS, or gmail_svc_* send/sync functions.
 -- Rollback: supabase/rollbacks/20261131270000_connect_6_gmail_messages.sql
 begin;
@@ -25,6 +26,9 @@ begin
   end if;
   if to_regprocedure('private.effective_uid()') is null then
     raise exception 'drift: private.effective_uid() is missing';
+  end if;
+  if to_regprocedure('private.viewer_is_demo()') is null then
+    raise exception 'drift: private.viewer_is_demo() is missing';
   end if;
   if to_regprocedure('public.list_deal_emails(uuid)') is not null then
     raise exception 'drift: public.list_deal_emails(uuid) already exists';
@@ -61,15 +65,25 @@ stable
 security definer
 set search_path = pg_catalog, public, extensions
 as $$
-  select e.id, e.deal_id, e.mailbox_profile_id, e.mailbox_email, e.direction,
+  select e.id, e.deal_id,
+         case when private.is_staffish() then e.mailbox_profile_id else null end,
+         e.mailbox_email, e.direction,
          e.gmail_message_id, e.gmail_thread_id, e.rfc_message_id,
          e.from_email, e.from_name, e.to_emails, e.cc_emails,
          case when private.is_staffish() then e.bcc_emails else '{}'::text[] end,
          e.subject, e.body_html, e.snippet, e.sent_at,
-         e.attachment_document_ids, e.attachment_names, e.template_key, e.sent_by, e.created_at
+         e.attachment_document_ids, e.attachment_names,
+         case when private.is_staffish() then e.template_key else null end,
+         case when private.is_staffish() then e.sent_by else null end,
+         e.created_at
   from public.deal_emails e
   where e.deal_id = p_deal
     and private.can_access_deal(p_deal)
+    and exists (
+      select 1 from public.deals d
+      where d.id = p_deal
+        and d.is_demo is not distinct from private.viewer_is_demo()
+    )
     and (
       private.is_staffish()
       or exists (
@@ -90,7 +104,7 @@ as $$
 $$;
 
 comment on function public.list_deal_emails(uuid) is
-  'CONNECT-6: Messages / Inbox list of Gmail on a file. Staff see every email on a file they can open. Parties see only mail they are on, with bcc stripped.';
+  'CONNECT-6: Messages / Inbox list of Gmail on a file. Staff see every email on a same-demo-scope file they can open. Parties see only mail they are on, with bcc and internal sender fields stripped.';
 
 revoke all on function public.list_deal_emails(uuid) from public, anon;
 grant execute on function public.list_deal_emails(uuid) to authenticated;

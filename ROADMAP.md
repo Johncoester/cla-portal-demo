@@ -61,6 +61,7 @@ This file lists the portal's major features: how each one should work, how far a
 **Decisions**
 
 - Table RLS on `deal_emails` stays staff-only. Messages reads through `list_deal_emails`.
+- `list_deal_emails` also requires the file's `is_demo` flag to match the viewer's, so a demo staff login cannot read a real file's emails even though `can_access_deal` would allow it. Non-staff results return null for `sent_by`, `mailbox_profile_id`, and `template_key`.
 - No new Gmail secrets or scopes. TEST mailboxes already have `gmail.send` and `gmail.readonly`, and sync is already running.
 
 ---

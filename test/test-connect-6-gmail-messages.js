@@ -102,8 +102,10 @@ ok(ov.conversations.some((c) => c.id === key) && ov.conversations.some((c) => c.
 
 const mig = readFileSync(new URL('../supabase/migrations/20261131270000_connect_6_gmail_messages.sql', import.meta.url), 'utf8');
 ok(/create function public\.list_deal_emails\(p_deal uuid\)/.test(mig) && /security definer/i.test(mig) && /private\.can_access_deal\(p_deal\)/.test(mig) && /private\.is_staffish\(\)/.test(mig) && /private\.effective_uid\(\)/.test(mig), 'the database file adds list_deal_emails, gated by can_access_deal');
+ok(/d\.is_demo is not distinct from private\.viewer_is_demo\(\)/.test(mig) && /exists \(\s*select 1 from public\.deals d\s+where d\.id = p_deal/.test(mig) && /private\.viewer_is_demo\(\) is missing/.test(mig), 'list_deal_emails also requires the file to be in the viewer\'s demo scope');
 ok(/grant execute on function public\.list_deal_emails\(uuid\) to authenticated/.test(mig) && /revoke all on function public\.list_deal_emails\(uuid\) from public, anon/.test(mig), 'execute is granted only to signed-in users');
 ok(/case when private\.is_staffish\(\) then e\.bcc_emails else '\{\}'::text\[\] end/.test(mig), 'non-staff never receive bcc_emails from the function');
+ok(/case when private\.is_staffish\(\) then e\.mailbox_profile_id else null end/.test(mig) && /case when private\.is_staffish\(\) then e\.template_key else null end/.test(mig) && /case when private\.is_staffish\(\) then e\.sent_by else null end/.test(mig), 'non-staff receive null for sent_by, mailbox_profile_id, and template_key');
 ok(!/create (or replace )?function[^;]*validate_form/i.test(mig) && !/alter policy/i.test(mig) && !/create policy/i.test(mig), 'the file does not change validate_form, table policies, or other guards');
 ok(readFileSync(new URL('../supabase/rollbacks/20261131270000_connect_6_gmail_messages.sql', import.meta.url), 'utf8').includes('drop function if exists public.list_deal_emails(uuid)'), 'rollback only drops the new function');
 ok(readFileSync(new URL('../js/data/supabase-gmail.js', import.meta.url), 'utf8').includes("sb.rpc('list_deal_emails'"), 'the adapter reads Messages mail through the new function');
