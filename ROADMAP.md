@@ -3809,6 +3809,51 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-070.
 - The ID task is shared, so the passport "one image" rule applies to sellers as well as buyers.
 - The back field uses a `when` list (license, state ID, military ID) rather than a new `whenNot` keyword, so existing single-value `when` fields stay the same.
 
+## ID images labeled with the person's name (MF-071)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-071.
+
+**Status: Live on TEST.** No database file. Waiting on Matt to check it.
+
+**What's built**
+
+- New ID front/back uploads are stored as "{name} ID Front.{ext}" / "{name} ID Back.{ext}".
+- The name is the person on that task (two buyers each get their own name).
+- Sellers use the same pattern. Existing documents are not renamed.
+
+**What's still missing**
+
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-071-id-image-names.md](docs/specs/mf-071-id-image-names.md)
+
+**Decisions**
+
+- The file type (extension) is kept so the document still opens.
+- The same naming is used for sellers, even though Matt only named buyers, so Documents stays consistent.
+
+## Introduction Email To is a list of file parties (MF-066)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
+
+**Status: Live on TEST.** No database file. Waiting on Matt to check it.
+
+**What's built**
+
+- To on the file Email compose box is a multi-select of people on the file, shown as "Name (Role) — email".
+- Introduction Email still starts with buyers, sellers, both agents, and a TC who has an email.
+- An address that is not on the file can still be typed in.
+
+**Links**
+
+- Spec: [docs/specs/mf-066-intro-to.md](docs/specs/mf-066-intro-to.md)
+
+**Decisions**
+
+- This is a multi-select, not a single-select, so the current intro default of several people is kept.
+
 ## Earnest money holder dropdown (MF-063)
 
 Matt Landsberg, Portal Feedback Nov 25 2026, including the 4:35 PM ET answers. Tracker item MF-063.
