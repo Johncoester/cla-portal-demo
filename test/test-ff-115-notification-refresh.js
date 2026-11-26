@@ -290,7 +290,7 @@ function fakeDom(count = 2) {
   ok(hosted.includes('subscribeNotifications') && hosted.includes('subscribeNotificationsChannel'),
     'the hosted adapter opens a Realtime channel for this person\'s notifications');
   ok(adapter.includes("supabase-adapter.js?v=202611311000") && app.includes('adapter.js?v=202611311000')
-    && read('index.html').includes('js/app.js?v=202611311300'),
+    && read('index.html').includes('js/app.js?v=202611312000'),
     'the restamped shell and hosted adapter load at 202611310700');
   ok(!app.includes('api.notificationCount(); startNotificationLive') && !app.includes('await startNotificationLive'),
     'starting the helper is not awaited on the first paint and does not add a second initial count read');
