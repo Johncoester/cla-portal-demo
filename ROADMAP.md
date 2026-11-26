@@ -41,7 +41,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When staff send email from their own Gmail through the portal, that email shows on the order's Messages (Inbox) tab, not only on the Email tab. A reply in the same Gmail thread also shows there, on the order.
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 9.3 (Francis Santos, Fail, Nov 25 2026). Database file `supabase/migrations/20261131270000_connect_6_gmail_messages.sql`. Not applied on TEST yet. Pull request: _pending_.
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 9.3 (Francis Santos, Fail, Nov 25 2026). Database file `supabase/migrations/20261131270000_connect_6_gmail_messages.sql`. Not applied on TEST yet. Pull request: [PR 458](https://github.com/Johncoester/cla-portal-demo/pull/458).
 
 **What's built**
 
