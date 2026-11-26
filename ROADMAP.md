@@ -642,7 +642,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing (reported, not built here)**
 
 - Any CLA Processor or Preprocessor can open any file: moved to **MF-075** below.
-- Matt also said every action by any party must be logged and cannot be erased. `activity_log` records most actions, and the signed-in roles can only read it, but it has no database rule that blocks changes or deletes (other logs do), and the service role can still change or delete rows. `wire_audit_log` can be updated by staff.
+- Every action logged and the log cannot be erased: moved to **MF-076** below.
 
 ## Preprocessor on any file (MF-075)
 
@@ -652,7 +652,27 @@ This file lists the portal's major features: how each one should work, how far a
 
 **Not changed.** Sales Person, Sales Team, TC, agents and clients keep the same access. A demo Preprocessor still only reaches demo files and a real one only real files. Limits that never depended on assignment stay as they are: a Preprocessor still cannot add or edit Contacts or add order notes (those were Processor-only before MF-075 too).
 
-**Status: In review** (CRM Bot rule 27 review, then TEST apply).
+**Status: Live on TEST** (merged e495801f, applied as 20261126143715, Nov 26). Waiting on Matt's test.
+
+**Follow-up (non-blocking, CRM Bot review of PR 462).** `document_readable` and `readable_document_ids` now do a profile lookup per document row for the Preprocessor demo check. Fold `is_demo` into their `me` step instead. See also DEMO-DOC-READ under MF-076.
+
+## Permanent action log (MF-076)
+
+**How it should work.** Matt, Nov 26: every action by every party is logged, including messages sent and documents viewed, and nobody can edit or delete entries in the activity log or the wire log. Answer B: "for now, no one can modify logs", so there is no admin exception.
+
+**What changed.** Migration `20261131310000_mf076_permanent_logs.sql`:
+- `activity_log` and `wire_audit_log` get triggers that refuse every UPDATE, DELETE and TRUNCATE, for every role (signed-in users, the service key and the database owner). UPDATE, DELETE and TRUNCATE are also revoked from anon, authenticated and service_role.
+- The wire log's staff update rule (`wire_update`) is removed. The app only ever adds wire audit rows.
+- Each message sent is logged as `message.posted` on its conversation, without the message text.
+- Each document open or download is logged as `document.viewed` through `public.log_document_view`. It only logs documents the person can read **and** that are in their demo scope (the same rule as the documents `demo_scope` policy), and "not found" and "not allowed" give the same error. A repeat open by the same person within 60 seconds is logged once. The hosted app calls it before the download, and the file does not open if the log write fails; the message says the open could not be recorded.
+- Who can read the log is unchanged. Staff see entries only for documents and conversations they can open, and parties never see who viewed what.
+Rollback: `supabase/rollbacks/20261131310000_mf076_permanent_logs.sql` (it deletes no log rows).
+
+**Limits.** Someone with owner access in the Supabase dashboard could still drop or switch off a trigger. No portal login or API key can. Opens done while a Super admin is in "View as" are not logged, because View as is read-only.
+
+**Follow-up DEMO-DOC-READ.** `private.document_readable` has no demo check for Processor, Sales Team, Transaction Coordinator or admin, so a demo Processor can read real documents (4602 of 4602 on TEST). MF-076 closes this only for `log_document_view`. Fix `document_readable` and `readable_document_ids` for staff in their own item (with the MF-075 `is_demo` fold-in).
+
+**Status: In review** (CRM Bot re-review, then TEST apply).
 
 ## Buyer landing page on a phone (MF-069)
 
@@ -1429,7 +1449,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** Opening a file fills in its fees from CLA rates once the order has the basics. Staff don't press Calculate fees.
 
-**Status: Built, not merged (Nov 24 2026).** John Coester, Nov 24 2026 (voice), assigned to Claude. No database file.
+**Status: Built. FEES-AUTOFILL-RACE follow-up not merged yet.** John Coester, Nov 24 2026 (voice), assigned to Claude (REC-CALC-9). Follow-up FEES-AUTOFILL-RACE, Owner Grok, from e2e-roles-test runs 360, 363 and 364 on Nov 25–26 2026. No database file. Cache stamp 202611313600.
 
 **What's built**
 
@@ -1439,15 +1459,21 @@ This file lists the portal's major features: how each one should work, how far a
 - Closed or cancelled files and older files with hand-typed fees are left alone.
 - The Accounting card says what was filled in, or what the order still needs.
 - Uses the live rate sheet.
+- Opening the same file twice at once (for example Overview, then Tasks) shares one fill, so the fee ledger is not written twice.
+- If two fills still overlap, a fee that is already on the ledger is kept instead of failing with a conflict.
 
 **What's still missing**
 
-- Nothing.
+- FEES-AUTOFILL-RACE is not merged yet. The automatic role test's email check, and a Place Order test that changes the state to Florida without updating the county, are tracked separately.
 
 **Links**
 
 - Spec: [docs/specs/recording-calculator-auto-fill.md](docs/specs/recording-calculator-auto-fill.md)
-- Source: John Coester, Nov 24 2026 (voice).
+- Source: John Coester, Nov 24 2026 (voice). FEES-AUTOFILL-RACE: e2e-roles-test runs 360, 363 and 364.
+
+**Decisions**
+
+- No database change. The unique index on an active calculated fee (deal and fee key) stays as it is. A second fill treats a conflict as "already present" and reads the existing row.
 ## Unused money-input files (TEST-CLEANUP-MONEY)
 
 **How it should work.** The money helpers live in one place. A page file that only passes them through, and test loaders that only exist for that page file, are not kept.

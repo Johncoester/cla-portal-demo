@@ -16,6 +16,7 @@ const engine = () => import('./fee-engine.js?v=202611301700');
 const taxes = () => import('./taxes-fees.js?v=202611301300');
 const taxStore = () => import('./mock-part-tax-rates.js?v=202611247700');
 const VIA = 'CLA rates';
+const autoFillInFlight = new Map();
 
 // accountingCd (Caroline, Nov 4): one record of manual Closing Disclosure entries per order; added lazily, so the storage key stays v26
 export function ensureAccounting(d) { if (!Array.isArray(d.accountingFees)) d.accountingFees = []; if (!Array.isArray(d.accountingLog)) d.accountingLog = []; if (!Array.isArray(d.accountingCd)) d.accountingCd = []; if (!Array.isArray(d.accountingContractTerms)) d.accountingContractTerms = []; return d; }
@@ -34,11 +35,15 @@ export function accountingPart(x, flags) {
   const out = (f) => clone(withCalcFlags(f));
   const activeCalc = (dealId, key) => feesOf(dealId).find((f) => !f.retired && isCalculated(f) && f.calc.key === key);
   // a calculated line -> a stored fee (tagged 'From CLA rates'); overrides = fields a person changed before saving (=> overridden)
-  const addCalculated = (E, u, deal, line, P, overrides = {}, at = now()) => {
-    if (activeCalc(deal.id, line.key)) fail(`"${line.description}" is already on the ledger from CLA rates. Use "Calculate fees from CLA rates" to update it.`);
+  const addCalculated = (E, u, deal, line, P, overrides = {}, at = now(), { orExisting = false } = {}) => {
+    const had = activeCalc(deal.id, line.key);
+    if (had) {
+      if (orExisting) return { fee: had, existed: true };
+      fail(`"${line.description}" is already on the ledger from CLA rates. Use "Calculate fees from CLA rates" to update it.`);
+    }
     const clean = cleanFee({ ...E.feeInput(line), ...overrides }, deal);
     const f = { id: nid('fee'), dealId: deal.id, ...clean, source: CALC_SOURCE_ID, calc: E.calcBlock(line, P, at), retired: false, retiredAt: null, retiredBy: null, createdAt: at, createdBy: u.id, updatedAt: at, updatedBy: u.id };
-    db().accountingFees.push(f); logIt(u, f, 'added', feeChanges(null, f), VIA); return f; };
+    db().accountingFees.push(f); logIt(u, f, 'added', feeChanges(null, f), VIA); return { fee: f, existed: false }; };
   const retire = (u, f, via) => { f.retired = true; f.retiredAt = now(); f.retiredBy = u.id; f.updatedAt = now(); f.updatedBy = u.id; logIt(u, f, 'retired', [{ field: 'retired', old: false, new: true }], via); };
   return {
     async getAccounting(dealId, { includeRetired = false } = {}) {
@@ -54,7 +59,7 @@ export function accountingPart(x, flags) {
       const { u, deal } = editor(dealId);
       if (input && /^cla:/.test(String(input.presetKey || ''))) {   // started from a CLA-rate preset: stored as a calculated line (overridden if changed before saving)
         const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const P = E.proposeFees(d, E.lastOptions(feesOf(dealId), d), rates.tables, rates.source); const line = P.lines.find((l) => 'cla:' + l.key === input.presetKey) || fail('That CLA rate does not apply to this order any more. Pick the preset again.');
-        const f = addCalculated(E, u, deal, line, P, { ...input, presetKey: 'cla:' + line.key }); save(); return out(f); }
+        const f = addCalculated(E, u, deal, line, P, { ...input, presetKey: 'cla:' + line.key }).fee; save(); return out(f); }
       const clean = cleanFee(input, deal);
       const f = { id: nid('fee'), dealId, ...clean, retired: false, retiredAt: null, retiredBy: null, createdAt: now(), createdBy: u.id, updatedAt: now(), updatedBy: u.id };
       db().accountingFees.push(f); logIt(u, f, 'added', feeChanges(null, f)); save(); return out(f);
@@ -66,7 +71,7 @@ export function accountingPart(x, flags) {
       const lines = !P ? [] : /^cla:/.test(key) ? P.lines.filter((l) => 'cla:' + l.key === key) : P.lines.filter((l) => l.replacesPresets.includes(key) && !activeCalc(dealId, l.key));
       if (/^cla:/.test(key) && !lines.length) fail('That CLA rate does not apply to this order.');
       if (!lines.length) return this.addAccountingFee(dealId, { ...presetFee(key, deal), ...overrides });
-      const added = lines.map((l, k) => addCalculated(E, u, deal, l, P, k === 0 ? overrides : {})); save(); return { ...out(added[0]), alsoAdded: added.slice(1).map((f) => f.id) }; },
+      const added = lines.map((l, k) => addCalculated(E, u, deal, l, P, k === 0 ? overrides : {}).fee); save(); return { ...out(added[0]), alsoAdded: added.slice(1).map((f) => f.id) }; },
     // ---------- CLA RATES: setup, preview diff, apply (Processor / Admin / Super admin) ----------
     async getCalculatorSetup(dealId) { const { deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); return clone(E.calcSetup(d, feesOf(dealId), rates.tables, rates)); },
     async previewCalculatedFees(dealId, options) { const { deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const opts = E.cleanOptions(options || E.lastOptions(feesOf(dealId), d));
@@ -77,7 +82,10 @@ export function accountingPart(x, flags) {
       if (token && token !== D.token) fail('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = now(); const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
-        if (row.status === 'new') { addCalculated(E, u, deal, row.proposed, P, {}, at); r.added++; }
+        if (row.status === 'new') {
+          const ins = addCalculated(E, u, deal, row.proposed, P, {}, at, { orExisting: true });
+          if (ins.existed) r.unchanged++; else r.added++;
+        }
         else if (row.status === 'changed') { const f = feeOf(row.current.id); const clean = cleanFee(E.feeInput(row.proposed), deal, f); const next = E.calcBlock(row.proposed, P, at);
           const changes = feeChanges(f, clean); if (f.calc.calculation !== next.calculation) changes.push({ field: 'calculation', old: f.calc.calculation, new: next.calculation });
           Object.assign(f, clean, { calc: next, updatedAt: at, updatedBy: u.id }); logIt(u, f, 'edited', changes, VIA); r.updated++; }
@@ -86,9 +94,20 @@ export function accountingPart(x, flags) {
       if (retireExamples) for (const x of D.examples) { const f = feeOf(x.id); if (!f.retired) { retire(u, f, VIA + ' (EXAMPLE fee replaced)'); r.examplesRetired++; } }
       save(); return r; },
     // REC-CALC-9: fees fill in by themselves when a file is opened, once the order has the basics (fee-engine autoFillCheck). Same apply as Calculate fees.
-    async autoFillFees(dealId) { const { deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates();
-      const chk = E.autoFillCheck(d, feesOf(dealId), rates.tables); if (!chk.ready || !chk.due) return { applied: false, ready: chk.ready, due: chk.due || '', missing: chk.missing, reason: chk.reason };
-      const r = await this.applyCalculatedFees(dealId, chk.options, { retireExamples: true }); return { applied: true, ready: true, due: chk.due, missing: [], reason: '', ...r }; },
+    // FEES-AUTOFILL-RACE: one in-flight fill per deal, so a remount does not start a second apply.
+    async autoFillFees(dealId) {
+      const key = String(dealId);
+      const running = autoFillInFlight.get(key);
+      if (running) return running;
+      let p;
+      p = (async () => {
+        const { deal } = editor(dealId); const E = await engine(); const d = forCalc(deal); const rates = await E.loadCalculatorRates();
+        const chk = E.autoFillCheck(d, feesOf(dealId), rates.tables); if (!chk.ready || !chk.due) return { applied: false, ready: chk.ready, due: chk.due || '', missing: chk.missing, reason: chk.reason };
+        const r = await this.applyCalculatedFees(dealId, chk.options, { retireExamples: true }); return { applied: true, ready: true, due: chk.due, missing: [], reason: '', ...r };
+      })().finally(() => { if (autoFillInFlight.get(key) === p) autoFillInFlight.delete(key); });
+      autoFillInFlight.set(key, p);
+      return p;
+    },
     // FF-091: recording fees and transfer / recordation taxes from the Taxes & Fees documents. Title premiums are not touched.
     async getTaxesFeesSetup(dealId) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const bundle = (await taxStore()).bundleOf(load()); return clone(T.taxesFeesSetup(d, feesOf(dealId), rates.tables, rates, bundle)); },
     async previewTaxesFees(dealId, worksheet) { const { deal } = editor(dealId); const E = await engine(); const T = await taxes(); const d = forCalc(deal); const rates = await E.loadCalculatorRates(); const bundle = (await taxStore()).bundleOf(load()); return clone(T.previewTaxesFees(d, worksheet, feesOf(dealId), rates.tables, rates.source, bundle)); },
@@ -98,7 +117,7 @@ export function accountingPart(x, flags) {
       if (token && token !== D.token) fail('The fee ledger or the order changed since the preview. Preview again before applying.');
       const at = now(); const via = 'Taxes & fees'; const r = { added: 0, updated: 0, retired: 0, examplesRetired: 0, kept: D.counts.overridden, unchanged: D.counts.unchanged, skipped: D.counts.retired };
       for (const row of D.rows) {
-        if (row.status === 'new') { const f = addCalculated(E, u, deal, row.proposed, P, {}, at); T.attachTaxDocs(f.calc, P); const last = db().accountingLog[db().accountingLog.length - 1]; if (last && last.feeId === f.id) last.via = via; r.added++; }
+        if (row.status === 'new') { const f = addCalculated(E, u, deal, row.proposed, P, {}, at).fee; T.attachTaxDocs(f.calc, P); const last = db().accountingLog[db().accountingLog.length - 1]; if (last && last.feeId === f.id) last.via = via; r.added++; }
         else if (row.status === 'changed') { const f = feeOf(row.current.id); const clean = cleanFee(E.feeInput(row.proposed), deal, f); const next = T.attachTaxDocs(E.calcBlock(row.proposed, P, at), P);
           const changes = feeChanges(f, clean); if (f.calc.calculation !== next.calculation) changes.push({ field: 'calculation', old: f.calc.calculation, new: next.calculation });
           Object.assign(f, clean, { calc: next, updatedAt: at, updatedBy: u.id }); logIt(u, f, 'edited', changes, via); r.updated++; }

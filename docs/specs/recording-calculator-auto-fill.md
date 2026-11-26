@@ -23,7 +23,7 @@
 ## Where it lives
 
 - `autoFillCheck` in `js/data/fee-engine.js`: whether the order is ready, and whether a fill is due.
-- `autoFillFees(dealId)` in `js/data/supabase-accounting.js` and `js/data/mock-part-accounting.js`: runs the check, then the same apply as Calculate fees.
+- `autoFillFees(dealId)` in `js/data/supabase-accounting.js` and `js/data/mock-part-accounting.js`: runs the check, then the same apply as Calculate fees. One fill runs at a time per file; a second open waits for the first. If two applies still overlap, a conflict on the active calculated-fee key is treated as already present and the existing row is re-read (FEES-AUTOFILL-RACE, e2e runs 360/363/364).
 - `js/pages/deal.js` runs it when a file opens (staff who run orders) and shows a message when fees changed.
 - `js/pages/dealaccounting.js` runs it when Accounting opens and shows what it did, or what's missing, on the CLA rates card.
-- Tests: `test/test-auto-fill-fees.js`.
+- Tests: `test/test-auto-fill-fees.js`, including two fills at once and two applies at once.

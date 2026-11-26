@@ -66,7 +66,7 @@ const html = read(new URL('../index.html', import.meta.url), 'utf8');
 ok(/@media \(max-width: 860px\)[\s\S]*\.ch-table-wrap \{ display: none; \}/.test(css), 'on a phone the eight-column table is hidden for a client');
 ok(/@media \(max-width: 860px\)[\s\S]*\.client-home \{ grid-template-columns: 1fr;/.test(css), 'on a phone the cards are one per row');
 ok(/\.ch-tasks li a \{[^}]*min-height: 44px/.test(css) && /\.ch-open \{[^}]*min-height: 48px/.test(css), 'tap targets are at least 44 px');
-ok(html.includes('css/client-home.css?v=202611313700'), 'the page loads the new stylesheet');
+ok(html.includes('css/client-home.css?v=202611313900'), 'the page loads the new stylesheet');
 
 if (fail) { console.log(`${fail} failed`); process.exit(1); }
 console.log('MF-069 client landing: all passed');

@@ -12,6 +12,7 @@ const asked = [];
 const sb = {
   auth: { getUser: async () => ({ data: { user: { id: 'staff-1' } } }) },
   from(t) { const q = { select() { return q; }, eq(k, v) { asked.push([t, k, v]); return q; }, single: async () => ({ data: { id: DOC, name: 'contract.pdf', storage_path: 'deal/' + DOC + '/contract.pdf', mime_type: 'application/pdf' }, error: null }) }; return q; },
+  rpc: async (fn, args) => { asked.push(['rpc', fn, args && args.p_document]); return { data: null, error: null }; }, // MF-076: the open is logged first
   storage: { from(bucket) { return { download: async (path) => { asked.push(['storage', bucket, path]); return { data: stored, error: null }; } }; } },
 };
 const camel = (o) => o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/_([a-z])/g, (_, c) => c.toUpperCase()), v])) : o;
