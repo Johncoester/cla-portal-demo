@@ -12,18 +12,20 @@ ok(derivedStage(emptyMilestones()) === 0 && milestonesDoneCount(emptyMilestones(
 const mid = toggleMilestone(emptyMilestones(), 4);
 ok(mid[4] && !mid[0] && !mid[3] && derivedStage(mid) === 4 && milestonesDoneCount(mid) === 1, 'checking a later step does not auto-complete earlier ones');
 ok(toggleMilestone(mid, 4)[4] === false, 'the same step can be unchecked');
-ok(parseMilestones(undefined, 3)[3] && parseMilestones([true, false, false, false, false, false, false, false, false, false], 9)[0] && !parseMilestones([true, false, false, false, false, false, false, false, false, false], 9)[9], 'a saved set is used as-is; a missing set falls back to the linear stage');
+ok(parseMilestones(undefined, 3, 'Open')[3] && !parseMilestones(undefined, 3, 'Open')[4], 'a missing set on an open file is 0 through the current stage');
+ok(parseMilestones(null, 2, 'Closed').every(Boolean) && parseMilestones(null, 2, 'Closed').length === 10, 'a missing set on a Closed file is all ten done');
+ok(parseMilestones([true, false, false, false, false, false, false, false, false, false], 9, 'Closed')[0] && !parseMilestones([true, false, false, false, false, false, false, false, false, false], 9, 'Closed')[9], 'a saved set is used as-is, even on a Closed file');
 
 const api = createMockAdapter({ storage: mem(), sessionStorage: mem() });
 await api.signInDev('u-admin');
 const deal = await api.createDeal({ street: '9 Milestone Rd', city: 'Rockville', state: 'MD', zip: '20850', processorId: 'u-proc' });
 await api.setStage(deal.id, 5);
 let d = await api.getDeal(deal.id);
-ok(d.milestonesDone[5] && !d.milestonesDone[0] && !d.milestonesDone[4] && d.stage === 5 && d.status === 'Open', 'clicking step 5 checks only step 5 and leaves the file Open');
+ok(d.milestonesDone[0] && d.milestonesDone[5] && !d.milestonesDone[4] && d.stage === 5 && d.status === 'Open', 'clicking step 5 checks that step, keeps Opened from the derived stage, and leaves the file Open');
 await api.setStage(deal.id, 0);
 await api.setStage(deal.id, 9);
 d = await api.getDeal(deal.id);
-ok(d.milestonesDone[0] && d.milestonesDone[5] && d.milestonesDone[9] && d.stage === 9 && d.status === 'Closed', 'checking Disbursed Funds closes an open order; earlier checks stay');
+ok(!d.milestonesDone[0] && d.milestonesDone[5] && d.milestonesDone[9] && d.stage === 9 && d.status === 'Closed', 'checking Disbursed Funds closes an open order; an earlier check stays, and a step already unchecked stays off');
 await api.setStage(deal.id, 9);
 d = await api.getDeal(deal.id);
 ok(!d.milestonesDone[9] && d.status === 'Closed' && d.stage === 5, 'unchecking Disbursed Funds does not reopen the file; the derived stage falls back to the next highest check');

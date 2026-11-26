@@ -1,5 +1,6 @@
 /* MF-068 (Matt Landsberg, Portal Feedback Nov 25 2026): Order Status milestones can be
- * checked off on their own, in any order. deals.stage is the highest completed index (or 0 if none). */
+ * checked off on their own, in any order. deals.stage is the highest completed index (or 0 if none).
+ * A missing milestones_done set is derived from stage; a Closed file with no saved set is all done. */
 export const MILESTONE_COUNT = 10;
 
 export function emptyMilestones() {
@@ -13,8 +14,9 @@ export function milestonesFromStage(stage) {
   return Array.from({ length: MILESTONE_COUNT }, (_, i) => i <= cur);
 }
 
-export function parseMilestones(raw, stage) {
+export function parseMilestones(raw, stage, status) {
   if (Array.isArray(raw) && raw.length === MILESTONE_COUNT) return raw.map((v) => !!v);
+  if (status === 'Closed') return Array.from({ length: MILESTONE_COUNT }, () => true);
   return milestonesFromStage(stage);
 }
 
@@ -28,7 +30,7 @@ export function derivedStage(done) {
 export function toggleMilestone(done, index) {
   const i = Number(index);
   if (!Number.isInteger(i) || i < 0 || i >= MILESTONE_COUNT) throw new Error('Unknown stage.');
-  const next = parseMilestones(done, derivedStage(done)).slice();
+  const next = (Array.isArray(done) && done.length === MILESTONE_COUNT ? done : parseMilestones(done, derivedStage(done))).slice();
   next[i] = !next[i];
   return next;
 }

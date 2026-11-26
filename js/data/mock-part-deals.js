@@ -15,7 +15,7 @@ import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_R
 import { cleanFee, feeChanges } from './accounting.js?v=202611247900';
 import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES, staffTaskCounts } from './party-task-completion.js?v=202611241000';
-import { parseMilestones, toggleMilestone, derivedStage, emptyMilestones, milestonesFromStage } from './milestones.js?v=202611312100';
+import { parseMilestones, toggleMilestone, derivedStage } from './milestones.js?v=202611312100';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -163,7 +163,7 @@ export function dealsAndAuth(x) {
       const nextNum = Math.max(97000, ...d.deals.map((q) => Number(q.fileNumber.split('-')[2]) || 0)) + 1;
       const earnest = earnestDealPatch(input, { refinance: isRefi(transactionType) });
       const parcels = parcelInput(input);
-      const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, parcelId: parcels.parcelId, parcelIds: parcels.parcelIds, transactionType, stage: 0, milestonesDone: emptyMilestones(), status: 'Open',
+      const deal = { id: nid('deal'), fileNumber: buildFileNumber(state, localDate().slice(2, 4), nextNum), street, city, state, zip, county, countySource: ac.countySource, parcelId: parcels.parcelId, parcelIds: parcels.parcelIds, transactionType, stage: 0, status: 'Open',
         openDate, closingDate: dateOrNull(input.closingDate, 'Closing date'), disbursementDate: dateOrNull(input.disbursementDate, 'Disbursement date'), purchasePrice: money(input.purchasePrice, 'Purchase price'), loanAmount: money(input.loanAmount, 'Loan amount'),
         emdAmount: money(input.emdAmount, 'EMD amount'), emdDueDate: dateOrNull(input.emdDueDate, 'EMD due date'),
         financial: earnest.financial, ...earnest.patch,
@@ -296,7 +296,7 @@ export function dealsAndAuth(x) {
     async setStage(id, stage) {
       const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       const s = Number(stage); if (!Number.isInteger(s) || s < 0 || s >= C.STAGES.length) fail('Unknown stage.');
-      const next = toggleMilestone(parseMilestones(q.milestonesDone, q.stage), s);
+      const next = toggleMilestone(parseMilestones(q.milestonesDone, q.stage, q.status), s);
       const on = next[s];
       q.milestonesDone = next;
       q.stage = derivedStage(next);

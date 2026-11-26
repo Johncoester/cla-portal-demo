@@ -1,6 +1,8 @@
 -- MF-068 (Matt Landsberg, Portal Feedback Nov 25 2026): Order Status milestones can be
--- completed independently. deals.milestones_done is the stored set; deals.stage stays as
--- the highest completed index (or 0 if none) so existing readers keep working.
+-- completed independently. deals.milestones_done is the stored set when someone has
+-- checked or unchecked a step. NULL means derive from deals.stage (and treat Closed
+-- as all ten done), so existing files are not rewritten and their row triggers do not fire.
+-- deals.stage stays as the highest completed index (or 0 if none) so existing readers keep working.
 -- Rollback: supabase/rollbacks/20261131210000_independent_milestones.sql
 
 begin;
@@ -21,36 +23,36 @@ begin
 end $$;
 
 alter table public.deals
-  add column milestones_done jsonb not null default '[false,false,false,false,false,false,false,false,false,false]'::jsonb;
-
--- Existing files: mark 0..current complete so already-advanced files do not look empty.
-update public.deals d
-set milestones_done = (
-  select jsonb_agg(i <= least(greatest(coalesce(d.stage, 0), 0), 9) ) order by i)
-  from generate_series(0, 9) as i
-);
+  add column milestones_done jsonb,
+  add constraint deals_milestones_done_shape check (
+    milestones_done is null
+    or (
+      jsonb_typeof(milestones_done) = 'array'
+      and jsonb_array_length(milestones_done) = 10
+      and not jsonb_path_exists(milestones_done, '$[*] ? (@.type() != "boolean")')
+    )
+  );
 
 do $$
-declare
-  n int;
 begin
   if not exists (
     select 1 from information_schema.columns
     where table_schema = 'public' and table_name = 'deals' and column_name = 'milestones_done'
+      and is_nullable = 'YES'
   ) then
-    raise exception 'readback: milestones_done was not added';
+    raise exception 'readback: milestones_done was not added as a nullable column';
   end if;
-  select count(*) into n from public.deals
-    where jsonb_typeof(milestones_done) is distinct from 'array'
-       or jsonb_array_length(milestones_done) is distinct from 10;
-  if n <> 0 then
-    raise exception 'readback: % file(s) do not have a 10-step milestone list', n;
+  if not exists (
+    select 1 from pg_catalog.pg_constraint
+    where conname = 'deals_milestones_done_shape' and conrelid = 'public.deals'::regclass
+  ) then
+    raise exception 'readback: deals_milestones_done_shape is missing';
   end if;
 end $$;
 
--- TC dashboard file list: each step is done only when that step is in the stored set.
--- The previous body marked every earlier step done from deals.stage, and marked all
--- ten done when the file was Closed. Grants stay the same (authenticated execute).
+-- TC dashboard file list: use the stored set when present. When milestones_done is
+-- NULL, derive from deals.stage (inclusive), and treat Closed as all ten done.
+-- Grants stay the same (authenticated execute).
 create or replace function public.rpc_tc_file_summaries(p_deal_ids uuid[])
 returns table (deal_id uuid, milestones jsonb, emd_alta jsonb, outstanding integer, tasks jsonb)
 language sql
@@ -64,7 +66,7 @@ as $$
         'index', i,
         'name', (array['Opened','EMD Receipt','Buyer Info Received','Schedule Closing','Wire/Cash to Close Awareness','Processing','Buyer Final Doc Review','Closing Date','Funding auth','Disbursed Funds'])[i + 1],
         'state', case
-          when coalesce((d.milestones_done ->> i)::boolean, false) then 'done'
+          when coalesce((d.milestones_done ->> i)::boolean, i <= coalesce(d.stage, 0) or d.status = 'Closed') then 'done'
           else 'upcoming' end,
         'date', case
           when i = 0 then d.open_date

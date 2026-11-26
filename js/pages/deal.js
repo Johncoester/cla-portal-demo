@@ -220,7 +220,7 @@ function overview({ api, user, refresh, demoLocked, settlement = null }, d, crum
   const refi = isRefi(d); const B = refi ? 'Borrower' : 'Buyer';
   const showSellers = !refi || all('Client-Seller').length; const showAgents = (r) => !refi || all(r).length; const showPrice = !refi || d.purchasePrice != null; const showEmd = !refi || d.emdAmount != null || d.emdDueDate;
   const stageWord = (i) => (staffView ? staffTrackerLabel(i) : STAGES[i]);
-  const milestoneDone = parseMilestones(d.milestonesDone, d.stage);
+  const milestoneDone = parseMilestones(d.milestonesDone, d.stage, d.status);
   const tracker = STAGES.map((s, i) => html`<li class="${milestoneDone[i] ? 'done' : ''}"><button type="button" class="step" ${edit ? '' : raw('disabled')} data-stage="${i}" title="${edit ? (milestoneDone[i] ? 'Uncheck this milestone' : 'Check this milestone') : s}" aria-pressed="${milestoneDone[i] ? 'true' : 'false'}"></button><span>${stageWord(i)}</span></li>`);
   const stage = Math.max(0, Math.min(STAGES.length - 1, Number(d.stage) || 0)); const today = localDate();
   const completeN = milestonesDoneCount(milestoneDone);

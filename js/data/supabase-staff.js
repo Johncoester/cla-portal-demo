@@ -143,7 +143,7 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     async setStage(id, stage) {
       const s = Number(stage); if (!Number.isInteger(s) || s < 0 || s > 9) throw new Error('Unknown stage.');
       const cur = camel(ok(await sb.from('deals').select('status,stage,milestones_done').eq('id', id).single()));
-      const next = toggleMilestone(parseMilestones(cur.milestonesDone, cur.stage), s);
+      const next = toggleMilestone(parseMilestones(cur.milestonesDone, cur.stage, cur.status), s);
       const row = { stage: derivedStage(next), milestones_done: next };
       if (s === 9 && next[9] && cur.status === 'Open') row.status = 'Closed';
       ok(await sb.from('deals').update(row).eq('id', id));

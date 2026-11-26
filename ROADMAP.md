@@ -3912,7 +3912,7 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 - Each milestone can be checked or unchecked on its own.
 - `deals.stage` stays as the highest completed index (or 0 if none).
 - Checking Disbursed Funds closes an open order. Unchecking it does not reopen the file.
-- Existing files are backfilled 0 through the previous stage.
+- Existing files keep a NULL set and are shown from their current stage (a Closed file with no saved set is all ten done), so the migration does not rewrite every file.
 
 **What's still missing**
 
@@ -3927,4 +3927,4 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 **Decisions**
 
 - Unchecking Disbursed Funds leaves a Closed file Closed (Matt was asked; this is the plan default).
-- The TC dashboard file list uses the stored set, not the old "every earlier step is done" rule, and no longer marks every step done just because the file is Closed.
+- The TC dashboard file list uses the stored set when one exists. A file with no saved set is shown from its stage, and a Closed file with no saved set is all ten done (same as today).

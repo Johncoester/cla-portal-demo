@@ -1,5 +1,6 @@
--- Undo MF-068. Restores the previous TC file-summary body and drops deals.milestones_done.
--- deals.stage is left as it was last derived. lock_timeout is set so a busy table does not wait forever.
+-- Undo MF-068. Restores the previous TC file-summary body and drops deals.milestones_done
+-- (and the deals_milestones_done_shape check). deals.stage is left as it was last derived.
+-- lock_timeout is set so a busy table does not wait forever.
 
 begin;
 set local lock_timeout = '3s';
