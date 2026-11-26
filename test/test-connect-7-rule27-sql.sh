@@ -88,7 +88,8 @@ create table public.threads (
   id uuid primary key default gen_random_uuid(),
   deal_id uuid not null,
   subject text,
-  created_by uuid
+  created_by uuid,
+  staff_coordinated boolean not null default false
 );
 create table public.thread_participants (
   thread_id uuid not null,
@@ -321,6 +322,19 @@ SQL
 
 "${P[@]}" -f "$ROOT/supabase/migrations/20261131280000_connect_7_tc_recipients.sql"
 
+# Unchanged TEST helper: used by the messages policy. can_message NULL must not block a reply.
+"${P[@]}" <<'POST'
+create function private.thread_postable(t uuid) returns boolean
+language sql stable security definer
+set search_path to pg_catalog, public, extensions as $$
+  select private.is_staffish()
+      or exists (select 1 from public.threads x where x.id = t and x.staff_coordinated
+                 and exists (select 1 from public.thread_participants tp where tp.thread_id = t and tp.profile_id = private.effective_uid()))
+      or not exists (select 1 from public.thread_participants tp join public.threads x on x.id = tp.thread_id
+                     where tp.thread_id = t and tp.profile_id <> private.effective_uid() and not private.can_message(tp.profile_id, x.deal_id))
+$$;
+POST
+
 as_user() {
   local uid="$1"; shift
   "${P[@]}" -tA -c "select set_config('request.jwt.claim.sub', '$uid', false) is not null" -c "$*" | tail -n +2
@@ -356,8 +370,22 @@ check "$(as_user "$DEMO" "select count(*)::text from private.rpc_message_recipie
 check "$(as_user "$ADMIN" "select count(*) > 0 from private.rpc_message_recipients('$REAL'::uuid)")" "t" "a real admin still sees the parties on a real deal"
 
 # create_thread: buyer-side TC + lender is allowed; lender + buyer is not
-check "$(as_user "$BTC" "select private.rpc_create_thread('$REAL'::uuid, 'Buyer-side note', array['$LENDER'::uuid], 'Please confirm.') is not null")" "t" "a buyer-side coordinator can start a conversation with the lender"
-check "$(as_user "$LENDER" "select private.can_message('$BUYER'::uuid, '$REAL'::uuid) is false")" "t" "can_message is false (not null) when a lender messages the buyer"
+TID="$(as_user "$BTC" "select private.rpc_create_thread('$REAL'::uuid, 'Buyer-side note', array['$LENDER'::uuid], 'Please confirm.')")"
+check "$(echo "$TID" | grep -c -E '^[0-9a-f-]{36}$')" "1" "a buyer-side coordinator can start a conversation with the lender"
+check "$(as_user "$LENDER" "select private.thread_postable('$TID'::uuid)")" "t" "a lender can reply in a conversation a buyer-side coordinator started with them"
+
+EXISTING=00000000-0000-0000-0000-0000000000aa
+"${P[@]}" <<SQL
+insert into public.threads (id, deal_id, subject, created_by, staff_coordinated)
+  values ('$EXISTING', '$REAL', 'Existing staff thread', '$PROC', false);
+insert into public.thread_participants (thread_id, profile_id) values
+  ('$EXISTING', '$PROC'), ('$EXISTING', '$LENDER'), ('$EXISTING', '$BUYER');
+SQL
+check "$(as_user "$LENDER" "select private.thread_postable('$EXISTING'::uuid)")" "t" "an existing sideless member can still post in a thread they already belong to"
+
+check "$(as_user "$LENDER" "select private.can_message('$BUYER'::uuid, '$REAL'::uuid) is null")" "t" "can_message stays null (not false) when a sideless lender would message the buyer, so thread_postable is unchanged"
+check "$(as_user "$LENDER" "select private.can_message('$BUYER'::uuid, '$REAL'::uuid) is not true")" "t" "can_message is not true, so create_thread still refuses"
+
 tid_err="$(
   "${P[@]}" -tA -c "select set_config('request.jwt.claim.sub', '$LENDER', false) is not null" -c "select private.rpc_create_thread('$REAL'::uuid, 'To the buyer', array['$BUYER'::uuid], 'Hello');" 2>&1 || true
 )"
@@ -367,7 +395,5 @@ else
   echo "FAIL a lender was able to start a conversation with the buyer [$tid_err]"
   fail=1
 fi
-
-# fix the placeholder check above — remove it by not using check ERROR. Already handled.
 
 [ "$fail" = 0 ] && echo "connect-7 rule 27 sql passed" || { echo "FAIL $fail"; exit 1; }

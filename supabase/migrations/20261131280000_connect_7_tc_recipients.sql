@@ -8,7 +8,9 @@
 -- Lender is buyer-side only inside this recipients list. private.side_of and private.person_side
 -- are unchanged, so a lender does not gain buyer-side read, contact, or notification rights.
 -- A buyer-side viewer may add a Lender through a narrow private.can_message / rpc_create_thread
--- exception (conversation membership only).
+-- exception (conversation membership only). private.can_message stays null-tolerant so
+-- private.thread_postable is unchanged: a sideless member of an existing thread can still
+-- reply. rpc_create_thread refuses when can_message is not true (null or false).
 -- Demo staff cannot list parties on a real file (deals.is_demo vs private.viewer_is_demo()).
 -- Who may call the function, grants, table RLS, and the staff / pure-client branches are otherwise unchanged.
 -- Rollback: supabase/rollbacks/20261131280000_connect_7_tc_recipients.sql
@@ -21,9 +23,10 @@ CREATE OR REPLACE FUNCTION private.can_message(pid uuid, d uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
 AS $function$
-  -- coalesce: a viewer with no side would otherwise get NULL, and IF NOT NULL would not raise.
-  select coalesce(
-    private.is_staffish()
+  -- Null-tolerant on purpose: private.thread_postable uses `not can_message(member)`, and
+  -- NULL must not block a sideless member (lender, etc.) from replying in an existing thread.
+  -- rpc_create_thread uses `is not true` so a sideless viewer still cannot start a new one.
+  select private.is_staffish()
     or private.person_side(pid, d) = 'staff'
     or (private.my_side(d) in ('buyer', 'seller') and private.person_side(pid, d) = private.my_side(d))
     -- CONNECT-7: a buyer-side viewer may add a Lender on this file. Staff already pass is_staffish().
@@ -36,8 +39,7 @@ AS $function$
         join public.contacts c on c.id = dp.contact_id
         where dp.deal_id = d and c.profile_id = pid and dp.role = 'Lender'
       )
-    ),
-    false)
+    )
 $function$;
 
 CREATE OR REPLACE FUNCTION private.rpc_create_thread(p_deal uuid, p_subject text, p_participants uuid[], p_body text)
@@ -57,7 +59,7 @@ begin
     -- only people who are on this deal (or its processor)
     if not (exists (select 1 from public.deal_participants dp join public.contacts c on c.id = dp.contact_id where dp.deal_id = p_deal and c.profile_id = pid)
             or pid in (select private.deal_cla_staff(p_deal))) then continue; end if;
-    if not private.can_message(pid, p_deal) then
+    if private.can_message(pid, p_deal) is not true then
       raise exception 'You can message CLA Title staff and people on your own side of this order only' using errcode = '42501'; end if;
     members := array_append(members, pid);
   end loop;
@@ -361,6 +363,12 @@ begin
   end if;
   if position('dp.role = ''Lender''' in pg_get_functiondef('private.can_message(uuid,uuid)'::regprocedure)) = 0 then
     raise exception 'self-check: can_message must allow a buyer-side viewer to add a Lender without giving the lender a side';
+  end if;
+  if position('coalesce(' in pg_get_functiondef('private.can_message(uuid,uuid)'::regprocedure)) > 0 then
+    raise exception 'self-check: can_message must stay null-tolerant so thread_postable is unchanged for sideless members';
+  end if;
+  if position('is not true' in pg_get_functiondef('private.rpc_create_thread(uuid,text,uuid[],text)'::regprocedure)) = 0 then
+    raise exception 'self-check: rpc_create_thread must refuse when can_message is not true (null or false)';
   end if;
 end
 $chk$;

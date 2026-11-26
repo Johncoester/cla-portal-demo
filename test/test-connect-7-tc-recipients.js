@@ -65,6 +65,9 @@ ok(!hasId(asListingTc, 'u-buyer') && !hasId(asListingTc, 'u-bagent') && !hasId(a
 await api.signInDev(buyerTc.id);
 const started = await api.sendMessage({ dealId: deal.id, to: ['u-buyer', lender.id], subject: 'Buyer-side note', bodyHtml: '<p>Please confirm.</p>', files: [] });
 ok(!!started.id, 'a buyer-side TC can start a conversation with the buyer and the lender');
+await api.signInDev(lender.id);
+const reply = await api.postMessage(started.id, 'Lender has the package.');
+ok(!!reply.id, 'a lender can reply in a conversation a buyer-side TC started with them');
 
 try {
   await api.sendMessage({ dealId: deal.id, to: ['u-seller'], subject: 'Other side', bodyHtml: '<p>No.</p>', files: [] });
@@ -85,6 +88,13 @@ try {
 } catch (e) {
   ok(/own side|other side|CLA Title/i.test(e.message), 'a lender cannot message the buyer [' + e.message + ']');
 }
+
+await api.signInDev('u-proc');
+const preexisting = await api.sendMessage({ dealId: deal.id, to: [lender.id, 'u-buyer'], subject: 'Existing staff thread', bodyHtml: '<p>Already going.</p>', files: [] });
+ok(!!preexisting.id, 'staff can start a conversation that already includes a sideless lender and the buyer');
+await api.signInDev(lender.id);
+const existingReply = await api.postMessage(preexisting.id, 'Replying on the existing thread.');
+ok(!!existingReply.id, 'an existing sideless member can still post in a thread they already belong to');
 
 await api.signInDev('u-proc');
 const buyerDoc = await api.addDocument(deal.id, { name: 'buyer-only.pdf', description: '', mimeType: 'application/pdf', size: 20, dataUrl: 'data:application/pdf;base64,QQ==', visibility: 'buyer', docType: '' });

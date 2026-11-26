@@ -22,7 +22,7 @@ That function is SECURITY DEFINER. It decided the viewer's side only from deal p
 ## What's built
 
 - `private.rpc_message_recipients` uses `private.outside_roles` (which includes `private.linked_agent_roles`) and the coordinator file roles, and treats Lender as buyer-side only inside that list.
-- `private.side_of` and `private.person_side` are unchanged. A buyer-side coordinator (or staff) can add a Lender through a narrow `private.can_message` / `rpc_create_thread` exception for conversation membership only. `can_message` returns false, not null, when the viewer has no side.
+- `private.side_of` and `private.person_side` are unchanged. A buyer-side coordinator (or staff) can add a Lender through a narrow `private.can_message` / `rpc_create_thread` exception for conversation membership only. `can_message` stays null-tolerant so `thread_postable` is unchanged for sideless members of existing threads; `rpc_create_thread` refuses when `can_message` is not true.
 - Recipients are limited to the viewer's demo scope (`deals.is_demo` vs `private.viewer_is_demo()`).
 - The mock list and membership checks match. A lender still has no side for documents, settlement, or contact cards.
 - Staff and pure-client recipient rules, and the this-file-only list of people with no login, are unchanged.

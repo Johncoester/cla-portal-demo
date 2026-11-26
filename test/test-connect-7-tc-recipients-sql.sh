@@ -15,6 +15,8 @@ ok "$MIG" "when r = 'Lender' then 'buyer'" "Lender is treated as buyer-side only
 ok "$MIG" "Buyer Agent TC" "the viewer also reads the Buyer Agent TC file role"
 ok "$MIG" "viewer_is_demo" "recipients are limited to the viewer's demo scope"
 ok "$MIG" "dp.role = 'Lender'" "can_message has a narrow exception when the target is the file lender"
+ok "$MIG" "is not true" "create_thread refuses when can_message is not true (null or false)"
+ok "$MIG" "can_message stays null-tolerant" "can_message stays null-tolerant so thread_postable is unchanged"
 missing "$MIG" "when 'Lender' then 'buyer'" "migration does not add Lender to side_of"
 missing "$MIG" "CREATE OR REPLACE FUNCTION private.side_of" "migration does not replace side_of"
 missing "$MIG" "CREATE OR REPLACE FUNCTION private.person_side" "migration does not replace person_side"
