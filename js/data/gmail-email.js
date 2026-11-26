@@ -38,6 +38,7 @@ export function introRecipients(deal) {
     .map((p) => ({ name: `${p.contact.firstName || ''} ${p.contact.lastName || ''}`.trim(), email: String(p.contact.email).trim().toLowerCase(), role: p.role }))
     .filter((r) => (seen.has(r.email) ? false : seen.add(r.email)));
 }
+
 // Introduction email (John, Nov 9): the processor / salesperson introduces themselves as the point of contact. No wire details, ever.
 // a portal signature counts only when it has visible text (the server appends it under the same rule)
 export const hasSignature = (sigHtml) => String(sigHtml || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').trim().length > 0;
