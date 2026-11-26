@@ -1,5 +1,5 @@
 // FAKE DATA ONLY. Fictional people, example.test addresses, 555 phone numbers. No real clients, no credentials.
-import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611310900';
+import { TEMPLATE_DEFS, applyNov3Templates, applyNov3bTemplates } from './templates.js?v=202611312400';
 import { crmZohoUpgrade } from './crm.js?v=202611247700';
 import { ensureEmailTemplates } from './crm-templates.js?v=202611247700';
 // Sample orders already in the demo keep these five. Do not use this list for a new order.
