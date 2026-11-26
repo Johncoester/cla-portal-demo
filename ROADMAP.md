@@ -551,7 +551,7 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing**
 
 - On hold: #1, #2, #4, #5, #10, #13, #15, #16, spouse marital status, entity documents required, phone and email icons with no app.
-- Citizenship is no longer on hold. Janine asked on Nov 17 2026 to type it on one line. See Citizenship on one line (JN-CITIZEN-1).
+- Citizenship is a dropdown again (MF-073), after Janine agreed on Nov 25 2026 to Matt's four options. JN-CITIZEN-1 (typed line, PR 334) is superseded and stays merged. See Citizenship dropdown (MF-073).
 
 **Links**
 
@@ -564,11 +564,19 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Citizenship dropdown (MF-073)
+
+**How it should work.** On Personal information, for a buyer and for a seller, Citizenship is a dropdown: U.S. Citizen, U.S. National, Lawful Permanent Resident, and Non-Citizen Authorized to Work. The spouse section uses the same list. An answer already typed still shows and can be saved again until someone picks a new option or clears the field. Blank is allowed.
+
+**Status: In progress.** Not Live until `supabase/migrations/20261131250000_citizenship_dropdown.sql` is applied on TEST. This pull request does not apply it. This supersedes JN-CITIZEN-1; PR 334 stays merged and its file is not edited.
+
+- Spec: [docs/specs/mf-073-citizenship-dropdown.md](docs/specs/mf-073-citizenship-dropdown.md)
+
 ## Citizenship on one line (JN-CITIZEN-1)
 
 **How it should work.** On Personal information, for a buyer and for a seller, Citizenship is one line the person types. The same line is used for a spouse. An answer already saved, including "US Citizen" and "U.S. Citizen", still shows and can be saved again. A person can also type something that was not in the old list, such as "Born in Canada". Leaving it blank is allowed.
 
-**Status: In progress.** The pull request is open. Not Live until `supabase/migrations/20261125180000_citizenship_free_text.sql` is applied on TEST. This pull request does not apply it.
+**Status: Superseded by MF-073.** The free-text change (PR 334) is already merged and stays merged. Citizenship is a dropdown again; leftover typed answers stay until edited.
 
 **What's built**
 

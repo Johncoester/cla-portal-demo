@@ -2,6 +2,7 @@
 import { html, raw, $, guard, toast } from '../ui.js?v=202611161500';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { phoneOk, PHONE_MSG } from '../data/constants.js?v=202611302300';
+import { CITIZENSHIP_OPTS } from '../data/templates.js?v=202611312500';
 
 /* FF-068 #9 (Janine's Nov 12 video; Francis confirm-back Nov 12 6:14 PM ET): the Social Security number is visible while it is typed and
  * gets its dashes automatically (xxx-xx-xxxx). After saving, only the masked last 4 is shown (the input is cleared). */
@@ -42,6 +43,12 @@ export function spousePhoneError(data) {
   return '';
 }
 const PHONE_ATTRS = 'type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12"';
+const citizenshipSelect = (name, value, label = 'Citizenship') => {
+  const cur = String(value || '');
+  const opts = CITIZENSHIP_OPTS.slice();
+  if (cur && !opts.includes(cur)) opts.push(cur);
+  return html`<label>${label}<select name="${name}"><option value="">Choose&hellip;</option>${opts.map((o) => html`<option ${o === cur ? raw('selected') : ''}>${o}</option>`)}</select></label>`;
+};
 const SPOUSE_FIELDS = [['spouseFullName', 'fullName', 'Full name'], ['spouseCitizenship', 'citizenship', 'Citizenship'], ['spouseCellPhone', 'cellPhone', 'Cell phone'], ['spouseHomePhone', 'homePhone', 'Home phone'], ['spouseWorkPhone', 'workPhone', 'Work phone'], ['spouseEmail', 'email', 'Email']];
 
 export function spouseSectionHtml(row, staff) {
@@ -51,7 +58,7 @@ export function spouseSectionHtml(row, staff) {
   return html`<fieldset class="span2" data-spouse-section data-spouse="${row.participantId}" data-spouse-task="${row.taskId || ''}">
     <legend>Spouse information</legend>
     <p class="span2 muted">This is separate from the primary person's information. The same record is saved for this person.</p>
-    ${SPOUSE_FIELDS.map(([name, key, label]) => (/Phone$/.test(name) ? html`<label>${label}<input name="${name}" value="${row[key] || ''}" ${raw(PHONE_ATTRS)}></label>` : html`<label>${label}<input name="${name}" value="${row[key] || ''}" maxlength="${name === 'spouseEmail' || name === 'spouseFullName' ? 200 : name === 'spouseCitizenship' ? 80 : 40}"></label>`))}
+    ${SPOUSE_FIELDS.map(([name, key, label]) => (name === 'spouseCitizenship' ? citizenshipSelect(name, row[key], label) : /Phone$/.test(name) ? html`<label>${label}<input name="${name}" value="${row[key] || ''}" ${raw(PHONE_ATTRS)}></label>` : html`<label>${label}<input name="${name}" value="${row[key] || ''}" maxlength="${name === 'spouseEmail' || name === 'spouseFullName' ? 200 : 40}"></label>`))}
     ${choice('spouseGender', row.gender, ['Female', 'Male', 'Nonbinary', 'Prefer not to say'])}
     ${choice('spouseMaritalStatus', row.maritalStatus, ['Single', 'Married', 'Divorced', 'Widowed'])}
     <label>Date of birth<input type="date" name="spouseDateOfBirth" value="${row.dateOfBirth || ''}"></label>
@@ -77,7 +84,7 @@ function card(row, staff) {
   return html`<form class="form-grid" data-spouse="${row.participantId}" data-task="${row.taskId || ''}">
     <p class="span2 muted">${row.role === 'Client-Seller' ? 'Seller' : 'Buyer'} spouse. This is separate from the primary person's information.</p>
     <label>Full name<input name="fullName" value="${row.fullName || ''}" maxlength="200"></label>
-    <label>Citizenship<input name="citizenship" value="${row.citizenship || ''}" maxlength="80"></label>
+    ${citizenshipSelect('citizenship', row.citizenship)}
     <label>Gender<select name="gender"><option value="">Choose&hellip;</option>${['Female', 'Male', 'Nonbinary', 'Prefer not to say'].map((o) => html`<option ${o === row.gender ? raw('selected') : ''}>${o}</option>`)}</select></label>
     <label>Marital status<select name="maritalStatus"><option value="">Choose&hellip;</option>${['Single', 'Married', 'Divorced', 'Widowed'].map((o) => html`<option ${o === row.maritalStatus ? raw('selected') : ''}>${o}</option>`)}</select></label>
     <label>Cell phone<input name="cellPhone" value="${row.cellPhone || ''}" ${raw(PHONE_ATTRS)}></label>

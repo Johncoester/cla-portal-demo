@@ -18,7 +18,7 @@ import { renderFlowEmail, testCopy, emailRecipients, emailRoleName, signatureTex
 import { SEED_SHARED } from './file-email-templates.js?v=202611291500';
 import { newRequestState, afterSent, digestsDue, digestEmail } from './client-requests.js?v=202611261000';
 import { senderFor } from './email-senders.js?v=202611247700';
-import { taskEnabled } from './task-switches.js?v=202611312400';
+import { taskEnabled } from './task-switches.js?v=202611312500';
 
 export function ensureTaskFlows(d) {
   if (!Array.isArray(d.taskFlows)) d.taskFlows = [];

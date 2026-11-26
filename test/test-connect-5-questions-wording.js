@@ -27,7 +27,7 @@ const buyer10 = fieldsForRole(v10.fields, 'Client-Buyer');
 const seller10 = fieldsForRole(v10.fields, 'Client-Seller');
 ok(!buyer10.some((f) => f.k === 'forwarding_address') && seller10.some((f) => f.k === 'forwarding_address'), 'v10 still hides forwarding address from buyers and keeps it for sellers');
 ok(JSON.stringify((v10.fields.find((f) => f.k === 'forwarding_address') || {}).roles) === '["Client-Seller"]', 'v10 keeps forwarding address seller-only (MF-074)');
-ok((v10.fields.find((f) => f.k === 'citizenship') || {}).type === 'text', 'v10 leaves citizenship as a typed line (MF-073 later)');
+ok((v10.fields.find((f) => f.k === 'citizenship') || {}).type === 'select' && ((v10.fields.find((f) => f.k === 'citizenship') || {}).opts || []).includes('U.S. National'), 'v10 uses Matt\'s citizenship dropdown (MF-073, this PR)');
 ok((v10.fields.find((f) => f.k === 'primary_residence') || {}).roleLabels['Client-Seller'] === 'Is the property your primary residence?', 'the seller primary-residence wording is unchanged');
 ok(buyer10.some((f) => f.k === 'survey' && f.label === 'Wants survey?') && !seller10.some((f) => f.k === 'survey'), 'survey stays buyer-only');
 ok(buyer10.some((f) => f.k === 'md_first_time' && f.states && f.states[0] === 'MD') && !seller10.some((f) => f.k === 'md_first_time'), 'the Maryland first-time question stays buyer-only and MD-only');

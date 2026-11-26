@@ -5,7 +5,7 @@ import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { intakeFormHtml } from '../js/pages/dealtaskform.js';
 import { yourAgentHtml, withContactPhone } from '../js/pages/your-agent.js';
 import { lenderSavedOnFile, tasksWithLenderOnFile, renderClientOverview, closingTeamSelf } from '../js/pages/client-overview.js';
-import { TEMPLATE_DEFS, applyCitizenshipFreeText } from '../js/data/templates.js';
+import { TEMPLATE_DEFS, applyCitizenshipFreeText, applyCitizenshipDropdown, CITIZENSHIP_OPTS } from '../js/data/templates.js';
 import { spouseSectionHtml } from '../js/pages/spouse.js';
 import { toText } from '../js/ui.js';
 
@@ -52,20 +52,25 @@ const personal = (await api.listTasks(placed.id)).find((t) => t.templateCode ===
 const opened = await api.getTask(personal.id);
 const field = opened.fields.find((f) => f.k === 'citizenship');
 const sellerField = TEMPLATE_DEFS.find((t) => t.code === 'personal_info' && t.version === 8).fields.find((f) => f.k === 'citizenship');
-ok(field && field.type === 'text' && !field.opts && sellerField && sellerField.type === 'text' && sellerField.roles.includes('Client-Seller'), 'citizenship is a single line for the buyer and the seller');
+ok(field && field.type === 'select' && CITIZENSHIP_OPTS.every((o) => field.opts.includes(o)) && sellerField && sellerField.type === 'select' && sellerField.roles.includes('Client-Seller'), 'citizenship is Matt\'s dropdown for the buyer and the seller');
 const legacy = toText(intakeFormHtml({ ...opened, formData: { ...opened.formData, citizenship: 'US Citizen' } }, { page: true, state: 'MD' }));
-ok(legacy.includes('<input type="text" name="citizenship" value="US Citizen"') && !legacy.includes('<select name="citizenship"'), 'an answer already saved shows in the line');
+ok(legacy.includes('<select name="citizenship">') && legacy.includes('US Citizen') && legacy.includes('selected') && !legacy.includes('<input type="text" name="citizenship"'), 'a leftover typed answer shows as the selected option');
 const saved = await api.saveTaskForm(personal.id, { ...(opened.formData || {}), citizenship: 'US Citizen' });
-ok(saved.formData.citizenship === 'US Citizen', 'saving keeps the citizenship already on the file');
-const typed = await api.saveTaskForm(personal.id, { ...saved.formData, citizenship: 'Born in Canada', gender: 'Female' });
-ok(typed.formData.citizenship === 'Born in Canada' && typed.formData.gender === 'Female', 'a typed answer that is not one of the old choices is saved');
-const cleared = await api.saveTaskForm(personal.id, { ...typed.formData, citizenship: '   ' });
+ok(saved.formData.citizenship === 'US Citizen', 'saving keeps the leftover citizenship already on the file');
+let rejected = '';
+try { await api.saveTaskForm(personal.id, { ...saved.formData, citizenship: 'Born in Canada', gender: 'Female' }); } catch (e) { rejected = e.message || String(e); }
+ok(/pick one of the options/i.test(rejected), 'a new typed value that is not one of the options is refused');
+const picked = await api.saveTaskForm(personal.id, { ...saved.formData, citizenship: 'Lawful Permanent Resident', gender: 'Female' });
+ok(picked.formData.citizenship === 'Lawful Permanent Resident' && picked.formData.gender === 'Female', 'picking one of Matt\'s options saves it');
+const cleared = await api.saveTaskForm(personal.id, { ...picked.formData, citizenship: '   ' });
 ok(!cleared.formData.citizenship && cleared.formData.gender === 'Female', 'a blank citizenship is left empty and the other answers stay');
 const spouse = toText(spouseSectionHtml({ participantId: 'p1', citizenship: 'Canada', fullName: 'Sam Spouse' }, false));
-ok(spouse.includes('<input name="spouseCitizenship" value="Canada"') && !spouse.includes('<select name="spouseCitizenship"'), 'the spouse citizenship line stays a text box and shows the saved answer');
+ok(spouse.includes('<select name="spouseCitizenship">') && spouse.includes('Canada') && spouse.includes('selected') && !spouse.includes('<input name="spouseCitizenship"'), 'a leftover spouse citizenship shows as the selected option');
 const oldTpl = { taskTemplates: [{ code: 'personal_info', fields: [{ k: 'citizenship', type: 'select', opts: ['U.S. Citizen'], keep: ['US Citizen'] }, { k: 'gender', type: 'select', opts: ['Female'] }] }], tasks: [{ formData: { citizenship: 'US Citizen' } }] };
 ok(applyCitizenshipFreeText(oldTpl).changed === 1 && oldTpl.taskTemplates[0].fields[0].type === 'text' && !oldTpl.taskTemplates[0].fields[0].opts && oldTpl.taskTemplates[0].fields[1].type === 'select' && oldTpl.tasks[0].formData.citizenship === 'US Citizen', 'a stored dropdown becomes a line and the saved answer stays');
 ok(applyCitizenshipFreeText(oldTpl).changed === 0, 'running the rewrite again changes nothing');
+ok(applyCitizenshipDropdown(oldTpl).changed === 1 && oldTpl.taskTemplates[0].fields[0].type === 'select' && oldTpl.taskTemplates[0].fields[0].opts.join('|') === CITIZENSHIP_OPTS.join('|') && oldTpl.taskTemplates[0].fields[0].keep.includes('US Citizen') && oldTpl.tasks[0].formData.citizenship === 'US Citizen', 'the dropdown helper restores Matt\'s options and keeps the saved answer');
+ok(applyCitizenshipDropdown(oldTpl).changed === 0, 'running the dropdown helper again changes nothing');
 
 const sql = read('supabase/migrations/20261112060400_citizenship_and_agent_phone.sql', 'utf8');
 const roll = read('supabase/rollbacks/20261112060400_citizenship_and_agent_phone.sql', 'utf8');
@@ -79,6 +84,14 @@ console.log('citizenship-migration-sha256', createHash('sha256').update(read('su
 console.log('citizenship-rollback-sha256', createHash('sha256').update(roll).digest('hex'));
 console.log('citizenship-free-text-sha256', createHash('sha256').update(free).digest('hex'));
 console.log('citizenship-free-text-rollback-sha256', createHash('sha256').update(freeRoll).digest('hex'));
+const drop = read('supabase/migrations/20261131250000_citizenship_dropdown.sql', 'utf8');
+const dropRoll = read('supabase/rollbacks/20261131250000_citizenship_dropdown.sql', 'utf8');
+const freeAgain = read('supabase/migrations/20261125180000_citizenship_free_text.sql', 'utf8');
+ok(drop.includes('U.S. National') && drop.includes('Lawful Permanent Resident') && drop.includes('Non-Citizen Authorized to Work') && drop.includes('20261125180000_citizenship_free_text.sql') && !/create or replace function private\.validate_form/i.test(drop) && !/alter table public\.spouse_info/i.test(drop), 'the new file sets Matt\'s dropdown and does not change validate_form or the spouse column');
+ok(freeAgain === free, 'JN-CITIZEN-1\'s free-text file is not edited');
+ok(dropRoll.includes("jsonb_build_object('type', 'text')") && !/alter table public\.spouse_info/i.test(dropRoll), 'the rollback puts the typed line back and leaves the column alone');
+console.log('citizenship-dropdown-sha256', createHash('sha256').update(drop).digest('hex'));
+console.log('citizenship-dropdown-rollback-sha256', createHash('sha256').update(dropRoll).digest('hex'));
 
 if (fail) { console.log(fail + ' failed'); process.exit(1); }
 console.log('janine file checks passed');
