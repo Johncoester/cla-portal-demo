@@ -14,6 +14,9 @@ import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=2026112
 
 export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'Done', blocked: 'blocked', cancelled: 'cancelled' };
+// CONNECT-REMIND (checklist row 6.3): what the processor sees after Remind. The email goes out from the file's processor's Gmail; Outbox shows sent / failed and why.
+export const REMIND_QUEUED = 'Reminder email queued. It goes out from this file\'s processor\'s Gmail within a few minutes. Outbox shows whether it was sent.';
+export const REMIND_NONE = 'No reminder was queued. This task already got one today, or the person it is for has no active portal login yet.';
 
 let intakeDeal = '';
 const intakeOpen = new Set();
@@ -22,7 +25,7 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611312400')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611312600')).render(ctx);
   const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611310600');
   // MF-061 (Matt, Nov 22): name the buyer / seller on each task. The tab opens on the file shell, so the parties are read on their own.
   const partiesP = (deal.participants && deal.participants.length) || !api.listTaskParties ? Promise.resolve(deal.participants || []) : api.listTaskParties(deal.id).catch(() => []);
@@ -68,7 +71,7 @@ export async function render(ctx) {
     : t.kind === 'sign' ? (inline ? html`<span class="muted small">Signature</span>` : html`<br><span class="muted small">Signature (demo e-sign)</span>`)
     : t.kind === 'agent' ? (inline ? html`<span class="muted small">Agent task</span>` : html`<br><span class="muted small">Agent task</span>`) : '';
   const actions = (t) => html`${t.kind === 'agent' && taskOpenHref(t) ? html`<a class="ghost" href="${taskOpenHref(t)}" data-agent-task="${t.id}">${t.status === 'done' ? 'View Submission' : t.mine ? 'Start' : 'View'}</a>` : ''}${t.kind === 'sign' && taskOpenHref(t) ? html`<a class="ghost" href="${taskOpenHref(t)}">${t.mine && open(t) ? 'Sign' : 'View'}</a>` : ''}${t.kind === 'form' && t.canFill ? html`<a class="ghost" href="${taskOpenHref(t)}">${t.status === 'done' ? 'View' : t.mine ? 'Fill in' : t.forClient ? (t.ownerName ? `Fill in for ${t.ownerName}` : 'Fill in') : 'Open'}</a>` : ''}
-        ${manage ? html`<button class="ghost" data-edit="${t.id}">Edit</button>` : ''}${manage && open(t) ? html` <button class="ghost" data-remind="${t.id}" title="Queues an email in the outbox. Nothing is sent from this build.">Remind</button>` : ''}`;
+        ${manage ? html`<button class="ghost" data-edit="${t.id}">Edit</button>` : ''}${manage && open(t) ? html` <button class="ghost" data-remind="${t.id}" title="Emails a reminder to the person this task is for, from this file's processor's Gmail.">Remind</button>` : ''}`;
   const row = (t) => html`<tr class="${toneOf(t)}" data-task-row="${t.id}" data-task-tone="${toneOf(t)}" data-mine="${t.mine ? '1' : '0'}">
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
       <td><div class="task-line"><strong>${taskOpenHref(t) ? html`<a href="${taskOpenHref(t)}">${t.title}</a>` : t.title}</strong>${t.notYours ? html` <span class="muted small" data-not-yours>Not yours to open</span>` : ''}${t.taskGroup ? html` <span class="pill" data-task-group>${t.taskGroup}</span>` : ''}${dense ? html` ${kindBit(t, true)}` : ''}</div>${t.description ? (dense ? html`<div class="task-desc muted">${t.description}</div>` : html`<br><span class="muted">${t.description}</span>`) : ''}${t.switchedOff ? html` <span class="pill warn" data-switched-off title="Switched off on Task Templates > Task switches: kept, hidden from everyone except Admin / Super admin">Switched off (admins only)</span>` : ''}${dense ? '' : kindBit(t, false)}${answerList(t)}${dense && intakeSide(t) ? html`<div class="intake-slot" data-intake-slot="${t.id}" hidden></div>` : ''}</td>
@@ -110,13 +113,13 @@ export async function render(ctx) {
   return { title: 'Tasks', crumbs: [['All Tasks']], body, mount(root) {
     fees.mount(root);
     $$('[data-tick]', root).forEach((c) => c.addEventListener('change', guard(async () => { try { await api.updateTask(c.dataset.tick, { status: c.checked ? 'done' : 'todo' }); } finally { refresh(); } })));
-    $$('[data-remind]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = await api.sendTaskReminder(b.dataset.remind); toast(r.queued ? 'Reminder queued in the outbox (not sent)' : 'Already queued today'); })));
+    $$('[data-remind]', root).forEach((b) => b.addEventListener('click', guard(async () => { const r = await api.sendTaskReminder(b.dataset.remind); toast(r.queued ? REMIND_QUEUED : REMIND_NONE); })));
     const ab = $('#addtask', root); if (ab) ab.addEventListener('click', () => form(null));
     $$('[data-edit]', root).forEach((b) => b.addEventListener('click', () => form(tasks.find((t) => t.id === b.dataset.edit))));
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611312400');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611312600');
       const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611247700');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];
