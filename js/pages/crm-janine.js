@@ -135,6 +135,8 @@ function defaultsCard(module, owners, cfg) {
     <div class="filter-bar">${IMPORT_DEFAULT_FIELDS.map(([k, l, src]) => html`<label>${l}<select data-import-default="${k}" aria-label="Default ${l}"><option value="">(no default)</option>${opts(src).map(([v, t]) => html`<option value="${v}">${t}</option>`)}</select></label>`)}</div></fieldset>`;
 }
 export async function importPage({ api, me, params, owners = [], cfg = {} }, { tabs, head }) {
+  // CRM-FEED-1: Zoho Deals import, matched to portal orders. Its own page, loaded only when opened.
+  if (params.id === 'deals') { const { dealImportPage } = await import('./crm-deal-import.js?v=202611313200'); return dealImportPage({ api, me }, { tabs, head }); }
   const module = params.id === 'contacts' ? 'contacts' : 'leads'; const kind = params.sub === 'notes' ? 'notes' : 'records';
   const M = module === 'leads' ? 'Leads' : 'Clients'; const what = kind === 'notes' ? `Notes (on ${M})` : M;
   if (!me.isAdmin) return { title: 'Import', crumbs: [['CRM', '#/crm'], ['Import']], body: html`${head('Import ' + what, me)}${tabs(module)}<p class="err-text" data-import-denied>Only an Admin or Super admin can import.</p>` };

@@ -299,6 +299,9 @@ export function crmNov3bPart(x, h) {
         && (!client || r.clientIds.includes(client)) && (!src || (src === 'none' ? !r.source : r.source === src || r.source.startsWith(src + ':')))); },
     // the filter choices for the viewer: Deal Owner and Client only for the 'all' scope (a Sales Person filters by Source); Source = the Lead Source list
     // (active options, plus a retired one still on a visible deal)
+    // CRM-FEED-1: the Zoho Deals import matches against portal orders in the database, so it runs on the hosted portal only.
+    async previewCrmDealImport() { crmUser(); fail('The Zoho Deals import runs on the hosted portal only.'); },
+    async runCrmDealImport() { crmUser(); fail('The Zoho Deals import runs on the hosted portal only.'); },
     async listCrmDealFilters() { const u = crmUser(); const scope = dealScope(u); const rows = rowsOf(u, 'deals'); const d = db(); const cfg = cfgFor(u);
       const owners = scope === 'all' ? d.profiles.filter((p) => crmOwnerOption(p))
         .map((p) => ({ id: p.id, name: nameOf(p.id), role: p.role })).sort((a, b) => a.name.localeCompare(b.name)) : [];

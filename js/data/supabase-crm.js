@@ -11,6 +11,7 @@ import { ensureSettings, activeFields, cleanCustomValue, cleanLabel, gatherCusto
 import { crmTemplatesSupabase } from './supabase-crm-templates.js?v=202611247700';
 import { crmCallsSupabase } from './supabase-crm-calls.js?v=202611247700';
 import { withDealName, cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
+import { mergeImportedDeals, runDealImportChunks } from './crm-imported-deals.js?v=202611313200';
 import { dealStageOf } from './crm-analytics.js?v=202611302100';
 import { crmJanineSupabase } from './supabase-crm-janine.js?v=202611312900';
 import { crmSurfaceSupabase } from './supabase-crm-surface.js?v=202611310200';
@@ -355,8 +356,14 @@ export function crmSupabase({ sb, ok, camel, me, flags }) {
     async getCrmAttachmentContent() { on(); throw new Error('CRM attachments are not set up on this portal yet.'); },
     async crmReport({ from = '', to = '' } = {}) { return rpc('crm_report', { p_from: from || null, p_to: to || null }); },
     // John, Nov 3 (migration 32): CRM Deals list with filters. public.crm_deals() applies the scope (a Sales Person gets only their own deals) on the server.
-    async listCrmDeals(f = {}) { const rows = await rpc('crm_deals', { p_status: f.status || null, p_owner: f.ownerId || null, p_client: f.clientId || null, p_source: f.source || null });
-      return withActivity((rows || []).map((r) => withDealName({ ...r, stage: dealStageOf(r.stage || r.status), _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })), 'deal'); },
+    // CRM-FEED-1: deals imported from Zoho come from one more call, made at the same time. Until the migration is applied
+    // that call fails and the list is the orders alone, as before.
+    async listCrmDeals(f = {}) { const [rows, imported] = await Promise.all([rpc('crm_deals', { p_status: f.status || null, p_owner: f.ownerId || null, p_client: f.clientId || null, p_source: f.source || null }),
+        (async () => { try { return ok(await sb.rpc('crm_imported_deals_list', {})) || []; } catch { return []; } })()]);
+      const shaped = await withActivity((rows || []).map((r) => withDealName({ ...r, stage: dealStageOf(r.stage || r.status), _link: `#/crm/deals/${r.id}`, _portalLink: `#/deals/${r.id}`, _clientLink: '' })), 'deal');
+      return mergeImportedDeals(shaped, imported, f); },
+    async previewCrmDealImport({ records = [], fileName = '' } = {}) { on(); return runDealImportChunks((a) => rpc('crm_import_deals', a), records, false, fileName); },
+    async runCrmDealImport({ records = [], fileName = '' } = {}) { on(); return runDealImportChunks((a) => rpc('crm_import_deals', a), records, true, fileName); },
     async listCrmDealFilters() { return rpc('crm_deal_filters'); },
     // One crm_deals call (the same scope as the list). One deal_contacts call for this deal only. No per-row helper.
     async getCrmDeal(id) {
