@@ -41,7 +41,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a processor or coordinator clicks Remind on an open task, the person the task is for gets a real reminder email, sent from the file's processor's connected Gmail through the outbox, like every other portal email.
 
-**Status: In review.** John Coester, Nov 25 2026, 9:02 PM ET (voice call), Connect Live Test Checklist row 6.3 (team live test). No database file: it uses queue_task_reminder, which is already on TEST. Pull request: PR_LINK.
+**Status: In review.** John Coester, Nov 25 2026, 9:02 PM ET (voice call), Connect Live Test Checklist row 6.3 (team live test). No database file: it uses queue_task_reminder, which is already on TEST. Pull request: [PR 454](https://github.com/Johncoester/cla-portal-demo/pull/454).
 
 **What's built**
 

@@ -1,5 +1,7 @@
 # Remind emails the client (CONNECT-REMIND)
 
+Pull request: [PR 454](https://github.com/Johncoester/cla-portal-demo/pull/454). Checklist row 6.3.
+
 Asked by John Coester, Nov 25 2026, 9:02 PM ET (voice call), from the team's Connect Live Test Checklist, row 6.3: the processor's
 Remind on a buyer task said "CLA Portal Live Test does not send email. Nothing was queued." Make Remind queue a real outbox email,
 using the existing Gmail-connected sender. portal@clatitle.com stays a From-name stamp only; no portal@ fallback.
