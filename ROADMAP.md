@@ -3813,7 +3813,7 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-070.
 
 Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-071.
 
-**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+**Status: Live on TEST.** No database file. Waiting on Matt to check it.
 
 **What's built**
 
@@ -3833,3 +3833,27 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-071.
 
 - The file type (extension) is kept so the document still opens.
 - The same naming is used for sellers, even though Matt only named buyers, so Documents stays consistent.
+
+## Introduction Email To is a list of file parties (MF-066)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
+
+**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- To on the file Email compose box is a multi-select of people on the file, shown as "Name (Role) — email".
+- Introduction Email still starts with buyers, sellers, both agents, and a TC who has an email.
+- An address that is not on the file can still be typed in.
+
+**What's still missing**
+
+- Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-066-intro-to.md](docs/specs/mf-066-intro-to.md)
+
+**Decisions**
+
+- This is a multi-select, not a single-select, so the current intro default of several people is kept.
