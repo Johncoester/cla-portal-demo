@@ -1,32 +1,46 @@
--- Undo CONNECT-7: restore private.side_of, private.person_side, and private.rpc_message_recipients
--- to the TEST bodies from before 20261131280000_connect_7_tc_recipients.sql.
+-- Undo CONNECT-7: restore private.can_message, private.rpc_create_thread, and
+-- private.rpc_message_recipients to the TEST bodies from before
+-- 20261131280000_connect_7_tc_recipients.sql. private.side_of and private.person_side
+-- were not changed by the fixed migration and are not touched here.
 begin;
 set local lock_timeout = '3s';
 
-CREATE OR REPLACE FUNCTION private.side_of(r text)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'pg_catalog', 'public', 'extensions'
-AS $function$
-  select case r
-    when 'Buyer Agent' then 'buyer'
-    when 'Client-Buyer' then 'buyer'
-    when 'Buyer Agent TC' then 'buyer'
-    when 'Listing Agent' then 'seller'
-    when 'Client-Seller' then 'seller'
-    when 'Listing Agent TC' then 'seller'
-  end
-$function$;
-
-CREATE OR REPLACE FUNCTION private.person_side(pid uuid, d uuid)
- RETURNS text
+CREATE OR REPLACE FUNCTION private.can_message(pid uuid, d uuid)
+ RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public', 'extensions'
 AS $function$
-  select case when (select role from public.profiles where id = pid) is distinct from 'Outside user' then 'staff'
-    else (select case when count(distinct s) = 1 then max(s) end from (select private.side_of(r) s from unnest(private.file_roles_of(pid, d)) r) x where s is not null) end $function$;
+  select private.is_staffish() or private.person_side(pid, d) = 'staff' or (private.my_side(d) in ('buyer', 'seller') and private.person_side(pid, d) = private.my_side(d)) $function$;
+
+CREATE OR REPLACE FUNCTION private.rpc_create_thread(p_deal uuid, p_subject text, p_participants uuid[], p_body text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'extensions'
+AS $function$
+declare tid uuid; pid uuid; members uuid[];
+begin
+  if not private.can_access_deal(p_deal) or private.is_view_only() then raise exception 'Not allowed'; end if;
+  if coalesce(array_length(p_participants, 1), 0) = 0 then raise exception 'Pick at least one recipient on this order'; end if;
+  if char_length(trim(coalesce(p_body, ''))) = 0 then raise exception 'Write a message first'; end if;
+  members := array[private.effective_uid()];
+  foreach pid in array p_participants loop
+    if pid = private.effective_uid() then continue; end if;
+    -- only people who are on this deal (or its processor)
+    if not (exists (select 1 from public.deal_participants dp join public.contacts c on c.id = dp.contact_id where dp.deal_id = p_deal and c.profile_id = pid)
+            or pid in (select private.deal_cla_staff(p_deal))) then continue; end if;
+    if not private.can_message(pid, p_deal) then
+      raise exception 'You can message CLA Title staff and people on your own side of this order only' using errcode = '42501'; end if;
+    members := array_append(members, pid);
+  end loop;
+  if coalesce(array_length(members, 1), 0) < 2 then raise exception 'Pick at least one recipient on this order'; end if;
+  if not private.one_side(members, p_deal) then
+    raise exception 'A conversation can include CLA Title staff and ONE side of the order, not both' using errcode = '42501'; end if;
+  insert into public.threads (deal_id, subject, created_by) values (p_deal, left(coalesce(nullif(trim(p_subject), ''), 'New conversation'), 150), private.effective_uid()) returning id into tid;
+  insert into public.thread_participants (thread_id, profile_id, last_read_at) select tid, m, case when m = private.effective_uid() then now() end from (select distinct unnest(members) m) z;
+  insert into public.messages (thread_id, author_id, body) values (tid, private.effective_uid(), left(trim(p_body), 4000));
+  return tid; end $function$;
 
 CREATE OR REPLACE FUNCTION private.rpc_message_recipients(p_deal uuid)
  RETURNS TABLE(id uuid, first_name text, last_name text, email text, role text, side text)

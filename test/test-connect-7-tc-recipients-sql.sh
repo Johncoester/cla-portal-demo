@@ -1,5 +1,5 @@
 #!/bin/bash
-# CONNECT-7: the migration text keeps the staff / this-file / pure-client rules and adds TC side + Lender.
+# CONNECT-7: migration text after the rule 27 fix (Lender is local; side_of/person_side unchanged; demo scope).
 # Read-only file checks. Does not connect to TEST.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -11,8 +11,13 @@ missing() { if grep -q -F "$2" "$1"; then echo "FAIL $3"; fail=1; else echo "ok 
 
 ok "$MIG" "private.outside_roles" "migration uses outside_roles so a linked coordinator gets their agent's side"
 ok "$MIG" "my_sides" "migration lists every side the coordinator holds (including both, when they assist both agents)"
-ok "$MIG" "when 'Lender' then 'buyer'" "Lender is buyer-side"
+ok "$MIG" "when r = 'Lender' then 'buyer'" "Lender is treated as buyer-side only inside the recipients list"
 ok "$MIG" "Buyer Agent TC" "the viewer also reads the Buyer Agent TC file role"
+ok "$MIG" "viewer_is_demo" "recipients are limited to the viewer's demo scope"
+ok "$MIG" "dp.role = 'Lender'" "can_message has a narrow exception when the target is the file lender"
+missing "$MIG" "when 'Lender' then 'buyer'" "migration does not add Lender to side_of"
+missing "$MIG" "CREATE OR REPLACE FUNCTION private.side_of" "migration does not replace side_of"
+missing "$MIG" "CREATE OR REPLACE FUNCTION private.person_side" "migration does not replace person_side"
 ok "$MIG" "dp.deal_id = p_deal   -- FF-072 #24" "the mailed list is still this file only"
 ok "$MIG" "v.pure_buyer" "pure-client rules stay"
 ok "$MIG" "STABLE SECURITY DEFINER" "the functions stay SECURITY DEFINER"

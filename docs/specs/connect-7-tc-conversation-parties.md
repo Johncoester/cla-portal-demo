@@ -17,13 +17,14 @@ The Start conversation screen lists every person returned by `public.message_rec
 
 That function is SECURITY DEFINER. It decided the viewer's side only from deal participant roles in Buyer Agent, Listing Agent, Client-Buyer, and Client-Seller. It did not use `private.outside_roles` or `private.linked_agent_roles`, so a Buyer Agent TC or Listing Agent TC had no side and only saw CLA staff.
 
-`private.person_side` and `private.can_message` (used when the conversation is actually created) already treated a linked coordinator as their agent's side. Adding a listed buyer or buyer agent would already have been allowed. The lender was still missing: `private.side_of` and `private.person_side` did not treat Lender as buyer-side.
+`private.person_side` and `private.can_message` (used when the conversation is actually created) already treated a linked coordinator as their agent's side. Adding a listed buyer or buyer agent would already have been allowed. The lender was still missing because `private.side_of` and `private.person_side` do not treat Lender as a side (and they stay that way, so a lender does not gain buyer-side read, contact, or notification rights).
 
 ## What's built
 
-- `private.rpc_message_recipients` uses `private.outside_roles` (which includes `private.linked_agent_roles`) and the coordinator / lender file roles, and offers anyone on those sides.
-- `private.side_of('Lender')` is buyer. `private.person_side` uses that, so creating the conversation accepts the lender for a buyer-side coordinator.
-- The mock list matches, including Lender as buyer-side.
+- `private.rpc_message_recipients` uses `private.outside_roles` (which includes `private.linked_agent_roles`) and the coordinator file roles, and treats Lender as buyer-side only inside that list.
+- `private.side_of` and `private.person_side` are unchanged. A buyer-side coordinator (or staff) can add a Lender through a narrow `private.can_message` / `rpc_create_thread` exception for conversation membership only. `can_message` returns false, not null, when the viewer has no side.
+- Recipients are limited to the viewer's demo scope (`deals.is_demo` vs `private.viewer_is_demo()`).
+- The mock list and membership checks match. A lender still has no side for documents, settlement, or contact cards.
 - Staff and pure-client recipient rules, and the this-file-only list of people with no login, are unchanged.
 
 ## What's not done

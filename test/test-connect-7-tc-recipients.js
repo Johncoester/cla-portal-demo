@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { createMockAdapter } from '../js/data/mock-adapter.js';
 import { explainRecipients } from '../js/data/message-recipients.js';
+import { sideOf } from '../js/data/constants.js';
 
 const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 let fail = 0;
@@ -72,11 +73,52 @@ try {
   ok(/own side|other side|CLA Title/i.test(e.message), 'starting a conversation with the seller is refused [' + e.message + ']');
 }
 
+ok(sideOf('Lender') == null && sideOf('Buyer Agent') === 'buyer' && sideOf('Buyer Agent TC') == null, 'sideOf still has no Lender or coordinator mapping (person_side stays unchanged)');
+
+const asLender = await listAs(lender.id);
+ok(hasId(asLender, 'u-proc') && !hasId(asLender, 'u-buyer') && !hasId(asLender, 'u-bagent') && !hasId(asLender, 'u-seller') && !hasId(asLender, buyerTc.id), 'a lender still only sees CLA staff, not buyer-side or seller-side people');
+const lenderDeal = await api.getDeal(deal.id);
+ok(!['buyer', 'seller'].includes(String(lenderDeal.myRoleSide || lenderDeal.mySide || '')) && String(lenderDeal.myRole || '') !== 'Client-Buyer' && String(lenderDeal.myRole || '') !== 'Buyer Agent', 'a lender\'s file role / side is unchanged (not buyer)');
+try {
+  await api.sendMessage({ dealId: deal.id, to: ['u-buyer'], subject: 'To the buyer', bodyHtml: '<p>No.</p>', files: [] });
+  ok(false, 'a lender must not start a conversation with the buyer');
+} catch (e) {
+  ok(/own side|other side|CLA Title/i.test(e.message), 'a lender cannot message the buyer [' + e.message + ']');
+}
+
+await api.signInDev('u-proc');
+const buyerDoc = await api.addDocument(deal.id, { name: 'buyer-only.pdf', description: '', mimeType: 'application/pdf', size: 20, dataUrl: 'data:application/pdf;base64,QQ==', visibility: 'buyer', docType: '' });
+const allDoc = await api.addDocument(deal.id, { name: 'everyone.pdf', description: '', mimeType: 'application/pdf', size: 20, dataUrl: 'data:application/pdf;base64,QQ==', visibility: 'all', docType: '' });
+const idsOf = (rows) => new Set((rows || []).map((d) => d.id));
+await api.signInDev('u-buyer');
+const buyerDocs = idsOf(await api.listDocuments(deal.id));
+ok(buyerDocs.has(buyerDoc.id), 'the buyer still sees a buyer-side document');
+await api.signInDev(lender.id);
+const lenderDocs = idsOf(await api.listDocuments(deal.id));
+ok(!lenderDocs.has(buyerDoc.id), 'a lender does not see buyer-side documents');
+ok(lenderDocs.has(allDoc.id), 'a lender still sees a document marked for everyone');
+
+await api.signInDev('u-proc');
+const request = await api.createSettlementRequest(deal.id, { slots: ['2026-12-20T14:00'] });
+ok(!!request.id, 'the processor can still open a closing request on this file');
+await api.signInDev(lender.id);
+const lenderSettles = await api.listSettlements(deal.id);
+ok(lenderSettles.length === 1 && lenderSettles[0].mySide !== 'buyer' && !lenderSettles[0].myLink, 'a lender is not treated as the buyer side for settlement');
+await api.signInDev('u-buyer');
+const buyerSettles = await api.listSettlements(deal.id);
+ok(buyerSettles[0].mySide === 'buyer' && !!buyerSettles[0].myLink, 'the buyer still has the buyer-side settlement link');
+
+await api.signInDev('u-seller');
+const sellerView = await api.getDeal(deal.id);
+const lenderParty = (sellerView.participants || []).find((p) => p.role === 'Lender');
+ok(!!lenderParty && lenderParty.contact && lenderParty.contact.email && lenderParty.contact.contactHidden !== true, 'a seller-side viewer still sees the lender contact card');
+
 const mig = read('supabase/migrations/20261131280000_connect_7_tc_recipients.sql');
 const rb = read('supabase/rollbacks/20261131280000_connect_7_tc_recipients.sql');
-ok(mig.includes('private.outside_roles') && mig.includes('my_sides') && mig.includes("when 'Lender' then 'buyer'") && mig.includes('Buyer Agent TC'), 'the migration uses outside_roles, my_sides, and treats Lender and agent coordinators as a side');
+ok(mig.includes('private.outside_roles') && mig.includes('my_sides') && mig.includes("when r = 'Lender' then 'buyer'") && mig.includes('Buyer Agent TC') && mig.includes('viewer_is_demo'), 'the migration uses outside_roles, my_sides, a local Lender mapping, and demo scope');
+ok(!mig.includes("when 'Lender' then 'buyer'") && !mig.includes('CREATE OR REPLACE FUNCTION private.side_of') && !mig.includes('CREATE OR REPLACE FUNCTION private.person_side'), 'the migration does not change side_of or person_side');
 ok(mig.includes('STABLE SECURITY DEFINER') && mig.includes("SET search_path TO 'pg_catalog', 'public', 'extensions'") && mig.includes("select private.lock_function_search_paths()"), 'the functions stay SECURITY DEFINER with a fixed search_path');
-ok(rb.includes('private.rpc_message_recipients') && !rb.includes("when 'Lender' then 'buyer'") && !rb.includes('private.outside_roles'), 'the rollback puts the previous function bodies back');
+ok(rb.includes('private.rpc_message_recipients') && rb.includes('private.can_message') && rb.includes('private.rpc_create_thread') && !rb.includes('private.outside_roles') && !rb.includes('viewer_is_demo'), 'the rollback puts the previous function bodies back');
 
 const page = read('js/pages/dealmsgs.js');
 ok(page.includes('listMessageRecipients(') && page.includes('Start conversation'), 'Start conversation lists the people the recipient query returns');
