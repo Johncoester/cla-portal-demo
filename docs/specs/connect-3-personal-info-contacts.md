@@ -28,6 +28,7 @@ goes to staff for approval; doesn't quietly overwrite the record."
 
 ## Files
 
+- Pull request: [PR 451](https://github.com/Johncoester/cla-portal-demo/pull/451)
 - `js/data/personal-info-contact.js` (what to show and what can be copied), `js/pages/dealcontacts.js` (section and Review answers)
 - Test: `test/test-connect-3-personal-info-contact.js`
 - No database file.

@@ -41,7 +41,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a buyer or seller saves their Personal Information task, the processor sees their answers and their spouse's on the order's Contacts tab, and can copy a new name or phone onto the contact with one approval click. A client's save never changes the contact by itself (checklist row 7.7).
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 7.3 and 7.7. No database file. Pull request: CONNECT-3 (link added when opened).
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist rows 7.3 and 7.7. No database file. Pull request: [PR 451](https://github.com/Johncoester/cla-portal-demo/pull/451).
 
 **What's built**
 
