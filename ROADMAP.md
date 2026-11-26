@@ -3920,17 +3920,13 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
 
 Matt Landsberg, Portal Feedback Nov 25 2026, including the 4:35 PM ET answers. Tracker item MF-063.
 
-**Status: Building.** No database file. Not Live until this is merged and Matt checks it on TEST.
+**Status: Live on TEST.** No database file. Waiting on Matt to check it.
 
 **What's built**
 
 - EMD held by is a dropdown: CLA Title, Listing Agent, Buyer's Agent, No EMD, Other Title Company or Attorney.
 - No EMD sets the amount to $0 and the due date to N/A.
 - Older typed-in holders stay until someone edits the file.
-
-**What's still missing**
-
-- Not checked on TEST yet.
 
 **Links**
 
@@ -3940,3 +3936,31 @@ Matt Landsberg, Portal Feedback Nov 25 2026, including the 4:35 PM ET answers. T
 
 - No extra text box for "other company name" (Matt did not ask for one).
 - Obvious older wording is mapped on the screen only; the saved text is not rewritten until someone picks a list option.
+
+## Order Status milestones complete independently (MF-068)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
+
+**Status: Building.** Has a database file. Not merged, and not Live, until a Rule 27 review (it replaces `public.rpc_tc_file_summaries` and adds `deals.milestones_done`).
+
+**What's built**
+
+- Each milestone can be checked or unchecked on its own.
+- `deals.stage` stays as the highest completed index (or 0 if none).
+- Checking Disbursed Funds closes an open order. Unchecking it does not reopen the file.
+- Existing files keep a NULL set and are shown from their current stage (a Closed file with no saved set is all ten done), so the migration does not rewrite every file.
+
+**What's still missing**
+
+- Rule 27 review and merge. Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-068-independent-milestones.md](docs/specs/mf-068-independent-milestones.md)
+- Migration: `supabase/migrations/20261131210000_independent_milestones.sql`
+- Rollback: `supabase/rollbacks/20261131210000_independent_milestones.sql`
+
+**Decisions**
+
+- Unchecking Disbursed Funds leaves a Closed file Closed (Matt was asked; this is the plan default).
+- The TC dashboard file list uses the stored set when one exists. A file with no saved set is shown from its stage, and a Closed file with no saved set is all ten done (same as today).

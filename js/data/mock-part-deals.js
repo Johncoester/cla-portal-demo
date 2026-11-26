@@ -15,6 +15,7 @@ import { earnestDealPatch, earnestTouched, OLD_COMMISSION_KEYS, OLD_COMMISSION_R
 import { cleanFee, feeChanges } from './accounting.js?v=202611247900';
 import { waterEscrowFeeInput } from './prorate-defaults.js?v=202611223100';
 import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES, staffTaskCounts } from './party-task-completion.js?v=202611241000';
+import { parseMilestones, toggleMilestone, derivedStage } from './milestones.js?v=202611312200';
 // Refinance (John, Nov 3): purchase price and EMD must stay empty (the screen hides them and sends nothing). Mirrored by private.deal_refi_guard (migration 32).
 const refiNoPrice = (inp, fail) => { for (const [k, l] of REFI_BLOCKED_FIELDS) if (inp[k] != null && String(inp[k]).trim() !== '') fail(`A refinance has no ${l === 'Purchase price' ? 'purchase price' : l}. Leave it empty.`); };
 // John, Nov 3 call: the buyer's First-time buyer / Primary residence answers on the order ('yes' | 'no' | '' = not asked yet). Purchases only
@@ -295,8 +296,12 @@ export function dealsAndAuth(x) {
     async setStage(id, stage) {
       const u = needProcessor(); const d = load(); const q = d.deals.find((y) => y.id === id) || fail('Order not found.');
       const s = Number(stage); if (!Number.isInteger(s) || s < 0 || s >= C.STAGES.length) fail('Unknown stage.');
-      q.stage = s; log(id, u.id, 'stage.changed', 'deal', id, `Stage set to ${C.STAGES[s]}`);
-      if (s === C.STAGES.length - 1 && q.status === 'Open') { q.status = 'Closed'; log(id, u.id, 'status.changed', 'deal', id, 'Order closed (funds disbursed)'); }
+      const next = toggleMilestone(parseMilestones(q.milestonesDone, q.stage, q.status), s);
+      const on = next[s];
+      q.milestonesDone = next;
+      q.stage = derivedStage(next);
+      log(id, u.id, 'stage.changed', 'deal', id, `${C.STAGES[s]} ${on ? 'checked' : 'unchecked'}`);
+      if (s === C.STAGES.length - 1 && on && q.status === 'Open') { q.status = 'Closed'; log(id, u.id, 'status.changed', 'deal', id, 'Order closed (funds disbursed)'); }
       save(); return clone(dealView(u, q));
     },
     async setDealStatus(id, status) {

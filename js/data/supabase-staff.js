@@ -4,6 +4,7 @@
 import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
 import { idUploadStoredName } from './id-upload-name.js?v=202611311000';
 import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
+import { parseMilestones, toggleMilestone, derivedStage } from './milestones.js?v=202611312200';
 const day = (d) => new Date(d).toISOString().slice(0, 10);
 const plusDays = (n) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const full = (p) => tidyPersonName(p).name;
@@ -141,8 +142,10 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     },
     async setStage(id, stage) {
       const s = Number(stage); if (!Number.isInteger(s) || s < 0 || s > 9) throw new Error('Unknown stage.');
-      const cur = camel(ok(await sb.from('deals').select('status').eq('id', id).single()));
-      const row = { stage: s }; if (s === 9 && cur.status === 'Open') row.status = 'Closed';
+      const cur = camel(ok(await sb.from('deals').select('status,stage,milestones_done').eq('id', id).single()));
+      const next = toggleMilestone(parseMilestones(cur.milestonesDone, cur.stage, cur.status), s);
+      const row = { stage: derivedStage(next), milestones_done: next };
+      if (s === 9 && next[9] && cur.status === 'Open') row.status = 'Closed';
       ok(await sb.from('deals').update(row).eq('id', id));
       return api.getDeal(id);
     },
