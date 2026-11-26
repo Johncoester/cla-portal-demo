@@ -3833,3 +3833,31 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-071.
 
 - The file type (extension) is kept so the document still opens.
 - The same naming is used for sellers, even though Matt only named buyers, so Documents stays consistent.
+
+## Order Status milestones complete independently (MF-068)
+
+Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
+
+**Status: Building.** Has a database file. Not merged, and not Live, until a Rule 27 review (it replaces `public.rpc_tc_file_summaries` and adds `deals.milestones_done`).
+
+**What's built**
+
+- Each milestone can be checked or unchecked on its own.
+- `deals.stage` stays as the highest completed index (or 0 if none).
+- Checking Disbursed Funds closes an open order. Unchecking it does not reopen the file.
+- Existing files are backfilled 0 through the previous stage.
+
+**What's still missing**
+
+- Rule 27 review and merge. Not checked on TEST yet.
+
+**Links**
+
+- Spec: [docs/specs/mf-068-independent-milestones.md](docs/specs/mf-068-independent-milestones.md)
+- Migration: `supabase/migrations/20261131200000_independent_milestones.sql`
+- Rollback: `supabase/rollbacks/20261131200000_independent_milestones.sql`
+
+**Decisions**
+
+- Unchecking Disbursed Funds leaves a Closed file Closed (Matt was asked; this is the plan default).
+- The TC dashboard file list uses the stored set, not the old "every earlier step is done" rule, and no longer marks every step done just because the file is Closed.
