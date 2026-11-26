@@ -3,7 +3,7 @@
 // Email stays locked (changed by the sign-in provider). License, address and birthday stay the agent's own.
 // Shared by the mock adapter, the Supabase adapter and the pages. Mirrored by private.rpc_admin_update_agent_profile
 // (migration 20261131060000_admin_edit_agent_profile.sql), which makes the same checks in the database.
-import { cleanAgentProfile } from './agent-profile.js?v=202611302000';
+import { cleanAgentProfile } from './agent-profile.js?v=202611312900';
 export const ADMIN_AGENT_FIELDS = ['firstName', 'lastName', 'brokerage', 'cellPhone', 'officePhone', 'photo', 'photoShape'];
 // the same check as User List: the isAdmin flag (role Admin or Super admin always has it). Not a Processor, Sales Person, agent or client.
 export const canEditAgentProfiles = (u) => !!u && !!u.isAdmin && (u.status || 'active') === 'active';

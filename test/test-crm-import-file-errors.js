@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseHTML } from '/tmp/domtest/node_modules/linkedom/worker.js';
 import { IMPORT_MAX_BYTES, IMPORT_MAX_ROWS, importTooBigMessage } from '../js/data/crm-janine.js';
-import { importFileHelpText, importFileKind, importFileRejectReason, importParsedFileError, importReadErrorMessage, importFileEmptyMessage } from '../js/data/crm-import-file.js';
+import { importFileHelpText, importFileKind, importFileRejectReason, importParsedFileError, importReadErrorMessage, importFileEmptyMessage } from '../js/data/crm-import-file.js?v=202611312900';
 import { isExcelImport } from '../js/data/crm-excel.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,7 +29,7 @@ const pdf = importFileRejectReason({ name: 'notes.pdf', type: 'application/pdf',
 ok(pdf.includes('notes.pdf') && pdf.includes('not a CSV or an Excel file') && pdf.includes('.csv') && pdf.includes('.xlsx') && pdf.includes('.xls'), 'a wrong type names the file and the types that work');
 ok(importFileRejectReason({ name: '', type: '', size: 4 }).startsWith('This file is not a CSV'), 'a file with no name still says it is the wrong type');
 const tooBig = importFileRejectReason({ name: 'leads.csv', type: 'text/csv', size: IMPORT_MAX_BYTES + 1 });
-ok(tooBig.includes('leads.csv') && tooBig.includes('too big') && tooBig.includes(String(IMPORT_MAX_BYTES / 1e6) + ' MB') && tooBig.includes('Choose a smaller file'), 'a file over 2 MB says the limit and what to do');
+ok(tooBig === 'File is too large (max 2 MB)', 'a file over 2 MB says File is too large (max 2 MB)');
 ok(importFileRejectReason({ name: 'leads.csv', type: 'text/csv', size: IMPORT_MAX_BYTES }) === '', 'a file of exactly 2 MB is not too big');
 ok(importFileRejectReason({ name: 'leads.csv', type: 'text/csv', size: 0 }) === importFileEmptyMessage({ name: 'leads.csv' }), 'an empty file says to add a header and a row');
 ok(importFileRejectReason({ name: 'leads.csv', type: 'text/csv', size: -1 }).includes('could not be read'), 'a file with a bad size is unreadable, in plain words');
@@ -56,18 +56,18 @@ ok(technical.includes('could not be read') && technical.includes('Save it again'
 
 const page = read('js/pages/crm-janine.js');
 const stamp = page.match(/crm-import-file\.js\?v=(\d+)/g) || [];
-ok(stamp.length === 1 && stamp[0] === 'crm-import-file.js?v=202611247700', 'the file check is loaded once, at 202611242030');
+ok(stamp.length === 1 && stamp[0] === 'crm-import-file.js?v=202611312900', 'the file check is loaded once, at 202611242030');
 ok(page.includes('../data/crm-janine.js?v=202611247700') && page.includes("import('../data/crm-excel.js?v=202611221700')"), 'the import page loads the contact-type list; the Excel reader stamp stays');
 ok(!page.includes("$('[data-import-file]', root).addEventListener('change', guard"), 'a rejected file is not handed to the disappearing toast');
 ok(page.includes('data-import-file-help') && page.includes('data-import-file-err') && page.includes('class="err-text"') && page.includes('role="alert"'), 'the upload card has a helper and a red alert');
 ok(read('css/portal.css').includes('.err-text { color: var(--bad);'), 'the alert uses the existing red text');
-ok(read('js/app.js').includes("pages/crm-janine.js?v=202611302100") && read('js/pages/crm.js').includes("crm-janine.js?v=202611302100") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611302100") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611302100"), 'the import page loads at 202611247100 with the contact type list');
-ok(read('index.html').includes('js/app.js?v=202611312800') && read('js/app.js').includes("pages/crm.js?v=202611302100") && read('js/pages/crm.js').includes("crm-forms.js?v=202611302100") && read('js/pages/crm.js').includes("crm-home.js?v=202611302100") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611302100"), 'the note edit pages load with the tab row at 202611289980 and the shell is 202611290610');
-ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611312800") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611312700") && read('js/data/adapter.js').includes("mock-adapter.js?v=202611312800"), 'the shell loads the adapter that reads the tax rate sheet');
+ok(read('js/app.js').includes("pages/crm-janine.js?v=202611312900") && read('js/pages/crm.js').includes("crm-janine.js?v=202611312900") && read('js/pages/crm-forms.js').includes("crm-janine.js?v=202611312900") && read('js/pages/crm-home.js').includes("crm-janine.js?v=202611312900"), 'the import page loads at 202611247100 with the contact type list');
+ok(read('index.html').includes('js/app.js?v=202611312900') && read('js/app.js').includes("pages/crm.js?v=202611312900") && read('js/pages/crm.js').includes("crm-forms.js?v=202611312900") && read('js/pages/crm.js').includes("crm-home.js?v=202611312900") && read('js/pages/crm-home.js').includes("crm-forms.js?v=202611312900"), 'the note edit pages load with the tab row at 202611289980 and the shell is 202611290610');
+ok(!read('js/data/adapter.js').includes('202611242030') && read('js/app.js').includes("adapter.js?v=202611312900") && read('js/data/adapter.js').includes("supabase-adapter.js?v=202611312900") && read('js/data/adapter.js').includes("mock-adapter.js?v=202611312900"), 'the shell loads the adapter that reads the tax rate sheet');
 // FF-101a: allow unchanged — the CRM PR that introduced this check required a non-empty stamp-only
 // diff; after that merged, any later branch that does not retouch crm-import-file.js has an empty diff.
-const fileCheckDiff = execFileSync('git', ['diff', '-U0', 'origin/main', '--', 'js/data/crm-import-file.js'], { cwd: root, encoding: 'utf8' }).split('\n').filter((l) => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'));
-ok(fileCheckDiff.length === 0 || fileCheckDiff.every((l) => /\?v=202611\d+/.test(l)), 'the file check module is unchanged or changes only the cache stamp that loads the contact type list');
+// CONNECT-8 (row 5.2) changes the over-limit wording in crm-import-file.js to "File is too large (max 2 MB)".
+ok(read('js/data/crm-import-file.js').includes('uploadTooLargeMessage'), 'the file check uses the standard over-limit message');
 // Note edit changes the notes list in crm-forms.js. The task detail changes crm-home.js. Those files are not stamp-only.
 // index.html changes only the cache stamp. crm.js also carries the Calls list route (Feedback 32 item 3), so it is not stamp-only.
 for (const rel of ['index.html']) {
@@ -153,7 +153,7 @@ ok(shown(app).includes('notes.pdf') && app.querySelector('[data-import-fname]').
 
 const big = new File([new Uint8Array(IMPORT_MAX_BYTES + 1)], 'huge.csv', { type: 'text/csv' });
 await choose(app, big, () => shown(app).includes('huge.csv'));
-ok(shown(app).includes('too big') && shown(app).includes('2 MB') && noToast(), 'a file over 2 MB stays on the card in plain words');
+ok(shown(app).includes('File is too large (max 2 MB)') && noToast(), 'a file over 2 MB stays on the card in plain words');
 
 await choose(app, fileOf('empty.csv', ''), () => shown(app).includes('empty.csv'));
 ok(shown(app).includes('no rows to import') && shown(app).includes('header row'), 'an empty file stays on the card');

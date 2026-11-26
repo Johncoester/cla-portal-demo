@@ -12,8 +12,8 @@ import { USER_ROLE_FILTERS, USER_STATUS_FILTERS, filterUsers } from '../data/use
 import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611248300';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';
 import { tcAgentsSectionHtml, mountTcAgentsSection } from './tc-agents-panel.js?v=202611289960';
-import { renderAgentProfileAdmin } from './agent-profile-admin.js?v=202611310600';
-import { canEditAgentProfiles, agentProfileHref, AGENT_FILE_ROLES } from '../data/agent-profile-admin.js?v=202611310600';
+import { renderAgentProfileAdmin } from './agent-profile-admin.js?v=202611312900';
+import { canEditAgentProfiles, agentProfileHref, AGENT_FILE_ROLES } from '../data/agent-profile-admin.js?v=202611312900';
 const acct = (r) => (r === OUTSIDE ? 'Realtor / Client (role set per order)' : r);   // display only (live40): the stored value stays 'Outside user'
 const fullName = (u) => `${u.firstName} ${u.lastName}`.trim();
 // account-type options; a plain Admin sees "Super admin" but cannot pick it

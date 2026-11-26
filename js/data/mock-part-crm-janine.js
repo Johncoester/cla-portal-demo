@@ -7,6 +7,7 @@
  *   - Company duplicate lookup for the Company form (live warning with a link to the existing record).
  *   - janineLazyUpgrade: Zillow URL -> Zillow Profile, leads linked to their company. No storage-key bump: lazy, idempotent, lossless. */
 import { parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, loadZipTable, countiesFor, buildIcs, INVITE_NOTE, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611247700';
+import { uploadTooLargeMessage } from './upload-limit.js?v=202611312900';
 import { importedStatusDecision } from './crm-import-status.js?v=202611247700';
 import { cleanUiModule, cleanUiPrefs } from './crm-columns.js?v=202611160300';
 import { rowMatches, applyFieldPatch, emailPlan, EMAIL_DRAFT_BATCH, EMAIL_RECIPIENT_CAP } from './crm-match.js?v=202611160400';
@@ -44,7 +45,7 @@ export function crmJaninePart(x, ctx) {
 
   function readInput(input, fields) {
     const text = input.csv != null ? String(input.csv) : null;
-    if (text != null && text.length > IMPORT_MAX_BYTES) fail(`The file is too large (at most ${IMPORT_MAX_BYTES / 1e6} MB).`);
+    if (text != null && text.length > IMPORT_MAX_BYTES) fail(uploadTooLargeMessage(IMPORT_MAX_BYTES));
     const rows = Array.isArray(input.rows) ? input.rows.map((r) => r.map((c) => String(c == null ? '' : c))) : parseCsv(text || '');
     if (rows.length < 2) fail('The file needs a header row and at least one row of data.');
     if (rows.length - 1 > IMPORT_MAX_ROWS) fail(`At most ${IMPORT_MAX_ROWS} rows per import.`);

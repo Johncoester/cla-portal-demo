@@ -2,9 +2,10 @@
 // Quick jumps: Contract info, Milestones, EMD & ALTA, Documents/Upload, Messages (all parties). FAKE DATA ONLY.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, fmtMoney, pill, toast } from '../ui.js?v=202611161500';
 import { STAGES, DOC_TYPES, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, moneyShow, moneyAmount } from '../data/constants.js?v=202611302300';
+import { assertUploadSize } from '../data/upload-limit.js?v=202611312900';
 import { settlementSectionHtml, mountSettlement } from './settlement-section.js?v=202611247700';
-import { composeModal } from './compose.js?v=202611312800';
-import { sameUploadId } from '../data/supabase-nov5.js?v=202611247700';
+import { composeModal } from './compose.js?v=202611312900';
+import { sameUploadId } from '../data/supabase-nov5.js?v=202611312900';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { agentFeesPointer } from './agent-fees-box.js?v=202611247700';
 import { emdHolderSelect, wireEmdHolderFields, applyNoEmdToForm, emdHolderDisplay } from '../data/emd-holder.js?v=202611312000';
@@ -81,13 +82,13 @@ export async function renderTcOverview(ctx, d) {
         <p class="muted small span2">Uploading an ALTA marks it received with today’s date unless you choose one. Documents stay in the portal.</p>
         <div class="span2"><button class="m-btn" type="submit">Save EMD / ALTA</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`, { wide: true });
       $('#tc-emd', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); let docId = null; const file = f.altaFile;
-        if (file && file.name) { if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.'); const dataUrl = await readFile(file);
+        if (file && file.name) { assertUploadSize(file.size, MAX_UPLOAD_BYTES); const dataUrl = await readFile(file);
           const doc = await api.addDocument(d.id, { id: sameUploadId(e.target._upload || (e.target._upload = {}), file), name: file.name, description: 'Signed ALTA / settlement statement', mimeType: file.type, size: file.size, dataUrl, visibility: 'staff', docType: 'Settlement statement', folderId: null }); docId = doc.id; }
         await api.updateEmdAlta(d.id, { received: !!f.received, receivedDate: f.receivedDate, receivedAmount: moneyAmount(f.receivedAmount), altaReceived: !!f.altaReceived || !!docId, altaReceivedDate: f.altaReceivedDate, altaDocumentId: docId || undefined }); closeModal(); toast('EMD & ALTA saved'); refresh(); }));
     }
     function uploadModal() {
       const m = modal('Upload miscellaneous document', html`<form id="tc-up" class="form-grid"><label class="span2">File *<input type="file" name="file" required></label><label class="span2">Type<select name="docType" required><option value="">Choose…</option>${options([...new Set(['Contract / addendum', 'Other', ...DOC_TYPES])], '')}</select></label><label class="span2">Note<input name="description" maxlength="500"></label><label class="span2">Who can see it<select name="visibility"><option value="staff">CLA Title staff only</option><option value="all">All parties</option><option value="buyer">Buyer side + CLA</option><option value="seller">Seller side + CLA</option></select></label><div class="span2"><button class="m-btn" type="submit">Upload document</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
-      $('#tc-up', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const file = f.file; if (!file?.name) throw new Error('Choose a file.'); if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
+      $('#tc-up', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const file = f.file; if (!file?.name) throw new Error('Choose a file.'); assertUploadSize(file.size, MAX_UPLOAD_BYTES);
         const dataUrl = await readFile(file); await api.addDocument(d.id, { id: sameUploadId(e.target._upload || (e.target._upload = {}), file), name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, visibility: f.visibility, docType: f.docType }); closeModal(); toast('Document uploaded'); refresh(); }));
     }
     function messageModal() {

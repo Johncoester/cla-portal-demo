@@ -2,7 +2,8 @@
 // Required: first name, last name, email, cell phone. Optional: date of birth as MONTH + DAY (no year), profile picture (image only, max 5 MB picked,
 // cropped in the browser to a 320 x 320 picture shown as a circle or a square), brokerage, license number, office phone, address, other contact info.
 import { html, raw, $, $$ } from '../ui.js?v=202611161500';
-import { MONTHS, PHOTO_MAX_BYTES, PHOTO_TYPES, PHOTO_TYPE_MSG, initialsOf, cleanMonthDay, photoFileAllowed, photoFileChosen } from '../data/agent-profile.js?v=202611302000';
+import { MONTHS, PHOTO_MAX_BYTES, PHOTO_TYPES, PHOTO_TYPE_MSG, initialsOf, cleanMonthDay, photoFileAllowed, photoFileChosen } from '../data/agent-profile.js?v=202611312900';
+import { uploadTooLargeMessage, isOverUploadLimit } from '../data/upload-limit.js?v=202611312900';
 const sel = (v, x) => (String(v) === String(x) ? raw(' selected') : '');
 export function avatarHtml(p, cls = '') {
   const shape = p.photoShape === 'square' ? 'square' : 'circle';
@@ -63,7 +64,7 @@ export function mountAgentForm(root) {
     ox = Math.min(0, Math.max(W - w, ox)); oy = Math.min(0, Math.max(W - h, oy)); c.fillStyle = '#fff'; c.fillRect(0, 0, W, W); c.drawImage(img, ox, oy, w, h); };
   file.addEventListener('change', () => { const x = file.files && file.files[0]; showErr(''); if (!photoFileChosen(x)) return;
     if (!photoFileAllowed(x)) { file.value = ''; showErr(PHOTO_TYPE_MSG); return; }
-    if (x.size > PHOTO_MAX_BYTES) { file.value = ''; showErr('Profile picture is too large (max 5 MB).'); return; }
+    if (isOverUploadLimit(x.size, PHOTO_MAX_BYTES)) { file.value = ''; showErr(uploadTooLargeMessage(PHOTO_MAX_BYTES)); return; }
     const r = new FileReader(); r.onload = () => { const im = new Image(); im.onload = () => { img = im; z = 1; zoom.value = '1'; const s = scale(); ox = (cv.width - im.width * s) / 2; oy = (cv.height - im.height * s) / 2; draw(); crop.hidden = false; };
       im.onerror = () => showErr('That file could not be read as a picture.'); im.src = r.result; }; r.readAsDataURL(x); });
   zoom.addEventListener('input', () => { if (!img) return; const W = cv.width / 2; const k = Number(zoom.value) / z; ox = W - (W - ox) * k; oy = W - (W - oy) * k; z = Number(zoom.value); draw(); });

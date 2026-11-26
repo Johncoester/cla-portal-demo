@@ -1,15 +1,19 @@
 /* [SUPABASE] Agent invites, agent profiles and the "Your agent" card (migration 41). Same names / shapes as mock-part-agent-invite.js.
  * NOT run against a hosted project (best effort; the mock adapter is the tested one). NOTHING IS SENT: the invite RPC returns the token and the page
  * shows the link. Photos go to the private 'agent-photos' bucket at <uid>/avatar.jpg and are shown through short-lived signed URLs. */
-import { cleanAgentProfile, canInviteAgents, cardOf } from './agent-profile.js?v=202611302000';
+import { cleanAgentProfile, canInviteAgents, cardOf, PHOTO_STORED_MAX } from './agent-profile.js?v=202611312900';
+import { assertUploadSize, mapUploadError } from './upload-limit.js?v=202611312900';
 import { acceptInviteRemote } from './accept-invite-client.js?v=202611070139';
-import { canEditAgentProfiles, cleanAdminAgentPatch, AGENT_EDIT_DENIED, AGENT_EDIT_NOT_FOUND } from './agent-profile-admin.js?v=202611310600';
+import { canEditAgentProfiles, cleanAdminAgentPatch, AGENT_EDIT_DENIED, AGENT_EDIT_NOT_FOUND } from './agent-profile-admin.js?v=202611312900';
 const inv = (r) => ({ id: r.id, contactId: r.contact_id, dealId: r.deal_id, firstName: r.first_name, lastName: r.last_name, email: r.email, status: r.status === 'pending' && r.expires_at < new Date().toISOString() ? 'expired' : r.status,
   createdAt: r.created_at, expiresAt: r.expires_at, acceptedAt: r.accepted_at, revokedAt: r.revoked_at, resentCount: r.resent_count || 0, inviteKind: r.invite_kind || 'agent', sentAt: r.sent_at || null, sentTo: r.sent_to || '', sendCount: r.send_count || 0, sendError: r.send_error || '', createdByName: '' });
 export function agentInviteSupabase({ sb, ok, me }) {
   const signed = async (path) => { if (!path) return ''; const r = await sb.storage.from('agent-photos').createSignedUrl(path, 3600); return (r.data && r.data.signedUrl) || ''; };
   const upload = async (uid, dataUrl) => { if (!dataUrl || !/^data:image\/jpeg/.test(dataUrl)) return undefined; const blob = await (await fetch(dataUrl)).blob(); const path = `${uid}/avatar.jpg`;
-    ok(await sb.storage.from('agent-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })); return path; };
+    assertUploadSize(blob.size, PHOTO_STORED_MAX);
+    const up = await sb.storage.from('agent-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (up && up.error) throw new Error(mapUploadError(up.error, PHOTO_STORED_MAX));
+    ok(up); return path; };
   const toJson = (v, photoPath) => { const o = { ...v }; delete o.photo; if (photoPath !== undefined) o.photoPath = photoPath; return o; };
   return {
     async listAgentInvites({ status = '' } = {}) { const u = await me(); if (!canInviteAgents(u)) throw new Error('Only CLA staff can invite people to the portal.');

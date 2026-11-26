@@ -8,6 +8,7 @@
  * that comes back as a failure is shown on each row instead of as one generic error.
  * A commit reuses one batch id. Nothing is emailed. */
 import { buildIcs, INVITE_NOTE, parseCsv, guessMapping, applyMapping, PERSON_IMPORT_FIELDS, NOTE_IMPORT_FIELDS, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES, IMPORT_CHUNK_ROWS, importChunkRanges, importTooBigMessage, leadRequiredMessages, importPartialReport, saveImportResume, loadZipTable, countiesFor, IMPORT_DEFAULT_FIELDS, IMPORT_DEFAULT_KEYS } from './crm-janine.js?v=202611247700';
+import { uploadTooLargeMessage } from './upload-limit.js?v=202611312900';
 import { importErrorCsv } from './crm-import-skip-csv.js?v=202611247700';
 import { US_STATE_NAMES, US_STATES, fmtPhone, phoneOk } from './constants.js?v=202611302300';
 import { ensureSettings, findOption } from './crm-config.js?v=202611247700';
@@ -26,7 +27,7 @@ const stateCode = (v) => {
 
 function readInput(input, fields) {
   const text = input.csv != null ? String(input.csv) : null;
-  if (text != null && text.length > IMPORT_MAX_BYTES) throw new Error(`The file is too large (at most ${IMPORT_MAX_BYTES / 1e6} MB).`);
+  if (text != null && text.length > IMPORT_MAX_BYTES) throw new Error(uploadTooLargeMessage(IMPORT_MAX_BYTES));
   const rows = Array.isArray(input.rows) ? input.rows.map((r) => r.map((c) => String(c == null ? '' : c))) : parseCsv(text || '');
   if (rows.length < 2) throw new Error('The file needs a header row and at least one row of data.');
   if (rows.length - 1 > IMPORT_MAX_ROWS) throw new Error(importTooBigMessage(rows.length - 1));

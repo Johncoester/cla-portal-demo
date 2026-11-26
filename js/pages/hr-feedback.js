@@ -4,10 +4,11 @@
 //                         "Shared with you" (company documents HR shared with this employee, on My profile)
 import { html, raw, $, $$, guard, toast, fmtDate, fmtDateTime, fmtSize } from '../ui.js?v=202611161500';
 import { HR_COMPANY_DOC_CATEGORIES, HR_SHARE_SCOPES, HR_EMP_DOC_TYPES, HR_SIGN_STATUSES, HR_SIGN_PROVIDERS, HR_ESIGN_NOTE, fmtDuration, fullNameOf } from '../data/hr.js?v=202611247700';
-import { ALLOWED_UPLOAD_EXT } from '../data/constants.js?v=202611302300';
+import { ALLOWED_UPLOAD_EXT, MAX_UPLOAD_BYTES } from '../data/constants.js?v=202611302300';
+import { assertUploadSize } from '../data/upload-limit.js?v=202611312900';
 const opt = (list, sel) => list.map(([v, l]) => html`<option value="${v}"${String(v) === String(sel == null ? '' : sel) ? raw(' selected') : ''}>${l}</option>`);
 const readFile = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read the file.')); r.readAsDataURL(f); });
-const fileOf = async (input) => { const f = input && input.files && input.files[0]; if (!f) throw new Error('Pick a file to upload.'); return { name: f.name, mimeType: f.type, size: f.size, dataUrl: await readFile(f) }; };
+const fileOf = async (input) => { const f = input && input.files && input.files[0]; if (!f) throw new Error('Pick a file to upload.'); assertUploadSize(f.size, MAX_UPLOAD_BYTES); return { name: f.name, mimeType: f.type, size: f.size, dataUrl: await readFile(f) }; };
 const accept = ALLOWED_UPLOAD_EXT.map((x) => '.' + x).join(',');
 function open(file) { const a = document.createElement('a'); a.href = file.dataUrl; a.download = file.name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 300); }
 const SIGN_PILL = { draft: '', not_sent: 'warn', sent: 'warn', signed: 'ok', declined: 'bad' };

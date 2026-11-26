@@ -11,12 +11,12 @@ import { canManageFileTemplates } from './file-email-templates.js?v=202611291500
  * back; the route guard then applies to the person being viewed. Any other locked link (Adam Admin included) never gets it, and a stored viewAs on a
  * lock whose owner is not a Super admin is ignored and cleared (app.js). */
 import { runsOrders, isStaff, isOutside } from './constants.js?v=202611302300';
-import { canReportStaffFeedback } from './staff-feedback.js?v=202611080400';
+import { canReportStaffFeedback } from './staff-feedback.js?v=202611312900';
 import { titleCanRead } from './title.js?v=202611247700';
 import { fwpCanRead } from './funding-wire-policy.js?v=202611070139';   // John, Nov 4: order > Title route guard
 import { canUseCrm } from './crm.js?v=202611247700';
 import { canManageRoleAccess } from './role-access.js?v=202611100100';
-import { canInviteAgents } from './agent-profile.js?v=202611302000';
+import { canInviteAgents } from './agent-profile.js?v=202611312900';
 import { canManageModules } from './modules.js?v=202611247700';
 import { hrSectionAllowed } from './hr.js?v=202611247700';
 import { canManageOffices } from './offices.js?v=202611247700';

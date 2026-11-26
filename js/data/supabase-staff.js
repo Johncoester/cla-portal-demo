@@ -2,6 +2,8 @@
  * Reads and writes go through the existing tables and RLS. This file does not create logins
  * and does not contain a service-role key. Nothing is emailed. */
 import { uploadBytes as blobOf, uploadFileName } from './upload-bytes.js?v=202611141400';
+import { assertUploadSize, mapUploadError } from './upload-limit.js?v=202611312900';
+import { MAX_UPLOAD_BYTES } from './constants.js?v=202611302300';
 import { idUploadStoredName } from './id-upload-name.js?v=202611311000';
 import { SALES_PICK_ROLES, tidyPersonName } from './place-order.js?v=202611247700';
 import { parseMilestones, toggleMilestone, derivedStage } from './milestones.js?v=202611312200';
@@ -29,8 +31,10 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     if (!id) throw new Error('This browser cannot mint a document id.');
     const name = safeName(file.name, file.mimeType);
     const path = dealId ? `${dealId}/${id}/${name}` : `library/${folderId}/${id}/${name}`;
-    const up = await sb.storage.from('deal-documents').upload(path, await blobOf(file), { contentType: file.mimeType || 'application/octet-stream', upsert: false });
-    if (up.error) throw new Error(up.error.message || 'The document bucket refused the upload.');
+    const body = await blobOf(file);
+    assertUploadSize(Number(file && file.size) || body.size || 0, MAX_UPLOAD_BYTES);
+    const up = await sb.storage.from('deal-documents').upload(path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
+    if (up.error) throw new Error(mapUploadError(up.error, MAX_UPLOAD_BYTES));
     const row = { id, deal_id: dealId || null, folder_id: folderId || null, name, description: file.description || '', mime_type: file.mimeType || 'application/octet-stream', size_bytes: file.size || 0, storage_path: path, visibility: visibility || 'all', uploaded_by: u.id, doc_type: file.docType || '', wire_instructions: file.wireInstructions === true };
     // Insert without RETURNING. documents_select is `id in (readable_document_ids())`,
     // and that function is STABLE, so it cannot see the row this statement is still inserting.

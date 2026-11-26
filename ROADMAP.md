@@ -37,6 +37,26 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Over-limit upload message (CONNECT-8)
+
+**How it should work.** When someone picks a file that is over the size limit, the portal shows a clear error: "File is too large (max X MB)", where X is the real limit for that upload. The same message appears if the server refuses the file as too large (HTTP 413 / "Payload too large").
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 5.2 (Francis Santos). No database file. Cache stamp 202611312900. Row 6.4 (agreement templates) is not part of this and still waits on files from John.
+
+**What's built**
+
+- A shared helper formats the real byte limit and the standard message, and maps a server 413 / "Payload too large" to that message.
+- Every upload path checks the size before sending bytes and uses that message: order documents, Place Order, Messages attachments, task and library uploads, the Email tab's computer-file attachments, CRM note files, CRM imports (2 MB), HR documents, staff-feedback screenshots (5 MB), and profile pictures (5 MB picked, 400 KB after cropping).
+- Hint text no longer says "demo limit".
+- Storage bucket limits were not changed. The deal-documents and hr-documents buckets still allow 25 MiB (26,214,400 bytes); the client check stays at 25,000,000 bytes (25 MB). The crm bucket is 25,000,000 bytes. staff-feedback is 5,000,000 bytes. agent-photos is 409,600 bytes (400 KB).
+
+**What's still missing**
+
+- The `ai-title-review` bucket on TEST (50 MiB, PDF only) has no portal upload path in this repo, so it was left alone.
+- Agreement templates (checklist row 6.4) wait on files from John.
+
+---
+
 ## Gmail emails on Messages (CONNECT-6)
 
 **How it should work.** When staff send email from their own Gmail through the portal, that email shows on the order's Messages (Inbox) tab, not only on the Email tab. A reply in the same Gmail thread also shows there, on the order.
@@ -68,7 +88,7 @@ This file lists the portal's major features: how each one should work, how far a
 
 **How it should work.** When a buyer's or listing agent's transaction coordinator starts a conversation, they can add the parties on their side of the order (buyer-side: the buyer, the buyer agent, and the buyer's lender; seller-side: the seller and the listing agent), plus CLA Title staff on the file. They cannot add the other side.
 
-**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 4.3. Database file 20261131280000_connect_7_tc_recipients.sql (apply once on TEST after a rule 27 review). Pull request: [PR 459](https://github.com/Johncoester/cla-portal-demo/pull/459).
+**Status: Done (on TEST, waiting on the team's retest of row 4.3).** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 4.3. Database file 20261131280000_connect_7_tc_recipients.sql applied once on TEST (version 20261126072408). Pull request: [PR 459](https://github.com/Johncoester/cla-portal-demo/pull/459), merged Nov 26 2026, 2:23:26 AM ET (347bd915).
 
 **What's built**
 
@@ -77,8 +97,8 @@ This file lists the portal's major features: how each one should work, how far a
 
 **What's still missing**
 
-- A rule 27 review of the SECURITY DEFINER / guard change, then the usual merge and one apply on TEST.
 - A coordinator still cannot invite someone who has no portal login.
+
 
 **Links**
 

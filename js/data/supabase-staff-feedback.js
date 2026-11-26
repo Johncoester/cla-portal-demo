@@ -1,6 +1,7 @@
 /* Supabase adapter for staff portal feedback. RPCs enforce the rules. The browser has no webhook URL or Bearer key.
  * Test simulation is refused here so a hosted session cannot pretend the assistant replied. */
-import { screenshotMeta } from './staff-feedback.js?v=202611080400';
+import { screenshotMeta, MAX_SCREENSHOT_BYTES } from './staff-feedback.js?v=202611312900';
+import { mapUploadError } from './upload-limit.js?v=202611312900';
 
 const uid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : '');
 const safeName = (n) => String(n || 'screenshot').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 80);
@@ -24,7 +25,7 @@ export function staffFeedbackSupabase({ sb, ok, camel }) {
       const path = `reports/${id}/${key}.${meta.ext}`;
       const blob = file.blob || await (await fetch(file.dataUrl)).blob();
       const up = await sb.storage.from('staff-feedback').upload(path, blob, { contentType: meta.mime, upsert: false });
-      if (up.error) throw new Error('The screenshot was not stored.');
+      if (up.error) throw new Error(mapUploadError(up.error, MAX_SCREENSHOT_BYTES));
       return one('staff_feedback_add_attachment', { p_report: id, p_message: file.messageId || null, p_name: meta.name, p_mime: meta.mime, p_size: meta.size, p_path: path, p_idempotency: key });
     },
     async openStaffFeedbackAttachment(id) {

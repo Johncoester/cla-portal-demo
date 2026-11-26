@@ -2,6 +2,8 @@
  * RLS and the security-definer RPCs decide access. This file does not embed a project URL or a key.
  * File bytes go to the private deal-documents bucket (migration 3). A missing bucket surfaces as an error; nothing is invented. */
 import { ordinaryCoverageDoc } from './nov5-rules.js?v=202611247700';
+import { assertUploadSize, mapUploadError } from './upload-limit.js?v=202611312900';
+import { MAX_UPLOAD_BYTES } from './constants.js?v=202611302300';
 import { cleanDueRule } from './due-date.js?v=202611110300';
 import { uploadBytes } from './upload-bytes.js?v=202611141400';
 import { readThreadPeople, shapePortalThreads, withThreadPeople } from './portal-threads.js?v=202611162200';
@@ -92,9 +94,10 @@ export function nov5Supabase({ sb, ok, camel, me }) {
       if (!id) throw new Error('This browser cannot mint a document id.');
       const row = documentInsertRow({ dealId, file, userId: user.id, id });
       const body = await uploadBytes(file);
+      assertUploadSize(Number(file && file.size) || body.size || 0, MAX_UPLOAD_BYTES);
       const bucket = sb.storage.from('deal-documents');
       const up = await bucket.upload(row.storage_path, body, { contentType: file.mimeType || 'application/octet-stream', upsert: false });
-      if (up.error && !alreadyKept(up.error)) throw new Error(up.error.message || 'The document bucket refused the upload.');
+      if (up.error && !alreadyKept(up.error)) throw new Error(mapUploadError(up.error, MAX_UPLOAD_BYTES));
       const ins = await sb.from('documents').insert(row);
       if (ins.error && !alreadyKept(ins.error)) throw new Error(ins.error.message);
       const read = await sb.from('documents').select('*').eq('id', row.id).single();

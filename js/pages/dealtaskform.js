@@ -5,7 +5,8 @@ import { fieldActive, fieldsForRole, fieldsForFile, totalCommissionAmount, forma
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611312500';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG, isRefi } from '../data/constants.js?v=202611302300';
-import { CLS, LABEL } from './dealtasks.js?v=202611312800';
+import { formatUploadMax, assertUploadSize } from '../data/upload-limit.js?v=202611312900';
+import { CLS, LABEL } from './dealtasks.js?v=202611312900';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { AGENT_ROLE_SIDE } from '../data/agent-fees.js?v=202611246500';
 import { nameTasks, taskRoleLabel } from '../data/task-party-names.js?v=202611300600';
@@ -46,7 +47,7 @@ export function intakeFormHtml(t, { page = false, state = '', doneReadOnly = fal
       const row = (m, i) => html`<div class="form-grid" data-mortgage-row="${i}"><label>Lender<input data-mlender value="${m.lender || ''}"></label><label>Phone<input data-mphone type="tel" inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone maxlength="12" value="${m.phone || ''}"></label><label>Loan number<input data-mloan maxlength="30" autocomplete="off" value="${m.loan_number || m.last4 || ''}"></label><label>Type<input data-mtype value="${m.loan_type || ''}"></label></div>`;
       return html`<div class="span2 fld" data-k="${f.k}" data-mortgages><input type="hidden" name="${f.k}" value="[]"><div data-mortgage-rows>${list.map(row)}</div><button type="button" class="ghost" data-add-mortgage>Add another mortgage</button></div>`;
     }
-    if (f.type === 'doc') return html`<label class="span2 fld" data-k="${f.k}">${f.label} ${req} <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; demo limit ${MAX_UPLOAD_BYTES / 1e6} MB)</span>
+    if (f.type === 'doc') return html`<label class="span2 fld" data-k="${f.k}">${f.label} ${req} <span class="muted small">(${ALLOWED_UPLOAD_EXT.join(', ')}; max ${formatUploadMax(MAX_UPLOAD_BYTES)})</span>
       ${val ? html`<span class="doc-have">On file: <strong>${docName(val)}</strong> (choose a new file to replace it; the old file is kept)</span>` : ''}<input type="file" data-file="${f.k}" accept="image/*,.pdf,.heic,.heif"><input type="hidden" name="${f.k}" value="${val}"><span class="ferr"></span></label>`;
     const type = { email: 'email', date: 'date', phone: 'tel' }[f.type] || 'text';
     const extra = { money: 'inputmode="decimal"', digits4: 'maxlength="4" inputmode="numeric"', phone: 'inputmode="tel" placeholder="xxx-xxx-xxxx" data-phone', routing: 'maxlength="9" inputmode="numeric" autocomplete="off"',
@@ -143,7 +144,7 @@ export function mountIntakeForm(root, { api, t, afterSave }) {
     e.preventDefault(); $$('.ferr', form).forEach((x) => { x.textContent = ''; }); $$('.fld', form).forEach((x) => x.classList.remove('has-err'));
     try {
       for (const fi of $$('input[data-file]', form)) { const file = fi.files[0]; if (!file) continue;
-        if (file.size > MAX_UPLOAD_BYTES) throw new Error('File is too large for this demo.');
+        assertUploadSize(file.size, MAX_UPLOAD_BYTES);
         const up = await api.uploadForTask(t.id, { name: file.name, mimeType: file.type, size: file.size, dataUrl: await readFile(file), field: fi.dataset.file }); form.elements[fi.dataset.file].value = up.id; fi.value = ''; }   // stored once: a retry after a form error must not upload it again
       writeMortgages();
       const mortBox = $('[data-mortgages] input[type="hidden"]', form);   // FF-069 #14: a mortgage phone must be exactly 10 digits (blank is fine)
@@ -238,4 +239,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611312800'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611312900'); return m.render(c); }
