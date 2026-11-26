@@ -642,7 +642,23 @@ This file lists the portal's major features: how each one should work, how far a
 **What's still missing (reported, not built here)**
 
 - Matt also said any CLA Processor or Preprocessor can open any file, assigned or not, because people call out sick. Processors can already. A Preprocessor can still only open files where they are the file's Preprocessor (`private.can_access_deal`, `private.can_run_deal`, and the `deals_select` policy).
-- Matt also said every action by any party must be logged and cannot be erased. `activity_log` records most actions, and the signed-in roles can only read it, but it has no database rule that blocks changes or deletes (other logs do), and the service role can still change or delete rows. `wire_audit_log` can be updated by staff.
+- Every action logged and the log cannot be erased: moved to **MF-076** below.
+
+## Permanent action log (MF-076)
+
+**How it should work.** Matt, Nov 26: every action by every party is logged, including messages sent and documents viewed, and nobody can edit or delete entries in the activity log or the wire log. Answer B: "for now, no one can modify logs", so there is no admin exception.
+
+**What changed.** Migration `20261131310000_mf076_permanent_logs.sql`:
+- `activity_log` and `wire_audit_log` get triggers that refuse every UPDATE, DELETE and TRUNCATE, for every role (signed-in users, the service key and the database owner). UPDATE, DELETE and TRUNCATE are also revoked from anon, authenticated and service_role.
+- The wire log's staff update rule (`wire_update`) is removed. The app only ever adds wire audit rows.
+- Each message sent is logged as `message.posted` on its conversation, without the message text.
+- Each document open or download is logged as `document.viewed` through `public.log_document_view`. It only logs documents the person can read, and a repeat open by the same person within 60 seconds is logged once. The hosted app calls it before the download, and the file does not open if the log write fails.
+- Who can read the log is unchanged. Staff see entries only for documents and conversations they can open, and parties never see who viewed what.
+Rollback: `supabase/rollbacks/20261131310000_mf076_permanent_logs.sql` (it deletes no log rows).
+
+**Limits.** Someone with owner access in the Supabase dashboard could still drop or switch off a trigger. No portal login or API key can. Opens done while a Super admin is in "View as" are not logged, because View as is read-only.
+
+**Status: In review** (CRM Bot rule 27 review, then TEST apply).
 
 ## Citizenship dropdown (MF-073)
 

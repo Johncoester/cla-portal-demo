@@ -107,6 +107,9 @@ export function nov5Supabase({ sb, ok, camel, me }) {
     async getDocumentContent(id) {
       const doc = camel(ok(await sb.from('documents').select('id, name, storage_path, mime_type').eq('id', id).single()));
       if (!doc.storagePath) throw new Error('This document has no stored file.');
+      // MF-076: every open/download is logged first (public.log_document_view). Only a database that does not have the function yet (PGRST202) is let through.
+      const seen = await sb.rpc('log_document_view', { p_document: id });
+      if (seen && seen.error && seen.error.code !== 'PGRST202') throw new Error(seen.error.message || 'Could not record that this document was opened.');
       const dl = await sb.storage.from('deal-documents').download(doc.storagePath);
       if (dl.error) throw new Error(dl.error.message || 'Could not read the stored file.');
       return { name: doc.name, mimeType: doc.mimeType, blob: dl.data };

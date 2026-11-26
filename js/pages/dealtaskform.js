@@ -6,7 +6,7 @@ import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { spouseSectionHtml, spousePayload, spousePhoneError, loadSpouseRows, applySpouse, bindSsnDash, showSsnMask } from './spouse.js?v=202611312500';
 import { MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, phoneOk, PHONE_MSG, isRefi } from '../data/constants.js?v=202611302300';
 import { formatUploadMax, assertUploadSize } from '../data/upload-limit.js?v=202611312900';
-import { CLS, LABEL } from './dealtasks.js?v=202611313100';
+import { CLS, LABEL } from './dealtasks.js?v=202611313400';
 import { bindAddressFill } from '../data/address-fill.js?v=202611247700';
 import { AGENT_ROLE_SIDE } from '../data/agent-fees.js?v=202611246500';
 import { nameTasks, taskRoleLabel } from '../data/task-party-names.js?v=202611300600';
@@ -239,4 +239,4 @@ function signView({ api, deal, t, refresh, go }) {
 }
 
 // Francis, Nov 3: agent tasks (kind 'agent') have their own page
-async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611313100'); return m.render(c); }
+async function ctx0(c) { const t = await c.api.getTask(c.params.sub).catch(() => null); if (!t || t.kind !== 'agent') return null; const m = await import('./dealagenttask.js?v=202611313400'); return m.render(c); }
