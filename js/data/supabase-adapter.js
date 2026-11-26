@@ -914,7 +914,10 @@ export async function createSupabaseAdapter(cfg) {
     async adminSetSalesReps(clientId, salesIds) { ok(await sb.rpc('admin_set_sales_reps', { p_client: clientId, p_sales: salesIds || [] })); return this.listClientSalesReps().then((r) => r.filter((l) => l.clientId === clientId)); },
     async publishTemplateVersion(code, patch) { return ok(await sb.rpc('publish_template_version', { p_code: code, p_title: patch.title, p_description: patch.description, p_due_days: patch.dueDays })); },
     async setTemplateAgentRoles(code, roles) { return { code, agentRoles: ok(await sb.rpc('set_template_agent_roles', { p_code: code, p_roles: roles })) }; },   // migration 9
-    async sendTaskReminder() { throw new Error('CLA Portal Live Test does not send email. Nothing was queued.'); },
+    // CONNECT-REMIND (John, Nov 25 2026, 9:02 PM ET; Connect Live Test Checklist row 6.3): Remind queues a real outbox email to the person the task is for.
+    // queue_task_reminder (already on TEST) checks the file, the processor / coordinator role and the open task, adds one outbox row per person per day
+    // and a bell notice. outbox-send then sends it from the file's processor's connected Gmail; if that Gmail is not connected the row fails with that reason.
+    async sendTaskReminder(id) { if (!id) throw new Error('Pick a task to remind.'); const n = ok(await sb.rpc('queue_task_reminder', { p_task: id })); return { queued: Number(n) || 0 }; },
     async queueOverdueReminders() { throw new Error('CLA Portal Live Test does not send email. Nothing was queued.'); },
     async listOutbox() { return camel(ok(await sb.from('outbox').select('*').order('created_at', { ascending: false }))); },
     // Matt, Nov 2: my_notifications() adds the order's file number + address (blank once the person can no longer open that order)
