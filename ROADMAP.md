@@ -64,6 +64,26 @@ This file lists the portal's major features: how each one should work, how far a
 - `list_deal_emails` also requires the file's `is_demo` flag to match the viewer's, so a demo staff login cannot read a real file's emails even though `can_access_deal` would allow it. Non-staff results return null for `sent_by`, `mailbox_profile_id`, and `template_key`.
 - No new Gmail secrets or scopes. TEST mailboxes already have `gmail.send` and `gmail.readonly`, and sync is already running.
 
+## Transaction coordinator conversations on their side (CONNECT-7)
+
+**How it should work.** When a buyer's or listing agent's transaction coordinator starts a conversation, they can add the parties on their side of the order (buyer-side: the buyer, the buyer agent, and the buyer's lender; seller-side: the seller and the listing agent), plus CLA Title staff on the file. They cannot add the other side.
+
+**Status: In progress.** John Coester, Nov 25 2026, 7:49 PM ET, Connect Live Test Checklist row 4.3. Database file 20261131280000_connect_7_tc_recipients.sql (apply once on TEST after a rule 27 review). Pull request: [PR 459](https://github.com/Johncoester/cla-portal-demo/pull/459).
+
+**What's built**
+
+- Start conversation already listed whoever the recipient query returned. The query now uses the same side logic as the rest of the portal (`outside_roles` / `linked_agent_roles`), so a coordinator is on their agent's side and sees those parties, including the lender on the buyer side.
+- Creating the conversation already refused the other side. The lender is now buyer-side there too, so a buyer-side coordinator can include them.
+
+**What's still missing**
+
+- A rule 27 review of the SECURITY DEFINER / guard change, then the usual merge and one apply on TEST.
+- A coordinator still cannot invite someone who has no portal login.
+
+**Links**
+
+- Spec: [docs/specs/connect-7-tc-conversation-parties.md](docs/specs/connect-7-tc-conversation-parties.md)
+
 ---
 
 ## Personal information questions and Seller Proceeds wording (CONNECT-5)

@@ -15,7 +15,7 @@ import { dealsAndAuth } from './mock-part-deals.js?v=202611312500';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611312500';
 import { tasksAndForms } from './mock-part-tasks.js?v=202611312500';
-import { messagesActivity } from './mock-part-msgs.js?v=202611141400';
+import { messagesActivity } from './mock-part-msgs.js?v=202611312800';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
 import { closingSchedule } from './mock-part-schedule.js?v=202611247700';
@@ -410,14 +410,19 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // CLA staff (any staff login, incl. TC and Admin) vs an outside user acting on this order (agent / client / plain outside user)
   const isStaffView = (u) => !!u && (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && !isOutside(u.accountRole || u.role);
   // Which side a person is on, ON THIS ORDER: 'staff' (CLA staff login), 'buyer' / 'seller' (their agent/client role here), or null (outside user with no side here).
-  // Mirrored by private.person_side(pid, deal) in SQL (migration 13).
+  // Mirrored by private.person_side(pid, deal) in SQL. CONNECT-7 does not change this: a Lender has no side.
   const personSide = (profileId, dealId) => { const p = prof(profileId); if (!p) return null; if (!isOutside(p.role)) return 'staff';
     const sides = [...new Set(fileRoles(profileId, dealId).map(sideOf).filter(Boolean))]; return sides.length === 1 ? sides[0] : null; };
+  const isFileLender = (profileId, dealId) => { const c = contactOf(profileId); return !!(c && dealId && load().participants.some((z) => z.dealId === dealId && z.contactId === c.id && z.role === 'Lender')); };
   // NO CROSS-SIDE MESSAGING (Matt, Oct 31): an outside user may message CLA staff and people on their OWN side of the order only.
+  // CONNECT-7: a buyer-side viewer may add a Lender on this file. That does not give the lender a side.
   const canMessage = (u, targetId, dealId) => { if (isStaffView(u)) return true; const t = personSide(targetId, dealId); if (t === 'staff') return true;
-    const mine = sidesOfUser(u); return mine.length > 0 && mine.includes(t); };
+    const mine = sidesOfUser(u); if (mine.length > 0 && mine.includes(t)) return true; return mine.includes('buyer') && isFileLender(targetId, dealId); };
   // A conversation never mixes the two sides: its outside users are all on one side (a side-less outside user only talks to staff).
-  const mixedSides = (ids, dealId) => { const outside = ids.filter((id) => !String(id).startsWith('contact:')).map((id) => personSide(id, dealId)).filter((sd) => sd !== 'staff');
+  // CONNECT-7: a Lender on this file counts as buyer for membership only when the viewer (the first id) is staff or buyer-side (same as rpc_create_thread). personSide stays unchanged.
+  const mixedSides = (ids, dealId) => { const profiles = ids.filter((id) => !String(id).startsWith('contact:'));
+    const vs = profiles[0] ? personSide(profiles[0], dealId) : null; const allowLender = vs === 'staff' || vs === 'buyer';
+    const outside = profiles.map((id) => { const s = personSide(id, dealId); return s == null && allowLender && isFileLender(id, dealId) ? 'buyer' : s; }).filter((sd) => sd !== 'staff');
     return outside.includes(null) ? outside.length > 1 : new Set(outside).size > 1; };
   // NO OPPOSING CONTACT INFO (Matt, Oct 31): outside users do not get the phone / email of the OTHER side's agent or client (names stay, for context).
   // Staff see everything. A client also does not see the other side's client at all (unchanged). Mirrored by public.deal_contacts() in SQL (migration 13).

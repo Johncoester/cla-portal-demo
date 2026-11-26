@@ -75,7 +75,8 @@ export function messagesActivity(x) {
     async postMessage(threadId, body) {
       let u = needUser(); const d = load(); const t = d.threads.find((z) => z.id === threadId) || fail('Conversation not found.'); u = onDeal(u, t.dealId); notViewOnly(u);
       if (!threadVisible(u, t) || !t.participantIds.includes(u.id)) fail('You are not part of this conversation.');
-      if (!x.isStaffView(u) && t.participantIds.some((pid) => pid !== u.id && !x.canMessage(u, pid, t.dealId))) fail('This conversation includes the other side of the order. Ask CLA Title to start a separate conversation for your side.');
+      // Matches private.thread_postable: a sideless member of an existing thread can still reply.
+      if (!x.isStaffView(u) && !t.staffCoordinated && x.personSide(u.id, t.dealId) != null && t.participantIds.some((pid) => pid !== u.id && !x.canMessage(u, pid, t.dealId))) fail('This conversation includes the other side of the order. Ask CLA Title to start a separate conversation for your side.');
       const text = str(body, 4000); if (!text) fail('Write a message first.'); x.wireTextGuard(t.participantIds, t.dealId, text);
       const m = { id: nid('m'), threadId, authorId: u.id, body: text, createdAt: now() }; d.messages.push(m);
       log(t.dealId, u.id, 'message.posted', 'thread', threadId, `Message in: ${t.subject}`);
