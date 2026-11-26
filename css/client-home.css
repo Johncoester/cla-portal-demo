@@ -1,0 +1,17 @@
+/* MF-069: buyer / seller landing (Open Orders for a client-only login). One card per file; the order table is for computers. */
+.client-home { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s4); margin: var(--s3) 0 var(--s4); }
+.ch-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-1); padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); }
+.ch-card.needs-you { border-left: 4px solid var(--warn); }
+.ch-open { display: flex; flex-direction: column; gap: 2px; min-height: 48px; text-decoration: none; color: inherit; }
+.ch-addr { font-size: 18px; font-weight: 700; color: var(--navy-700, var(--ink)); }
+.ch-city { font-size: 14px; color: var(--ink-2, var(--ink)); }
+.ch-meta { font-size: 12.5px; color: var(--ink-3); margin-top: 4px; }
+.ch-tasks h3 { margin: 0 0 6px; font-size: 14px; }
+.ch-tasks ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ch-tasks li a { display: inline-block; min-height: 44px; line-height: 44px; font-weight: 600; }
+.ch-due { font-size: 12.5px; color: var(--ink-3); } .ch-due.late { color: var(--bad, #b42318); font-weight: 600; }
+.ch-clear { margin: 0; }
+@media (max-width: 860px) {
+  .client-home { grid-template-columns: 1fr; gap: var(--s3); }
+  .ch-table-wrap { display: none; }
+}

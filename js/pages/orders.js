@@ -1,6 +1,7 @@
 // Orders list: tabs Open / Close / On Hold / Cancelled / All, search box. Same columns as the old portal.
 import { html, fmtDate, pill, $, $$, raw, options } from '../ui.js?v=202611161500';
-import { runsOrders, isClient, isAgent, isProcessor, isOutside, TX_TYPES, STAGES } from '../data/constants.js?v=202611302300';
+import { runsOrders, isClient, isAgent, isProcessor, isOutside, isClientOnlyUser, localDate, TX_TYPES, STAGES } from '../data/constants.js?v=202611302300';
+import { clientHomeFiles, clientHomeCards } from './client-home.js?v=202611313900';
 import { filterDeals, sortDeals, DEAL_SORT_DIR } from '../data/task-board.js?v=202611247700';
 import { isUnassigned } from '../data/processor-assign.js?v=202611091600';
 import { orderMailCount } from '../data/file-email-unread.js?v=202611140900';
@@ -53,10 +54,13 @@ export async function render({ api, user }) {
     <td>${d.street},<br>${d.city}, ${d.state}, ${d.zip}</td>
     <td data-task-pending>${d.myOpenTasks ? html`<span class="action-req">Action Required</span>` : d.openTasks && !showRole ? html`<span class="muted">${d.openTasks} open task(s)</span>` : ''}${d.overdueTasks && !showRole ? html`<br>${pill(d.overdueTasks + ' overdue', 'bad')}` : ''}</td>
     <td>${d.transactionType}</td><td data-stage>${d.stageName}${d.status !== 'Open' ? html`<br>${pill(d.status)}` : ''}<br><a class="view-btn" href="#/deals/${d.id}">View Order</a></td></tr>`);
+  const clientHome = isClientOnlyUser(user);   // MF-069: buyers and sellers get a card per file (the table stays on computers)
   const body = html`
     <div class="box-title"><h2 data-tab-title><span class="h-ico"></span>${user.role === 'Transaction Coordinator' && tab === 'Open' ? 'Orders' : HEAD[tab]}</h2>
       ${runsOrders(user) ? html`<a class="m-btn right" href="#/orders/new">+ Place Order</a>` : ''}</div>
     <ul class="nav-tabs">${TABS.map(([k, label]) => html`<li><a class="${k === tab ? 'active' : ''}" href="#/orders?s=${encodeURIComponent(k)}" data-tab="${k}" ${k === tab ? raw('aria-current="page"') : ''}>${label}</a></li>`)}</ul>
+    ${clientHome ? clientHomeCards(clientHomeFiles(deals, myTasks, localDate())) : ''}
+    <div class="${clientHome ? 'ch-table-wrap' : ''}" data-orders-table>
     <div class="table-tools"><span class="muted" data-tab-count>${deals.length} ${NOUN[tab] ? NOUN[tab] + ' ' : ''}order(s)</span><span class="muted" data-filter-count></span></div>
     <form class="filter-bar" id="ofilters">
       <label>Search<input id="osearch" name="q" type="search" placeholder="File no, address, name"></label>
@@ -67,7 +71,7 @@ export async function render({ api, user }) {
       <label>Overdue tasks<select name="overdue"><option value="">Any</option><option value="on">Has overdue tasks</option></select></label>
       <label>Closing date<select name="noClosing"><option value="">Any</option><option value="on">Not set yet</option></select></label></form>
     <table class="tbl striped" id="otable"><thead><tr><th></th>${COLS.filter(([k]) => showRole || k !== 'role').map(([k, label]) => html`<th data-sort="${k}" ${k === 'openDate' ? raw('aria-sort="descending"') : ''}><button type="button" class="th-sort" title="Sort by ${label}">${label} <span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn ${k === 'openDate' ? 'on' : ''}">&#9660;</span></span></button></th>`)}</tr></thead>
-    <tbody>${rows.length ? [...rows, html`<tr data-nomatch hidden><td colspan="9" class="muted center">No ${NOUN[tab] ? NOUN[tab] + ' ' : ''}orders match your search.</td></tr>`] : html`<tr data-empty><td colspan="9" class="muted center">No ${NOUN[tab] ? NOUN[tab] + ' ' : ''}orders.</td></tr>`}</tbody></table>`;
+    <tbody>${rows.length ? [...rows, html`<tr data-nomatch hidden><td colspan="9" class="muted center">No ${NOUN[tab] ? NOUN[tab] + ' ' : ''}orders match your search.</td></tr>`] : html`<tr data-empty><td colspan="9" class="muted center">No ${NOUN[tab] ? NOUN[tab] + ' ' : ''}orders.</td></tr>`}</tbody></table></div>`;
   return { title: 'Orders', crumbs: [['Your Orders']], body, mount(root) {
     // Matt, Nov 2: filters + sort run in the browser on the orders already loaded for this tab (task-board.js filterDeals / sortDeals)
     const form = $('#ofilters', root); const tbody = $('tbody', root); let sort = 'openDate'; let dir = 'desc';
