@@ -3883,3 +3883,31 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-066.
 **Decisions**
 
 - This is a multi-select, not a single-select, so the current intro default of several people is kept.
+
+## Portal orders feed the CRM; Zoho deals link instead of duplicating (CRM-FEED-1)
+
+**How it should work.** Every order opened in the portal is a CRM deal, and its buyers, sellers and agents are CRM clients. Janine can import Zoho deals on CRM Deals → Import Zoho deals. A Zoho deal that matches an order (file number, else property address + client) is linked to it, so the order stays one deal. No match: the Zoho deal is its own CRM deal. More than one match: nothing is linked and the row says Needs review.
+
+**Status: Building.** Requester John, source "John chat 9:09 PM Nov 25". Tracker CRM-FEED-1 (row for the lead to add). Database file 20261131100000_crm_portal_deal_feed.sql, not applied. Not Live until the lead applies it, this is merged, and someone checks it on TEST.
+
+**What's built**
+
+- Orders and their parties already showed in the CRM (CRM Deals reads the portal's orders; CRM Clients are the portal's contacts). No copy, no backfill.
+- Zoho Deals import with preview, the match rule, Duplicate on a re-run, and Needs review for more than one match.
+- New orders link to a waiting Zoho deal on save, and when the buyer or seller is added. A CRM problem cannot stop an order from saving.
+- CRM Deals shows linked Zoho deals as a tag on the order, and unlinked ones as their own rows.
+
+**What's still missing**
+
+- Not checked on TEST yet.
+- No button yet to pick the order for a Needs review row.
+- Brokerages and lenders are not linked to CRM Companies automatically.
+
+**Links**
+
+- Spec: [docs/specs/crm-portal-deal-feed.md](docs/specs/crm-portal-deal-feed.md)
+
+**Decisions**
+
+- More than one match imports the Zoho deal and flags it, rather than skipping it, so no Zoho history is lost and the order is never changed.
+- Rule 9 waived by John on Nov 21 for CRM items.

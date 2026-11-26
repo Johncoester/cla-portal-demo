@@ -19,6 +19,9 @@ import { pageOf, selectionState, selectPage, loadPageSize } from '../data/crm-bu
 import { filterFromValues, matchBannerState } from '../data/crm-match.js?v=202611160400';
 import { bulkBar, wireBulk } from './crm-bulk.js?v=202611247100';
 
+// CRM-FEED-1: a Zoho deal that matched no portal order (or more than one) is its own row. It has no portal record to open.
+export const importedDealName = (r) => html`<span data-imported-deal="${r.id}">${crmDealName(r)}</span> <span class="pill ${r.ambiguous ? 'warn' : ''}" title="${r.matchNote || ''}" data-imported-flag="${r.ambiguous ? 'ambiguous' : 'unmatched'}">${r.ambiguous ? 'Zoho import: needs review' : 'Zoho import'}</span>`;
+
 export async function dealsPage(c) { return c.params.id ? dealPage(c) : dealsList(c); }
 
 // John, Nov 3: SORT (click a column header: up / down arrows, click again to reverse), HIDE COLUMNS (Columns chooser, remembered for this login;
@@ -33,7 +36,7 @@ async function dealsList(c) {
   const cur = { status: q.get('status') || 'Open', ownerId: all ? q.get('owner') || '' : '', clientId: all ? q.get('client') || '' : '', source: q.get('source') || '' };
   const rows = await api.listCrmDeals(cur); const bar = await viewsBar(api, 'deals');
   const storage = typeof localStorage !== 'undefined' ? localStorage : null;
-  const cell = { actualRevenue: (r) => money(r.actualRevenue), disbursementDate: (r) => fmtDate(r.disbursementDate), name: (r) => html`<a href="${r._link}" data-open="${r.id}">${crmDealName(r)}</a>`, amount: (r) => money(r.amount), loanAmount: (r) => money(r.loanAmount), closingDate: (r) => fmtDate(r.closingDate), openDate: (r) => fmtDate(r.openDate),
+  const cell = { actualRevenue: (r) => money(r.actualRevenue), disbursementDate: (r) => fmtDate(r.disbursementDate), name: (r) => (r.imported ? importedDealName(r) : html`<a href="${r._link}" data-open="${r.id}">${crmDealName(r)}</a>${r.zoho ? html` <span class="pill" data-zoho-linked title="${r.zoho.matchNote}">Zoho</span>` : ''}`), amount: (r) => money(r.amount), loanAmount: (r) => money(r.loanAmount), closingDate: (r) => fmtDate(r.closingDate), openDate: (r) => fmtDate(r.openDate),
     clientName: (r) => (r._clientLink ? html`<a href="${r._clientLink}">${r.clientName}</a>` : r.clientName), sourceText: (r) => r.sourceText || html`<span class="muted">&mdash;</span>`, propertyAddress: (r) => crmDealName(r) };
   const dealFields = moduleFields('deals', cfg);
   const have = new Set(DEAL_COLS.map(([k]) => k));
@@ -46,7 +49,8 @@ async function dealsList(c) {
   const sel = (name, label, list, value, blank) => html`<label>${label}<select name="${name}" data-deal-filter="${name}" aria-label="${label}">${blank ? html`<option value="">${blank}</option>` : ''}${list.map(([v, l]) => html`<option value="${v}" ${String(v) === String(value) ? raw('selected') : ''}>${l}</option>`)}</select></label>`;
   // Deals have created_at, open_date, and closing_date. Last activity is the latest crm_activities row. There is no modified_at, so Modified Time is not offered here.
   const body = html`${tabs('deals')}${head('Deals', me)}${bar}<p class="muted small">Deals are the portal's orders${all ? '' : ' you are a salesperson on'}. Run the order itself in the portal.
-    ${all ? html`<span data-deal-scope="all">You see every deal owner's deals.</span>` : html`<span data-deal-scope="own">You see only your own deals.</span>`}</p>
+    ${all ? html`<span data-deal-scope="all">You see every deal owner's deals.</span>` : html`<span data-deal-scope="own">You see only your own deals.</span>`}
+    ${me.isAdmin ? html` <a class="ghost" href="#/crm/import/deals" data-deal-import-link>Import Zoho deals</a>` : ''}</p>
     <form class="filter-bar" id="deal-filters" onsubmit="return false">
       <label>Search<input name="q" type="search" placeholder="Deal, file number, address, client" data-crm-search></label>
       ${sel('status', 'Status', fl.statuses.map((s) => [s, s === 'All' ? 'All (incl. closed / cancelled)' : s === 'Open' ? 'Open deals' : s]), cur.status)}
@@ -77,7 +81,7 @@ async function dealsList(c) {
       const view = pageOf(list, page, pageSize); page = view.page; viewRows = view.rows; matchCount = list.length;
       const cols = useCols(); const span = cols.length + (canBulk ? 1 : 0);
       head();
-      tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${canBulk ? html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${crmDealName(r) || 'deal'}" ${selected.has(r.id) ? raw('checked') : ''}></td>` : ''}${cols.map(([k]) => { const f = dealFields.find((z) => z.key === k); const shown = cell[k] ? cell[k](r) : f ? (display(f, r, cfg) || '') : (r[k] ?? ''); return html`<td data-col="${k}">${shown}</td>`; })}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
+      tb.innerHTML = toText(view.rows.length ? view.rows.map((r) => html`<tr data-row="${r.id}">${canBulk ? (r.imported ? html`<td></td>` : html`<td><input type="checkbox" data-bulk-row value="${r.id}" aria-label="Select ${crmDealName(r) || 'deal'}" ${selected.has(r.id) ? raw('checked') : ''}></td>`) : ''}${cols.map(([k]) => { const f = dealFields.find((z) => z.key === k); const shown = cell[k] ? cell[k](r) : f ? (display(f, r, cfg) || '') : (r[k] ?? ''); return html`<td data-col="${k}">${shown}</td>`; })}</tr>`) : html`<tr><td colspan="${span}" class="muted">Nothing matches.</td></tr>`);
       $('[data-count]', root).textContent = view.pages > 1 ? `${view.rows.length} on this page, ${list.length} of ${rows.length} match` : `${list.length} of ${rows.length} shown`;
       const box = $('[data-bulk-page]', root); if (box) { const st = selectionState(selected, view.rows); box.checked = st.allOnPage; box.indeterminate = st.someOnPage; }
       const pg = $('[data-bulk-pager]', root); if (pg) pg.innerHTML = toText(pageNav(view));
@@ -87,7 +91,7 @@ async function dealsList(c) {
       $$('th[data-sort]', root).forEach((th) => { const on = th.dataset.sort === sort; if (on) th.setAttribute('aria-sort', dir === 'asc' ? 'ascending' : 'descending'); else th.removeAttribute('aria-sort');
         $('.up', th).classList.toggle('on', on && dir === 'asc'); $('.dn', th).classList.toggle('on', on && dir === 'desc'); }); };
     f.q.addEventListener('input', apply); f.addEventListener('change', apply); wireDateOps(f);
-    wireRowOpen(tb, (id) => `#/crm/deals/${id}`);
+    wireRowOpen(tb, (id) => (String(id).startsWith('zoho:') ? '' : `#/crm/deals/${id}`));
     const reset = $('[data-crm-reset]', f); if (reset) reset.addEventListener('click', () => {
       const bare = (location.hash || '').split('?')[0] === '#/crm/deals' && !(location.hash || '').includes('?');
       if (!bare) { location.hash = '#/crm/deals'; return; }
@@ -126,7 +130,7 @@ async function dealsList(c) {
         if (el.matches('[data-bulk-page]')) { if (!el.checked) allMatching = false; selected = selectPage(selected, viewRows, el.checked); apply(); return; }
         if (!el.matches('[data-bulk-row]')) return; if (el.checked) selected.add(el.value); else selected.delete(el.value); apply();
       });
-      wireBulk(root, { module: 'deal', api, me, owners: fl.owners || [], getPageRows: () => viewRows.filter((r) => selected.has(r.id)), getMatch: () => ({ all: allMatching, filter: matchFilter, count: matchCount }), clear: () => { selected = new Set(); allMatching = false; apply(); }, refresh: c.refresh });
+      wireBulk(root, { module: 'deal', api, me, owners: fl.owners || [], getPageRows: () => viewRows.filter((r) => !r.imported && selected.has(r.id)), getMatch: () => ({ all: allMatching, filter: matchFilter, count: matchCount }), clear: () => { selected = new Set(); allMatching = false; apply(); }, refresh: c.refresh });
     }
     root.addEventListener('click', (e) => { const t = e.target; if (!(t && t.matches)) return;
       if (t.matches('[data-select-all-matching]')) { allMatching = true; apply(); return; }
