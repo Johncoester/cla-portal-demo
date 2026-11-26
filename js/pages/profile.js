@@ -10,7 +10,7 @@ export function firstProfileSave(hash) {
   const flagged = consumeAgentOnboard();
   return setup || flagged;
 }
-import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611302000';
+import { gmailCardHtml, mountGmailCard } from './gmail-card.js?v=202611312800';
 import { e2eGmailSetupHtml, mountE2eGmailSetup } from './e2e-gmail-setup.js?v=202611161500';
 import { isRealEstateAgent } from '../data/agent-tc-links.js?v=202611248300';
 import { agentTcSectionHtml, mountAgentTcSection } from './agent-tc-panel.js?v=202611248300';

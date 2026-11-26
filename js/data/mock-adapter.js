@@ -410,9 +410,19 @@ export function createMockAdapter({ storage, sessionStorage, fileStore, features
   // CLA staff (any staff login, incl. TC and Admin) vs an outside user acting on this order (agent / client / plain outside user)
   const isStaffView = (u) => !!u && (u.isAdmin || isStaff(u.role) || u.role === 'Transaction Coordinator') && !isOutside(u.accountRole || u.role);
   // Which side a person is on, ON THIS ORDER: 'staff' (CLA staff login), 'buyer' / 'seller' (their agent/client role here), or null (outside user with no side here).
-  // Mirrored by private.person_side(pid, deal) in SQL (migration 13).
+  // Mirrored by private.person_side(pid, deal). CONNECT-7: Lender is buyer-side; Buyer Agent TC / Listing Agent TC
+  // keep a side even if fileRoles did not already pick it up through the linked agent.
   const personSide = (profileId, dealId) => { const p = prof(profileId); if (!p) return null; if (!isOutside(p.role)) return 'staff';
-    const sides = [...new Set(fileRoles(profileId, dealId).map(sideOf).filter(Boolean))]; return sides.length === 1 ? sides[0] : null; };
+    const sides = [...new Set(fileRoles(profileId, dealId).map(sideOf).filter(Boolean))];
+    if (sides.length === 1) return sides[0];
+    if (sides.length === 0 && dealId) {
+      const c = contactOf(profileId);
+      const extra = [...new Set((c ? load().participants.filter((z) => z.dealId === dealId && z.contactId === c.id) : [])
+        .map((z) => ({ 'Buyer Agent TC': 'buyer', 'Listing Agent TC': 'seller', Lender: 'buyer' }[z.role]))
+        .filter(Boolean))];
+      if (extra.length === 1) return extra[0];
+    }
+    return null; };
   // NO CROSS-SIDE MESSAGING (Matt, Oct 31): an outside user may message CLA staff and people on their OWN side of the order only.
   const canMessage = (u, targetId, dealId) => { if (isStaffView(u)) return true; const t = personSide(targetId, dealId); if (t === 'staff') return true;
     const mine = sidesOfUser(u); return mine.length > 0 && mine.includes(t); };

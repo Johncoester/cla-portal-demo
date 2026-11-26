@@ -121,7 +121,7 @@ ok(testModeProblem(row(), null) === null && /clatestportal/.test(testModeProblem
 { const page = readFileSync(new URL('../js/pages/outbox.js', import.meta.url), 'utf8');
   const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8'); const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   ok(!/queued - not sent/.test(page) && !/never sent/.test(page) && /statusReason/.test(page) && /sentAt/.test(page), 'the page no longer says every email is "queued - not sent"');
-  ok(app.includes("import('./pages/outbox.js?v=202611310100')") && html.includes('js/app.js?v=202611312500'), 'the page and the shell load at stamp 202611310100'); }
+  ok(app.includes("import('./pages/outbox.js?v=202611310100')") && html.includes('js/app.js?v=202611312800'), 'the page and the shell load at stamp 202611310100'); }
 
 console.log(fail ? `${fail} failed` : 'outbox sender passed');
 if (fail) process.exit(1);

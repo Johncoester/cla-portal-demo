@@ -1,7 +1,11 @@
-/* Who an agent may be offered in Send. Same side and CLA staff on this file only.
+/* Who may be offered in Start conversation / Send. Same side and CLA staff on this file only.
+ * A buyer-side transaction coordinator also sees the lender. An agent coordinator uses the same side as their agent.
  * A person on the file with no portal login is shown as unavailable, not added to the send list.
  * The other side is not listed. */
-const SIDE = { 'Listing Agent': 'seller', 'Client-Seller': 'seller', 'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer' };
+const SIDE = {
+  'Listing Agent': 'seller', 'Client-Seller': 'seller', 'Listing Agent TC': 'seller',
+  'Buyer Agent': 'buyer', 'Client-Buyer': 'buyer', 'Buyer Agent TC': 'buyer', Lender: 'buyer',
+};
 
 export function recipientLabel(p) {
   const name = `${(p && p.firstName) || ''} ${(p && p.lastName) || ''}`.trim() || 'Unnamed';
