@@ -633,6 +633,17 @@ This file lists the portal's major features: how each one should work, how far a
 
 ---
 
+## Preprocessor dropdown (MF-065)
+
+**How it should work.** On Place Order and on Edit order details, the Preprocessor dropdown lists every active staff login that has the Preprocessor role, shown as "Name (Preprocessor) — email", with (none) first. It is not a fixed list of names. When an Admin gives another login the Preprocessor role (under Users, or from the HR designation), that person appears after **Refresh list**, and Refresh keeps everything else typed on the form. If nobody has the role yet, a hint says how to add someone. A person already on the file stays selectable even after they lose the role, and saving the order without changing the Preprocessor does not clear or reject them. Ellen Ahern stays a Transaction Coordinator. Matt (Nov 25 2026, 9:29 PM ET): many people will get the role, and any random names are fine for testing.
+
+**Status: In progress.** No database change. TEST gets three clearly fake Preprocessors ("Test Preprocessor One" to "Three", @example.test, no login) from `supabase/scripts/mf-065-test-preprocessors.sql`, applied by hand once on TEST. Not Live until that script is applied.
+
+**What's still missing (reported, not built here)**
+
+- Matt also said any CLA Processor or Preprocessor can open any file, assigned or not, because people call out sick. Processors can already. A Preprocessor can still only open files where they are the file's Preprocessor (`private.can_access_deal`, `private.can_run_deal`, and the `deals_select` policy).
+- Matt also said every action by any party must be logged and cannot be erased. `activity_log` records most actions, and the signed-in roles can only read it, but it has no database rule that blocks changes or deletes (other logs do), and the service role can still change or delete rows. `wire_audit_log` can be updated by staff.
+
 ## Citizenship dropdown (MF-073)
 
 **How it should work.** On Personal information, for a buyer and for a seller, Citizenship is a dropdown: U.S. Citizen, U.S. National, Lawful Permanent Resident, and Non-Citizen Authorized to Work. The spouse section uses the same list. An answer already typed still shows and can be saved again until someone picks a new option or clears the field. Blank is allowed.

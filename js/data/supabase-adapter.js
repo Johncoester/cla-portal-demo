@@ -502,7 +502,14 @@ export async function createSupabaseAdapter(cfg) {
     async readDeal(id) { return fileRead('deal:' + id, () => fetchDeal(id)); },
     async readFileShell(id) { return fileRead('shell:' + id, () => fetchFileShell(id)); },
     // John, Nov 2 (migration 19): several salespeople per order; the Processor and Admins add/remove them (RPCs check the role + file access)
-    async listPreprocessors() { return camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'))); },
+    // MF-065: every active staff login with the Preprocessor role (same demo scope and email column as listProcessors).
+    async listPreprocessors() {
+      const u = await me();
+      const shape = (res) => (camel(ok(res)) || []).filter((p) => !!p.isDemo === !!(u && u.isDemo)).map((p) => { const n = tidyPersonName(p); return { id: p.id, firstName: n.firstName, lastName: n.lastName, name: n.name, email: p.email || '', role: p.role, status: p.status }; });
+      const res = await sb.from('profiles').select('id, first_name, last_name, email, role, status, is_demo').eq('role', 'Preprocessor').eq('status', 'active').order('first_name');
+      if (!res.error) return shape(res);
+      return shape(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').eq('role', 'Preprocessor').eq('status', 'active').order('first_name'));
+    },
     async listActiveStaff() {
       const u = await me();
       const rows = camel(ok(await sb.from('profiles').select('id, first_name, last_name, role, status, is_demo').in('role', CLOSER_STAFF_ROLES).eq('status', 'active').order('last_name').order('first_name'))) || [];
