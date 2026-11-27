@@ -105,7 +105,7 @@ export async function render({ api, user, deal, refresh }) {
     wireSchedulingPanel(root, { api, deal, refresh, choices });
     const nb = $('#newreq', root); if (nb) nb.addEventListener('click', guard(() => slotsModal('New closing date request', async (f) => { await api.createSettlementRequest(deal.id, f); toast('Request created. Copy the links to send them.'); }, true)));
     $$('[data-confirm]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Confirm this closing time? It becomes the settlement date.')) return; await api.confirmSettlement(b.dataset.confirm, Number(b.dataset.slot)); toast('Closing time confirmed'); refresh(); })));
-    const pb = $('#propose', root); if (pb) pb.addEventListener('click', guard(() => whenModal('Propose a closing time', async (f) => { await api.proposeClosing(deal.id, f); toast('Proposal sent to CLA Title'); })));
+    const pb = $('#propose', root); if (pb) pb.addEventListener('click', guard(() => whenModal('Propose a closing time', async (f) => { await api.proposeClosing(deal.id, f); toast('Proposal sent to CLA Title'); }, { askWhere: false })));
     const cn = $('#confirmnew', root); if (cn) cn.addEventListener('click', guard(() => whenModal(sc ? 'Change the scheduled closing' : 'Schedule the closing', async (f) => { await api.confirmClosing(deal.id, f); toast('Closing scheduled. Everyone on the file can see it.'); }, { notaryAddress: true })));
     $$('[data-accept]', root).forEach((b) => b.addEventListener('click', guard(async () => { if (!confirm('Confirm this closing time and place? Everyone on the file will see it.')) return; await api.confirmClosing(deal.id, { proposalId: b.dataset.accept }); toast('Closing scheduled'); refresh(); })));
     wireLocFields(root);
@@ -129,7 +129,7 @@ export async function render({ api, user, deal, refresh }) {
 
   // Matt: "Where" defaults to a CLA Title office, the one closest to the property (straight-line distance). The offices are the ACTIVE ones
   // from Admin > Offices (retired offices are not offered). Staff can change the office before sending.
-  async function whenModal(title, save, { notaryAddress = false } = {}) {
+  async function whenModal(title, save, { notaryAddress = false, askWhere = true } = {}) {
     const od = await api.getClosingOfficeDefault(deal.id); const offices = od.offices;
     const m = modal(title, html`<form id="wf" class="form-grid"><label>Date and time *<input type="datetime-local" name="at" required></label>
       <label>Where *<select name="location" required data-closing-where><option value="">Choose&hellip;</option>${CLOSING_LOCATIONS.map((l) => html`<option ${l === OFFICE_LOCATION ? raw('selected') : ''}>${l}</option>`)}</select></label>
@@ -138,7 +138,7 @@ export async function render({ api, user, deal, refresh }) {
       <div class="span2 form-grid" data-manual-place hidden><label>Street<input name="mstreet" maxlength="120" data-manual-street></label><label>City<input name="mcity" maxlength="80"></label><label>State<input name="mstate" maxlength="2" placeholder="FL"></label><label>ZIP<input name="mzip" maxlength="10"></label></div>
       ${notaryAddress ? html`<div class="span2 form-grid" data-notary-place hidden><p class="span2 muted small">Mobile notary: where the signing takes place.</p><label>Street *<input name="nstreet" maxlength="120" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualStreet || ''}"></label><label>City *<input name="ncity" maxlength="80" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualCity || ''}"></label><label>State *<input name="nstate" maxlength="2" placeholder="MD" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualState || ''}"></label><label>ZIP *<input name="nzip" maxlength="10" inputmode="numeric" value="${(sc && sc.location === MOBILE_NOTARY ? deal : {}).closingManualZip || ''}"></label></div>` : ''}
       <label class="span2">Note<input name="note" maxlength="500" placeholder="e.g. mornings only"></label>
-      ${!staffView ? locs.filter((r) => r.mine).map((r) => locFields(r, `loc_${r.participantId}_`)) : flags.length ? html`<div class="span2 notice warn" data-modal-flags>${flags.map((r) => html`<div>${r.flag.text} (signing method: ${r.signingLabel})</div>`)}</div>` : ''}
+      ${!staffView && askWhere ? locs.filter((r) => r.mine).map((r) => locFields(r, `loc_${r.participantId}_`)) : staffView && flags.length ? html`<div class="span2 notice warn" data-modal-flags>${flags.map((r) => html`<div>${r.flag.text} (signing method: ${r.signingLabel})</div>`)}</div>` : ''}
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     const f = $('#wf', m); const wrap = $('[data-office-wrap]', f); const offSel = $('[data-closing-office]', f);
     const manual = $('[data-manual-place]', f);
@@ -156,7 +156,7 @@ export async function render({ api, user, deal, refresh }) {
       if (manualPatch.closingManualStreet) { Object.assign(v, manualPatch); v.location = TYPED_ADDRESS; delete v.officeId; }
       if (notary && v.location === MOBILE_NOTARY) { const addr = cleanManualAddress({ street: v.nstreet, city: v.ncity, state: v.nstate, zip: v.nzip }, { required: true }); Object.assign(v, { closingManualStreet: addr.street, closingManualCity: addr.city, closingManualState: addr.state, closingManualZip: addr.zip }); delete v.officeId; }
       ['nstreet', 'ncity', 'nstate', 'nzip'].forEach((k) => delete v[k]);
-      for (const r of staffView ? [] : locs.filter((z) => z.mine)) { const pre = `loc_${r.participantId}_`; await api.answerClosingLocation(deal.id, r.participantId, locValue(v, pre)); Object.keys(v).filter((k) => k.startsWith(pre)).forEach((k) => delete v[k]); }
+      for (const r of (!askWhere || staffView) ? [] : locs.filter((z) => z.mine)) { const pre = `loc_${r.participantId}_`; await api.answerClosingLocation(deal.id, r.participantId, locValue(v, pre)); Object.keys(v).filter((k) => k.startsWith(pre)).forEach((k) => delete v[k]); }
       await save(v); closeModal(); refresh(); }));
   }
   async function slotsModal(title, save, needSlots) {

@@ -4162,3 +4162,28 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Remove the Maryland question from Propose a closing time (MF-088)
+
+**How it should work.** The Propose a closing time modal no longer asks “Will you be in Maryland at the time of closing?” (or the property's state). The standalone closing-location forms on the Closing tab still ask it.
+
+**Status: Building.** Tracker item MF-088. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- Propose a closing time no longer includes the in-state-at-closing question and does not save a location answer from that modal.
+- Schedule the closing and Change the scheduled closing still include it for non-staff, as they do today.
+- The Closing tab forms and the separate “where will you be” editor are unchanged.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-088-remove-maryland-question`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+
