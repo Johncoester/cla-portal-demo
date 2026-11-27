@@ -321,12 +321,21 @@ function closingNavMeta(deal, show) {
 }
 // REDESIGN (John, Nov 3): the persistent order header on every tab of a file: Order #, progress badge, address, then type / dates / status.
 // Same data-order-header / data-progress-badge / .order-no hooks as before (the badge text is exactly the phase name).
+function fileCardPeople(deal) {
+  const d = deal || {};
+  const processor = String(d.processorName || '').trim() || (d.processorId ? 'assigned' : 'not set');
+  const sales = (d.salesPersonName && String(d.salesPersonName).trim())
+    || ((d.salesPeople || []).map((s) => s && s.name).filter(Boolean).join(', '))
+    || 'not set';
+  const source = String(d.sourceOfBusinessLabel || '').trim() || 'not set';
+  return html`<span data-oh-processor>Processor <strong>${processor}</strong></span><span data-oh-sales>Sales Person <strong>${sales}</strong></span><span data-oh-source>Source <strong>${source}</strong></span>`;
+}
 function orderHeader(deal, user) {
   const ph = phaseOf(deal).badge;
   const price = deal.transactionType === 'Refinance' || deal.purchasePrice == null || deal.purchasePrice === '' ? '' : fmtMoney(deal.purchasePrice);
   const canEdit = fileDateCanEdit(user, { demoLocked: !!(DEMO_VIEW && DEMO_VIEW.active) });
   return html`<div class="order-header" data-order-header>
-    <div class="oh-top"><span class="order-no" data-op-order-no data-file-order>Order # ${deal.fileNumber}</span><span class="pill ${ph === 'Closed' ? '' : 'ok'}" data-progress-badge>${ph}</span>${deal.status && deal.status !== 'Open' ? html`<span class="pill warn" data-oh-status>${deal.status}</span>` : ''}</div>
+    <div class="oh-top"><span class="order-no" data-op-order-no data-file-order>Order # ${deal.fileNumber}</span><span class="pill ${ph === 'Closed' ? '' : 'ok'}" data-progress-badge>${ph}</span>${deal.status ? html`<span class="pill${deal.status !== 'Open' ? ' warn' : ''}" data-oh-status data-file-status>${deal.status}</span>` : ''}<span class="oh-people" data-oh-people>${fileCardPeople(deal)}</span></div>
     <strong class="oh-address" data-op-address data-file-address>${deal.street}, ${deal.city}, ${deal.state} ${deal.zip}</strong>
     <div class="oh-meta"><span>${deal.transactionType || 'Purchase'}${price ? html` &middot; Purchase <strong data-oh-purchase>${price}</strong>` : ''}${deal.fileTitle ? html` &middot; <strong data-oh-parties>${deal.fileTitle}</strong>` : ''}</span>${deal.openDate ? html`<span>Opened <strong>${fmtDate(deal.openDate)}</strong></span>` : ''}${deal.county ? html`<span>${deal.county} County</span>` : ''}</div>
     ${fileDatesHtml(deal, { canEdit })}</div>`;

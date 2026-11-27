@@ -22,7 +22,7 @@ ok(entry.includes("from '../data/password-toggle.js?v=202611310300'") && entry.i
 ok(agent.includes("from '../data/password-toggle.js?v=202611310300'") && (agent.match(/enhancePasswordFields\(root\)/g) || []).length >= 2, 'the agent and client invite pages run the helper after the password fields are on the page');
 ok(hr.includes("from '../data/password-toggle.js?v=202611310300'") && hr.includes('enhancePasswordFields(root)'), 'the HR invite page loads and runs the show/hide helper');
 ok(read('js/app.js').includes("pages/entry.js?v=202611312900") && read('js/app.js').includes("pages/agent-signup.js?v=202611312900") && read('js/app.js').includes("pages/hr-invite.js?v=202611310300"), 'the shell loads the updated login and invite pages');
-ok(read('index.html').includes('css/portal.css?v=202611314500') && read('css/portal.css').includes('.password-toggle'), 'the published styles include the eye button and load at the new stamp');
+ok(read('index.html').includes('css/portal.css?v=202611315100') && read('css/portal.css').includes('.password-toggle'), 'the published styles include the eye button and load at the new stamp');
 ok(!read('js/pages/e2e-gmail-setup.js').includes('enhancePasswordFields'), 'the e2e Gmail secret fields are not treated as portal password fields');
 
 function mountLoginLike() {
