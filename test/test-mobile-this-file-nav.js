@@ -40,7 +40,7 @@ ok(css.includes('.left-bar { position: static; width: 100%;') || mobileCss.inclu
 
 ok(theme.includes('body.theme-cards .this-file-nav.is-open { background: var(--tc-side); }'), 'the card theme drawer uses the sidebar color');
 
-ok(html.includes('js/app.js?v=202611314500') && html.includes('css/portal.css?v=202611314500') && html.includes('css/theme-cards.css?v=202611302300'), 'the published page loads the updated shell, layout styles, and card theme');
+ok(html.includes('js/app.js?v=202611314500') && html.includes('css/portal.css?v=202611314700') && html.includes('css/theme-cards.css?v=202611302300'), 'the published page loads the updated shell, layout styles, and card theme');
 ok(html.includes('testportal.clatitle.com') === false && readFileSync(new URL('../CNAME', import.meta.url), 'utf8').trim() === 'testportal.clatitle.com', 'the custom domain file is unchanged');
 
 console.log(fail ? fail + ' failed' : 'mobile this-file nav passed');

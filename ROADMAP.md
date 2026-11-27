@@ -4162,3 +4162,28 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Bell icon messages readable on mobile (MF-086)
+
+**How it should work.** After tapping the bell on a phone (about 390px wide, such as iPhone Chrome), the notification message is readable: the menu is fixed under the top bar, full width, and the text wraps.
+
+**Status: Building.** Tracker item MF-086. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- On screens 480px wide or narrower, the notification menu is fixed under the top bar, edge to edge, and scrolls if needed.
+- Notification text wraps instead of running off the screen.
+- The top bar no longer clips the open menu.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-086-bell-mobile-readable`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+
