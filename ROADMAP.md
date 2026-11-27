@@ -4130,3 +4130,27 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 - Auto-save does not change the page by itself. Only the first Save (or the invite setup Save) advances to the add-coordinator step, so an agent can still finish optional fields such as brokerage or a picture.
 - The original confirm-back asked whether this is first-time only or every edit. The first-time path is the one that used to go to Open Orders; later edits stay on the profile so an agent updating a phone number is not sent away.
 
+## Agreement acknowledgement wording (FF-112)
+
+**How it should work.** On the Agreements tab, the three acknowledgement titles and the status pills use proper capital letters and end with a period. Existing acknowledgements still count.
+
+**Status: Building.** Tracker item FF-112, row 460. Francis Santos, Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a; she confirmed Yes on Nov 27 2026 at 11:40 AM ET (Gmail 1a21de1d2f8fc9d5, item 9). Database file `20261131410000_ff112_agreement_wording.sql` updates titles only and keeps version 1. Not Live until this is merged, the file is applied once on TEST, and Francis checks it on TEST.
+
+**What's built**
+
+- Titles: Wire Fraud Warning, Privacy Notice, and Consent to Electronic Records and Signatures.
+- Pills: "Please read and acknowledge." and "Acknowledged." Staff empty cells say "Not yet."
+- The TEST database titles are updated to match. Version stays 1.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before the database file is applied once and Francis checks it.
+
+**Links**
+
+- Spec: [docs/specs/ff-112-agreement-popup-wording.md](docs/specs/ff-112-agreement-popup-wording.md)
+
+**Decisions**
+
+- Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
+- Version is left at 1 so a person who already acknowledged does not have to do it again.

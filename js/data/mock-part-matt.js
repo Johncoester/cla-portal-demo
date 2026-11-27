@@ -5,7 +5,7 @@
  *    coordinator confirms a scheduled closing, which everyone on the file then sees.
  *  - E-sign (DEMO): processor / coordinator ask specific people to sign a document; each signer gets a 'Sign' task, types their name and
  *    adopts it. Only the signer can sign (an agent cannot sign for a client). Provider seam: esign.js. */
-import { AGREEMENTS, agreementOf } from './agreements.js?v=202611070139';
+import { AGREEMENTS, agreementOf } from './agreements.js?v=202611314100';
 import { getProvider, ESIGN_PROVIDER } from './esign.js?v=202611070139';
 import { WIRE_FRAUD_NOTE, CLA_PHONE } from './constants.js?v=202611302300';
 import { OFFICE_LOCATION, placeText as placeText0 } from './offices.js?v=202611247700';
