@@ -4162,3 +4162,28 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Email tab Sent / Received / All filter (MF-083)
+
+**How it should work.** The file Email tab has a Sent / Received / All toggle so the whole chain is not always shown.
+
+**Status: Building.** Tracker item MF-083. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- An All / Received / Sent toggle sits above the email list on the file Email tab.
+- It works together with the existing search box.
+- A thread with no messages in the chosen direction is hidden.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-083-email-sent-received-filter`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+

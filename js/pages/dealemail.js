@@ -56,6 +56,11 @@ export async function render({ api, deal, user, refresh: reload }) {
       ${g.connected ? html`<p data-mail-from>Sending from <strong>${g.mailbox}</strong>${g.status === 'needs_reconnect' ? html` <span class="pill bad">connect again on <a href="#/profile">Profile Setting</a></span>` : ''}</p>`
         : html`<div class="notice warn" data-mail-connect>Connect your @clatitle.com Gmail first: <a href="#/profile">Profile Setting &gt; Gmail</a>. You can still check an email below (nothing is sent).</div>`}
       <p class="small muted" data-mail-allowlist>Subjects get ${fileTag(deal.fileNumber, deal)} so replies are easy to find.</p>
+      <div class="mail-dir-filter" role="group" aria-label="Filter email" data-mail-dir-filters>
+        <label class="inline"><input type="radio" name="mailDirFilter" value="all" data-mail-dir-filter checked> All</label>
+        <label class="inline"><input type="radio" name="mailDirFilter" value="in" data-mail-dir-filter> Received</label>
+        <label class="inline"><input type="radio" name="mailDirFilter" value="out" data-mail-dir-filter> Sent</label>
+      </div>
       <p><button type="button" class="m-btn" data-mail-new>New email</button> <button type="button" class="m-btn" data-mail-intro>Introduction email</button>
         ${g.connected ? html`<button type="button" class="ghost" data-mail-sync>Check for replies</button>` : ''}</p>
     </div>
@@ -65,13 +70,20 @@ export async function render({ api, deal, user, refresh: reload }) {
   return { title: 'Email', crumbs: [['Email']], body, mount(root) {
     const byId = new Map(emails.map((e) => [e.id, e]));
     const search = $('[data-mail-search]', root);
+    const dirOf = () => {
+      const picked = root.querySelector('[data-mail-dir-filter]:checked');
+      return (picked && picked.value) || 'all';
+    };
     const applySearch = () => {
       const query = search ? search.value : '';
+      const dir = dirOf();
       let shown = 0;
       $$('[data-mail-thread]', root).forEach((card) => {
         let hit = 0;
         $$('[data-mail-msg]', card).forEach((li) => {
-          const keep = emailMatchesQuery(byId.get(li.dataset.mailMsg), query);
+          const keepQ = emailMatchesQuery(byId.get(li.dataset.mailMsg), query);
+          const keepD = dir === 'all' || li.dataset.mailDir === dir;
+          const keep = keepQ && keepD;
           li.hidden = !keep;
           if (keep) hit += 1;
         });
@@ -81,7 +93,8 @@ export async function render({ api, deal, user, refresh: reload }) {
       const empty = $('[data-mail-search-empty]', root);
       if (empty) empty.hidden = shown > 0 || !String(query || '').trim();
     };
-    if (search) { search.addEventListener('input', applySearch); search.addEventListener('search', applySearch); }
+    if (search) { search.addEventListener('input', applySearch);
+    $$('[data-mail-dir-filter]', root).forEach((el) => el.addEventListener('change', applySearch)); search.addEventListener('search', applySearch); }
     $$('[data-mail-show]', root).forEach((b) => b.addEventListener('click', () => {
       const box = $(`[data-mail-body="${b.dataset.mailShow}"]`, root); const e = byId.get(b.dataset.mailShow);
       if (box.hidden && !box.firstChild) { const f = document.createElement('iframe'); f.setAttribute('sandbox', ''); f.setAttribute('referrerpolicy', 'no-referrer'); f.className = 'mail-frame';
