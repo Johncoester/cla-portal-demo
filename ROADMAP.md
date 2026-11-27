@@ -4162,3 +4162,27 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Same copy icon everywhere (MF-080)
+
+**How it should work.** The copy control on the Contacts screen matches the small copy icon used on File Overview.
+
+**Status: Building.** Tracker item MF-080. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- Contacts phone and email copy controls use the same icon, op-copy class, and copied confirmation as File Overview.
+- The word “Copy” ghost buttons are removed from those cells.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-080-copy-icon-match`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+

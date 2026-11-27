@@ -6,7 +6,7 @@ import { directoryModel, directoryChoice, directoryGroups } from '../data/file-p
 import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611312900';
 import { canEditAgentProfiles, agentProfileHref, AGENT_FILE_ROLES } from '../data/agent-profile-admin.js?v=202611312900';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611312900';
-import { copyPlainText } from './deal.js?v=202611314500';
+import { copyPlainText } from './deal.js?v=202611315400';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
@@ -79,8 +79,13 @@ export async function render({ api, user, deal, refresh }) {
   const rows = list.map((p) => {
     const who = (p.role === 'Client-Buyer' || p.role === 'Client-Seller') ? partyDisplayName(p) : contactDisplayName(p.contact);
     const roleBit = lenderRoleLabel(p.contact.lenderRole);
-    const phoneBtn = p.contact.phone ? html`<button type="button" class="ghost" data-copy-field="${fmtPhone(p.contact.phone)}" data-copy-kind="phone" aria-label="${'Copy ' + who + ' phone'}">Copy</button><span class="copy-confirm" data-copy-confirm hidden>Copied</span>` : '';
-    const emailBtn = p.contact.email ? html`<button type="button" class="ghost" data-copy-field="${p.contact.email}" data-copy-kind="email" aria-label="${'Copy ' + who + ' email'}">Copy</button><span class="copy-confirm" data-copy-confirm hidden>Copied</span>` : '';
+    const CONTACT_COPY_ICON = html`<svg class="op-copy-ico" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="2"></rect><path d="M5 15V5h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>`;
+  const contactCopyButton = (kind, value, who) => {
+    const label = kind === 'email' ? `Copy ${who} email` : `Copy ${who} phone`;
+    return html`<button type="button" class="op-copy" data-copy-field="${value}" data-copy-kind="${kind}" aria-label="${label}" title="${label}">${CONTACT_COPY_ICON}</button><span class="copy-confirm" data-copy-confirm hidden>Copied</span>`;
+  };
+    const phoneBtn = p.contact.phone ? contactCopyButton('phone', fmtPhone(p.contact.phone), who) : '';
+    const emailBtn = p.contact.email ? contactCopyButton('email', p.contact.email, who) : '';
     const contactCells = p.contact.contactHidden
       ? html`<td colspan="2" class="muted contact-hidden">Contact through CLA Title</td>`
       : html`<td>${fmtPhone(p.contact.phone)} ${phoneBtn}</td><td>${p.contact.email} ${emailBtn}</td>`;
