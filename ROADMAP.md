@@ -4162,3 +4162,29 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Source of business is an identifying party (MF-082)
+
+**How it should work.** Source of business becomes an identifying party in Parties on File Overview, replacing the right-column radio button. It shows which agent, buyer, or seller referred the business. Existing MF-017 data is kept. The person has no extra role in the transaction.
+
+**Status: Building.** Tracker item MF-082. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- The right-column Source of business radios on each party row are removed.
+- A Source of business row sits in the Parties list, labeled identifying only, with the current person's name.
+- Staff can change it with a select of buyers, sellers, agents, and lenders already on the file, plus Not set. A legacy or unmatched value stays selected so existing data is not cleared.
+- The same sourceOfBusiness field and save path as MF-017 are used.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-082-source-of-business-party`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+
