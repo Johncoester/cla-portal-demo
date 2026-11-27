@@ -4162,3 +4162,28 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Sticky file card shows Processor, Sales Person, and Source (MF-084)
+
+**How it should work.** On the sticky file card, to the right of File Status, show the Processor name, then the Sales Person name, then the Source name.
+
+**Status: Building.** Tracker item MF-084. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- The existing sticky order header, on every tab of a file, shows Processor, Sales Person, and Source to the right of File Status.
+- Names come from the fields already on the file (including MF-017 source-of-business data).
+- A missing value shows as not set.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-084-sticky-file-card-names`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+

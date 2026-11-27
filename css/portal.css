@@ -203,6 +203,10 @@ ul.plain { list-style: none; margin: 0; padding: 0; } ul.plain li { padding: 8px
 .order-header .oh-date-input { width: 11.5rem; max-width: 100%; padding: 6px 8px; font-family: var(--font-head); font-weight: 600; color: var(--navy-900); }
 body.theme-cards .order-header .oh-date-input { font-weight: 300; color: var(--tc-blue); background: #fff; }
 .order-header .order-no { font-size: var(--fs-sm); color: var(--navy-700); font-weight: 700; letter-spacing: .02em; margin: 0; background: var(--navy-50); border: 1px solid var(--navy-100); border-radius: var(--r-pill); padding: 2px 10px; }
+.oh-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.oh-people { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin-left: 4px; font-size: var(--fs-sm); color: var(--ink-2); }
+.oh-people strong { color: var(--navy-900); font-weight: 600; }
+
 .oh-big { font-family: var(--font-head); font-size: var(--fs-lg); font-weight: 600; color: var(--navy-900); } .oh-big-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
 .deal-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 var(--s3); padding-bottom: var(--s3); border-bottom: 1px solid var(--line); }
 .deal-head h2 { font-size: var(--fs-md); font-weight: 600; color: var(--ink-2); } .home-flag { height: 22px; opacity: .7; } .order-no { color: var(--navy-600); font-size: var(--fs-sm); font-weight: 600; margin-left: 4px; } .deal-head select { width: auto; min-width: 140px; padding: 6px 32px 6px 10px; font-size: 13px; }
