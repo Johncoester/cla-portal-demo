@@ -189,6 +189,43 @@ export function contactsTasksDocs(x) {
         if (z.wireInstructions !== want) log(z.dealId, u.id, 'document.updated', 'document', id, `${want ? 'Marked' : 'Unmarked'} ${z.name} as wire instructions`); z.wireInstructions = want; }
       log(z.dealId, u.id, 'document.updated', 'document', id, `Updated details of ${z.name}`); save(); return true;
     },
+    // MF-077: CLA staff with file access (including Sales Person / Sales Team) can change the shown name.
+    // The stored file is not replaced. ID files are not locked. A name with "wire" stays marked as wire
+    // instructions; a rename that drops "wire" unmarks it. Logged as document.renamed.
+    async renameDocument(id, name) {
+      let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.');
+      if (!z.dealId) fail('Only documents on a file can be renamed.');
+      u = onDeal(u, z.dealId);
+      if (!x.isStaffView(u)) fail('Only CLA Title staff who can open this file can rename a document.');
+      let n = String(name == null ? '' : name).trim();
+      if (!n) fail('Enter a document name.');
+      if (/[\u0000-\u001f\u007f]/.test(n)) fail('Document names cannot include control characters.');
+      if (n.length > 200) fail('That name is too long. Use 200 characters or fewer.');
+      const allowed = C.ALLOWED_UPLOAD_EXT;
+      const extOf = (s) => { const i = String(s).lastIndexOf('.'); return i < 1 ? '' : String(s).slice(i + 1).toLowerCase(); };
+      const extOk = (s) => allowed.includes(extOf(s));
+      if (!extOk(n) && !n.includes('.') && extOk(z.name)) n += z.name.slice(z.name.lastIndexOf('.'));
+      if (!extOk(n)) fail(`Use one of the allowed file types (${allowed.join(', ')}), or keep the current file extension.`);
+      if (n.length > 200) fail('That name is too long. Use 200 characters or fewer.');
+      if (n === z.name) return true;
+      const oldName = z.name;
+      const pathBefore = z.storagePath || z.dataUrl || '';
+      const oldWire = z.wireInstructions === true;
+      if (x.isWireDocName(n)) z.wireInstructions = true;
+      else if (x.isWireDocName(oldName) && !x.isWireDocName(n)) z.wireInstructions = false;
+      const blockedKinds = new Set(['curative_lien', 'entity_document', 'prelim_cd', 'title_package', 'cpl', 'lien_certificate']);
+      const nameBlocks = (nm, kind, typ, wire) => !!(wire || blockedKinds.has(kind) || /payoff|cash[\s-]*to[\s-]*close|wire[\s._-]*(instruction|info|details)/i.test(String(nm || '')) || /payoff|cash[\s-]*to[\s-]*close/i.test(String(typ || '')));
+      const wasBlocked = nameBlocks(oldName, z.titleDocKind || z.title_doc_kind || '', z.docType || z.doc_type || '', oldWire);
+      const nowBlocked = nameBlocks(n, z.titleDocKind || z.title_doc_kind || '', z.docType || z.doc_type || '', z.wireInstructions === true);
+      z.name = n;
+      if ((z.storagePath || z.dataUrl || '') !== pathBefore) fail('The stored file cannot be changed.');
+      let detail = `Renamed "${oldName}" to "${n}"`;
+      if (x.isWireDocName(n) && !x.isWireDocName(oldName)) detail += '; wire instructions mark added';
+      else if (x.isWireDocName(oldName) && !x.isWireDocName(n)) detail += '; wire instructions mark removed';
+      if (wasBlocked && !nowBlocked) detail += '; buyer-agent block lifted';
+      log(z.dealId, u.id, 'document.renamed', 'document', id, detail);
+      save(); return true;
+    },
     // SHARE WITH CLIENT (John, Nov 4): CLA staff (processor / coordinator / Admin, not view-only) share another party's upload, e.g. the listing
     // agent's, with the buyer(s) on the file, or stop sharing it. Stored on the document (sharedWithClient, sharedWithClientBy, sharedWithClientAt =
     // who / when it was last shared); every change is in the activity log. Nothing is deleted; turning it off keeps who shared it before.

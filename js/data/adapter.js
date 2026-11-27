@@ -20,7 +20,7 @@
  *               accept it for outside users; adminListUsers rows carry it. Existing contacts are not rewritten.
  *   tasks:      listTasks, getTask, createTask, updateTask, saveTaskForm(id, data, {complete}), uploadForTask,
  *               listTaskTemplates, publishTemplateVersion (Admin), sendTaskReminder, queueOverdueReminders, listOutbox (queued only, never sent)
- *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, shareDocumentWithClient (staff: share an upload with the buyer), shareDocumentWithSeller (staff: the same for the seller), getDocumentContent, listDealFolders, createFolder, renameFolder,
+ *   documents:  listDocuments, addDocument, moveDocument, updateDocumentMeta, renameDocument, shareDocumentWithClient (staff: share an upload with the buyer), shareDocumentWithSeller (staff: the same for the seller), getDocumentContent, listDealFolders, createFolder, renameFolder,
  *               listLibrary, addLibraryDocument
  *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead
  *   file mail:  orderMailUnread() -> { [dealId]: { portal, gmail, total } } for files with unread mail (portal threads this person is on, plus Gmail).
@@ -78,7 +78,7 @@ export function getAdapter() {
 }
 async function loadAdapter() {
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await importWithRetry(() => import('./supabase-adapter.js?v=202611313800')); return m.createSupabaseAdapter(cfg); }
-  const m = await importWithRetry(() => import('./mock-adapter.js?v=202611313600'));
+  if (cfg.mode === 'supabase') { const m = await importWithRetry(() => import('./supabase-adapter.js?v=202611314300')); return m.createSupabaseAdapter(cfg); }
+  const m = await importWithRetry(() => import('./mock-adapter.js?v=202611314300'));
   return m.createMockAdapter();
 }
