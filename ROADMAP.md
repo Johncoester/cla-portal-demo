@@ -4162,3 +4162,29 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Name a file on upload (MF-089)
+
+**How it should work.** A buyer, seller, or agent can name a file when uploading it. If that name is already on the file (the phone image.jpg case), the portal suggests a new name such as image-2.jpg instead of blocking the upload.
+
+**Status: Building.** Tracker item MF-089. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- The upload box for buyers, sellers, and agents has a name field for each chosen file.
+- A duplicate name is auto-suffixed (image.jpg becomes image-2.jpg) and the message tells the person they can rename it.
+- Staff uploads still refuse a duplicate name, as they do today.
+- No database file.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-089-name-file-on-upload`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+
