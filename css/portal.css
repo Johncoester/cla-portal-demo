@@ -1226,3 +1226,6 @@ body.theme-cards .nav-fold .nav-label { white-space: normal; overflow: visible; 
   .nav-fold > details > summary { min-height: 44px; }
   .nav-fold .nav-link { width: 100%; min-height: 40px; }
 }
+
+.mail-dir-filter { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
+.mail-dir-filter label { font-weight: 500; }

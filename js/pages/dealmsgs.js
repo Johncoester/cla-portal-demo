@@ -13,7 +13,7 @@ import { TYPED_ROLES, cleanTypedRecipient, personByEmail, heldContactId, plainMe
 import { canUseGmail } from '../data/gmail-email.js?v=202611191000';
 import { isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
 import { shapeGmailThreads, mergeConversationLists, parseGmailThreadParam, isGmailThread } from '../data/gmail-in-messages.js?v=202611312700';
-import { composeEmailModal } from './dealemail.js?v=202611312900';
+import { composeEmailModal } from './dealemail.js?v=202611315000';
 
 const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim() : `Re: ${String(s || '').trim()}`);
 const tabTitle = (deal) => (deal && isClient(deal.myRole) ? 'Messages' : 'Inbox');
