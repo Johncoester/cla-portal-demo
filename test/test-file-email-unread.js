@@ -6,7 +6,7 @@ import path from 'node:path';
 import { toText } from '../js/ui.js';
 import {
   countUnreadEmails, emailMatchesQuery, gmailUnreadByDeal, isUnreadFileEmail, laterIso, localCursorMap,
-  mergeMailUnread, orderMailCount, portalUnreadByDeal, readLocalCursor, relationMissing, writeLocalCursor, EMAIL_READ_PREFIX,
+  mergeMailUnread, orderMailCount, portalUnreadByDeal, readLocalCursor, readLocalMessageIds, relationMissing, writeLocalCursor, writeLocalMessageRead, EMAIL_READ_PREFIX,
 } from '../js/data/file-email-unread.js';
 import { gmailSupabase } from '../js/data/supabase-gmail.js';
 import { render as renderOrders } from '../js/pages/orders.js';
@@ -27,6 +27,8 @@ ok(isUnreadFileEmail(inbound, { userId: staff, readAt: '' }) && !isUnreadFileEma
 ok(!isUnreadFileEmail(inbound, { userId: staff, readAt: '2026-11-09T18:00:00Z' }) && isUnreadFileEmail(theirs, { userId: staff, readAt: '2026-11-09T18:30:00Z' }), 'the cursor clears mail at or before it, and keeps a later message from someone else');
 ok(isUnreadFileEmail(theirs, { userId: buyer, readAt: '' }) && !isUnreadFileEmail(theirs, { userId: other, readAt: '' }), 'the same outbound row is unread for a teammate and not for its sender');
 ok(countUnreadEmails([inbound, mine, theirs], { userId: staff, readAt: '' }) === 2, 'the file count skips this person\'s own send');
+ok(isUnreadFileEmail(inbound, { userId: staff, readAt: '', readIds: new Set([inbound.id]) }) === false && isUnreadFileEmail(theirs, { userId: staff, readAt: '', readIds: new Set([inbound.id]) }), 'marking one message read leaves a later message unread');
+ok(isUnreadFileEmail(theirs, { userId: staff, readAt: '2026-11-09T20:00:00Z', readIds: new Set() }) === false, 'an older file-level cursor still counts as read');
 
 const reads = [{ dealId: 'd1', readAt: '2026-11-09T18:30:00Z' }];
 const byDeal = gmailUnreadByDeal([inbound, mine, theirs, { ...inbound, id: 'e2', dealId: 'd2', sentAt: '2026-11-09T20:00:00Z' }], reads, { userId: staff, localReadAt: { d2: '2026-11-09T21:00:00Z' } });
@@ -60,8 +62,8 @@ ok(storage.key(0).startsWith(EMAIL_READ_PREFIX + staff + ':'), 'the browser key 
 
 // Hosted adapter: missing deal_email_reads does not throw. The browser cursor still clears the icon.
 const emails = [
-  { deal_id: 'd1', sent_at: '2026-11-09T18:00:00Z', sent_by: null, direction: 'in', mailbox_profile_id: 'box' },
-  { deal_id: 'd1', sent_at: '2026-11-09T17:00:00Z', sent_by: staff, direction: 'out', mailbox_profile_id: staff },
+  { id: 'e-in', deal_id: 'd1', sent_at: '2026-11-09T18:00:00Z', sent_by: null, direction: 'in', mailbox_profile_id: 'box' },
+  { id: 'e-out', deal_id: 'd1', sent_at: '2026-11-09T17:00:00Z', sent_by: staff, direction: 'out', mailbox_profile_id: staff },
 ];
 const missing = { message: 'Could not find the table public.deal_email_reads in the schema cache' };
 function chain(rows, error) {
@@ -92,10 +94,13 @@ globalThis.localStorage = storage;
 const gmail = gmailSupabase({ sb, ok: (r) => { if (r && r.error) throw new Error(r.error.message); return r && r.data; }, camel });
 const before = await gmail.orderMailUnread();
 ok(before.d1 && before.d1.gmail === 1 && before.d1.portal === 1 && before.d1.total === 2, 'Open Orders adds the portal thread and the Gmail reply when the read table is missing');
-const marked = await gmail.markDealEmailsRead('d1');
-ok(marked.saved === false && marked.local === true, 'marking read without the new table stays in this browser and does not throw');
+const stillUnread = await gmail.fileEmailUnreadCount('d1');
+ok(stillUnread === 1, 'opening the Email tab no longer marks every message read (MF-079)');
+const markedOne = await gmail.markDealEmailRead('d1', 'e-in');
+ok(markedOne.saved === false && markedOne.local === true, 'marking one message read without the new table stays in this browser and does not throw');
 const after = await gmail.fileEmailUnreadCount('d1');
-ok(after === 0, 'opening Email clears the Gmail count for this person even before the migration is applied');
+ok(after === 0, 'opening that specific message clears it for this person even before the migration is applied');
+ok(writeLocalMessageRead(storage, staff, 'e-in') && readLocalMessageIds(storage, staff).has('e-in'), 'the browser keeps per-message read state');
 const buyerSb = { ...sb, auth: { getUser: async () => ({ data: { user: { id: buyer } } }) }, from(table) {
   if (table === 'deal_emails') return chain([], null); // existing RLS: buyers do not receive deal_emails
   if (table === 'deal_email_reads') return chain(null, missing);
@@ -127,6 +132,8 @@ const searchEmails = [
 const emailView = await renderEmail({ api: { getGmailStatus: async () => ({ connected: true, mailbox: 'me@clatitle.com' }), listDealEmails: async () => searchEmails, emailReadCursor: async () => ({ readAt: '' }), markDealEmailsRead: async () => ({ saved: false, local: true }) }, deal: searchDeal, user: { id: staff, role: 'Processor', firstName: 'A', lastName: 'B' } });
 const emailHtml = toText(emailView.body);
 ok(emailHtml.includes('data-mail-search') && emailHtml.includes('data-mail-unread-count') && emailHtml.includes('1 unread') && (emailHtml.match(/data-mail-unread="1"/g) || []).length === 1, 'the Email tab counts only mail this person has not viewed');
+const emailPage = read('js/pages/dealemail.js');
+ok(emailHtml.includes('mail-msg unread') && emailPage.includes('markDealEmailRead') && !/markDealEmailsRead\(deal\.id\)/.test(emailPage), 'unread rows have a color class, and opening the tab does not mark the whole file read');
 
 const mig = read('supabase/migrations/20261110030000_deal_email_reads.sql');
 const rb = read('supabase/rollbacks/20261110030000_deal_email_reads.sql');

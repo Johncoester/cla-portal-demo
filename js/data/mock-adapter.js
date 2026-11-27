@@ -14,7 +14,7 @@ import { delegationLocked, applyNov3Templates, applyNov3bTemplates, applyBuyerPe
 import { dealsAndAuth } from './mock-part-deals.js?v=202611313100';
 import { devAuth } from './mock-part-auth.js?v=202611110800';
 import { contactsTasksDocs } from './mock-part-docs.js?v=202611312900';
-import { tasksAndForms } from './mock-part-tasks.js?v=202611312500';
+import { tasksAndForms } from './mock-part-tasks.js?v=202611314400';
 import { messagesActivity } from './mock-part-msgs.js?v=202611312800';
 import { adminUsersTeams } from './mock-part-admin.js?v=202611245800';
 import { libraryFolders } from './mock-part-library.js?v=202611070139';
@@ -48,7 +48,7 @@ import { agentTcLinksPart } from './mock-part-agent-tc.js?v=202611289960';
 import { tcOnlyPart } from './mock-part-tc-only.js?v=202611300700';
 import { agentFeesPart, backfillCommissionTasks } from './mock-part-agent-fees.js?v=202611247900';
 import { automationPart } from './automation.js?v=202611247700';
-import { gmailMock } from './supabase-gmail.js?v=202611312700';
+import { gmailMock } from './supabase-gmail.js?v=202611314400';
 import { hrPart, ensureHr } from './mock-part-hr.js?v=202611312900';
 import { titlePart, ensureTitle } from './mock-part-title.js?v=202611312500';
 import { tcPortal, ensureTc, tcMessageViews } from './mock-part-tc.js?v=202611191700';

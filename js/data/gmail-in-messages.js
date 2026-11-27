@@ -1,7 +1,7 @@
 // CONNECT-6 (checklist 9.3): show Gmail on a file in Messages / Inbox, including replies
 // already stored on deal_emails. The Email tab is unchanged. Visibility is decided by
 // list_deal_emails (staff: every email on a file they can open; parties: mail they are on).
-import { isUnreadFileEmail } from './file-email-unread.js?v=202611140900';
+import { isUnreadFileEmail } from './file-email-unread.js?v=202611314400';
 
 const val = (e, a, b) => (e && (e[a] != null && e[a] !== '' ? e[a] : e[b])) || '';
 const addrs = (e, a, b) => {
@@ -46,7 +46,7 @@ export function groupDealEmails(emails = []) {
   return [...map.values()];
 }
 
-export function shapeGmailThreads(emails = [], { userId = '', readAt = '' } = {}) {
+export function shapeGmailThreads(emails = [], { userId = '', readAt = '', readIds } = {}) {
   return groupDealEmails(emails).map((ms) => {
     const first = ms[0];
     const last = ms[ms.length - 1];
@@ -89,7 +89,7 @@ export function shapeGmailThreads(emails = [], { userId = '', readAt = '' } = {}
       lastAt: val(last, 'sentAt', 'sent_at'),
       lastBody: last.snippet || '',
       lastFrom: val(last, 'fromName', 'from_name') || val(last, 'fromEmail', 'from_email'),
-      unread: ms.filter((e) => isUnreadFileEmail(e, { userId, readAt })).length,
+      unread: ms.filter((e) => isUnreadFileEmail(e, { userId, readAt, readIds })).length,
       hasFiles: ms.some((e) => (e.attachmentNames || e.attachment_names || []).length),
       staffCoordinated: false,
     };

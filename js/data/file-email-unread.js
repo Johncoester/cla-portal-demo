@@ -1,8 +1,10 @@
-/* Per-user unread file mail (MF-001, MF-002, MF-003).
+/* Per-user unread file mail (MF-001, MF-002, MF-003, MF-079).
  * Portal threads already store last_read_at on thread_participants (one row per person).
- * Gmail mail on a file (deal_emails) has no read column. A cursor per person per file lives in
- * deal_email_reads when that table exists (migration 20261110030000). Until then the same cursor
- * is kept in this browser, keyed by the signed-in user, and the page still opens.
+ * Gmail mail on a file (deal_emails) is unread per person per message (deal_email_message_reads,
+ * migration 20261131420000). A message stays unread until that person opens that message.
+ * The older deal_email_reads cursor (migration 20261110030000) is still honored so mail already
+ * marked read by opening the Email tab stays read. If those tables are not there yet, the same
+ * state is kept in this browser, keyed by the signed-in user, and the page still opens.
  * The deal_emails table stays staff-only. Messages uses list_deal_emails so a party can see mail
  * they are on (CONNECT-6). Open Orders still counts Gmail through table RLS (staff only) until a later change. */
 
@@ -37,6 +39,37 @@ export function writeLocalCursor(storage, userId, dealId, at) {
   try { storage.setItem(emailReadKey(userId, dealId), at); return true; } catch (e) { return false; }
 }
 
+export const EMAIL_MSG_READ_PREFIX = 'cla-portal-new:email-msg-read:';
+
+export function emailMsgReadKey(userId, emailId) {
+  return EMAIL_MSG_READ_PREFIX + String(userId || '') + ':' + String(emailId || '');
+}
+
+export function readLocalMessageIds(storage, userId) {
+  const out = new Set();
+  if (!storage || !userId || typeof storage.length !== 'number' || typeof storage.key !== 'function') return out;
+  const prefix = EMAIL_MSG_READ_PREFIX + userId + ':';
+  try {
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k && k.indexOf(prefix) === 0 && storage.getItem(k)) out.add(k.slice(prefix.length));
+    }
+  } catch (e) { /* private mode or a test double without a full Storage API */ }
+  return out;
+}
+
+export function writeLocalMessageRead(storage, userId, emailId) {
+  if (!storage || !userId || !emailId) return false;
+  try { storage.setItem(emailMsgReadKey(userId, emailId), '1'); return true; } catch (e) { return false; }
+}
+
+export function hasMessageId(readIds, emailId) {
+  if (!readIds || !emailId) return false;
+  if (typeof readIds.has === 'function') return readIds.has(emailId);
+  if (Array.isArray(readIds)) return readIds.includes(emailId);
+  return !!readIds[emailId];
+}
+
 export function localCursorMap(storage, userId) {
   const out = {};
   if (!storage || !userId || typeof storage.length !== 'number' || typeof storage.key !== 'function') return out;
@@ -52,13 +85,15 @@ export function localCursorMap(storage, userId) {
 
 // A Gmail row is unread for this person until their cursor passes sent_at.
 // Mail they sent (portal sent_by, or an outbound from their own mailbox) is never unread for them.
-export function isUnreadFileEmail(email, { userId, readAt } = {}) {
+export function isUnreadFileEmail(email, { userId, readAt, readIds } = {}) {
   if (!email) return false;
   const sentBy = email.sentBy || email.sent_by || '';
   const box = email.mailboxProfileId || email.mailbox_profile_id || '';
   const dir = email.direction || '';
   if (userId && sentBy && sentBy === userId) return false;
   if (userId && dir === 'out' && box && box === userId) return false;
+  const id = email.id || email.emailId || email.email_id || '';
+  if (hasMessageId(readIds, id)) return false;
   const at = String(email.sentAt || email.sent_at || email.createdAt || email.created_at || '');
   if (!at) return false;
   if (!readAt) return true;
@@ -69,7 +104,7 @@ export function countUnreadEmails(emails, opts) {
   return (emails || []).reduce((n, e) => n + (isUnreadFileEmail(e, opts) ? 1 : 0), 0);
 }
 
-export function gmailUnreadByDeal(emails, reads, { userId, localReadAt } = {}) {
+export function gmailUnreadByDeal(emails, reads, { userId, localReadAt, readIds } = {}) {
   const cursor = new Map();
   for (const r of reads || []) {
     const id = r.dealId || r.deal_id;
@@ -80,7 +115,7 @@ export function gmailUnreadByDeal(emails, reads, { userId, localReadAt } = {}) {
   for (const e of emails || []) {
     const id = e.dealId || e.deal_id;
     if (!id) continue;
-    if (isUnreadFileEmail(e, { userId, readAt: cursor.get(id) || '' })) out[id] = (out[id] || 0) + 1;
+    if (isUnreadFileEmail(e, { userId, readAt: cursor.get(id) || '', readIds })) out[id] = (out[id] || 0) + 1;
   }
   return out;
 }
