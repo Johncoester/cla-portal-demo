@@ -676,13 +676,14 @@ Rollback: `supabase/rollbacks/20261131310000_mf076_permanent_logs.sql` (it delet
 
 ## Rename a document (MF-077)
 
-**How it should work.** Matt, Nov 27 2026 (Gmail 1a21df0b0dc7c8f3): any CLA staff member who can open the file, including Sales Person and Sales Team, can rename a document in Documents & Files. The new name is what everyone on the file sees. The stored file stays the same. ID files (for example "Jane Smith ID Front") are not locked. If the new name adds or removes the word "wire", the portal shows a warning and asks them to confirm; it does not block the rename. The wire-instructions flag follows the name. Each rename is written in the activity log as `document.renamed` (old name, new name, who, when). Agents and clients cannot rename.
+**How it should work.** Matt, Nov 27 2026 (Gmail 1a21df0b0dc7c8f3): any CLA staff member who can open the file, including Sales Person and Sales Team, can rename a document in Documents & Files. The new name is what everyone on the file sees. The stored file stays the same. ID files (for example "Jane Smith ID Front") are not locked. If the new name adds or removes the word "wire", or "payoff" / "cash to close" (which change whether Buyer Agents can open the file), the portal shows a warning and asks them to confirm; it does not block the rename. The wire-instructions flag follows the name. A name is rejected if it is over 200 characters, includes control characters, or is not an allowed upload type (the current extension is kept when the new name has none). Each rename is written in the activity log as `document.renamed` (old name, new name, who, when, and when a wire mark is added or removed or a buyer-agent block is lifted). Agents and clients cannot rename.
 
 **What changed.** Migration `20261131320000_mf077_document_rename.sql`:
 - `private.documents_immutable()` still blocks changes to the stored file (`storage_path`, `deal_id`, `uploaded_by`, `size_bytes`). It now allows a name change only for CLA staff (`private.is_staffish`) who can open the file (`private.can_access_deal`), who are not in View as, and only for a document on a file in their demo scope.
-- The documents update policy (`documents_update`) is already `USING (true) WITH CHECK (true)` and is not loosened.
+- This file does not change `documents_update` or any column UPDATE grant. On TEST, signed-in users have column UPDATE only on `description`, `doc_type`, `folder_id`, `visibility` and `wire_instructions`. A direct UPDATE of `name` is refused by privilege. The only rename path is `public.rename_document` (SECURITY DEFINER); the trigger is the backstop for other definer paths.
+- `public.rename_document` validates the new name the way uploads are validated (`private.upload_ext_ok`, or keeps the current extension when the new name has none), rejects control characters, and rejects names over 200 characters instead of truncating them.
 - `private.trg_doc_wire()` still marks a file whose name is wire instructions, and now unmarks it when a rename removes that kind of name.
-- An after-update trigger writes `document.renamed` through `private.log_activity`.
+- An after-update trigger writes `document.renamed` through `private.log_activity`, including when a rename adds or removes the wire mark or lifts `buyer_agent_blocked`.
 - The app calls `public.rename_document(uuid, text)` (signed-in users only).
 Rollback: `supabase/rollbacks/20261131320000_mf077_document_rename.sql` (it deletes no log rows).
 

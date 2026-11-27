@@ -10,9 +10,11 @@
 -- file (private.can_access_deal), is not in View as, and the document is on a file and in
 -- demo scope. deal_id, storage_path, uploaded_by and size_bytes still cannot change.
 --
--- RLS: public.documents_update is already USING (true) WITH CHECK (true). This file does
--- not loosen that policy. Authorization for a rename is in the trigger. This is a guard
--- change and needs CRM Bot rule 27 review before merge.
+-- RLS: this file does not change documents_update or any column UPDATE grant.
+-- On TEST, signed-in users have column UPDATE only on description, doc_type, folder_id,
+-- visibility and wire_instructions. A direct UPDATE of name is refused by privilege.
+-- The only rename path is public.rename_document (SECURITY DEFINER). The trigger is the
+-- backstop for other definer paths. This is a guard change and needs CRM Bot rule 27 review.
 --
 -- Also: trg_doc_wire unmarks wire_instructions when a rename removes a wire name.
 -- An AFTER UPDATE OF name trigger writes document.renamed through private.log_activity.
@@ -53,6 +55,16 @@ begin
       raise exception 'Only CLA Title staff who can open this file can rename a document.'
         using errcode = '42501';
     end if;
+    if new.name ~ '[[:cntrl:]]' then
+      raise exception 'Document names cannot include control characters.' using errcode = '22023';
+    end if;
+    if char_length(new.name) > 200 then
+      raise exception 'That name is too long. Use 200 characters or fewer.' using errcode = '22023';
+    end if;
+    if not private.upload_ext_ok(new.name) then
+      raise exception 'Use one of the allowed file types (pdf, doc, docx, xls, xlsx, csv, txt, png, jpg, jpeg, heic, heif, webp), or keep the current file extension.'
+        using errcode = '22023';
+    end if;
   end if;
   return new;
 end
@@ -89,6 +101,8 @@ language plpgsql
 security definer
 set search_path to pg_catalog, public, extensions
 as $fn$
+declare
+  detail text;
 begin
   if new.name is not distinct from old.name then
     return new;
@@ -96,12 +110,22 @@ begin
   if private.is_viewing_as() then
     return new;
   end if;
+  detail := 'Renamed "' || coalesce(old.name, '') || '" to "' || coalesce(new.name, '') || '"';
+  if private.wire_name(new.name) and not private.wire_name(old.name) then
+    detail := detail || '; wire instructions mark added';
+  elsif private.wire_name(old.name) and not private.wire_name(new.name) then
+    detail := detail || '; wire instructions mark removed';
+  end if;
+  if private.buyer_agent_blocked(old.title_doc_kind, old.name, old.doc_type, old.wire_instructions)
+     and not private.buyer_agent_blocked(new.title_doc_kind, new.name, new.doc_type, new.wire_instructions) then
+    detail := detail || '; buyer-agent block lifted';
+  end if;
   perform private.log_activity(
     new.deal_id,
     'document.renamed',
     'document',
     new.id,
-    left('Renamed "' || coalesce(old.name, '') || '" to "' || coalesce(new.name, '') || '"', 300)
+    detail
   );
   return new;
 end
@@ -123,7 +147,7 @@ set search_path to pg_catalog, public, extensions
 as $fn$
 declare
   me uuid := private.effective_uid();
-  n text := left(btrim(coalesce(p_name, '')), 200);
+  n text := btrim(coalesce(p_name, ''));
   doc record;
 begin
   if me is null then
@@ -131,6 +155,12 @@ begin
   end if;
   if n = '' then
     raise exception 'Enter a document name.' using errcode = '22023';
+  end if;
+  if n ~ '[[:cntrl:]]' then
+    raise exception 'Document names cannot include control characters.' using errcode = '22023';
+  end if;
+  if char_length(n) > 200 then
+    raise exception 'That name is too long. Use 200 characters or fewer.' using errcode = '22023';
   end if;
   if private.is_viewing_as() then
     raise exception 'View as is read-only. Switch back to your own login to rename a document.' using errcode = '42501';
@@ -143,6 +173,17 @@ begin
      or not private.can_access_deal(doc.deal_id)
      or doc.deal_id not in (select private.demo_visible_deal_ids()) then
     raise exception 'Document not found.' using errcode = 'P0002';
+  end if;
+  -- Keep the current extension when the new name has none and that extension is allowed.
+  if not private.upload_ext_ok(n) and position('.' in n) = 0 and private.upload_ext_ok(doc.name) then
+    n := n || substring(doc.name from '\.[^.]+$');
+  end if;
+  if not private.upload_ext_ok(n) then
+    raise exception 'Use one of the allowed file types (pdf, doc, docx, xls, xlsx, csv, txt, png, jpg, jpeg, heic, heif, webp), or keep the current file extension.'
+      using errcode = '22023';
+  end if;
+  if char_length(n) > 200 then
+    raise exception 'That name is too long. Use 200 characters or fewer.' using errcode = '22023';
   end if;
   if doc.name is not distinct from n then
     return;
@@ -179,6 +220,11 @@ begin
   if not has_function_privilege('authenticated', 'public.rename_document(uuid, text)', 'EXECUTE')
      or has_function_privilege('anon', 'public.rename_document(uuid, text)', 'EXECUTE') then
     raise exception 'self-check: rename_document must be for signed-in users only';
+  end if;
+  def := pg_get_functiondef('public.rename_document(uuid, text)'::regprocedure);
+  if position('left(btrim' in def) > 0 or position('upload_ext_ok' in def) = 0
+     or position('[:cntrl:]' in def) = 0 or position('char_length(n) > 200' in def) = 0 then
+    raise exception 'self-check: rename_document must reject long names, control characters, and disallowed extensions';
   end if;
   if not exists (
     select 1 from pg_policies

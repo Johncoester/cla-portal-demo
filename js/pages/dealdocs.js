@@ -12,13 +12,51 @@ import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161800';
 // Search text and sort stay put while you move between All files, Received and Sent on the same order (Matt, Nov 11).
 let keptView = { dealId: '', q: '', sort: 'date', dir: 'desc' };   // FF-071 #21: newest first by default
-// MF-077: warn when a rename adds or removes a wire name. The caller confirms; the save is not blocked.
+// MF-077: warn when a rename adds or removes a wire name, or "payoff" / "cash to close"
+// (those names lift or add the buyer-agent block). The caller confirms; the save is not blocked.
+const PAYOFF_CTC_RE = /payoff|cash[\s-]*to[\s-]*close/i;
+const RENAME_CONTROL_RE = /[\u0000-\u001f\u007f]/;
+const RENAME_EXT_MSG = 'Use one of the allowed file types (' + ALLOWED_UPLOAD_EXT.join(', ') + '), or keep the current file extension.';
+export function uploadExtOk(name) {
+  const s = String(name == null ? '' : name);
+  const i = s.lastIndexOf('.');
+  if (i < 1) return false;
+  return ALLOWED_UPLOAD_EXT.includes(s.slice(i + 1).toLowerCase());
+}
+export function applyKeptExtension(name, originalName = '') {
+  const n = String(name == null ? '' : name).trim();
+  if (uploadExtOk(n)) return n;
+  if (!n.includes('.') && uploadExtOk(originalName)) return n + String(originalName).slice(String(originalName).lastIndexOf('.'));
+  return n;
+}
+export function renameNameError(name, originalName = '') {
+  const n = String(name == null ? '' : name).trim();
+  if (!n) return 'Enter a document name.';
+  if (RENAME_CONTROL_RE.test(n)) return 'Document names cannot include control characters.';
+  if (n.length > 200) return 'That name is too long. Use 200 characters or fewer.';
+  const kept = applyKeptExtension(n, originalName);
+  if (kept.length > 200) return 'That name is too long. Use 200 characters or fewer.';
+  if (!uploadExtOk(kept)) return RENAME_EXT_MSG;
+  return '';
+}
 export function wireRenameWarning(oldName, newName) {
+  const parts = [];
   const was = isWireDocName(oldName);
   const next = isWireDocName(newName);
-  if (was === next) return '';
-  if (next) return 'This name includes the word "wire", so the file will be treated as wire instructions (buyer clients and CLA Title only). Continue with this name?';
-  return 'This name no longer includes the word "wire", so the file will no longer be treated as wire instructions. Continue with this name?';
+  if (was !== next) {
+    parts.push(next
+      ? 'This name includes the word "wire", so the file will be treated as wire instructions (buyer clients and CLA Title only).'
+      : 'This name no longer includes the word "wire", so the file will no longer be treated as wire instructions.');
+  }
+  const wasPay = PAYOFF_CTC_RE.test(String(oldName || ''));
+  const nextPay = PAYOFF_CTC_RE.test(String(newName || ''));
+  if (wasPay !== nextPay) {
+    parts.push(nextPay
+      ? 'This name includes "payoff" or "cash to close", so Buyer Agents will not be able to open this file.'
+      : 'This name no longer includes "payoff" or "cash to close", so Buyer Agents will be able to open this file.');
+  }
+  if (!parts.length) return '';
+  return parts.join(' ') + ' Continue with this name?';
 }
 export function canRenameDocument(user) {
   return !!user && !user.accountRole && (STAFF_ACCOUNT_ROLES.includes(user.role) || !!user.isAdmin);
@@ -275,12 +313,14 @@ export async function render({ api, user, deal, refresh }) {
     const mf = $('#mf', m); mountType(mf); mountAudience(mf);
     mf.addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const seen = chosenVisibility(e.target); if (canMeta && seen.error) { toast(seen.error, 'err'); return; }
       if (canRename) {
-        const newName = String(f.docName || '').trim();
-        if (!newName) { toast('Enter a document name.', 'err'); return; }
+        const typed = String(f.docName || '').trim();
+        const nameErr = renameNameError(typed, d.name);
+        if (nameErr) { toast(nameErr, 'err'); return; }
+        const newName = applyKeptExtension(typed, d.name);
         if (newName !== d.name) {
           const warn = wireRenameWarning(d.name, newName);
           if (warn && !confirm(warn)) return;
-          await api.renameDocument(d.id, newName);
+          await api.renameDocument(d.id, typed);
         }
       }
       if (canMeta) await api.updateDocumentMeta(d.id, { description: f.description, visibility: clientShareVisibility(user.role, seen.visibility || d.visibility), docType: chosenType(e.target, f), ...(staffView ? { wireInstructions: !!f.wireInstructions } : {}) });

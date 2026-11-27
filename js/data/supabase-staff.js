@@ -227,7 +227,7 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
     async renameDocument(id, name) {
       const n = String(name || '').trim();
       if (!n) throw new Error('Enter a document name.');
-      ok(await sb.rpc('rename_document', { p_document: id, p_name: n.slice(0, 200) }));
+      ok(await sb.rpc('rename_document', { p_document: id, p_name: n }));
       return true;
     },
     async moveDocument(id, folderId) { ok(await sb.from('documents').update({ folder_id: folderId || null }).eq('id', id)); return true; },

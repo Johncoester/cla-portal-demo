@@ -227,7 +227,7 @@ for (const [target, stamp] of chain) {
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
 const appFrom = [...(hits.get('js/app.js') || [])];
-ok(read('index.html').includes('js/app.js?v=202611314300') && appFrom.length === 1 && appFrom[0] === '202611314000', 'index.html loads the shell at 202611290610');
+ok(read('index.html').includes('js/app.js?v=202611314300') && appFrom.length === 1 && appFrom[0] === '202611314300', 'index.html loads the shell at 202611290610');
 ok(read('js/app.js').includes('adapter.js?v=202611314300'), 'the shell loads the adapter at 202611290200 so Home reads company and deal names');
 
 console.log('cache-stamp issues', issues.length);
