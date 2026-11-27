@@ -286,7 +286,7 @@ const chain = [
   ['js/data/supabase-crm.js', '202611312900'],
   ['js/data/supabase-adapter.js', '202611314500'],
   ['js/data/adapter.js', '202611314500', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000', '202611247000'],
-  ['js/app.js', '202611314500', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
+  ['js/app.js', '202611315300', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100', '202611247100'],
 ];
 const issues = [];
 for (const [target, stamp] of chain) {
@@ -294,7 +294,7 @@ for (const [target, stamp] of chain) {
   if (stamps.length !== 1 || stamps[0] !== stamp) issues.push(target + ' ' + (stamps.join(',') || 'none'));
 }
 ok(issues.length === 0, 'cache stamps agree' + (issues.length ? ': ' + issues.join('; ') : ''));
-ok(read('index.html').includes('js/app.js?v=202611314500'), 'index.html loads the shell at 202611290610');
+ok(read('index.html').includes('js/app.js?v=202611315300'), 'index.html loads the shell at 202611290610');
 console.log('cache-stamp issues', issues.length);
 console.log('dual-stamp', dual.length);
 console.log(fail ? fail + ' failed' : 'crm note files passed');
