@@ -2,7 +2,7 @@
  *   gmail-oauth-start (start | disconnect), gmail-send (also dryRun), gmail-sync (Check for replies). Reads: gmail_my_context(), list_deal_emails (CONNECT-6; table RLS on deal_emails stays staff-only).
  * File email templates (migration 20261109220000): Admin > Email Templates + "Use template" on a file Email tab. Not CRM templates. */
 import { SEED_SHARED as FILE_EMAIL_SEED, cleanTemplateInput, participantsFromContacts } from './file-email-templates.js?v=202611291500';
-import { browserStorage, countUnreadEmails, countsFromOpenOrderMail, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, relationMissing, writeLocalCursor } from './file-email-unread.js?v=202611140900';
+import { browserStorage, countUnreadEmails, countsFromOpenOrderMail, gmailUnreadByDeal, laterIso, localCursorMap, mergeMailUnread, portalUnreadByDeal, readLocalCursor, readLocalMessageIds, relationMissing, writeLocalCursor, writeLocalMessageRead } from './file-email-unread.js?v=202611314400';
 
 async function paged(make) {
   const size = 1000;
@@ -54,14 +54,33 @@ async function portalUnreadForDeal(sb, camel, userId, dealId) {
 }
 
 async function gmailUnreadMap(sb, camel, userId) {
-  const res = await paged(() => sb.from('deal_emails').select('deal_id,sent_at,sent_by,direction,mailbox_profile_id').order('sent_at', { ascending: false }));
+  const res = await paged(() => sb.from('deal_emails').select('id,deal_id,sent_at,sent_by,direction,mailbox_profile_id').order('sent_at', { ascending: false }));
   if (res.error) return {};
   let reads = [];
   try {
     const r = await sb.from('deal_email_reads').select('deal_id,read_at').eq('profile_id', userId).limit(5000);
     if (!r.error && r.data) reads = camel(r.data) || [];
   } catch (e) { reads = []; }
-  return gmailUnreadByDeal(camel(res.data) || [], reads, { userId, localReadAt: localCursorMap(browserStorage(), userId) });
+  const readIds = await messageReadIds(sb, camel, userId);
+  return gmailUnreadByDeal(camel(res.data) || [], reads, { userId, localReadAt: localCursorMap(browserStorage(), userId), readIds });
+}
+
+async function messageReadIds(sb, camel, userId, dealId) {
+  const local = readLocalMessageIds(browserStorage(), userId);
+  try {
+    let q = sb.from('deal_email_message_reads').select('email_id').eq('profile_id', userId);
+    if (dealId) q = q.eq('deal_id', dealId);
+    const r = await q.limit(10000);
+    if (r.error) {
+      if (!relationMissing(r.error)) return local;
+      return local;
+    }
+    for (const row of camel(r.data) || []) {
+      const id = row.emailId || row.email_id;
+      if (id) local.add(id);
+    }
+  } catch (e) { /* table missing or a test double */ }
+  return local;
 }
 
 async function e2eCall(sb, body) {
@@ -234,17 +253,45 @@ export function gmailSupabase({ sb, ok, camel }) {
       if (!id || !dealId) return { readAt: '', persisted: false };
       return cursorFor(dealId, id);
     },
+    async emailReadIds(dealId) {
+      const id = await thisUser();
+      if (!id) return [];
+      return [...await messageReadIds(sb, camel, id, dealId)];
+    },
     async fileEmailUnreadCount(dealId) {
       const id = await thisUser();
       if (!id || !dealId) return 0;
       try {
-        const res = await sb.from('deal_emails').select('deal_id,sent_at,sent_by,direction,mailbox_profile_id').eq('deal_id', dealId).order('sent_at', { ascending: false }).limit(500);
-        if (res.error) return 0;
+        let emails = [];
+        if (typeof sb.rpc === 'function') {
+          try {
+            const listed = await sb.rpc('list_deal_emails', { p_deal: dealId });
+            if (!listed.error) emails = camel(listed.data) || [];
+          } catch (e) { emails = []; }
+        }
+        if (!emails.length) {
+          const res = await sb.from('deal_emails').select('id,deal_id,sent_at,sent_by,direction,mailbox_profile_id').eq('deal_id', dealId).order('sent_at', { ascending: false }).limit(500);
+          if (res.error) return 0;
+          emails = camel(res.data) || [];
+        }
         const cursor = await cursorFor(dealId, id);
-        return countUnreadEmails(camel(res.data) || [], { userId: id, readAt: cursor.readAt });
+        const readIds = await messageReadIds(sb, camel, id, dealId);
+        return countUnreadEmails(emails, { userId: id, readAt: cursor.readAt, readIds });
       } catch (e) { return 0; }
     },
-    // Opening the Email tab. Writes deal_email_reads when that table exists; always remembers this browser too.
+    // MF-079: mark one message read for this person. Does not mark the rest of the file.
+    async markDealEmailRead(dealId, emailId) {
+      const id = await thisUser();
+      if (!id || !dealId || !emailId) return { saved: false, local: false };
+      let saved = false;
+      try {
+        const res = await sb.rpc('mark_deal_email_read', { p_email: emailId, p_deal: dealId });
+        saved = !res.error;
+        if (res.error && !relationMissing(res.error)) saved = false;
+      } catch (e) { saved = false; }
+      return { saved, local: writeLocalMessageRead(browserStorage(), id, emailId) };
+    },
+    // Kept for older callers. MF-079 no longer uses this when the Email tab opens.
     async markDealEmailsRead(dealId) {
       const id = await thisUser();
       if (!id || !dealId) return { saved: false, local: false };
@@ -272,6 +319,8 @@ export function gmailMock() {
     async filePortalUnread() { return 0; },
     async fileEmailUnreadCount() { return 0; },
     async emailReadCursor() { return { readAt: '', persisted: false }; },
+    async emailReadIds() { return []; },
+    async markDealEmailRead() { return { saved: false, local: false }; },
     async markDealEmailsRead() { return { saved: false, local: false }; },
     async sendInviteEmail() { return { sent: false, error: 'Demo: nothing is emailed. Copy the link instead.', demo: true }; },
     async listFileEmailTemplates({ includeInactive = false } = {}) { return store.filter((t) => includeInactive || t.active).map((t) => ({ ...t })); },

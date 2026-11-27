@@ -11,9 +11,9 @@ import { noLoginContactId, canShareInvite, shareInviteToast } from '../data/shar
 import { autoSendInvite } from '../data/invite-send.js?v=202611312900';
 import { TYPED_ROLES, cleanTypedRecipient, personByEmail, heldContactId, plainMessageHtml, addTypedRecipient } from '../data/typed-recipient.js?v=202611249900';
 import { canUseGmail } from '../data/gmail-email.js?v=202611191000';
-import { isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
-import { shapeGmailThreads, mergeConversationLists, parseGmailThreadParam, isGmailThread } from '../data/gmail-in-messages.js?v=202611312700';
-import { composeEmailModal } from './dealemail.js?v=202611312900';
+import { isUnreadFileEmail } from '../data/file-email-unread.js?v=202611314400';
+import { shapeGmailThreads, mergeConversationLists, parseGmailThreadParam, isGmailThread } from '../data/gmail-in-messages.js?v=202611314400';
+import { composeEmailModal } from './dealemail.js?v=202611314400';
 
 const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim() : `Re: ${String(s || '').trim()}`);
 const tabTitle = (deal) => (deal && isClient(deal.myRole) ? 'Messages' : 'Inbox');
@@ -25,14 +25,16 @@ export async function render(ctx) {
     if (gmailRef) return gmailThread(ctx, gmailRef);
     return thread(ctx);
   }
-  const [threads, emails, cursor, g] = await Promise.all([
+  const [threads, emails, cursor, readIdList, g] = await Promise.all([
     api.listThreads(deal.id),
     api.listDealEmails ? api.listDealEmails(deal.id).catch(() => []) : Promise.resolve([]),
     api.emailReadCursor ? api.emailReadCursor(deal.id).catch(() => ({ readAt: '' })) : Promise.resolve({ readAt: '' }),
+    api.emailReadIds ? api.emailReadIds(deal.id).catch(() => []) : Promise.resolve([]),
     canUseGmail(user) && api.getGmailStatus ? api.getGmailStatus().catch(() => ({ connected: false })) : Promise.resolve({ connected: false }),
   ]);
   const readAt = cursor && cursor.readAt || '';
-  const items = mergeConversationLists(threads || [], shapeGmailThreads(emails || [], { userId: user.id, readAt }));
+  const readIds = new Set(readIdList || []);
+  const items = mergeConversationLists(threads || [], shapeGmailThreads(emails || [], { userId: user.id, readAt, readIds }));
   const rows = (items || []).map((item, i) => { const t = presentThread(item, { userId: user.id }); return html`<tr class="${t.unread ? 'unread' : ''}" data-msg-row="${t.id}"${isGmailThread(t) ? raw(' data-gmail-thread="1"') : ''}><td>${i + 1}</td><td><a href="#/deals/${deal.id}/inbox/${t.id}">${t.subject}</a>${isGmailThread(t) ? html` ${pill('Email', 'info')}` : ''}${t.staffCoordinated ? html` ${pill('all parties · staff coordinated', 'info')}` : ''}${t.unread ? html` ${pill(t.unread + ' new', 'info')}` : ''}<br><span class="muted small">${String(t.lastBody || '').slice(0, 90)}</span></td>
     <td>${t.lastFrom}</td><td>${(t.participants || []).map((p) => `${p.name}`).join(' | ')}</td><td>${fmtDateTime(t.lastAt)}</td><td>${t.count}${t.hasFiles ? ' \u{1F4CE}' : ''}</td></tr>`; });
   const staffMail = !!(g && g.connected);
@@ -130,23 +132,25 @@ async function thread({ api, user, deal, refresh, params }) {
 }
 
 async function gmailThread({ api, user, deal, refresh, params }, ref) {
-  const [emails, cursor, g] = await Promise.all([
+  const [emails, cursor, readIdList, g] = await Promise.all([
     api.listDealEmails ? api.listDealEmails(deal.id).catch(() => []) : Promise.resolve([]),
     api.emailReadCursor ? api.emailReadCursor(deal.id).catch(() => ({ readAt: '' })) : Promise.resolve({ readAt: '' }),
+    api.emailReadIds ? api.emailReadIds(deal.id).catch(() => []) : Promise.resolve([]),
     canUseGmail(user) && api.getGmailStatus ? api.getGmailStatus().catch(() => ({ connected: false })) : Promise.resolve({ connected: false }),
   ]);
   const readAt = cursor && cursor.readAt || '';
-  const items = shapeGmailThreads(emails || [], { userId: user.id, readAt });
+  const readIds = new Set(readIdList || []);
+  const items = shapeGmailThreads(emails || [], { userId: user.id, readAt, readIds });
   const t = items.find((x) => x.mailboxEmail === ref.mailboxEmail && x.gmailThreadId === ref.gmailThreadId);
   if (!t) {
     const body = html`<div class="box-title"><h2><span class="h-ico"></span>Email</h2><a class="ghost right" href="#/deals/${deal.id}/inbox">All conversations</a></div>
       <p class="muted">That email is not on this file, or you do not have access to it.</p>`;
     return { title: 'Email', crumbs: [[tabTitle(deal), `#/deals/${deal.id}/inbox`], ['Email']], body, mount() {} };
   }
-  if (api.markDealEmailsRead) { try { await api.markDealEmailsRead(deal.id); } catch (e) { /* list still shows */ } }
+  // MF-079: opening this thread does not mark every message on the file read.
   const canReply = !!(canUseGmail(user) && g && g.connected && !viewOnly(user));
   const msgs = t.emails.map((e) => {
-    const fresh = isUnreadFileEmail(e, { userId: user.id, readAt });
+    const fresh = isUnreadFileEmail(e, { userId: user.id, readAt, readIds });
     const names = e.attachmentNames || e.attachment_names || [];
     return html`<div class="bubble ${e.direction === 'out' ? 'mine' : ''}" data-mail-msg="${e.id}" data-mail-dir="${e.direction}"${fresh ? raw(' data-mail-unread="1"') : ''}><div class="who"><strong>${e.fromName || e.fromEmail}</strong> <span class="muted small">&lt;${e.fromEmail}&gt; · ${fmtDateTime(e.sentAt)}</span>${e.direction === 'in' ? html` ${pill('Received', 'info')}` : html` ${pill('Sent', 'ok')}`}${fresh ? html` ${pill('New', 'info')}` : ''}</div>
       <div class="text muted small">To: ${(e.toEmails || []).join(', ') || '—'}${(e.ccEmails || []).length ? html` · Cc: ${(e.ccEmails || []).join(', ')}` : ''}${(e.bccEmails || []).length ? html` · Bcc: ${(e.bccEmails || []).join(', ')}` : ''}</div>
@@ -164,12 +168,21 @@ async function gmailThread({ api, user, deal, refresh, params }, ref) {
   return { title: t.subject, crumbs: [[tabTitle(deal), `#/deals/${deal.id}/inbox`], [t.subject]], body, mount(root) {
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('cla:thread-read', { detail: { dealId: deal.id } }));
     const byId = new Map(t.emails.map((e) => [e.id, e]));
+    const markOpened = (emailId) => {
+      const e = byId.get(emailId);
+      if (!e || !isUnreadFileEmail(e, { userId: user.id, readAt, readIds })) return;
+      readIds.add(emailId);
+      const li = root.querySelector(`[data-mail-msg="${emailId}"]`);
+      if (li) { li.classList.remove('unread'); li.removeAttribute('data-mail-unread'); }
+      if (api.markDealEmailRead) { try { api.markDealEmailRead(deal.id, emailId); } catch (err) { /* thread still shows */ } }
+    };
     $$('[data-mail-show]', root).forEach((b) => b.addEventListener('click', () => {
       const box = root.querySelector(`[data-mail-body="${b.dataset.mailShow}"]`); const e = byId.get(b.dataset.mailShow);
       if (!box || !e) return;
       if (box.hidden && !box.firstChild) { const f = document.createElement('iframe'); f.setAttribute('sandbox', ''); f.setAttribute('referrerpolicy', 'no-referrer'); f.className = 'mail-frame';
         f.style.cssText = 'width:100%;min-height:260px;border:1px solid #ddd;background:#fff'; f.srcdoc = `<base target="_blank">${e.bodyHtml || e.body_html || ''}`; box.appendChild(f); }
       box.hidden = !box.hidden; b.textContent = box.hidden ? 'Show message' : 'Hide message';
+      if (!box.hidden) markOpened(b.dataset.mailShow);
     }));
     $$('[data-mail-reply]', root).forEach((b) => b.addEventListener('click', guard(() => {
       const e = byId.get(b.dataset.mailReply);

@@ -24,8 +24,8 @@
  *               listLibrary, addLibraryDocument
  *   messages:   listMessageRecipients, listThreads, getThread, createThread, postMessage, markThreadRead
  *   file mail:  orderMailUnread() -> { [dealId]: { portal, gmail, total } } for files with unread mail (portal threads this person is on, plus Gmail).
- *               filePortalUnread(dealId), fileEmailUnreadCount(dealId), emailReadCursor(dealId), markDealEmailsRead(dealId).
- *               Gmail read state is per person (deal_email_reads, migration 20261110030000). If that table is not there yet, the cursor stays in this browser and the page still opens.
+ *               filePortalUnread(dealId), fileEmailUnreadCount(dealId), emailReadCursor(dealId), emailReadIds(dealId), markDealEmailRead(dealId, emailId), markDealEmailsRead(dealId).
+ *               Gmail read state is per person per message (deal_email_message_reads, migration 20261131420000; older file cursors in deal_email_reads are still honored). If that table is not there yet, the cursor stays in this browser and the page still opens.
  *               Buyers, sellers, and agents do not receive deal_emails; their count is portal threads only.
  *   closing:    listSettlements, createSettlementRequest, getSchedulingLink(token), respondSettlement(token, ...), confirmSettlement, reopenSettlement
  *   other:      listActivity(dealId|null, filters), listNotifications (each with fileNumber + address), notificationCount, markNotificationRead, markAllNotificationsRead, subscribeNotifications (FF-115: Realtime or null)
@@ -78,7 +78,7 @@ export function getAdapter() {
 }
 async function loadAdapter() {
   const cfg = (typeof window !== 'undefined' && window.CLA_PORTAL_CONFIG) || { mode: 'mock' };
-  if (cfg.mode === 'supabase') { const m = await importWithRetry(() => import('./supabase-adapter.js?v=202611313800')); return m.createSupabaseAdapter(cfg); }
-  const m = await importWithRetry(() => import('./mock-adapter.js?v=202611313600'));
+  if (cfg.mode === 'supabase') { const m = await importWithRetry(() => import('./supabase-adapter.js?v=202611314400')); return m.createSupabaseAdapter(cfg); }
+  const m = await importWithRetry(() => import('./mock-adapter.js?v=202611314400'));
   return m.createMockAdapter();
 }

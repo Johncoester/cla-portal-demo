@@ -674,6 +674,15 @@ Rollback: `supabase/rollbacks/20261131310000_mf076_permanent_logs.sql` (it delet
 
 **Status: In review** (CRM Bot re-review, then TEST apply).
 
+## Unread file email, per message (MF-079)
+
+**How it should work.** Matt, Nov 27 2026 (Gmail 1a21df0b0dc7c8f3): a message stays unread until that person opens that specific message. Opening the Email tab no longer marks every message on the file as read. Unread rows have a slight color change so they are easy to tell apart. The Open Orders bell (MF-001) and the Email tab count (MF-002) use this per-person, per-message state.
+
+**What changed.** Migration `20261131420000_mf079_email_message_reads.sql` adds `deal_email_message_reads` (one row per person per message, own-row policies) and `public.mark_deal_email_read`. The older file-level cursor in `deal_email_reads` is kept so mail already marked read by opening the tab stays read. `open_order_mail` and `deal_email_unread_counts` skip a message that has a per-message read row. The app marks a message read when the person clicks Show message, on the Email tab and in Messages.
+Rollback: `supabase/rollbacks/20261131420000_mf079_email_message_reads.sql`.
+
+**Status: In review.** Needs CRM Bot rule 27 review (new table and RLS, plus the mark-read function) before merge, then the database file applied once on TEST.
+
 ## Buyer landing page on a phone (MF-069)
 
 **How it should work.** Matt, Nov 25 (confirmed): after first login the buyer's landing page is mobile friendly, it is easy to pick the file, and it is clear which tasks are required.

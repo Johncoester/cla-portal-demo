@@ -11,7 +11,7 @@ import { partyRecipientLabel, fileEmailParties } from '../data/mail-to-parties.j
 import { applyFileTemplate } from '../data/file-email-templates.js?v=202611291500';
 import { partyDisplayName } from '../data/party-name.js?v=202611102000';
 import { tcOnlyMap, tcOnlyNotes, isTcOnlyRole, canReadTcOnly } from '../data/tc-only.js?v=202611301500';
-import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611140900';
+import { countUnreadEmails, emailMatchesQuery, isUnreadFileEmail } from '../data/file-email-unread.js?v=202611314400';
 const ROLE = { 'Client-Buyer': 'Buyer', 'Client-Seller': 'Seller', 'Buyer Agent': "Buyer's agent", 'Listing Agent': 'Listing agent', 'Transaction Coordinator': 'TC' };
 const list = (s) => String(s || '').split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 // A template fills To only while that box is empty. An address the sender adds, or a Cc, is kept.
@@ -25,23 +25,23 @@ const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim(
 
 export async function render({ api, deal, user, refresh: reload }) {
   if (!canUseGmail(user) || !api.listDealEmails) throw new Error('That page does not exist.');
-  const [g, emails, cursor] = await Promise.all([
+  const [g, emails, cursor, readIdList] = await Promise.all([
     api.getGmailStatus().catch(() => ({ available: false })),
     api.listDealEmails(deal.id).catch(() => []),
     api.emailReadCursor ? api.emailReadCursor(deal.id).catch(() => ({ readAt: '' })) : Promise.resolve({ readAt: '' }),
+    api.emailReadIds ? api.emailReadIds(deal.id).catch(() => []) : Promise.resolve([]),
   ]);
   const userId = user && user.id || '';
   const readAt = cursor && cursor.readAt || '';
-  const unreadN = countUnreadEmails(emails, { userId, readAt });
-  // Viewing the tab marks the file read for this person. The count above is what was unread when the page opened.
-  // A missing deal_email_reads table is remembered in this browser instead; a failed mark does not block the list.
-  if (api.markDealEmailsRead) { try { await api.markDealEmailsRead(deal.id); } catch (e) { /* list still shows */ } }
+  const readIds = new Set(readIdList || []);
+  const unreadN = countUnreadEmails(emails, { userId, readAt, readIds });
+  // MF-079: opening the Email tab does not mark every message read. A message stays unread until it is opened.
   const threads = new Map();
   for (const e of emails) { const k = `${e.mailboxEmail}|${e.gmailThreadId}`; if (!threads.has(k)) threads.set(k, []); threads.get(k).push(e); }
   const groups = [...threads.values()].map((ms) => ms.sort((a, b) => String(a.sentAt).localeCompare(String(b.sentAt))));
   groups.sort((a, b) => String(b[b.length - 1].sentAt).localeCompare(String(a[a.length - 1].sentAt)));
   const row = (e) => {
-    const fresh = isUnreadFileEmail(e, { userId, readAt });
+    const fresh = isUnreadFileEmail(e, { userId, readAt, readIds });
     return html`<li class="mail-msg${fresh ? ' unread' : ''}" data-mail-msg="${e.id}" data-mail-dir="${e.direction}"${fresh ? raw(' data-mail-unread="1"') : ''}>
       <div class="small">${e.direction === 'in' ? pill('Received', 'info') : pill('Sent', 'ok')} <strong>${e.fromName || e.fromEmail}</strong> &lt;${e.fromEmail}&gt; to ${(e.toEmails || []).join(', ')}${(e.ccEmails || []).length ? html`, cc ${(e.ccEmails || []).join(', ')}` : ''}
         <span class="muted">${fmtDateTime(e.sentAt)}</span>${fresh ? html` ${pill('New', 'info')}` : ''}${e.templateKey === 'intro' ? html` ${pill('Introduction', '')}` : e.templateKey ? html` ${pill('Template', '')}` : ''}</div>
@@ -82,11 +82,23 @@ export async function render({ api, deal, user, refresh: reload }) {
       if (empty) empty.hidden = shown > 0 || !String(query || '').trim();
     };
     if (search) { search.addEventListener('input', applySearch); search.addEventListener('search', applySearch); }
+    const markOpened = (emailId) => {
+      const e = byId.get(emailId);
+      if (!e || !isUnreadFileEmail(e, { userId, readAt, readIds })) return;
+      readIds.add(emailId);
+      const li = $(`[data-mail-msg="${emailId}"]`, root);
+      if (li) { li.classList.remove('unread'); li.removeAttribute('data-mail-unread'); }
+      const badge = $('[data-mail-unread-count]', root);
+      const left = countUnreadEmails(emails, { userId, readAt, readIds });
+      if (badge) { if (left) badge.textContent = `${left} unread`; else badge.remove(); }
+      if (api.markDealEmailRead) { try { api.markDealEmailRead(deal.id, emailId); } catch (err) { /* list still shows */ } }
+    };
     $$('[data-mail-show]', root).forEach((b) => b.addEventListener('click', () => {
       const box = $(`[data-mail-body="${b.dataset.mailShow}"]`, root); const e = byId.get(b.dataset.mailShow);
       if (box.hidden && !box.firstChild) { const f = document.createElement('iframe'); f.setAttribute('sandbox', ''); f.setAttribute('referrerpolicy', 'no-referrer'); f.className = 'mail-frame';
         f.style.cssText = 'width:100%;min-height:260px;border:1px solid #ddd;background:#fff'; f.srcdoc = `<base target="_blank">${e.bodyHtml || ''}`; box.appendChild(f); }
-      box.hidden = !box.hidden; b.textContent = box.hidden ? 'Show message' : 'Hide message'; }));
+      box.hidden = !box.hidden; b.textContent = box.hidden ? 'Show message' : 'Hide message';
+      if (!box.hidden) markOpened(b.dataset.mailShow); }));
     const refresh = () => { if (typeof reload === 'function') reload(); else location.reload(); };
     $('[data-mail-new]', root).addEventListener('click', guard(() => composeEmailModal({ api, deal, user, gmail: g, done: refresh })));
     $('[data-mail-intro]', root).addEventListener('click', guard(() => { const rs = introRecipients(deal); const t = introTemplate(deal, { firstName: g.firstName || user.firstName, lastName: g.lastName || user.lastName, role: user.role }, rs, { signature: hasSignature(g.signatureHtml) });

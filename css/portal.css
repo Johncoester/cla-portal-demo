@@ -284,7 +284,7 @@ button.bell { background: none; border: 0; padding: 0; cursor: pointer; }
 .notif-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); color: var(--ink); background: var(--surface-2); position: sticky; top: 0; }
 .notif-list { list-style: none; margin: 0; padding: 0; } .notif-list li { border-bottom: 1px solid var(--line); padding: 0; color: var(--ink-2); } .notif-list li.muted { padding: 12px 14px; }
 .notif-list a { display: block; padding: 10px 14px; color: var(--ink); text-decoration: none; font-size: 13px; } .notif-list a:hover { background: var(--surface-2); }
-.notif-list li.unread a { background: var(--navy-50); font-weight: 500; } .notif-list li.unread a::before { content: '\25CF  '; color: var(--navy-600); }
+.notif-list li.unread a { background: var(--navy-50); font-weight: 500; } .notif-list li.unread a::before { content: '\25CF  '; color: var(--navy-600); } .mail-msg.unread, .bubble[data-mail-unread] { background: var(--navy-50); } .mail-msg.unread { box-shadow: inset 3px 0 0 var(--navy-600); }
 /* ---------- documents, scheduling, misc ---------- */
 .folder-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 12px; }
 .folder { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--surface); color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 500; } .folder:hover { border-color: var(--navy-200); background: var(--navy-50); }
