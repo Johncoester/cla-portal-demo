@@ -4162,3 +4162,30 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Start a conversation defaults To the Processor (MF-087)
+
+**How it should work.** When a buyer or seller clicks Start a conversation, To is the file's Processor by name. There is no recipient picker. Agents and CLA staff still pick recipients as they do today.
+
+**Status: Building.** Tracker item MF-087. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- Buyer and seller Start a conversation shows a read-only To with the Processor's name.
+- Send creates the conversation with only the Processor.
+- If the file has no Processor, the send button is off and the modal says a conversation cannot be started yet.
+- Agents, staff, typed recipients, and Share Files are unchanged.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-087-conversation-to-processor`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: for now it goes only to the Processor, with no picker.
+- Agents keep the existing To list, including their side and the Processor.
+
