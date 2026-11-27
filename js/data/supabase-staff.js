@@ -224,6 +224,12 @@ export function staffSupabase({ sb, ok, camel, me, api }) {
       if (Object.keys(row).length) ok(await sb.from('documents').update(row).eq('id', id));
       return true;
     },
+    async renameDocument(id, name) {
+      const n = String(name || '').trim();
+      if (!n) throw new Error('Enter a document name.');
+      ok(await sb.rpc('rename_document', { p_document: id, p_name: n.slice(0, 200) }));
+      return true;
+    },
     async moveDocument(id, folderId) { ok(await sb.from('documents').update({ folder_id: folderId || null }).eq('id', id)); return true; },
     async uploadForTask(taskId, file) {
       const t = camel(ok(await sb.from('tasks').select('id, deal_id, title, assigned_role, template_code, participant_id').eq('id', taskId).single()));

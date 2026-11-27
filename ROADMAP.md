@@ -674,6 +674,20 @@ Rollback: `supabase/rollbacks/20261131310000_mf076_permanent_logs.sql` (it delet
 
 **Status: In review** (CRM Bot re-review, then TEST apply).
 
+## Rename a document (MF-077)
+
+**How it should work.** Matt, Nov 27 2026 (Gmail 1a21df0b0dc7c8f3): any CLA staff member who can open the file, including Sales Person and Sales Team, can rename a document in Documents & Files. The new name is what everyone on the file sees. The stored file stays the same. ID files (for example "Jane Smith ID Front") are not locked. If the new name adds or removes the word "wire", the portal shows a warning and asks them to confirm; it does not block the rename. The wire-instructions flag follows the name. Each rename is written in the activity log as `document.renamed` (old name, new name, who, when). Agents and clients cannot rename.
+
+**What changed.** Migration `20261131320000_mf077_document_rename.sql`:
+- `private.documents_immutable()` still blocks changes to the stored file (`storage_path`, `deal_id`, `uploaded_by`, `size_bytes`). It now allows a name change only for CLA staff (`private.is_staffish`) who can open the file (`private.can_access_deal`), who are not in View as, and only for a document on a file in their demo scope.
+- The documents update policy (`documents_update`) is already `USING (true) WITH CHECK (true)` and is not loosened.
+- `private.trg_doc_wire()` still marks a file whose name is wire instructions, and now unmarks it when a rename removes that kind of name.
+- An after-update trigger writes `document.renamed` through `private.log_activity`.
+- The app calls `public.rename_document(uuid, text)` (signed-in users only).
+Rollback: `supabase/rollbacks/20261131320000_mf077_document_rename.sql` (it deletes no log rows).
+
+**Status: In review.** Needs CRM Bot rule 27 review (guard change) before merge, then the database file applied once on TEST.
+
 ## Buyer landing page on a phone (MF-069)
 
 **How it should work.** Matt, Nov 25 (confirmed): after first login the buyer's landing page is mobile friendly, it is easy to pick the file, and it is clear which tasks are required.

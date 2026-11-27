@@ -189,6 +189,25 @@ export function contactsTasksDocs(x) {
         if (z.wireInstructions !== want) log(z.dealId, u.id, 'document.updated', 'document', id, `${want ? 'Marked' : 'Unmarked'} ${z.name} as wire instructions`); z.wireInstructions = want; }
       log(z.dealId, u.id, 'document.updated', 'document', id, `Updated details of ${z.name}`); save(); return true;
     },
+    // MF-077: CLA staff with file access (including Sales Person / Sales Team) can change the shown name.
+    // The stored file is not replaced. ID files are not locked. A name with "wire" stays marked as wire
+    // instructions; a rename that drops "wire" unmarks it. Logged as document.renamed.
+    async renameDocument(id, name) {
+      let u = needUser(); const z = load().documents.find((q) => q.id === id) || fail('Document not found.');
+      if (!z.dealId) fail('Only documents on a file can be renamed.');
+      u = onDeal(u, z.dealId);
+      if (!x.isStaffView(u)) fail('Only CLA Title staff who can open this file can rename a document.');
+      const n = str(name, 200); if (!n) fail('Enter a document name.');
+      if (n === z.name) return true;
+      const oldName = z.name;
+      const pathBefore = z.storagePath || z.dataUrl || '';
+      if (x.isWireDocName(n)) z.wireInstructions = true;
+      else if (x.isWireDocName(oldName) && !x.isWireDocName(n)) z.wireInstructions = false;
+      z.name = n;
+      if ((z.storagePath || z.dataUrl || '') !== pathBefore) fail('The stored file cannot be changed.');
+      log(z.dealId, u.id, 'document.renamed', 'document', id, `Renamed "${oldName}" to "${n}"`);
+      save(); return true;
+    },
     // SHARE WITH CLIENT (John, Nov 4): CLA staff (processor / coordinator / Admin, not view-only) share another party's upload, e.g. the listing
     // agent's, with the buyer(s) on the file, or stop sharing it. Stored on the document (sharedWithClient, sharedWithClientBy, sharedWithClientAt =
     // who / when it was last shared); every change is in the activity log. Nothing is deleted; turning it off keeps who shared it before.

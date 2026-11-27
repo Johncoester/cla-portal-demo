@@ -1,8 +1,8 @@
-// Documents tab with folders. Upload, open/download, file into folders, edit description/visibility. There is NO delete: documents are kept permanently.
+// Documents tab with folders. Upload, open/download, file into folders, edit description/visibility, rename (MF-077). There is NO delete: documents are kept permanently.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDateTime, fmtSize, pill, toast, plainError } from '../ui.js?v=202611161500';
 import { sameUploadId } from '../data/supabase-nov5.js?v=202611313800';
 import { composeModal } from './compose.js?v=202611312900';
-import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices } from '../data/constants.js?v=202611302300';
+import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, isRefi, visibilityChoices, visibilityLabel, clientShareVisibility, CLIENT_SHARE_NOTE, BUYER_SHARE_NOTE, DOC_TYPES, docTypeChoices, isWireDocName, STAFF_ACCOUNT_ROLES } from '../data/constants.js?v=202611302300';
 import { formatUploadMax } from '../data/upload-limit.js?v=202611312900';
 import { MISC_DOC_TYPE, orderedDocTypes, docTypeLabel, resolveDocType, docTypeEditorState } from '../data/document-type.js?v=202611100945';
 import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, checkedForVisibility, visibilityFromChecked, audienceSync } from '../data/document-audience.js?v=202611100945';
@@ -12,6 +12,18 @@ import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161800';
 // Search text and sort stay put while you move between All files, Received and Sent on the same order (Matt, Nov 11).
 let keptView = { dealId: '', q: '', sort: 'date', dir: 'desc' };   // FF-071 #21: newest first by default
+// MF-077: warn when a rename adds or removes a wire name. The caller confirms; the save is not blocked.
+export function wireRenameWarning(oldName, newName) {
+  const was = isWireDocName(oldName);
+  const next = isWireDocName(newName);
+  if (was === next) return '';
+  if (next) return 'This name includes the word "wire", so the file will be treated as wire instructions (buyer clients and CLA Title only). Continue with this name?';
+  return 'This name no longer includes the word "wire", so the file will no longer be treated as wire instructions. Continue with this name?';
+}
+export function canRenameDocument(user) {
+  return !!user && !user.accountRole && (STAFF_ACCOUNT_ROLES.includes(user.role) || !!user.isAdmin);
+}
+
 const icon = (n) => (/\.pdf$/i.test(n) ? 'pdf_icon.png' : /\.docx?$/i.test(n) ? 'word_icon.png' : /\.(xlsx?|csv)$/i.test(n) ? 'excel_icon.png' : 'image_icon.png');
 export function docListRow(d, folders = []) {
   const folderId = d.folderId || '';
@@ -51,6 +63,7 @@ export async function render({ api, user, deal, refresh }) {
   ]);
   const docs = rawDocs.map((d) => docListRow(d, folders));   // hosted rows: size_bytes, storage path, folder name
   const manage = runsOrders(user) || user.role === 'Transaction Coordinator'; const realFolders = folders.filter((f) => !f.virtual);
+  const canRename = canRenameDocument(user);
   const href = (t, f) => `#/deals/${deal.id}/documents?t=${t}${f === null ? '' : '&f=' + encodeURIComponent(f)}`;
   const portalDocs = docs.filter((d) => !d.sample);
   const shown = portalDocs.filter((d) => {
@@ -120,7 +133,7 @@ export async function render({ api, user, deal, refresh }) {
   const rows = (view.sort ? sortDocs(shown, view.sort, view.dir) : shown).map((d) => html`<tr data-doc-item="${d.id}"><td class="center"><img class="fileico" src="assets/img/${icon(d.name)}" alt=""></td>
     <td data-doc-row="${d.id}"${d.wireInstructions ? raw(' data-wire-doc') : ''}><a href="#" data-open="${d.id}" class="doc-link">${d.name}</a>${d.wireInstructions ? html` ${pill('wire instructions - buyer only', 'warn')}` : ''}<br><span class="muted small">${d.docType ? html`<span data-doctype>${d.docType}</span> &middot; ` : ''}${fmtSize(d.size)}${d.hasContent ? '' : ' \u00b7 sample file'}</span></td>
     <td>${d.folderName || html`<span class="muted">Unfiled</span>`}</td><td>${fmtDateTime(d.createdAt)}</td><td data-doc-from>${d.uploadedByName || html`<span class="muted">Not recorded</span>`}${d.uploadedByRole ? html`<br><span class="muted small" data-doc-from-role>${d.uploadedByRole}</span>` : ''}</td><td>${d.description}</td><td>${clientView && d.sharedWithMe ? pill('Shared with you by CLA Title', 'info') : pill(VL(d.visibility), d.visibility === 'all' ? '' : 'info')}${!clientView && d.sharedWithClient ? html`<br><span data-shared-client="${d.id}">${pill('shared with the buyer', 'ok')}</span><br><span class="muted small">by ${d.sharedWithClientByName} ${fmtDateTime(d.sharedWithClientAt)}</span>` : ''}${!clientView && d.sharedWithSeller ? html`<br><span data-shared-seller="${d.id}">${pill('shared with the seller', 'ok')}</span><br><span class="muted small">by ${d.sharedWithSellerByName} ${fmtDateTime(d.sharedWithSellerAt)}</span>` : ''}</td>
-    <td class="nowrap">${runsOrders(user) || d.uploadedBy === user.id || manage ? html`<button class="ghost" data-meta="${d.id}">Details</button>` : ''}${manage ? html` <button class="ghost" data-sign="${d.id}">Request signature</button>` : ''}${canShareClient && d.buyerShareable ? html` <button class="ghost" data-share-client="${d.id}" data-share-on="${d.sharedWithClient ? '0' : '1'}">${d.sharedWithClient ? 'Stop sharing with buyer' : 'Share with buyer'}</button>` : ''}${canShareClient && d.sellerShareable ? html` <button class="ghost" data-share-seller="${d.id}" data-share-on="${d.sharedWithSeller ? '0' : '1'}">${d.sharedWithSeller ? 'Stop sharing with seller' : 'Share with seller'}</button>` : ''}</td></tr>`);
+    <td class="nowrap">${runsOrders(user) || d.uploadedBy === user.id || manage || canRename ? html`<button class="ghost" data-meta="${d.id}">Details</button>` : ''}${manage ? html` <button class="ghost" data-sign="${d.id}">Request signature</button>` : ''}${canShareClient && d.buyerShareable ? html` <button class="ghost" data-share-client="${d.id}" data-share-on="${d.sharedWithClient ? '0' : '1'}">${d.sharedWithClient ? 'Stop sharing with buyer' : 'Share with buyer'}</button>` : ''}${canShareClient && d.sellerShareable ? html` <button class="ghost" data-share-seller="${d.id}" data-share-on="${d.sharedWithSeller ? '0' : '1'}">${d.sharedWithSeller ? 'Stop sharing with seller' : 'Share with seller'}</button>` : ''}</td></tr>`);
   const fileList = rows.length ? html`<div class="filter-bar" data-doc-tools><label>Search <input type="search" data-doc-search placeholder="File name, type, folder or sender" autocomplete="off" value="${view.q}"></label> <span class="muted small" data-doc-count role="status"></span></div>
     <table class="tbl striped" id="doctable"><thead><tr>${sortHead('type', 'File Type')}${sortHead('name', 'File Name')}${sortHead('folder', 'Folder')}${sortHead('date', 'Date')}${sortHead('from', 'From')}<th>Additional Instruction</th><th>Access</th><th></th></tr></thead><tbody>${rows}<tr data-doc-nomatch hidden><td colspan="8" class="muted center">No documents match your search.</td></tr></tbody></table>` : html`<p class="muted" data-docs-empty>${folderOpen ? 'No documents in this folder yet.' : 'No documents have been shared on this file yet.'}</p>`;
   const openPane = html`<div data-doc-folder-open="${openFolderRow ? (openFolderRow.virtual ? 'unfiled' : openFolderRow.id) : 'missing'}">
@@ -250,7 +263,8 @@ export async function render({ api, user, deal, refresh }) {
   }
   function meta(d) {
     const canMeta = runsOrders(user) || d.uploadedBy === user.id;
-    const m = modal('Document details', html`<form id="mf" class="form-grid"><p class="span2"><strong>${d.name}</strong></p>
+    const m = modal('Document details', html`<form id="mf" class="form-grid">${canRename ? html`<label class="span2">Name<input name="docName" value="${d.name}" maxlength="200" required></label>
+      <p class="span2 muted small">This is the name everyone on the file sees. The stored file stays the same.</p>` : html`<p class="span2"><strong>${d.name}</strong></p>`}
       ${canMeta ? html`${typeFields(d.docType)}
       <label class="span2">Additional instruction<input name="description" value="${d.description}"></label>
       ${audienceFields(d.visibility)}` : ''}
@@ -259,7 +273,17 @@ export async function render({ api, user, deal, refresh }) {
       <p class="span2 muted small">Documents cannot be deleted.</p>
       <div class="span2"><button class="m-btn" type="submit">Save</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     const mf = $('#mf', m); mountType(mf); mountAudience(mf);
-    mf.addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const seen = chosenVisibility(e.target); if (canMeta && seen.error) { toast(seen.error, 'err'); return; } if (canMeta) await api.updateDocumentMeta(d.id, { description: f.description, visibility: clientShareVisibility(user.role, seen.visibility || d.visibility), docType: chosenType(e.target, f), ...(staffView ? { wireInstructions: !!f.wireInstructions } : {}) });
+    mf.addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = formData(e.target); const seen = chosenVisibility(e.target); if (canMeta && seen.error) { toast(seen.error, 'err'); return; }
+      if (canRename) {
+        const newName = String(f.docName || '').trim();
+        if (!newName) { toast('Enter a document name.', 'err'); return; }
+        if (newName !== d.name) {
+          const warn = wireRenameWarning(d.name, newName);
+          if (warn && !confirm(warn)) return;
+          await api.renameDocument(d.id, newName);
+        }
+      }
+      if (canMeta) await api.updateDocumentMeta(d.id, { description: f.description, visibility: clientShareVisibility(user.role, seen.visibility || d.visibility), docType: chosenType(e.target, f), ...(staffView ? { wireInstructions: !!f.wireInstructions } : {}) });
       if (manage && (f.folderId || null) !== (d.folderId || null)) await api.moveDocument(d.id, f.folderId || null); closeModal(); toast('Saved'); refresh(); }));
   }
 }
