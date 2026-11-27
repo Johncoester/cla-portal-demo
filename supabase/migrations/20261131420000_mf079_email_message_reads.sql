@@ -4,11 +4,13 @@
 -- MF-001 (Open Orders bell) and MF-002 (Email tab count) use this per-message state.
 --
 -- New table public.deal_email_message_reads: one row per person per message (profile_id,
--- email_id), with own-row RLS. A signed-in user can only insert a row for an email they
--- can already see (deal_emails row security, or list_deal_emails for parties). The older
--- deal_email_reads cursor is kept so mail already marked read by opening the tab stays
--- read. This file also updates public.open_order_mail and public.deal_email_unread_counts
--- to skip a message that has a per-message read row.
+-- email_id). Signed-in users have SELECT only, with an own-row policy. INSERT and UPDATE
+-- are not granted; the app writes only through public.mark_deal_email_read (SECURITY
+-- DEFINER), which checks the email belongs to the deal and the caller can already see it
+-- (staff with file access in demo scope, or list_deal_emails for parties). A demo login
+-- cannot mark a real email. The older deal_email_reads cursor is kept so mail already
+-- marked read by opening the tab stays read. This file also updates public.open_order_mail
+-- and public.deal_email_unread_counts to skip a message that has a per-message read row.
 -- Rollback: supabase/rollbacks/20261131420000_mf079_email_message_reads.sql
 begin;
 set local lock_timeout = '3s';
@@ -36,27 +38,18 @@ create table public.deal_email_message_reads (
 );
 
 create index deal_email_message_reads_deal on public.deal_email_message_reads (profile_id, deal_id);
+create index deal_email_message_reads_email on public.deal_email_message_reads (email_id);
 
 alter table public.deal_email_message_reads enable row level security;
 revoke all on public.deal_email_message_reads from public, anon, authenticated;
-grant select, insert, update on public.deal_email_message_reads to authenticated;
+grant select on public.deal_email_message_reads to authenticated;
 grant all on public.deal_email_message_reads to service_role;
 
 -- Own rows only. No email body lives here. A person cannot read another person's rows.
+-- Writes go only through public.mark_deal_email_read; authenticated has no INSERT or UPDATE.
 create policy deal_email_message_reads_select on public.deal_email_message_reads
   for select to authenticated
   using (profile_id = (select auth.uid()));
-
--- Insert / update only your own row. Visibility is enforced by public.mark_deal_email_read,
--- which only writes when the caller can already see that email.
-create policy deal_email_message_reads_insert on public.deal_email_message_reads
-  for insert to authenticated
-  with check (profile_id = (select auth.uid()));
-
-create policy deal_email_message_reads_update on public.deal_email_message_reads
-  for update to authenticated
-  using (profile_id = (select auth.uid()))
-  with check (profile_id = (select auth.uid()));
 
 create or replace function public.mark_deal_email_read(p_email uuid, p_deal uuid)
 returns void
@@ -189,6 +182,11 @@ begin
      or has_table_privilege('anon', 'public.deal_email_message_reads', 'SELECT') then
     raise exception 'self-check: deal_email_message_reads must be for signed-in users only';
   end if;
+  if has_table_privilege('authenticated', 'public.deal_email_message_reads', 'INSERT')
+     or has_table_privilege('authenticated', 'public.deal_email_message_reads', 'UPDATE')
+     or has_table_privilege('authenticated', 'public.deal_email_message_reads', 'DELETE') then
+    raise exception 'self-check: authenticated must have SELECT only on deal_email_message_reads';
+  end if;
   if not exists (
     select 1 from pg_policies
      where schemaname = 'public' and tablename = 'deal_email_message_reads'
@@ -196,6 +194,13 @@ begin
        and qual like '%auth.uid()%'
   ) then
     raise exception 'self-check: select policy must be own-row';
+  end if;
+  if exists (
+    select 1 from pg_policies
+     where schemaname = 'public' and tablename = 'deal_email_message_reads'
+       and policyname in ('deal_email_message_reads_insert', 'deal_email_message_reads_update')
+  ) then
+    raise exception 'self-check: insert and update policies must not exist; writes go through the RPC';
   end if;
   if not has_function_privilege('authenticated', 'public.mark_deal_email_read(uuid, uuid)', 'EXECUTE')
      or has_function_privilege('anon', 'public.mark_deal_email_read(uuid, uuid)', 'EXECUTE') then

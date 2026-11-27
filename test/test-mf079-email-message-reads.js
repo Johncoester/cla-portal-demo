@@ -26,6 +26,9 @@ const sql = read('supabase/migrations/20261131420000_mf079_email_message_reads.s
 const back = read('supabase/rollbacks/20261131420000_mf079_email_message_reads.sql');
 ok(/Gmail 1a21df0b0dc7c8f3/.test(sql) && /deal_email_message_reads/.test(sql) && /mark_deal_email_read/.test(sql), 'the migration names the source email, the table, and the RPC');
 ok(/enable row level security/.test(sql) && /profile_id = \(select auth.uid\(\)\)/.test(sql), 'read rows are own-row only');
+ok(/grant select on public\.deal_email_message_reads to authenticated/.test(sql) && !/grant select, insert, update on public\.deal_email_message_reads/.test(sql) && !/create policy deal_email_message_reads_insert/.test(sql) && !/create policy deal_email_message_reads_update/.test(sql), 'authenticated has SELECT only; insert and update policies are not created');
+ok(/has_table_privilege\('authenticated', 'public\.deal_email_message_reads', 'INSERT'\)/.test(sql), 'the self-check refuses INSERT or UPDATE for signed-in users');
+ok(/list_deal_emails\(p_deal\)/.test(sql) && /demo_visible_deal_ids/.test(sql) && /e\.deal_id = p_deal/.test(sql), 'the RPC requires the email to belong to the deal and the caller to be able to see it');
 ok(/open_order_mail/.test(sql) && /deal_email_message_reads mr/.test(sql), 'Open Orders counts skip a message this person already opened');
 ok(/list_deal_emails/.test(sql) && /is_staffish/.test(sql), 'staff and parties who can already see the email can mark it read');
 ok(/begin;/.test(sql) && /lock_timeout/.test(sql) && /self-check/.test(sql), 'the migration is one transaction with a lock timeout and self-checks');
