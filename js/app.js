@@ -51,7 +51,7 @@ const pages = {
   'orders/new': () => loadRoute(() => import('./pages/ordernew.js?v=202611313800')),
   deal: () => loadRoute(() => import('./pages/deal.js?v=202611313800')),
   users: () => loadRoute(() => import('./pages/users.js?v=202611312900')),
-  profile: () => loadRoute(() => import('./pages/profile.js?v=202611312900')),
+  profile: () => loadRoute(() => import('./pages/profile.js?v=202611314000')),
   'contact-us': () => loadRoute(() => import('./pages/contact.js?v=202611161500')),
   teams: () => loadRoute(() => import('./pages/teams.js?v=202611161500')),
   templates: () => loadRoute(() => import('./pages/templates.js?v=202611312500')),

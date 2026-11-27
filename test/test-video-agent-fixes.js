@@ -138,17 +138,17 @@ async function saveProfile(id, onboard) {
 
 const firstBuyer = await saveProfile('u-bagent', true);
 ok(firstBuyer.posted && firstBuyer.posted.photo == null && !firstBuyer.posted.email, 'Buyer Agent saves with no picture and does not send a new photo type check');
-ok(firstBuyer.went === '/orders' && firstBuyer.refreshed === 0, 'Buyer Agent first profile save opens Open Orders');
+ok(firstBuyer.went === '/profile?addCoordinator=1' && firstBuyer.refreshed === 0, 'Buyer Agent first profile save opens the add-coordinator step');
 const againBuyer = await saveProfile('u-bagent', false);
 ok(againBuyer.went === '' && againBuyer.refreshed === 1, 'Buyer Agent later profile save stays on the profile');
 const firstListing = await saveProfile('u-lagent', true);
 ok(firstListing.posted && firstListing.posted.photo == null, 'Listing Agent saves with no picture');
-ok(firstListing.went === '/orders' && firstListing.refreshed === 0, 'Listing Agent first profile save opens Open Orders');
+ok(firstListing.went === '/profile?addCoordinator=1' && firstListing.refreshed === 0, 'Listing Agent first profile save opens the add-coordinator step');
 const againListing = await saveProfile('u-lagent', false);
 ok(againListing.went === '' && againListing.refreshed === 1, 'Listing Agent later profile save stays on the profile');
 hash.value = '#/profile?setup=1';
 const setupListing = await saveProfile('u-lagent', false);
-ok(setupListing.went === '/orders', 'the invite setup address also opens Open Orders after Save profile');
+ok(setupListing.went === '/profile?addCoordinator=1', 'the invite setup address opens the add-coordinator step after Save profile');
 hash.value = '#/profile';
 ok(firstProfileSave('#/profile') === false, 'Profile settings is not the first-time path');
 
