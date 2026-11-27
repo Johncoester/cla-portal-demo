@@ -6,8 +6,8 @@ import { runsOrders, viewOnly, MAX_UPLOAD_BYTES, ALLOWED_UPLOAD_EXT, isClient, i
 import { formatUploadMax } from '../data/upload-limit.js?v=202611312900';
 import { MISC_DOC_TYPE, orderedDocTypes, docTypeLabel, resolveDocType, docTypeEditorState } from '../data/document-type.js?v=202611100945';
 import { AUDIENCE_CONTROL, AUDIENCE_NOTE, audienceParties, audienceChoices, checkedForVisibility, visibilityFromChecked, audienceSync } from '../data/document-audience.js?v=202611100945';
-import { uploadDocumentBatch } from '../data/document-batch.js?v=202611312900';
-import { addToQueue, removeFromQueue, uploadFailureText } from '../data/document-queue.js?v=202611090935';
+import { nextAvailableDocumentName, cleanDocumentName, uploadDocumentBatch } from '../data/document-batch.js?v=202611314800';
+import { addToQueue, removeFromQueue, queueKey, uploadFailureText } from '../data/document-queue.js?v=202611090935';
 import { downloadNamed } from '../data/file-open.js?v=202611091030';
 import { DOC_SORT_DIR, docMatches, sortDocs } from '../data/doc-list.js?v=202611161800';
 // Search text and sort stay put while you move between All files, Received and Sent on the same order (Matt, Nov 11).
@@ -210,10 +210,32 @@ export async function render({ api, user, deal, refresh }) {
       <p class="span2 err-text" data-upload-err role="alert"></p>
       <div class="span2"><button class="m-btn" type="submit" data-upload-submit>Upload</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
     const form = $('#uf', m); const err = $('[data-upload-err]', form); const list = $('[data-upload-queue]', form); const input = $('[data-upload-files]', form);
-    const draw = () => { list.innerHTML = queue.length ? queue.map((file, i) => `<li data-queued="${i}">${String(file.name).replace(/[<>&"]/g, '')} <button type="button" class="ghost" data-upload-remove="${i}">Remove</button></li>`).join('') : '<li class="muted">No files selected.</li>';
-      $$('[data-upload-remove]', list).forEach((b) => b.addEventListener('click', () => { queue = removeFromQueue(queue, Number(b.dataset.uploadRemove)); draw(); })); };
-    input.addEventListener('change', () => { const added = addToQueue(queue, [...input.files]); queue = added.queue; if (added.skipped.length) err.textContent = added.skipped.map((z) => `${z.name}: ${z.reason}`).join(' '); input.value = ''; draw(); });
-    $('[data-upload-clear]', form).addEventListener('click', () => { queue = []; err.textContent = ''; draw(); });
+    const canName = !staffView; // MF-089: buyer, seller, and agent can name a file on upload
+      const existing = () => (docs || []).map((d) => d.name);
+      const names = new Map(); // queueKey -> display name
+      const escName = (s) => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const nameOf = (file) => names.get(queueKey(file)) || file.name;
+      const draw = () => { list.innerHTML = queue.length ? queue.map((file, i) => {
+        const shown = nameOf(file);
+        const nameField = canName ? `<label class="upload-name">Name <input type="text" data-upload-name="${i}" value="${escName(shown)}" maxlength="200" aria-label="Name for ${escName(file.name)}"></label>` : escName(shown);
+        return `<li data-queued="${i}">${nameField} <button type="button" class="ghost" data-upload-remove="${i}">Remove</button></li>`;
+      }).join('') : '<li class="muted">No files selected.</li>';
+      $$('[data-upload-remove]', list).forEach((b) => b.addEventListener('click', () => { const file = queue[Number(b.dataset.uploadRemove)]; if (file) names.delete(queueKey(file)); queue = removeFromQueue(queue, Number(b.dataset.uploadRemove)); draw(); }));
+      $$('[data-upload-name]', list).forEach((inp) => inp.addEventListener('input', () => { const file = queue[Number(inp.dataset.uploadName)]; if (file) names.set(queueKey(file), inp.value); })); };
+    input.addEventListener('change', () => { const added = addToQueue(queue, [...input.files]); queue = added.queue;
+      const taken = new Set(existing().map((n) => String(n || '').toLowerCase()));
+      queue.forEach((file) => { if (names.has(queueKey(file))) taken.add(String(nameOf(file) || '').toLowerCase()); });
+      const notes = [];
+      queue.forEach((file) => {
+        if (names.has(queueKey(file))) return;
+        const start = file.name;
+        const next = canName ? nextAvailableDocumentName(start, taken) : start;
+        names.set(queueKey(file), next); taken.add(String(next).toLowerCase());
+        if (canName && next !== start) notes.push(`A file named ${start} is already on this file or in this selection. It will be saved as ${next} unless you rename it.`);
+      });
+      err.textContent = notes.join(' ') || (added.skipped.length ? added.skipped.map((z) => `${z.name}: ${z.reason}`).join(' ') : '');
+      input.value = ''; draw(); });
+    $('[data-upload-clear]', form).addEventListener('click', () => { queue = []; names.clear(); err.textContent = ''; draw(); });
     draw(); mountType(form); mountAudience(form);
     form.addEventListener('submit', async (e) => { e.preventDefault(); const btn = $('[data-upload-submit]', form); err.textContent = '';
       if (!queue.length) { err.textContent = 'Choose a file to upload.'; toast('Choose a file to upload.', 'err'); return; }
@@ -222,13 +244,17 @@ export async function render({ api, user, deal, refresh }) {
       if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Uploading…';
       const pending = queue.slice(); const docType = chosenType(form, f);
       try {
-        const result = await uploadDocumentBatch(pending, async (file) => {
+        const displayNames = pending.map((file) => cleanDocumentName(nameOf(file)) || file.name);
+        const result = await uploadDocumentBatch(pending, async (file, name) => {
           const dataUrl = await readFile(file);
           const slots = form._uploads || (form._uploads = new Map()); const key = [file.name, file.size, file.lastModified].join('\0');
           if (!slots.has(key)) slots.set(key, {});
           const id = sameUploadId(slots.get(key), file);
-          return api.addDocument(deal.id, { id, name: file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: clientShareVisibility(user.role, seen.visibility), folderId: f.folderId || null, docType, wireInstructions: staffView && !!f.wireInstructions });
-        }, docs.map((d) => d.name));
+          return api.addDocument(deal.id, { id, name: name || file.name, description: f.description, mimeType: file.type, size: file.size, dataUrl, file, visibility: clientShareVisibility(user.role, seen.visibility), folderId: f.folderId || null, docType, wireInstructions: staffView && !!f.wireInstructions });
+        }, docs.map((d) => d.name), { names: displayNames, onDuplicate: canName ? 'suffix' : 'reject' });
+        if (canName && result.renamed && result.renamed.length) {
+          err.textContent = result.renamed.map((z) => `A file named ${z.from} is already on this file. It was saved as ${z.to}.`).join(' ');
+        }
         const failedNames = new Set(result.failed.map((z) => z.name));
         queue = pending.filter((file) => failedNames.has(file.name));
         draw();
