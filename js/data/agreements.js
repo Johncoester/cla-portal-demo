@@ -6,10 +6,10 @@ export const AGREEMENTS = [
     body: 'SAMPLE TEXT (CLA to supply final wording). Criminals send fake emails that look like they come from title companies, agents and lenders, with changed wire instructions. '
       + 'CLA Title will never change wire instructions by email, text or phone. Before you wire any money, call CLA Title at a phone number you already know to confirm the instructions. '
       + 'Money wired to a criminal is usually lost for good.' },
-  { code: 'privacy', version: 1, title: 'Privacy notice',
+  { code: 'privacy', version: 1, title: 'Privacy Notice',
     body: 'SAMPLE TEXT (CLA to supply final wording). CLA Title collects the personal information needed to close your transaction (names, contact details, ID, and for sellers, payout details). '
       + 'It is shared only with the parties and service providers needed for the closing, as the law allows, and is kept secure.' },
-  { code: 'e_consent', version: 1, title: 'Consent to electronic records and signatures',
+  { code: 'e_consent', version: 1, title: 'Consent to Electronic Records and Signatures',
     body: 'SAMPLE TEXT (CLA to supply final wording). You agree to receive documents and notices electronically through this portal and, where offered, to sign electronically. '
       + 'You can ask for paper copies at any time by contacting CLA Title.' },
 ];
