@@ -1,4 +1,4 @@
-/* Processor file Tasks: denser list, Expand all edits buyer and seller intake, green/navy/red status.
+/* Processor file Tasks: denser list, Expand all edits buyer and seller intake, green/navy/red/orange status (MF-078).
    Buyer, seller, and agent lists keep their own tasks and do not get the processor editor.
    FF-101a: agents see only their own tasks (My Tasks), not every side or Intake by person. No hosted project. */
 import { readFileSync } from 'node:fs';
@@ -27,7 +27,7 @@ const proc = await htmlOf({ id: 'u-proc', role: 'Processor', roles: ['Processor'
 ok(proc.includes('data-file-tasks="dense"') && proc.includes('>Expand all<') && proc.includes('data-expand-all="1"'), 'a processor gets a dense list and Expand all');
 ok(proc.includes('data-expand-side="buyer"') && proc.includes('data-expand-side="seller"') && !proc.includes('data-expand-side="buyer-agent"'), 'Expand all is on the buyer group and the seller group');
 ok(proc.includes('data-intake-slot="t-open"') && proc.includes('data-intake-slot="t-seller"') && !proc.includes('data-intake-slot="t-agent"'), 'intake slots are buyer and seller forms');
-ok(proc.includes('data-task-tone="is-done"') && proc.includes('data-task-tone="is-open"') && proc.includes('data-task-tone="is-overdue"') && proc.includes('data-task-tone="is-cancelled"'), 'done, open, overdue, and cancelled are different cues');
+ok(proc.includes('data-task-tone="is-done"') && proc.includes('data-task-tone="is-open"') && proc.includes('data-task-tone="is-past-due"') && proc.includes('data-task-tone="is-cancelled"'), 'done, open, 7+ days past due, and cancelled are different cues');
 ok(!proc.includes('data-task-row="t-done" class="is-open"') && proc.includes('data-task-row="t-done"') && proc.includes('class="is-done"'), 'a completed task is marked done');
 const emptyAgent = proc.match(/<details class="side-box side-listing-agent"[^>]*>/);
 ok(emptyAgent && !/\sopen[\s>]/.test(emptyAgent[0]), 'an empty processor group starts collapsed');
@@ -56,7 +56,9 @@ ok(!salesHtml.includes('data-expand-all') && !salesHtml.includes('data-file-task
 const css = readFileSync(new URL('../css/portal.css', import.meta.url), 'utf8');
 ok(css.includes('.file-tasks .tbl.striped tbody tr.is-done td') && css.includes('var(--ok-bg)') && css.includes('var(--ok)'), 'completed rows use green');
 ok(css.includes('tr.is-open td') && css.includes('var(--navy-50)') && css.includes('var(--navy-600)'), 'open rows use navy');
-ok(css.includes('tr.is-overdue td') && css.includes('var(--bad-bg)') && css.includes('var(--bad)'), 'overdue rows use red');
+ok(css.includes('tr.is-due-soon td') && css.includes('var(--bad-bg)') && css.includes('var(--bad)'), 'rows within 7 days of settlement use red');
+ok(css.includes('tr.is-past-due td') && css.includes('var(--orange)'), 'rows 7 or more days past their due date use orange');
+ok(css.includes('.pill.todo') && css.includes('.pill.info'), 'to do has its own pill color, distinct from started');
 ok(css.includes('.file-tasks-dense .tbl td') && css.includes('padding: 3px 8px') && css.includes('position: sticky'), 'the processor list uses tighter rows and sticky group headers');
 
 const { parseHTML } = await import('/tmp/domtest/node_modules/linkedom/worker.js');

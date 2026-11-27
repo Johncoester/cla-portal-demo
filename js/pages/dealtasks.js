@@ -1,18 +1,19 @@
 // Tasks tab. Intake forms are per-participant copies of a versioned template (open them to fill in). Simple tasks are ticked.
 // Processor + transaction coordinator manage tasks and queue reminders (outbox only, never sent). Tasks are cancelled, never deleted.
 // Matt, Nov 9: processors get a denser list (more rows on screen), one Expand all that opens every buyer and seller intake
-// section for editing on this page, and a green / navy / red cue for done / open / overdue. Buyer, seller and agent lists stay the same shape.
+// section for editing on this page, and a green / navy / red / orange cue for done / open / settlement within 7 days / 7+ days past due (MF-078). Buyer, seller and agent lists stay the same shape.
 import { html, raw, $, $$, guard, formData, modal, closeModal, options, fmtDate, pill, toast, toText } from '../ui.js?v=202611161500';
 import { runsOrders, DEAL_ROLES as ROLES, isProcessor, isAgent, localDate, isRefi } from '../data/constants.js?v=202611302300';
-import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611247700';
-import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611241000';
+import { boxTasks, boxOfRole, tasksForViewer } from '../data/task-board.js?v=202611314500';
+import { annotatePartyTaskProgress, partyTaskStillOpen } from '../data/party-task-completion.js?v=202611314500';
 import { nameTasks, taskRoleLabel } from '../data/task-party-names.js?v=202611300600';
 import { isPortalTask, taskLaneOf } from '../data/nov5-rules.js?v=202611247700';
 import { taskOpenHref } from '../data/task-actions.js?v=202611312500';
 import { ssnStaff } from '../data/buyer-ssn.js?v=202611120200';
 import { agentFeesPanel, FEE_SIDE_TASK_BOX } from './agent-fees-box.js?v=202611247700';
+import { taskUrgency, urgencyTone } from '../data/task-urgency.js?v=202611314500';
 
-export const CLS = { todo: 'info', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
+export const CLS = { todo: 'todo', in_progress: 'info', done: 'ok', blocked: 'warn', cancelled: '' };
 export const LABEL = { todo: 'to do', in_progress: 'started', done: 'Done', blocked: 'blocked', cancelled: 'cancelled' };
 
 let intakeDeal = '';
@@ -22,7 +23,7 @@ export async function render(ctx) {
   const { api, user, deal, refresh } = ctx;
   if (intakeDeal !== deal.id) { intakeDeal = deal.id; intakeOpen.clear(); }
   // Matt, Nov 3 (b): "Intake by person" = every buyer / seller / agent with all their intake sections and answers on one page (dealintake.js)
-  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611314100')).render(ctx);
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('view') === 'people') return (await import('./dealintake.js?v=202611314500')).render(ctx);
   const { isPureClient, isPureSeller, agreementTasks, tasksWithLenderOnFile } = await import('./client-overview.js?v=202611312900');
   // MF-061 (Matt, Nov 22): name the buyer / seller on each task. The tab opens on the file shell, so the parties are read on their own.
   const partiesP = (deal.participants && deal.participants.length) || !api.listTaskParties ? Promise.resolve(deal.participants || []) : api.listTaskParties(deal.id).catch(() => []);
@@ -51,8 +52,15 @@ export async function render(ctx) {
   const toneOf = (t) => {
     if (!partyTaskStillOpen(t) && t.status === 'done') return 'is-done';
     if (t.status === 'cancelled') return 'is-cancelled';
-    if (open(t) && t.dueDate && t.dueDate < today) return 'is-overdue';
+    const tone = urgencyTone(taskUrgency(t, { today, closingDate: deal.closingDate }));
+    if (tone) return tone;
     return 'is-open';
+  };
+  const dueCls = (t) => {
+    const u = taskUrgency(t, { today, closingDate: deal.closingDate });
+    if (u === 'red') return 'bad-text';
+    if (u === 'orange') return 'warn-text';
+    return '';
   };
   const intakeSide = (t) => { const s = boxOfRole(t.assignedRole); return t.kind === 'form' && (s === 'buyer' || s === 'seller') ? s : ''; };
   const answerList = (t) => { if (dense || !manage || t.status !== 'done' || !t.formData) return ''; const rows = Object.entries(t.formData).filter(([, v]) => v != null && v !== '' && v !== false);
@@ -73,7 +81,7 @@ export async function render(ctx) {
       <td class="center">${t.canTick ? html`<input type="checkbox" data-tick="${t.id}" ${t.status === 'done' ? html`checked` : ''} aria-label="Done">` : ''}</td>
       <td><div class="task-line"><strong>${taskOpenHref(t) ? html`<a href="${taskOpenHref(t)}">${t.title}</a>` : t.title}</strong>${t.notYours ? html` <span class="muted small" data-not-yours>Not yours to open</span>` : ''}${t.taskGroup ? html` <span class="pill" data-task-group>${t.taskGroup}</span>` : ''}${dense ? html` ${kindBit(t, true)}` : ''}</div>${t.description ? (dense ? html`<div class="task-desc muted">${t.description}</div>` : html`<br><span class="muted">${t.description}</span>`) : ''}${t.switchedOff ? html` <span class="pill warn" data-switched-off title="Switched off on Task Templates > Task switches: kept, hidden from everyone except Admin / Super admin">Switched off (admins only)</span>` : ''}${dense ? '' : kindBit(t, false)}${answerList(t)}${dense && intakeSide(t) ? html`<div class="intake-slot" data-intake-slot="${t.id}" hidden></div>` : ''}</td>
       <td data-task-who="${t.id}">${t.ownerName || taskRoleLabel(t, { refi })}${t.ownerName ? html`<br><span class="muted small" data-task-who-role>${taskRoleLabel(t, { refi })}</span>` : ''}${t.mine ? html` ${pill(t.forAgent ? 'your agent' : user.selfRep ? `you, as ${taskRoleLabel(t, { refi })}` : 'you', 'info')}` : ''}</td>
-      <td class="task-due ${open(t) && t.dueDate && t.dueDate < today ? 'bad-text' : ''}">${fmtDate(t.dueDate)}</td><td>${pill(partyTaskStillOpen(t) && t.status === 'done' ? t.partyProgress.label : LABEL[t.status], partyTaskStillOpen(t) && t.status === 'done' ? 'info' : CLS[t.status])}${partyTaskStillOpen(t) ? html`<br><span class="muted small" data-party-progress="${t.id}">${t.partyProgress.label}${t.partyProgress.remainingLabel ? html` · ${t.partyProgress.remainingLabel}` : ''}</span>` : ''}${!partyTaskStillOpen(t) && t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
+      <td class="task-due ${dueCls(t)}">${fmtDate(t.dueDate)}</td><td>${pill(partyTaskStillOpen(t) && t.status === 'done' ? t.partyProgress.label : LABEL[t.status], partyTaskStillOpen(t) && t.status === 'done' ? 'info' : CLS[t.status])}${partyTaskStillOpen(t) ? html`<br><span class="muted small" data-party-progress="${t.id}">${t.partyProgress.label}${t.partyProgress.remainingLabel ? html` · ${t.partyProgress.remainingLabel}` : ''}</span>` : ''}${!partyTaskStillOpen(t) && t.completedByLabel ? html`<br><span class="muted small done-by">${t.completedByLabel}</span>` : ''}</td>
       <td class="nowrap">${actions(t)}</td></tr>`;
   const mineFirst = [...tasks].sort((a, b) => ((b.mine || b.forClient) && open(b)) - ((a.mine || a.forClient) && open(a)));
   // E2E-FIX-C (John, Nov 19): an agent's My Tasks lists only that agent's own copies. A second agent on the same side
@@ -116,7 +124,7 @@ export async function render(ctx) {
     const slotOf = (id) => $(`[data-intake-slot="${(globalThis.CSS && CSS.escape ? CSS.escape(String(id)) : String(id).replace(/(["\\])/g, '\\$1'))}"]`, root);
     const showIntake = async (ids) => {
       if (!ids.length) return;
-      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611314100');
+      const { intakeFormHtml, mountIntakeForm } = await import('./dealtaskform.js?v=202611314500');
       const { loadSpouseRows, applySpouse } = await import('./spouse.js?v=202611312500');
       const wantsSpouse = ids.some((id) => { const t = tasks.find((z) => z.id === id); return t && t.templateCode === 'personal_info' && (t.assignedRole === 'Client-Buyer' || t.assignedRole === 'Client-Seller'); });
       const spouseRows = wantsSpouse ? await loadSpouseRows(api, deal.id) : [];

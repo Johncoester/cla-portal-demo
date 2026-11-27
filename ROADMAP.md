@@ -674,6 +674,14 @@ Rollback: `supabase/rollbacks/20261131310000_mf076_permanent_logs.sql` (it delet
 
 **Status: In review** (CRM Bot re-review, then TEST apply).
 
+## Task colors (MF-078)
+
+**How it should work.** Matt, Nov 27 2026 (Gmail 1a21e27a512122fe): on the file's Tasks tab and the Task Grid, an open task (to do, started, or blocked) turns red when the file's settlement / closing date is 7 days away or less, including today and a date already past. It turns orange when it is 7 or more days past its own due date. If both apply, red shows. A task that is only 1–6 days past due, with settlement more than 7 days out, keeps its normal status color. Done and cancelled tasks never get red or orange. "To do" has its own stand-out status color, distinct from started.
+
+**What changed.** No database file. The old rule that turned a row red as soon as it passed its own due date is removed. The Tasks tab uses `is-due-soon` (red) and `is-past-due` (orange). The Task Grid uses a red X for due soon and an orange X for 7+ days past due. Shared helpers live in `js/data/task-urgency.js`.
+
+**Status: In review.** Frontend only; no CRM Bot rule 27 review. Merge when the four checks are green and the branch is up to date with main, then verify stamp `202611314500` on TEST and mark Live.
+
 ## Buyer landing page on a phone (MF-069)
 
 **How it should work.** Matt, Nov 25 (confirmed): after first login the buyer's landing page is mobile friendly, it is easy to pick the file, and it is clear which tasks are required.

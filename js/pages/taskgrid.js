@@ -2,12 +2,14 @@
 // MF-053 (Matt, Nov 11 notes; confirmed Nov 12 8:47 AM ET and Nov 16 10:45 AM ET, FF-086 item 1):
 // File No, Property, Closing Date, then Buyer, Seller, Buyer's Agent, Listing Agent.
 // The individual task columns that used to sit to the right are not shown.
-// Green check = every live task for that party is done. Red X = any of them is overdue.
-// Nothing = open and not overdue. Blank = that party is not on the file.
+// Green check = every live task for that party is done.
+// Red X = an open task and settlement is 7 days away or less (MF-078).
+// Orange X = an open task is 7 or more days past its due date.
+// Nothing = open and neither color applies. Blank = that party is not on the file.
 // MF-057: a buyer or seller task with two or more people stays open until each of them finishes. That result is already in the party mark.
 import { html, fmtDate, raw, $, $$ } from '../ui.js?v=202611161500';
-import { sortGridFiles } from '../data/task-grid-sort.js?v=202611221200';
-import { PARTY_COLUMNS, partyStatusForFile } from '../data/task-grid-parties.js?v=202611241500';
+import { sortGridFiles } from '../data/task-grid-sort.js?v=202611314500';
+import { PARTY_COLUMNS, partyStatusForFile } from '../data/task-grid-parties.js?v=202611314500';
 import { isRefi } from '../data/constants.js?v=202611302300';
 
 const FILES = [['Open', 'Open files'], ['On Hold', 'On-hold files'], ['Closed', 'Closed files'], ['All', 'All files']];
@@ -18,8 +20,9 @@ const partyCell = (p, key, label) => {
   const state = (p && p.state) || 'blank';
   const note = partyProgress(p);
   if (state === 'done') return html`<td class="center" data-party="${key}" data-state="done" title="All ${label} tasks are complete"><span class="ok-text" aria-label="Completed">&#10004;</span>${note}</td>`;
-  if (state === 'overdue') return html`<td class="center" data-party="${key}" data-state="overdue" title="A ${label} task is overdue"><span class="bad-text" aria-label="Overdue">&#10008;</span>${note}</td>`;
-  if (state === 'open') return html`<td class="center" data-party="${key}" data-state="open" title="${label} tasks are not all done, and none are overdue">${note}</td>`;
+  if (state === 'due-soon') return html`<td class="center" data-party="${key}" data-state="due-soon" title="Settlement is 7 days away or less, and a ${label} task is still open"><span class="bad-text" aria-label="Due soon">&#10008;</span>${note}</td>`;
+  if (state === 'past-due') return html`<td class="center" data-party="${key}" data-state="past-due" title="A ${label} task is 7 or more days past its due date"><span class="warn-text" aria-label="Past due">&#10008;</span>${note}</td>`;
+  if (state === 'open') return html`<td class="center" data-party="${key}" data-state="open" title="${label} tasks are not all done, and none are due soon or 7 days past due">${note}</td>`;
   return html`<td class="center" data-party="${key}" data-state="blank" title="No ${label} on this file">${note}</td>`;
 };
 const arrows = html`<span class="sort-arrows" aria-hidden="true"><span class="up">&#9650;</span><span class="dn">&#9660;</span></span>`;
@@ -36,10 +39,10 @@ export async function render({ api }) {
     <td class="nowrap" data-closing="${f.closingDate || ''}">${f.closingDate ? fmtDate(f.closingDate) : html`<span class="muted">not set</span>`}</td>${PARTY_COLUMNS.map(([key, label]) => partyCell(f.parties[key], key, label))}</tr>`;
   return { title: 'Task grid', crumbs: [['Task Grid']], body: html`
     <div class="page-head" data-task-grid-ready data-file-count="${g.columns.length}"><div><div class="eyebrow">PROCESSOR</div><h2 class="page-title">Task grid</h2>
-      <div class="muted">Files down the side. Buyer, Seller, Buyer's Agent and Listing Agent show whether that party's tasks are done. Click a column header to sort (click again to reverse). ${g.columns.length} file(s) &middot; ${tally('done')} done &middot; ${tally('overdue')} overdue &middot; ${tally('open')} still open.</div></div>
+      <div class="muted">Files down the side. Buyer, Seller, Buyer's Agent and Listing Agent show whether that party's tasks are done. Click a column header to sort (click again to reverse). ${g.columns.length} file(s) &middot; ${tally('done')} done &middot; ${tally('due-soon')} due soon &middot; ${tally('past-due')} past due &middot; ${tally('open')} still open.</div></div>
       <div><a class="ghost" href="#/tasks">Task list</a></div></div>
     <ul class="nav-tabs">${FILES.map(([k, label]) => html`<li><a class="${k === fs ? 'active' : ''}" href="#/task-grid?s=${encodeURIComponent(k)}" ${k === fs ? raw('aria-current="page"') : ''}>${label}</a></li>`)}</ul>
-    <p class="muted small" data-legend>A green check means every task for that party is done. A red X means a task is overdue. An open task that is not overdue shows nothing. If that party is not on the file, the cell is left blank. A buyer or seller task with two or more people stays open until each of them finishes. <span class="ok-text">&#10004;</span> done &nbsp; <span class="bad-text">&#10008;</span> overdue. Sorting a party column puts overdue first, then not yet due, then completed. A blank cell stays last.</p>
+    <p class="muted small" data-legend>A green check means every task for that party is done. A red X means a task is still open and settlement is 7 days away or less. An orange X means a task is 7 or more days past its due date. An open task that is neither shows nothing. If that party is not on the file, the cell is left blank. A buyer or seller task with two or more people stays open until each of them finishes. <span class="ok-text">&#10004;</span> done &nbsp; <span class="bad-text">&#10008;</span> due soon &nbsp; <span class="warn-text">&#10008;</span> past due. Sorting a party column puts due soon first, then past due, then not yet due, then completed. A blank cell stays last.</p>
     ${g.columns.length ? html`<div class="grid-scroll"><table class="tbl" data-taskgrid data-orientation="files-down" data-party-columns="${PARTY_COLUMNS.length}"><thead>${head}</thead><tbody>${sortGridFiles(g.columns, g.rows, 'fileNumber', 'asc').map(fileRow)}</tbody></table></div>` : html`<p class="muted" data-grid-empty>No files.</p>`}`,
   mount(root) {
     const tb = $('[data-taskgrid] tbody', root); if (!tb) return; let sort = 'fileNumber'; let dir = 'asc';

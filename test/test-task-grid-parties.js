@@ -2,8 +2,9 @@
  * The grid shows File No, Property, Closing Date, then Buyer, Seller, Buyer's Agent, Listing Agent.
  * The individual task columns to the right are not shown.
  * Green check = every live task for that party is done.
- * Red X = any live task is overdue (this wins even when other tasks are done).
- * Empty (open) = a task is still open and not overdue.
+ * Red X = settlement is 7 days away or less and a task is still open (this wins).
+ * Orange X = a task is 7 or more days past its due date.
+ * Empty (open) = a task is still open and neither color applies.
  * Empty (blank) = that party has no live task on the file. Cancelled tasks do not count.
  * partyTaskMark is the helper MF-057 will change when a shared buyer or seller task must wait for every person. */
 import { buildTaskGrid } from '../js/data/task-board.js';
@@ -34,12 +35,14 @@ const status = (id) => partyStatusForFile(grid.rows, id);
 
 ok(PARTY_COLUMNS.map(([key]) => key).join() === 'buyer,seller,buyer-agent,listing-agent', 'the four parties are Buyer, Seller, Buyer\'s Agent, Listing Agent');
 ok(partyTaskMark([{ state: 'done', total: 1, done: 1 }, { state: 'done', total: 1, done: 1 }]) === 'done', 'the party mark is a check when every task is done');
-ok(partyTaskMark([{ state: 'done', total: 1, done: 1 }, { state: 'overdue', total: 1, done: 0 }]) === 'overdue', 'the party mark is a red X when any task is overdue');
-ok(partyTaskMark([{ state: 'pending', total: 1, done: 0 }]) === 'open', 'the party mark shows nothing when a task is open and not overdue');
+ok(partyTaskMark([{ state: 'done', total: 1, done: 1 }, { state: 'due-soon', total: 1, done: 0 }]) === 'due-soon', 'the party mark is a red X when any task is due soon');
+ok(partyTaskMark([{ state: 'done', total: 1, done: 1 }, { state: 'past-due', total: 1, done: 0 }]) === 'past-due', 'the party mark is an orange X when any task is 7 days past due');
+ok(partyTaskMark([{ state: 'past-due', total: 1, done: 0 }, { state: 'due-soon', total: 1, done: 0 }]) === 'due-soon', 'due soon wins over past due');
+ok(partyTaskMark([{ state: 'pending', total: 1, done: 0 }]) === 'open', 'the party mark shows nothing when a task is open and neither color applies');
 ok(partyTaskMark([{ state: 'na' }]) === null && partyTaskMark([]) === null, 'the party mark has nothing to say when that party has no live task');
 ok(partyTaskMark([{ state: 'done', total: 2, done: 1 }]) === 'open', 'a task shared by two people is not done until both finish');
 ok(partyTaskMark([{ state: 'done', total: 2, done: 2 }]) === 'done', 'a shared task is done when every copy is done');
-ok(partyTaskMark([{ state: 'done', total: 2, done: 2 }, { state: 'overdue', total: 2, done: 1 }]) === 'overdue', 'an overdue shared task still wins when another shared task is done');
+ok(partyTaskMark([{ state: 'done', total: 2, done: 2 }, { state: 'past-due', total: 2, done: 1 }]) === 'past-due', 'a past-due shared task still wins when another shared task is done');
 const shared = buildTaskGrid([
   task('mb1', 'm1', 'Client-Buyer', 'done', '2026-11-01', 'Upload ID'),
   task('mb2', 'm1', 'Client-Buyer', 'todo', '2026-12-01', 'Upload ID'),
@@ -50,19 +53,19 @@ const shared = buildTaskGrid([
 ], [deal('m1', 'MD-9', '2026-12-01'), deal('m2', 'MD-8', '2026-12-01')], TODAY);
 ok(partyStatusForFile(shared.rows, 'm1').buyer.state === 'open', 'two buyers on one task stay open while one of them has not finished');
 ok(partyStatusForFile(shared.rows, 'm2').buyer.state === 'done', 'two buyers on one task are a check only when both are done');
-ok(partyStatusForFile(shared.rows, 'm1').seller.state === 'overdue', 'two sellers on one task are a red X when one copy is overdue');
+ok(partyStatusForFile(shared.rows, 'm1').seller.state === 'past-due', 'two sellers on one task are an orange X when one copy is 7 days past due');
 
 const d1 = status('d1');
 ok(d1.buyer.state === 'done', 'a green check when every buyer task is complete');
-ok(d1.seller.state === 'overdue', 'a red X when any seller task is overdue, even if another is done');
-ok(d1['buyer-agent'].state === 'open', 'nothing when the buyer\'s agent tasks are open and not overdue');
+ok(d1.seller.state === 'past-due', 'an orange X when any seller task is 7 days past due, even if another is done');
+ok(d1['buyer-agent'].state === 'open', 'nothing when the buyer\'s agent tasks are open and neither color applies');
 ok(d1['listing-agent'].state === 'blank', 'a cancelled listing-agent task leaves the cell blank');
 
 const d2 = status('d2');
 ok(d2.buyer.state === 'open', 'one finished buyer task and one still open is not a check');
 ok(d2.seller.state === 'blank' && d2['buyer-agent'].state === 'blank' && d2['listing-agent'].state === 'blank', 'parties with no tasks on the file are blank');
 
-ok(status('d3').buyer.state === 'overdue', 'a blocked task past its due date is overdue');
+ok(status('d3').buyer.state === 'past-due', 'a blocked task 7 or more days past its due date is past-due when settlement is more than 7 days out');
 ok(status('d4').buyer.state === 'blank' && status('d4').seller.state === 'blank', 'a file with no party tasks and no party list is blank in every party column');
 const onFile = partyStatusForFile(grid.rows, 'd4', ['Client-Buyer']);
 ok(onFile.buyer.state === 'open' && onFile.seller.state === 'blank', 'a buyer saved on the file with no tasks shows nothing; a seller who is not on the file stays blank');
@@ -70,7 +73,7 @@ ok(partyStatusForFile(grid.rows, 'd1', ['Listing Agent'])['listing-agent'].state
 ok(!grid.rows.some((row) => row.role === 'Processor'), 'staff tasks stay off the grid and do not change a party cell');
 
 const ranked = grid.columns.map((f) => ({ ...f, parties: status(f.id) }));
-ok(sortGridFiles(ranked, grid.rows, 'party:buyer', 'asc').map((f) => f.id).join() === 'd3,d2,d1,d4', 'sorting Buyer puts overdue first, then open, then complete, and a blank file last');
+ok(sortGridFiles(ranked, grid.rows, 'party:buyer', 'asc').map((f) => f.id).join() === 'd3,d2,d1,d4', 'sorting Buyer puts past due first, then open, then complete, and a blank file last');
 ok(sortGridFiles(ranked, grid.rows, 'party:buyer', 'desc').map((f) => f.id).join() === 'd1,d2,d3,d4', 'reversing Buyer still leaves the blank file last');
 ok(sortGridFiles(ranked, grid.rows, 'fileNumber', 'asc').map((f) => f.fileNumber).join() === 'MD-1,MD-2,MD-3,MD-4', 'file number sort is unchanged');
 ok(sortGridFiles(ranked, grid.rows, 'closingDate', 'asc').map((f) => f.id)[3] === 'd2', 'a file with no closing date still sorts last');
@@ -96,7 +99,7 @@ const afterListing = row.slice(row.indexOf('</td>', listingAt) + 5);
 ok(closingAt > 0 && closingAt < buyerAt && buyerAt < sellerAt && sellerAt < agentAt && agentAt < listingAt && !afterListing.includes('data-party=') && !afterListing.includes('data-task='), 'party columns sit after closing date and nothing follows Listing Agent');
 ok(row.includes('>MD-1<') && row.includes('MD-1 Street') && row.includes('12/01/2026'), 'the file number, property and closing date values are unchanged');
 ok(cellOf(row, 'buyer').includes('data-state="done"') && cellOf(row, 'buyer').includes('ok-text') && cellOf(row, 'buyer').includes('&#10004;'), 'the buyer cell is a green check');
-ok(cellOf(row, 'seller').includes('data-state="overdue"') && cellOf(row, 'seller').includes('bad-text') && cellOf(row, 'seller').includes('&#10008;'), 'the seller cell is a red X');
+ok(cellOf(row, 'seller').includes('data-state="past-due"') && cellOf(row, 'seller').includes('warn-text') && cellOf(row, 'seller').includes('&#10008;'), 'the seller cell is an orange X');
 const openCell = cellOf(row, 'buyer-agent');
 ok(openCell.includes('data-state="open"') && !openCell.includes('&#10004;') && !openCell.includes('&#10008;') && !openCell.includes('&ndash;'), 'an open buyer\'s agent cell shows nothing');
 const blankCell = cellOf(row, 'listing-agent');
@@ -118,7 +121,7 @@ view.mount(root);
 const order = () => [...root.querySelectorAll('tr[data-file]')].map((tr) => tr.getAttribute('data-file')).join();
 ok(order() === 'd1,d2,d3,d4', 'the grid starts in file-number order');
 root.querySelector('th[data-sort="party:buyer"] button').click();
-ok(order() === 'd3,d2,d1,d4', 'clicking Buyer sorts overdue, then open, then complete');
+ok(order() === 'd3,d2,d1,d4', 'clicking Buyer sorts past due, then open, then complete');
 root.querySelector('th[data-sort="party:buyer"] button').click();
 ok(order() === 'd1,d2,d3,d4', 'clicking Buyer again reverses that order and keeps the blank file last');
 ok(root.querySelector('th[data-sort="party:buyer"]').getAttribute('aria-sort') === 'descending', 'the Buyer header says it is sorted descending');
@@ -132,11 +135,11 @@ try { await api.getTaskGrid({ fileStatus: 'Open' }); } catch (err) { refused = e
 ok(refused.includes('Only an Admin'), 'a processor still cannot open the task grid');
 await api.signInDev('u-admin');
 const live = await api.getTaskGrid({ fileStatus: 'Open' });
-const states = new Set(['done', 'overdue', 'open', 'blank']);
+const states = new Set(['done', 'due-soon', 'past-due', 'open', 'blank']);
 ok(live.columns.length > 0 && live.columns.every((f) => f.fileNumber && f.street && Array.isArray(f.partyRoles) && PARTY_COLUMNS.every(([key]) => states.has(partyStatusForFile(live.rows, f.id, f.partyRoles)[key].state))), 'each sample open file keeps its file number and property and has a status for all four parties');
 const willow = live.columns.find((f) => f.fileNumber === 'MD-26-97262');
 const willowParties = partyStatusForFile(live.rows, willow.id, willow.partyRoles);
-ok(willow.partyRoles.includes('Client-Buyer') && willow.partyRoles.includes('Client-Seller') && willowParties.buyer.state === 'open' && willowParties.seller.state === 'open' && willowParties['buyer-agent'].state === 'overdue' && willowParties['listing-agent'].state === 'overdue', 'Willow Drive keeps the buyer and seller who are on the file even though they have no tasks yet');
+ok(willow.partyRoles.includes('Client-Buyer') && willow.partyRoles.includes('Client-Seller') && willowParties.buyer.state === 'open' && willowParties.seller.state === 'open' && willowParties['buyer-agent'].state === 'past-due' && willowParties['listing-agent'].state === 'past-due', 'Willow Drive keeps the buyer and seller who are on the file even though they have no tasks yet; the agents are 7 or more days past due');
 const cedar = live.columns.find((f) => f.fileNumber === 'MD-26-97240');
 ok(partyStatusForFile(live.rows, cedar.id, cedar.partyRoles)['listing-agent'].state === 'open', 'Cedar Way shows an empty listing-agent cell because that agent is on the file');
 

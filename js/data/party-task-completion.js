@@ -5,6 +5,7 @@
  * Until then it stays open for staff views, the task list, the Task Grid and dashboard counts.
  * One buyer or one seller is unchanged: their own copy is the whole task.
  * Each person still completes only their own copy. This file is the rule MF-053 can call. */
+import { taskUrgency, strongestUrgency, urgencyGridState } from './task-urgency.js?v=202611314500';
 const OPEN = ['todo', 'in_progress', 'blocked'];
 export const PARTY_TASK_ROLES = ['Client-Buyer', 'Client-Seller'];
 
@@ -126,8 +127,9 @@ export function staffTaskCounts(tasks, today) {
 
 /* Task Grid cell for one file. Buyers and sellers with two or more people stay pending
  * until each of them is done, and carry the "N of M done" line. One person, and agent
- * tasks, keep the previous rule: the cell is done when every live copy is done. */
-export function partyTaskGridCell(copies, today) {
+ * tasks, stay done when every live copy is done. MF-078: due-soon (red) when settlement
+ * is 7 days away or less; past-due (orange) when an open copy is 7+ days past its due date. */
+export function partyTaskGridCell(copies, today, closingDate) {
   const live = (copies || []).filter((task) => task && task.status !== 'cancelled');
   const empty = { state: 'na', total: 0, done: 0, label: '', remaining: [], remainingLabel: '', taskIds: [], dueDate: null };
   if (!live.length) return empty;
@@ -150,6 +152,8 @@ export function partyTaskGridCell(copies, today) {
     dueDate,
   };
   if (complete) return { ...base, state: 'done' };
-  if (openCopies.some((task) => { const due = dueOf(task); return !!(due && today && due < today); })) return { ...base, state: 'overdue' };
+  const urgency = strongestUrgency(openCopies.map((task) => taskUrgency(task, { today, closingDate })));
+  const urgent = urgencyGridState(urgency);
+  if (urgent) return { ...base, state: urgent };
   return { ...base, state: 'pending' };
 }
