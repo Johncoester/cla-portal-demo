@@ -4162,3 +4162,29 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Francis, Nov 27 2026 11:40 AM ET: fix capitals and periods on the agreement acknowledgement popups.
 - Version is left at 1 so a person who already acknowledged does not have to do it again.
+
+## Resend portal invite (MF-081)
+
+**How it should work.** CLA staff can resend a portal invite to a buyer, seller, or agent who cannot find the original. The resend uses the existing invite send path. TEST sender rules are unchanged. This also completes the open resend-login item (Q38 / MF-020).
+
+**Status: Building.** Tracker item MF-081. Matt Landsberg, list Gmail 1a21ed5f538a0104; he confirmed the read-back on Nov 27 2026 at 5:01 PM ET (Gmail 1a21f07c5dea30c1). No database file. TEST only. Not Live until this is merged and Matt checks it on TEST.
+
+**What's built**
+
+- Contacts shows Resend portal invite when that person already has a pending invite and no login, and Invite to portal when they do not.
+- Either button uses create_portal_invite or resend_agent_invite, then autoSendInvite, the same path as today.
+- Any logged-in CLA staff who can already invite (Processor, Preprocessor, Sales Person, Sales Team, Transaction Coordinator, Admin, Super admin) can press it. Employee logins still cannot invite.
+- No database file and no change to TEST sender rules.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Branch: `feat/MF-081-resend-portal-invite`
+
+**Decisions**
+
+- Matt, Nov 27 2026 5:01 PM ET: confirmed in the read-back.
+

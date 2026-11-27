@@ -3,10 +3,10 @@ import { html, raw, $, $$, guard, formData, modal, closeModal, options, toast, p
 import { runsOrders, PARTICIPANT_ROLES, CLA_TEAM_ROLES, isRefi, REFI_BLOCKED_ROLES, isProcessor, fmtPhone, CONTACT_TYPES, contactTypeLabel, contactTypeForRole, AGENT_TC_TYPE, AGENT_TC_TYPE_NOTE } from '../data/constants.js?v=202611302300';
 import { pickerHtml, mountPicker, splitPersonName } from './person-picker.js?v=202611247700';
 import { directoryModel, directoryChoice, directoryGroups } from '../data/file-party.js?v=202611247700';
-import { canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611312900';
+import { canInviteAgents,  canInviteToPortal, inviteKindForRole } from '../data/agent-profile.js?v=202611312900';
 import { canEditAgentProfiles, agentProfileHref, AGENT_FILE_ROLES } from '../data/agent-profile-admin.js?v=202611312900';
 import { autoSendInvite, inviteSendNotice, inviteToast, inviteAfterEmailChange, inviteAfterEmailChangeToast, shouldInviteAfterEmailChange } from '../data/invite-send.js?v=202611312900';
-import { copyPlainText } from './deal.js?v=202611314500';
+import { copyPlainText } from './deal.js?v=202611314900';
 import { assertContactSaved, contactWritePatch, sameParty } from '../data/contact-save.js?v=202611101130';
 import { lenderSectionHtml, mountLenderSection } from './lender-section.js?v=202611247700';
 import { LENDER_CONTACT_ROLES, MORTGAGE_BROKER_ROLE, lenderRoleLabel, lenderCompanyContact, contactDisplayName } from '../data/lender-file.js?v=202611247700';
@@ -74,6 +74,11 @@ export async function render({ api, user, deal, refresh }) {
   // Staff copy name or phone onto the contact with Review answers; a client's save never overwrites the contact (row 7.7).
   const piParties = staffView && edit ? list.filter((p) => CLIENT_ROLES.includes(p.role) && !p.removed && p.contact && p.contact.id) : [];
   const pi = await loadPersonalInfo(api, deal.id, piParties);
+  let pendingInvites = [];
+  if (canInviteAgents(user) && api.listAgentInvites) {
+    try { pendingInvites = (await api.listAgentInvites({ status: 'pending' })) || []; } catch (e) { pendingInvites = []; }
+  }
+  const pendingInviteFor = (contactId) => pendingInvites.find((i) => i && i.contactId === contactId && (!i.dealId || i.dealId === deal.id));
   const party = new Set((deal.agentParties || []).map((p) => p.contactId));
   const separate = (p) => list.some((q) => q.id !== p.id && q.contactId !== p.contactId && sameParty([q], p.contact, p.role));
   const rows = list.map((p) => {
@@ -87,7 +92,7 @@ export async function render({ api, user, deal, refresh }) {
     const dup = separate(p) ? html` <span class="pill warn" data-duplicate-party title="Another ${p.role} row has the same name. Edit saves only this contact.">Separate contact</span>` : '';
     // TC-BTN-REMOVE (John, Nov 19 2026, screenshot of MD-26-97260): no Transaction coordinators button on this list.
     return html`<tr data-contact-row="${p.contactId}" data-participant="${p.id}" data-row-ctype="${p.contact.contactType || 'none'}"><td>${who}${p.removed ? html` ${pill('removed', 'bad')}` : ''}${party.has(p.contactId) ? html` <span class="pill warn agent-party" title="Client and their own agent on this file">Agent is a party</span>` : ''}${dup}${p.contact.profileId ? '' : html` <span class="muted small">(no portal login)</span>`}</td><td>${agentTcLabel(p.role, sideAgentName(deal.participants, p.role))}${tcBox(p)}</td><td data-ctype="${p.contact.contactType || ''}">${contactTypeLabel(p.contact.contactType) || html`<span class="muted">&mdash;</span>`}${roleBit ? html` · ${roleBit}` : ''}</td><td>${p.contact.company}</td>${contactCells}
-    <td class="nowrap">${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}">Invite to portal</button> ` : ''}${canEditAgentProfiles(user) && AGENT_FILE_ROLES.includes(p.role) && p.contact.profileId && !p.removed ? html`<a class="ghost" href="${agentProfileHref(p.contact.profileId)}?back=${encodeURIComponent('#/deals/' + deal.id + '/contacts')}" data-edit-agent-profile="${p.contact.profileId}">Edit agent profile</a> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`;
+    <td class="nowrap">${canInviteToPortal(user, p.role) && !p.contact.profileId && !p.removed ? html`<button type="button" class="ghost" data-invite-portal="${p.contactId}" data-invite-role="${p.role}" data-invite-resend="${pendingInviteFor(p.contactId) ? '1' : ''}">${pendingInviteFor(p.contactId) ? 'Resend portal invite' : 'Invite to portal'}</button> ` : ''}${canEditAgentProfiles(user) && AGENT_FILE_ROLES.includes(p.role) && p.contact.profileId && !p.removed ? html`<a class="ghost" href="${agentProfileHref(p.contact.profileId)}?back=${encodeURIComponent('#/deals/' + deal.id + '/contacts')}" data-edit-agent-profile="${p.contact.profileId}">Edit agent profile</a> ` : ''}${edit ? html`<button type="button" class="ghost" data-edit="${p.id}">Edit</button> <button type="button" class="ghost" data-unlink="${p.id}" title="Removes this person from the order only">Remove from order</button>` : ''}</td></tr>`;
   });
   const body = html`${staffView ? lenderSectionHtml(deal, { canEdit: edit }) : ''}<div class="box-title"><h2><span class="h-ico"></span>Order Contacts</h2>${edit ? html`<button class="m-btn right" id="addp">+ Add contact</button>` : ''}</div>
     <ul class="nav-tabs">${GROUPS.map(([k]) => html`<li><a class="${k === g ? 'active' : ''}" href="#/deals/${deal.id}/contacts?g=${k}">${k}</a></li>`)}</ul>
@@ -115,7 +120,7 @@ export async function render({ api, user, deal, refresh }) {
       }
     }));
     $$('[data-pi-review]', root).forEach((b) => b.addEventListener('click', () => reviewAnswers(b.dataset.piReview)));
-    $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole)));
+    $$('[data-invite-portal]', root).forEach((b) => b.addEventListener('click', () => invitePortal(b.dataset.invitePortal, b.dataset.inviteRole, b.dataset.inviteResend === '1')));
     const cf = $('#ctfilter [name=ctype]', root); cf.addEventListener('change', () => { $$('[data-contact-row]', root).forEach((tr) => { tr.hidden = !!cf.value && tr.dataset.rowCtype !== cf.value; }); });
     if (staffView) mountLenderSection(root, { api, deal, refresh: repaint });
   } };
@@ -266,13 +271,15 @@ export async function render({ api, user, deal, refresh }) {
   // Nov 9 (Francis: "can't invite buyers and sellers"; John: "a processor needs to be able to invite"): Invite to portal for a buyer, seller or agent
   // row with no login, right here on the file. A contact with no email gets one typed here (saved on the contact). The one-time link is shown to
   // copy. Since Nov 11 the portal emails it from testportal@clatitle.com (invite-send.js), never from the inviter's Gmail. Agents land on the agent account form, buyers / sellers on a short login form.
-  function invitePortal(contactId, role) {
+  function invitePortal(contactId, role, resend = false) {
     const p = deal.participants.find((x) => x.contactId === contactId && x.role === role); if (!p) return; const c = p.contact; const hasEmail = !!String(c.email || '').trim();
     const who = inviteKindForRole(role) === 'agent' ? 'agent account' : 'portal login';
-    const m = modal('Invite to portal', html`<form id="ipf" class="form-grid" data-invite-portal-form><p class="span2"><strong>${partyDisplayName(p)}</strong> (${agentTcLabel(role, sideAgentName(deal.participants, role))}) gets a one-time link to set up their ${who} for this file.</p>
+    const title = resend ? 'Resend portal invite' : 'Invite to portal';
+    const submitLabel = resend ? 'Resend invite' : 'Create invite link';
+    const m = modal(title, html`<form id="ipf" class="form-grid" data-invite-portal-form><p class="span2"><strong>${partyDisplayName(p)}</strong> (${agentTcLabel(role, sideAgentName(deal.participants, role))}) gets a one-time link to set up their ${who} for this file.${resend ? ' This sends a new copy of the invite to the same email, through the existing invite send path.' : ''}</p>
       <label class="span2">Email<input name="email" type="email" maxlength="160" value="${c.email || ''}" ${hasEmail ? raw('readonly') : raw('required placeholder="name@example.com"')} data-invite-email></label>
       ${hasEmail ? '' : html`<p class="muted small span2" data-invite-email-note>This contact has no email yet. The email you enter is saved on the contact.</p>`}
-      <div class="span2"><button class="m-btn" type="submit" data-invite-create>Create invite link</button> <button type="button" class="ghost" data-close>Close</button></div>
+      <div class="span2"><button class="m-btn" type="submit" data-invite-create>${submitLabel}</button> <button type="button" class="ghost" data-close>Close</button></div>
       <p class="muted small span2">The portal emails the invite from testportal@clatitle.com. The link is also shown here to copy. You do not need to connect Gmail.</p>
       <div class="span2" data-invite-result hidden></div></form>`, { wide: true });
     let made = false;
