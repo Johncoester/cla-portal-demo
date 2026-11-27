@@ -18,6 +18,16 @@ import { composeEmailModal } from './dealemail.js?v=202611312900';
 const reSubject = (s) => (/^re:/i.test(String(s || '').trim()) ? String(s).trim() : `Re: ${String(s || '').trim()}`);
 const tabTitle = (deal) => (deal && isClient(deal.myRole) ? 'Messages' : 'Inbox');
 
+/* MF-087 (Matt, Nov 27): a buyer or seller starting a conversation has no To picker.
+ * The To field is the file's Processor by name. Agents and CLA staff still pick recipients. */
+export function startConversationTo(deal) {
+  if (!deal || !isClient(deal.myRole)) return { mode: 'picker' };
+  const name = String(deal.processorName || '').trim() || 'Processor';
+  if (!deal.processorId) return { mode: 'processor', missing: true, id: '', name };
+  return { mode: 'processor', missing: false, id: deal.processorId, name };
+}
+
+
 export async function render(ctx) {
   const { api, user, deal, refresh, params } = ctx; const notViewOnly = !viewOnly(user);
   if (params.sub) {
@@ -54,16 +64,20 @@ export async function render(ctx) {
     }));
     const sf = $('#sharefiles2', root); if (sf) sf.addEventListener('click', guard(() => composeModal(ctx, { title: 'New Conversation', withFiles: true })));
     const nb = $('#newthread', root); if (nb) nb.addEventListener('click', guard(async () => {
-      const people = await api.listMessageRecipients(deal.id);
+      const toField = startConversationTo(deal);
+      const people = toField.mode === 'picker' ? await api.listMessageRecipients(deal.id) : [];
       let parts = (deal && deal.participants) || [];
       if (!parts.length && api.getDeal) { try { const full = await api.getDeal(deal.id); parts = (full && full.participants) || []; } catch (err) { parts = []; } }
       // FF-055 / MF-048: someone with no portal login cannot be ticked here (it used to fail with "Pick at least one recipient"). Share Files invites them.
       // MF-049: the list is only people on this file. A processor can also type a name and email.
+      // MF-087: buyers and sellers have no picker; To is the file Processor, by name.
       const noLogin = (p) => !!noLoginContactId(p, parts);
-      const canType = !!(runsOrders(user) || user.isAdmin);
+      const canType = toField.mode === 'picker' && !!(runsOrders(user) || user.isAdmin);
+      const processorTo = toField.mode === 'processor' ? html`<div class="span2" data-conversation-to-processor><p><span class="muted">To</span> <strong data-to-processor-name>${toField.name}</strong> <span class="muted">(Processor)</span></p>${toField.missing ? html`<p class="notice warn" data-no-processor>This file has no Processor yet, so a conversation cannot be started.</p>` : ''}</div>` : '';
+      const picker = toField.mode === 'picker' ? html`<fieldset class="span2 checks"><legend>To</legend>${people.length ? people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}" ${noLogin(p) ? raw('disabled data-no-login') : ''}> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span>${noLogin(p) ? html` <span class="muted small">No portal login yet. Use Share Files to invite them.</span>` : ''}</label>`) : html`<p class="muted">No one else on this file can be messaged yet.</p>`}</fieldset>` : '';
       const m = modal('Start a conversation', html`<form id="ntf" class="form-grid"><label class="span2">Subject<input name="subject" maxlength="150" required></label>
-        <p class="span2 muted small">${runsOrders(user) || user.isAdmin || user.role === 'Transaction Coordinator' || user.role === 'Sales Person' || user.role === 'Sales Team' ? 'A conversation can include CLA Title staff and one side of the order (buyer side or seller side), not both.' : 'You can message CLA Title staff and people on your own side of this order.'}</p>
-        <fieldset class="span2 checks"><legend>To</legend>${people.length ? people.map((p) => html`<label><input type="checkbox" name="to" value="${p.id}" ${noLogin(p) ? raw('disabled data-no-login') : ''}> ${p.firstName} ${p.lastName} <span class="muted">(${p.role})</span>${noLogin(p) ? html` <span class="muted small">No portal login yet. Use Share Files to invite them.</span>` : ''}</label>`) : html`<p class="muted">No one else on this file can be messaged yet.</p>`}</fieldset>
+        <p class="span2 muted small">${toField.mode === 'processor' ? 'This conversation is sent to the Processor on this file.' : (runsOrders(user) || user.isAdmin || user.role === 'Transaction Coordinator' || user.role === 'Sales Person' || user.role === 'Sales Team' ? 'A conversation can include CLA Title staff and one side of the order (buyer side or seller side), not both.' : 'You can message CLA Title staff and people on your own side of this order.')}</p>
+        ${processorTo}${picker}
         ${canType ? html`<fieldset class="span2" data-typed-recipient><legend>Or type a recipient</legend>
           <p class="muted small">Use this for someone who is not in the list. If they are not already on this file, choose buyer, seller, buyer's agent, or listing agent. The portal adds them to this file, emails an invite, and holds this message until they sign in.</p>
           <label>First name<input name="typedFirst" maxlength="80" autocomplete="off"></label>
@@ -72,8 +86,12 @@ export async function render(ctx) {
           <label class="span2">How they are on this file<select name="typedRole"><option value="">Only if they are not already on this file</option>${TYPED_ROLES.map(([id, label]) => html`<option value="${id}">${label}</option>`)}</select></label>
         </fieldset>` : ''}
         <label class="span2">Message<textarea name="body" rows="4" maxlength="4000" required></textarea></label>
-        <div class="span2"><button class="m-btn" type="submit">Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
+        <div class="span2"><button class="m-btn" type="submit" ${toField.missing ? raw('disabled') : ''}>Send</button> <button type="button" class="ghost" data-close>Cancel</button></div></form>`);
       $('#ntf', m).addEventListener('submit', guard(async (e) => { e.preventDefault(); const f = new FormData(e.target);
+        if (toField.mode === 'processor') {
+          if (toField.missing || !toField.id) throw new Error('This file has no Processor yet, so a conversation cannot be started.');
+          const t = await api.createThread(deal.id, { subject: f.get('subject'), participantIds: [toField.id], body: f.get('body') }); closeModal(); toast('Conversation started'); ctx.go(`/deals/${deal.id}/inbox/${t.id}`); return;
+        }
         const checked = f.getAll('to').map((id) => String(id || '')).filter(Boolean);
         const typed = cleanTypedRecipient({ firstName: f.get('typedFirst'), lastName: f.get('typedLast'), email: f.get('typedEmail') });
         if (typed.error) throw new Error(typed.error);
