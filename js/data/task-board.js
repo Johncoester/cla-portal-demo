@@ -4,7 +4,7 @@
  *   filterDeals / sortDeals              : the order list (Open Orders) filters + sort
  *   buildTaskGrid                        : Processor / Admin grid, file numbers across (columns), tasks down (rows) */
 import { isAgent } from './constants.js?v=202611302300';
-import { partyTaskGridCell, partyTaskStillOpen } from './party-task-completion.js?v=202611241000';
+import { partyTaskGridCell, partyTaskStillOpen } from './party-task-completion.js?v=202611314500';
 
 export const OPEN_STATUSES = ['todo', 'in_progress', 'blocked'];
 export const isOpenTask = (t) => OPEN_STATUSES.includes(t.status);
@@ -117,8 +117,8 @@ export function sortDeals(deals, key = 'openDate', dir) {
 }
 
 /* PROCESSOR TASK GRID: columns = files, rows = the agent / buyer / seller tasks (one row per template + role, or per role + title for a one-off task).
- * Cell state per file: 'done' (every live copy complete; date = last completion), 'overdue' (an incomplete copy is past its due date),
- * 'pending' (not complete, not yet due or no due date), 'na' (that task is not on that file, or only cancelled copies). CLA staff tasks are left out.
+ * Cell state per file: 'done' (every live copy complete; date = last completion), 'due-soon' (MF-078: an open copy and settlement is 7 days away or less),
+ * 'past-due' (MF-078: an open copy is 7 or more days past its due date), 'pending' (open, neither color), 'na' (not on that file, or only cancelled copies). CLA staff tasks are left out.
  * MF-057: two or more buyers, or two or more sellers, keep the cell open until each person has finished, and the cell says "N of M done". */
 export const GRID_ROLES = ['Client-Buyer', 'Client-Seller', 'Buyer Agent', 'Listing Agent'];
 const rowKey = (t) => `${t.assignedRole}|${t.templateCode ? 'tpl:' + t.templateCode : 'task:' + lc(t.title).trim()}`;
@@ -134,9 +134,9 @@ export function buildTaskGrid(tasks, deals, today) {
   const out = [...rows.values()].sort((a, b) => order[a.group] - order[b.group] || GRID_ROLES.indexOf(a.role) - GRID_ROLES.indexOf(b.role) || lc(a.title).localeCompare(lc(b.title))).map((r) => ({
     key: r.key, title: r.title, role: r.role, roleLabel: r.roleLabel, group: r.group, label: `${r.roleLabel}: ${r.title}`,
     cells: Object.fromEntries(columns.map((c) => { const live = (r.byDeal[c.id] || []).filter((t) => t.status !== 'cancelled');
-      const cell = partyTaskGridCell(live, today);
+      const cell = partyTaskGridCell(live, today, c.closingDate);
       if (cell.state === 'done') cell.date = live.filter((t) => t.status === 'done').map((t) => dayOf(t.completedAt)).filter(Boolean).sort().pop() || null;
       return [c.id, cell]; })) }));
   const count = (s) => out.reduce((n, r) => n + Object.values(r.cells).filter((c) => c.state === s).length, 0);
-  return { columns, rows: out, today, totals: { done: count('done'), overdue: count('overdue'), pending: count('pending'), na: count('na') } };
+  return { columns, rows: out, today, totals: { done: count('done'), 'due-soon': count('due-soon'), 'past-due': count('past-due'), pending: count('pending'), na: count('na') } };
 }

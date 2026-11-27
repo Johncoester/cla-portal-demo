@@ -2,14 +2,14 @@
  * arrows on every column header (like Open Orders). Pure helpers; the data still comes from getTaskGrid() (buildTaskGrid: g.columns = files,
  * g.rows = tasks with cells per file), so both adapters and the SQL task_grid() are unchanged. The screen only transposes and sorts.
  *   key: 'fileNumber' | 'address' | 'closingDate' | 'task:<row key>' | 'party:<buyer|seller|buyer-agent|listing-agent>'   dir: 'asc' | 'desc'
- * A task column sorts by its cell state: asc = most urgent first (overdue, then not yet due, then completed); dates break ties (earliest due /
+ * A task column sorts by its cell state: asc = most urgent first (due-soon, then past-due, then not yet due, then completed); dates break ties (earliest due /
  * completion first); files where that task is not on the file (dash) and files with no closing date are always last, in either direction.
- * A party column (MF-053) sorts the same way: overdue, then open and not overdue, then complete. A blank party cell (that party is not on the file)
+ * A party column (MF-053 / MF-078) sorts the same way: due-soon, then past-due, then open, then complete. A blank party cell (that party is not on the file)
  * stays last in either direction. The screen sets f.parties before sorting. */
 const lc = (v) => String(v == null ? '' : v).toLowerCase();
 const fileKey = (n) => { const m = /(\d+)\D*$/.exec(String(n || '')); return m ? m[1].padStart(10, '0') : lc(n); };
-const STATE_RANK = { overdue: 0, pending: 1, done: 2 };
-const PARTY_RANK = { overdue: '0', open: '1', pending: '1', done: '2' };
+const STATE_RANK = { 'due-soon': 0, 'past-due': 1, pending: 2, done: 3 };
+const PARTY_RANK = { 'due-soon': '0', 'past-due': '1', open: '2', pending: '2', done: '3' };
 export function sortGridFiles(files, rows, key = 'fileNumber', dir = 'asc') {
   const s = dir === 'desc' ? -1 : 1;
   const party = String(key).startsWith('party:') ? key.slice(6) : '';

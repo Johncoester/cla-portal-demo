@@ -156,7 +156,7 @@ restoreStorage(origStore);
 
 const app = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-ok(app.includes("pages/profile.js?v=202611314000") && html.includes('js/app.js?v=202611314100'), 'the profile page stays at stamp 202611314000 and the shell is 202611314100');
+ok(app.includes("pages/profile.js?v=202611314000") && html.includes('js/app.js?v=202611314500'), 'the profile page stays at stamp 202611314000 and the shell is 202611314500');
 
 console.log(fail ? fail + ' failed' : 'FF-111 profile auto-save and add-coordinator passed');
 if (fail) process.exit(1);

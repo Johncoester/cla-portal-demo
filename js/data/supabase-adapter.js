@@ -1,7 +1,7 @@
 /* [SUPABASE] Skeleton of the real adapter. NOT connected to any project and NOT tested against one.
  * Implemented: sign-in/out/session and a few reads/writes to show the pattern (RLS in supabase/migrations does the access control).
  * Everything else throws "not implemented yet" and is the next piece of work (see docs/PLAN.md). Method names match mock-adapter.js. */
-import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611247700';
+import { buildTaskGrid, groupOfRole, GRID_ROLES } from './task-board.js?v=202611314500';
 import { localDate, fileRoleLabel, moneyAmount, viewOnly } from './constants.js?v=202611302300';
 import { textToHtml } from './gmail-email.js?v=202611191000';
 import { agentTcAlreadyMessage, isAgentTcRole, selfTcOnOrderProblem } from './agent-tc.js?v=202611301500';
@@ -37,7 +37,7 @@ import { tcSupabase } from './supabase-tc.js?v=202611247700';
 import { emailSendersSupabase } from './supabase-email-senders.js?v=202611247700';
 import { gmailSupabase } from './supabase-gmail.js?v=202611312700';
 import { nov5Supabase } from './supabase-nov5.js?v=202611313800';
-import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611312700';
+import { orderOverviewSupabase, profileReadAllowed } from './supabase-order-overview.js?v=202611314500';
 import { agentInviteSupabase } from './supabase-agent-invite.js?v=202611312900';
 import { staffSupabase } from './supabase-staff.js?v=202611312900';
 import { staffFeedbackSupabase } from './supabase-staff-feedback.js?v=202611312900';
@@ -49,7 +49,7 @@ import { processorFields, missingProcessorIds, nameOfProfile } from './processor
 import { propertyAddressOf } from './nov5-rules.js?v=202611247700';
 import { HOSTED_TASK_COLUMNS, fetchHostedTask, fetchHostedTaskRows, mapHostedTaskList, viewerOnFile } from './task-actions.js?v=202611312500';
 import { fetchDashboard, indexDashboardExtras, decorateDashboardDeals, shapeDashboardTask, DASHBOARD_TASK_COLUMNS } from './dashboard-load.js?v=202611291400';
-import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES } from './party-task-completion.js?v=202611241000';
+import { partyTaskCopiesStillOpen, PARTY_TASK_ROLES } from './party-task-completion.js?v=202611314500';
 import { readHostedAgentTask, submitHostedAgentTask, hostedAgentTaskView } from './agent-task-host.js?v=202611091050';
 import { contactInsertRow, contactTypeSaveError } from './contact-insert.js?v=202611247700';
 import { existingContactByEmail, isUniqueEmailError, normContactEmail } from './contact-reuse.js?v=202611249950';

@@ -73,7 +73,7 @@ const cell = partyTaskGridCell(partial, TODAY);
 ok(cell.state === 'pending' && cell.label === '1 of 2 done' && cell.remainingLabel === 'Still needed: Jordan Buyer' && cell.done === 1 && cell.total === 2, 'the grid cell stays open and carries the progress');
 ok(partyTaskGridCell(both, TODAY).state === 'done' && partyTaskGridCell(both, TODAY).label === '', 'the grid cell is done, with no progress line, once every buyer finishes');
 ok(partyTaskGridCell(one, TODAY).state === 'done' && partyTaskGridCell(one, TODAY).label === '', 'one buyer still makes a completed grid cell');
-ok(partyTaskGridCell(sellers, TODAY).state === 'overdue' && partyTaskGridCell(sellers, TODAY).label === '1 of 2 done', 'an unfinished seller past the due date keeps the cell overdue');
+ok(partyTaskGridCell(sellers, TODAY).state === 'past-due' && partyTaskGridCell(sellers, TODAY).label === '1 of 2 done', 'an unfinished seller 7 or more days past the due date is past-due (MF-078)');
 
 const deal = (id) => ({ id, fileNumber: 'MD-' + id, street: id + ' Street', city: 'Baltimore', state: 'MD', zip: '21201', closingDate: '2026-12-01', status: 'Open', transactionType: 'Purchase' });
 const grid = buildTaskGrid([
