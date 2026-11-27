@@ -72,7 +72,7 @@ ok(rollback.includes("title = 'Privacy notice'") && rollback.includes("title = '
 const app = readFileSync('js/app.js', 'utf8');
 const html = readFileSync('index.html', 'utf8');
 const tab = readFileSync('js/pages/deal-tab.js', 'utf8');
-ok(tab.includes('dealagreements.js?v=202611314100') && app.includes('deal-tab.js?v=202611314100') && html.includes('js/app.js?v=202611314100'), 'the Agreements tab and the shell load at stamp 202611314100');
+ok(tab.includes('dealagreements.js?v=202611314100') && app.includes('deal-tab.js?v=202611314500') && html.includes('js/app.js?v=202611314500'), 'the Agreements tab stays at stamp 202611314100 and the shell is 202611314500');
 
 console.log(fail ? fail + ' failed' : 'ff-112 agreement wording passed');
 if (fail) process.exit(1);
