@@ -4100,3 +4100,33 @@ Matt Landsberg, Portal Feedback Nov 25 2026. Tracker item MF-068.
 
 - Unchecking Disbursed Funds leaves a Closed file Closed (Matt was asked; this is the plan default).
 - The TC dashboard file list uses the stored set when one exists. A file with no saved set is shown from its stage, and a Closed file with no saved set is all ten done (same as today).
+
+---
+
+## Agent profile auto-save and add-coordinator step (FF-111)
+
+**How it should work.** After a Buyer Agent or Listing Agent updates My Agent Profile, the details save on their own. The first save after invite setup goes to the add-coordinator section on the profile, not Open Orders. A later edit stays on the profile. Staff and Transaction Coordinator Profile Setting is unchanged.
+
+**Status: Building.** Tracker item FF-111, row 459. Francis Santos, Gemini notes of the Nov 23 2026 2:35 PM ET meeting (Gmail 1a20abbd6b7e823a); confirm-back 1a20af12dc3a104a; she confirmed Yes on Nov 27 2026 at 11:40 AM ET (Gmail 1a21de1d2f8fc9d5, item 8). No database file. Not Live until this is merged and Francis checks it on TEST.
+
+**What's built**
+
+- My Agent Profile auto-saves a valid change after a short pause and shows Saved.
+- The first save (invite setup address or the one-time onboard flag) goes to `#/profile?addCoordinator=1` and scrolls to Add a transaction coordinator.
+- A later agent save stays on the profile. A Processor or Transaction Coordinator save stays on Profile Setting.
+- A blank required field stays on the page and shows what is missing.
+
+**What's still missing**
+
+- Not checked on TEST yet. Do not mark Live before that.
+
+**Links**
+
+- Spec: [docs/specs/ff-111-profile-autosave-add-tc.md](docs/specs/ff-111-profile-autosave-add-tc.md)
+
+**Decisions**
+
+- Francis, Nov 27 2026 11:40 AM ET: after saving a profile, it should save on its own and go straight to the add-coordinator screen.
+- Auto-save does not change the page by itself. Only the first Save (or the invite setup Save) advances to the add-coordinator step, so an agent can still finish optional fields such as brokerage or a picture.
+- The original confirm-back asked whether this is first-time only or every edit. The first-time path is the one that used to go to Open Orders; later edits stay on the profile so an agent updating a phone number is not sent away.
+
